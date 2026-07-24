@@ -24,6 +24,7 @@ _MASTER_SHA = "8eb81fae1234567890abcdefabcdefabcdefabcd"
 @dataclass(kw_only=True)
 class _Runner:
     results: dict[tuple[str, ...], CommandResult]
+    calls: list[tuple[str, ...]] = field(default_factory=list)
 
     def run(
         self,
@@ -34,9 +35,9 @@ class _Runner:
         env: dict[str, str] | None = None,
     ) -> CommandResult:
         _ = (cwd, timeout_seconds, env)
-        return self.results.get(
-            tuple(argv), CommandResult(exit_code=1, stdout="", stderr="missing")
-        )
+        key = tuple(argv)
+        self.calls.append(key)
+        return self.results.get(key, CommandResult(exit_code=1, stdout="", stderr="missing"))
 
 
 @dataclass(kw_only=True)
@@ -141,7 +142,8 @@ def test_git_checkout_head_matching_release_proceeds_without_warning(tmp_path: P
     assert decision.warnings == ()
 
 
-def test_unknown_short_cache_name_refuses_as_unknown_build(tmp_path: Path) -> None:
+def test_unknown_short_cache_name_warns_and_proceeds_without_network(tmp_path: Path) -> None:
+    """An unestablishable build identity NEVER refuses (bd-ib-n7ce4n deadlock case)."""
     plugin_root = tmp_path / "short"
     plugin_root.mkdir()
     runner = _Runner(
@@ -153,8 +155,11 @@ def test_unknown_short_cache_name_refuses_as_unknown_build(tmp_path: Path) -> No
 
     decision = dispatcher_staleness_decision(plugin_root=plugin_root, runner=runner)
 
-    assert decision.refusal is not None
-    assert "executing build unknown" in decision.refusal.detail
+    assert decision.refusal is None
+    assert len(decision.warnings) == 1
+    assert "could not establish the executing build identity" in decision.warnings[0].detail
+    assert latest_release_ref_argv() not in runner.calls
+    assert master_ref_argv() not in runner.calls
 
 
 def test_prepare_returns_none_when_staleness_gate_refuses(

@@ -26,6 +26,8 @@ _MASTER_REF = "refs/heads/master"
 _PROBE_TIMEOUT_SECONDS = 60.0
 _EXIT_PRECONDITION_ERROR = 3
 _BUILD_ID_MINIMUM_LENGTH = 7
+_BUILD_ID_MAXIMUM_LENGTH = 40
+_HEX_DIGITS = frozenset("0123456789abcdef")
 _PLUGIN_UPDATE_REMEDY = (
     "claude plugin update livespec-orchestrator-beads-fabro@livespec-orchestrator-beads-fabro"
 )
@@ -86,9 +88,32 @@ def dispatcher_staleness_decision(
     plugin_root: Path,
     runner: CommandRunner,
 ) -> DispatcherStalenessDecision:
-    """Compare the executing build to release; warn separately on unreleased master."""
+    """Compare the executing build to release; warn separately on unreleased master.
+
+    The gate refuses ONLY when the executing build PROVABLY predates the latest
+    release. Identity is established FIRST: a git-checkout plugin root is
+    exempt, and a root that is neither a checkout nor a release-cache sha
+    prefix has no provable identity — the gate warns and proceeds WITHOUT any
+    network probe (the bd-ib-n7ce4n deadlock case: a verdict that cannot be
+    established must never block dispatch).
+    """
     if _git_checkout_head(plugin_root=plugin_root, runner=runner) is not None:
         return DispatcherStalenessDecision(refusal=None, warnings=())
+    build_id = _executing_cache_build_id(plugin_root=plugin_root)
+    if build_id is None:
+        return DispatcherStalenessDecision(
+            refusal=None,
+            warnings=(
+                DispatcherStalenessMessage(
+                    detail=(
+                        "WARNING: dispatcher staleness gate could not establish the "
+                        f"executing build identity (plugin root {plugin_root.name!r} is "
+                        "neither a git checkout nor a release-cache build id); "
+                        "dispatch proceeds without a plugin-currency verdict."
+                    )
+                ),
+            ),
+        )
     release_sha = _remote_ref_sha(runner=runner, argv=latest_release_ref_argv())
     if release_sha is None:
         return DispatcherStalenessDecision(
@@ -102,7 +127,6 @@ def dispatcher_staleness_decision(
                 ),
             ),
         )
-    build_id = _executing_cache_build_id(plugin_root=plugin_root)
     master_sha = _remote_ref_sha(runner=runner, argv=master_ref_argv())
     refusal = _stale_refusal(
         build_id=build_id,
@@ -166,9 +190,12 @@ def _remote_ref_sha(*, runner: CommandRunner, argv: tuple[str, ...]) -> str | No
     return first[0] if first else None
 
 
-def _executing_cache_build_id(*, plugin_root: Path) -> str:
+def _executing_cache_build_id(*, plugin_root: Path) -> str | None:
+    """The flattened-cache build id, or None when the name is not a sha prefix."""
     name = plugin_root.name.strip()
-    return name if len(name) >= _BUILD_ID_MINIMUM_LENGTH else "unknown"
+    if not (_BUILD_ID_MINIMUM_LENGTH <= len(name) <= _BUILD_ID_MAXIMUM_LENGTH):
+        return None
+    return name if all(char in _HEX_DIGITS for char in name) else None
 
 
 def _git_checkout_head(*, plugin_root: Path, runner: CommandRunner) -> str | None:
@@ -203,8 +230,6 @@ def _stale_refusal(
 
 
 def _build_matches_ref(*, build_id: str, ref_sha: str) -> bool:
-    if build_id == "unknown":
-        return False
     return ref_sha.startswith(build_id) or build_id.startswith(ref_sha)
 
 
