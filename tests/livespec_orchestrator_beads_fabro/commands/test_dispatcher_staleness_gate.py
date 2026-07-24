@@ -46,6 +46,72 @@ def _ls_remote(*, ref: str, sha: str) -> CommandResult:
     return CommandResult(exit_code=0, stdout=f"{sha}\t{ref}\n", stderr="")
 
 
+def _checkout_head_argv(*, plugin_root: Path) -> tuple[str, ...]:
+    return ("git", "-C", str(plugin_root), "rev-parse", "HEAD")
+
+
+def test_unestablishable_build_identity_warns_and_proceeds_without_network(
+    tmp_path: Path,
+) -> None:
+    """A plugin root that is neither a checkout nor a hex cache build id NEVER refuses.
+
+    This is the bd-ib-n7ce4n deadlock case observed live on PR #927's CI: the
+    container's `git -C <root> rev-parse HEAD` probe fails, the root's name is
+    not a release-cache sha prefix, and the gate must warn + proceed WITHOUT
+    touching the network — a staleness verdict cannot be proven, so dispatch
+    MUST NOT be blocked.
+    """
+    module = _module()
+    cache_root = tmp_path / "plugin"
+    cache_root.mkdir()
+    runner = _Runner(results={})
+
+    decision = module.dispatcher_staleness_decision(plugin_root=cache_root, runner=runner)
+
+    assert decision.refusal is None
+    assert len(decision.warnings) == 1
+    assert "could not establish the executing build identity" in decision.warnings[0].detail
+    assert "dispatch proceeds without a plugin-currency verdict" in decision.warnings[0].detail
+    assert runner.calls == [_checkout_head_argv(plugin_root=cache_root)]
+
+
+def test_short_non_hex_root_name_is_not_treated_as_a_build_id(tmp_path: Path) -> None:
+    module = _module()
+    cache_root = tmp_path / "abc"
+    cache_root.mkdir()
+    runner = _Runner(results={})
+
+    decision = module.dispatcher_staleness_decision(plugin_root=cache_root, runner=runner)
+
+    assert decision.refusal is None
+    assert len(decision.warnings) == 1
+    assert "could not establish the executing build identity" in decision.warnings[0].detail
+    assert runner.calls == [_checkout_head_argv(plugin_root=cache_root)]
+
+
+def test_git_checkout_plugin_root_is_exempt_with_no_probes_or_warnings(
+    tmp_path: Path,
+) -> None:
+    module = _module()
+    checkout_root = tmp_path / "checkout"
+    checkout_root.mkdir()
+    runner = _Runner(
+        results={
+            _checkout_head_argv(plugin_root=checkout_root): CommandResult(
+                exit_code=0,
+                stdout=f"{_MASTER_SHA}\n",
+                stderr="",
+            ),
+        }
+    )
+
+    decision = module.dispatcher_staleness_decision(plugin_root=checkout_root, runner=runner)
+
+    assert decision.refusal is None
+    assert decision.warnings == ()
+    assert runner.calls == [_checkout_head_argv(plugin_root=checkout_root)]
+
+
 def test_read_only_cache_build_predating_latest_release_refuses_with_performable_remedy(
     tmp_path: Path,
 ) -> None:
@@ -139,6 +205,27 @@ def test_unreleased_master_build_proceeds_when_master_is_ahead_and_warns(
     assert "8eb81fa chore: refactor dispatcher admission" in decision.warnings[0].detail
 
 
+def test_master_ahead_with_no_dispatcher_commits_names_master_sha(tmp_path: Path) -> None:
+    module = _module()
+    cache_root = tmp_path / _RELEASE_SHA[:12]
+    cache_root.mkdir()
+    runner = _Runner(
+        results={
+            module.latest_release_ref_argv(): _ls_remote(
+                ref="refs/heads/release",
+                sha=_RELEASE_SHA,
+            ),
+            module.master_ref_argv(): _ls_remote(ref="refs/heads/master", sha=_MASTER_SHA),
+        }
+    )
+
+    decision = module.dispatcher_staleness_decision(plugin_root=cache_root, runner=runner)
+
+    assert decision.refusal is None
+    assert len(decision.warnings) == 1
+    assert _MASTER_SHA[:12] in decision.warnings[0].detail
+
+
 def test_current_release_build_with_no_newer_release_does_not_fire(tmp_path: Path) -> None:
     module = _module()
     cache_root = tmp_path / _RELEASE_SHA[:12]
@@ -161,7 +248,7 @@ def test_current_release_build_with_no_newer_release_does_not_fire(tmp_path: Pat
 
 def test_unobservable_latest_release_probe_warns_without_refusing(tmp_path: Path) -> None:
     module = _module()
-    cache_root = tmp_path / "cache-without-ref"
+    cache_root = tmp_path / "beadf00dbeef"
     cache_root.mkdir()
     runner = _Runner(results={})
 
