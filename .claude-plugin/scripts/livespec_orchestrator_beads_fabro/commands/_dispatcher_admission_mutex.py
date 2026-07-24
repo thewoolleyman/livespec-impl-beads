@@ -24,8 +24,8 @@ capacity is measured by two INDEPENDENT host-global gauges, each capped by
 Reclaim notes: a transient flock failure on a dead-pid slot skips reclaim for
 that attempt (the slot heals on a later attempt); a corrupt or unreadable slot
 payload is NOT provably stale and reads as held ("no live pid recorded"); a
-pid probe that raises EPERM reads as alive (the recycled-pid residual is
-bd-ib-j4clfi, out of scope here).
+pid whose process start time is newer than the slot claim is treated as a
+recycled pid and reclaimed.
 """
 
 from __future__ import annotations
@@ -39,6 +39,9 @@ from pathlib import Path
 from typing import Any, cast
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import CommandRunner
+from livespec_orchestrator_beads_fabro.commands._dispatcher_pid_liveness import (
+    process_started_at_epoch,
+)
 from livespec_orchestrator_beads_fabro.effects import (
     AttemptFailure,
     JsonParseFailure,
@@ -55,6 +58,7 @@ __all__: list[str] = [
 ]
 
 _FABRO_PS_TIMEOUT_SECONDS = 60.0
+_PROCESS_START_TOLERANCE_SECONDS = 2.0
 _GUARD_NAME = "dispatch admission cap"
 _TERMINAL_OR_PARKED_KINDS = frozenset({"succeeded", "failed", "cancelled", "canceled", "blocked"})
 _REMEDY = (
@@ -217,7 +221,7 @@ def _stale_admission_mutex_reclaimed(*, path: Path) -> bool:
 
 def _stale_admission_mutex_reclaimed_locked(*, path: Path) -> bool:
     lock = _read_admission_mutex(path=path)
-    if lock is None or _pid_is_alive(pid=lock.pid):
+    if lock is None or _lock_holder_matches_pid(lock=lock):
         return False
     if _read_admission_mutex(path=path) != lock:
         return False
@@ -257,11 +261,26 @@ def _admission_mutex_from_payload(*, payload: dict[str, object]) -> _StoredAdmis
     return _StoredAdmissionMutex(pid=pid_raw, started_at_epoch=started_at_epoch, guard=guard)
 
 
-def _pid_is_alive(*, pid: int) -> bool:
-    probed = attempt(action=lambda: os.kill(pid, 0), exceptions=(OSError,))
-    if not isinstance(probed, AttemptFailure):
-        return True
-    return not isinstance(probed.error, ProcessLookupError)
+def _lock_holder_matches_pid(*, lock: _StoredAdmissionMutex) -> bool:
+    started_at_epoch = _process_started_at_epoch(pid=lock.pid)
+    probed = attempt(action=lambda: os.kill(lock.pid, 0), exceptions=(OSError,))
+    if isinstance(probed, AttemptFailure) and isinstance(probed.error, ProcessLookupError):
+        return False
+    if _pid_start_time_mismatches(lock=lock, started_at_epoch=started_at_epoch):
+        return False
+    return not isinstance(probed, AttemptFailure)
+
+
+def _pid_start_time_mismatches(
+    *, lock: _StoredAdmissionMutex, started_at_epoch: float | None
+) -> bool:
+    if lock.started_at_epoch is None or started_at_epoch is None:
+        return False
+    return started_at_epoch > lock.started_at_epoch + _PROCESS_START_TOLERANCE_SECONDS
+
+
+def _process_started_at_epoch(*, pid: int) -> float | None:
+    return process_started_at_epoch(pid=pid)
 
 
 def _running_refusal(*, run_ids: list[str], cap: int) -> AdmissionMutexRefusal:

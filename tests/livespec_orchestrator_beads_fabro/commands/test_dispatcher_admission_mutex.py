@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -119,8 +120,9 @@ def _item(*, item_id: str = "livespec-impl-beads-t1") -> WorkItem:
     )
 
 
-def _lock_payload(*, pid: int, guard: str = _GUARD) -> str:
-    return json.dumps({"guard": guard, "pid": pid, "started_at_epoch": 1.0})
+def _lock_payload(*, pid: int, guard: str = _GUARD, started_at_epoch: float | None = None) -> str:
+    started_at = time.time() if started_at_epoch is None else started_at_epoch
+    return json.dumps({"guard": guard, "pid": pid, "started_at_epoch": started_at})
 
 
 def _slot(*, repo: Path, slot: int) -> Path:
@@ -328,6 +330,28 @@ def test_claim_reclaims_dead_slot_when_capacity_is_free(tmp_path: Path) -> None:
     assert json.loads(slot_zero.read_text(encoding="utf-8"))["pid"] == os.getpid()
 
 
+def test_claim_reclaims_recycled_pid_slot_when_start_time_mismatches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slot_zero = _slot(repo=tmp_path, slot=0)
+    slot_zero.parent.mkdir(parents=True, exist_ok=True)
+    slot_zero.write_text(_lock_payload(pid=os.getpid(), started_at_epoch=100.0), encoding="utf-8")
+    monkeypatch.setattr(
+        mutex, "_process_started_at_epoch", lambda *, pid: 200.0 + (pid * 0.0), raising=False
+    )
+
+    claim = mutex.claim_dispatch_admission_mutex(
+        repo=tmp_path,
+        fabro_bin="/abs/fabro",
+        runner=_PsRunner(stdouts=[_empty_ps(), _empty_ps()]),
+        cap=1,
+    )
+
+    assert isinstance(claim, mutex.AdmissionMutexClaim)
+    assert claim.path == slot_zero
+    assert json.loads(slot_zero.read_text(encoding="utf-8"))["pid"] == os.getpid()
+
+
 def test_dead_slot_zero_is_reclaimed_before_slot_one_is_considered(tmp_path: Path) -> None:
     slot_zero = _slot(repo=tmp_path, slot=0)
     slot_zero.parent.mkdir(parents=True, exist_ok=True)
@@ -482,28 +506,31 @@ def test_claim_reports_contention_when_reclaim_flock_fails(
     assert "slot 0: pid 999999999" in result.detail
 
 
-def test_slot_with_eperm_pid_probe_reads_held(
+def test_slot_with_eperm_pid_probe_reclaims_when_start_time_mismatches(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     slot_zero = _slot(repo=tmp_path, slot=0)
     slot_zero.parent.mkdir(parents=True, exist_ok=True)
-    slot_zero.write_text(_lock_payload(pid=999_999_999), encoding="utf-8")
+    slot_zero.write_text(_lock_payload(pid=999_999_999, started_at_epoch=100.0), encoding="utf-8")
 
     def eperm_kill(*args: object) -> None:
         _ = args
         raise PermissionError("foreign owner")
 
     monkeypatch.setattr(mutex.os, "kill", eperm_kill)
+    monkeypatch.setattr(
+        mutex, "_process_started_at_epoch", lambda *, pid: 200.0 + (pid * 0.0), raising=False
+    )
 
-    result = mutex.claim_dispatch_admission_mutex(
+    claim = mutex.claim_dispatch_admission_mutex(
         repo=tmp_path,
         fabro_bin="/abs/fabro",
         runner=_PsRunner(stdouts=[_empty_ps(), _empty_ps()]),
         cap=1,
     )
 
-    assert isinstance(result, mutex.AdmissionMutexRefusal)
-    assert "slot 0: pid 999999999" in result.detail
+    assert isinstance(claim, mutex.AdmissionMutexClaim)
+    assert claim.path == slot_zero
 
 
 @pytest.mark.parametrize("payload", ["not json", json.dumps({"pid": False})])
