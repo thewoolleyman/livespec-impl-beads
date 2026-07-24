@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.46.9](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.8...v0.46.9) (2026-07-24)
+
+
+### Bug Fixes
+
+* harden admission mutex pid reuse tests ([3d6a9a8](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/3d6a9a8300781d3852ea090870a36e90d4754894))
+
 ## [0.46.8](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.7...v0.46.8) (2026-07-24)
 
 
