@@ -103,11 +103,20 @@ def dispatcher_staleness_decision(
             ),
         )
     build_id = _executing_cache_build_id(plugin_root=plugin_root)
-    refusal = _stale_refusal(build_id=build_id, release_sha=release_sha)
+    master_sha = _remote_ref_sha(runner=runner, argv=master_ref_argv())
+    refusal = _stale_refusal(
+        build_id=build_id,
+        release_sha=release_sha,
+        master_sha=master_sha,
+    )
     warnings = (
         ()
         if refusal is not None
-        else _master_ahead_warnings(runner=runner, release_sha=release_sha)
+        else _master_ahead_warnings(
+            runner=runner,
+            release_sha=release_sha,
+            master_sha=master_sha,
+        )
     )
     return DispatcherStalenessDecision(refusal=refusal, warnings=warnings)
 
@@ -174,8 +183,15 @@ def _git_checkout_head(*, plugin_root: Path, runner: CommandRunner) -> str | Non
     return sha if sha else None
 
 
-def _stale_refusal(*, build_id: str, release_sha: str) -> DispatcherStalenessMessage | None:
-    if _build_matches_release(build_id=build_id, release_sha=release_sha):
+def _stale_refusal(
+    *,
+    build_id: str,
+    release_sha: str,
+    master_sha: str | None,
+) -> DispatcherStalenessMessage | None:
+    if _build_matches_ref(build_id=build_id, ref_sha=release_sha) or (
+        master_sha is not None and _build_matches_ref(build_id=build_id, ref_sha=master_sha)
+    ):
         return None
     return DispatcherStalenessMessage(
         detail=(
@@ -186,18 +202,18 @@ def _stale_refusal(*, build_id: str, release_sha: str) -> DispatcherStalenessMes
     )
 
 
-def _build_matches_release(*, build_id: str, release_sha: str) -> bool:
+def _build_matches_ref(*, build_id: str, ref_sha: str) -> bool:
     if build_id == "unknown":
         return False
-    return release_sha.startswith(build_id) or build_id.startswith(release_sha)
+    return ref_sha.startswith(build_id) or build_id.startswith(ref_sha)
 
 
 def _master_ahead_warnings(
     *,
     runner: CommandRunner,
     release_sha: str,
+    master_sha: str | None,
 ) -> tuple[DispatcherStalenessMessage, ...]:
-    master_sha = _remote_ref_sha(runner=runner, argv=master_ref_argv())
     if master_sha is None or master_sha == release_sha:
         return ()
     commits = _unreleased_dispatcher_commits(

@@ -108,6 +108,37 @@ def test_current_release_build_proceeds_when_master_is_ahead_and_warns_with_comm
     assert "a release must be cut before this code takes effect" in warning
 
 
+def test_unreleased_master_build_proceeds_when_master_is_ahead_and_warns(
+    tmp_path: Path,
+) -> None:
+    module = _module()
+    cache_root = tmp_path / _MASTER_SHA[:12]
+    cache_root.mkdir()
+    runner = _Runner(
+        results={
+            module.latest_release_ref_argv(): _ls_remote(
+                ref="refs/heads/release",
+                sha=_RELEASE_SHA,
+            ),
+            module.master_ref_argv(): _ls_remote(ref="refs/heads/master", sha=_MASTER_SHA),
+            module.unreleased_dispatcher_commits_argv(
+                release_sha=_RELEASE_SHA,
+                master_sha=_MASTER_SHA,
+            ): CommandResult(
+                exit_code=0,
+                stdout="8eb81fa chore: refactor dispatcher admission\n",
+                stderr="",
+            ),
+        }
+    )
+
+    decision = module.dispatcher_staleness_decision(plugin_root=cache_root, runner=runner)
+
+    assert decision.refusal is None
+    assert len(decision.warnings) == 1
+    assert "8eb81fa chore: refactor dispatcher admission" in decision.warnings[0].detail
+
+
 def test_current_release_build_with_no_newer_release_does_not_fire(tmp_path: Path) -> None:
     module = _module()
     cache_root = tmp_path / _RELEASE_SHA[:12]
