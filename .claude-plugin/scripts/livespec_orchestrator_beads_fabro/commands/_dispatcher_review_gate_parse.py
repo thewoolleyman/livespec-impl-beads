@@ -36,7 +36,7 @@ def parse_review_gate_events(
 ) -> ReviewGateTelemetry:
     """Derive terminal review-gate attributes from `fabro events --json` JSONL."""
     review_edges = tuple(_review_edges(events_jsonl=events_jsonl))
-    fix_rounds = sum(1 for edge in review_edges if edge.to_node == "review_fix")
+    fix_rounds = sum(1 for edge in review_edges if edge.to_node in {"review_fix", "disposition"})
     visit_count = len(review_edges)
     terminal_edge = max(review_edges, key=lambda edge: edge.order_key) if review_edges else None
     cap_visit_count = review_fix_visit_cap if review_fix_visit_cap is not None else visit_count

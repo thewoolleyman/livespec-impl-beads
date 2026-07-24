@@ -142,21 +142,43 @@ digraph ImplementWorkItem {
         prompt="@prompts/review.md"
     ]
 
-    // Review-fix (Slice A / bd-ib-egms32): the implementer addresses the
-    // reviewer's BLOCKING findings (or rejects each with a one-line
-    // rationale), then re-validates through the janitor. A SEPARATE node
+    // Disposition (S2 / bd-ib-fe574e): read-only implementation-side
+    // triage of the reviewer's BLOCKING findings before any fix work. It
+    // accepts in-scope correct findings and rejects out-of-scope,
+    // not-applicable, factually wrong, or scope-expanding findings with a
+    // one-line rationale. It has its own adapter input so the maintainer can
+    // pin adjudication independently from both review and implementation.
+    //
+    // max_visits=10 is the ungraceful runaway-loop backstop. It MUST exceed
+    // the largest supported review_fix_visit_cap override; the graceful
+    // bound remains the review edge guard below.
+    disposition [
+        label="Disposition review findings"
+        backend="acp"
+        acp.command="{{ inputs.disposition_adapter }}"
+        timeout="1800s"
+        max_retries=1
+        max_visits=10
+        prompt="@prompts/disposition.md"
+    ]
+
+    // Review-fix (Slice A / bd-ib-egms32, S2 / bd-ib-fe574e): the
+    // implementer addresses ONLY findings the disposition record marks
+    // ACCEPTED, then re-validates through the janitor. A SEPARATE node
     // from `fix` ON PURPOSE: it keeps the working janitor<->fix hard-gate
     // loop and its visit budget completely untouched, and decouples the
     // two fix budgets. Mirrors `fix` (implementer adapter, re-enters
-    // janitor); its own max_visits=4 is the ungraceful backstop — the
-    // graceful bound is review's edge guard, which caps review_fix entries
-    // at the configured fix-round budget (three by default).
+    // janitor).
+    //
+    // max_visits=10 is the ungraceful runaway-loop backstop. It MUST exceed
+    // the largest supported review_fix_visit_cap override; the graceful
+    // bound remains the review edge guard below.
     review_fix [
-        label="Address review findings (or reject with rationale)"
+        label="Implement accepted review findings"
         backend="acp"
         acp.command="{{ inputs.acp_adapter }}"
         timeout="3600s"
-        max_visits=4
+        max_visits=10
         prompt="@prompts/review-fix.md"
     ]
 
@@ -268,13 +290,16 @@ digraph ImplementWorkItem {
     // `dispatcher.review_fix_cap`: the setting counts FIX ROUNDS, while
     // `context.internal.node_visit_count` counts review VISITS including the
     // first review. The default cap=3 therefore renders as visit guard `< 4`,
-    // allowing exactly three review_fix rounds before a fourth blocking review
-    // reaches the cap disposition. review_fix.max_visits=4 is the hard abort
-    // backstop for the same three-round budget.
+    // allowing exactly three disposition/review_fix rounds before a fourth
+    // blocking review reaches the cap disposition. disposition.max_visits and
+    // review_fix.max_visits are hard abort backstops for the same budget and
+    // MUST exceed the largest supported review_fix_visit_cap override.
     //
     // Routing:
     //   - approve                 -> pr, by explicit condition only.
-    //   - fix & under cap         -> review_fix, then janitor re-validation.
+    //   - fix & under cap         -> disposition, then accepted findings route
+    //                                to review_fix and all-rejected rounds
+    //                                route directly back to review.
     //   - fix & cap + escape hatch -> pr, only when merge_on_review_cap is
     //                                rendered to outcome=succeeded.
     //   - fix & cap + default      -> escalate / needs-human; the reviewer
@@ -282,11 +307,15 @@ digraph ImplementWorkItem {
     //   - node failure             -> escalate; weight=100 keeps that
     //                                deterministic against other conditions.
     review -> escalate   [label="Blocked", condition="outcome=failed", weight=100]
-    review -> review_fix [label="fix", condition="preferred_label=fix && context.internal.node_visit_count < {{ inputs.review_fix_visit_cap }}"]
+    review -> disposition [label="fix", condition="preferred_label=fix && context.internal.node_visit_count < {{ inputs.review_fix_visit_cap }}"]
     review -> pr         [label="approve", condition="preferred_label=approve"]
     review -> pr         [label="ship on review cap", condition="preferred_label=fix && context.internal.node_visit_count >= {{ inputs.review_fix_visit_cap }} && outcome={{ inputs.merge_on_review_cap_outcome }}"]
     review -> escalate   [label="needs-human", condition="preferred_label=fix && context.internal.node_visit_count >= {{ inputs.review_fix_visit_cap }} && outcome!={{ inputs.merge_on_review_cap_outcome }}"]
     review -> escalate   [label="unmatched review outcome"]
+    disposition -> escalate   [label="Blocked", condition="outcome=failed", weight=100]
+    disposition -> review_fix [label="fix accepted", condition="preferred_label=fix"]
+    disposition -> review     [label="all rejected", condition="preferred_label=all_rejected"]
+    disposition -> escalate   [label="unmatched disposition outcome"]
     review_fix -> janitor
 
     // A failed pr stage (hook rejection, gh failure — structured

@@ -5,9 +5,10 @@ adapter via `{{ inputs.acp_adapter }}` rather than a hard-coded command, so the
 Dispatcher can route the implementer work to a Codex worker with
 `fabro run --input acp_adapter=...`. The REVIEW node (egms32) launches via a
 SEPARATE `{{ inputs.review_adapter }}` so it can run on a different
-provider/model (Claude Opus 4.8 + high thinking) from the implementers. Both
-inputs default in workflow.toml so the default dispatch behavior is
-parameter-driven, never hard-coded.
+provider/model (Claude Opus 4.8 + high thinking) from the implementers. The
+DISPOSITION node launches via `{{ inputs.disposition_adapter }}` so adjudication
+can be model-pinned independently. All inputs default in workflow.toml so the
+default dispatch behavior is parameter-driven, never hard-coded.
 """
 
 from __future__ import annotations
@@ -22,8 +23,10 @@ _WORKFLOW_TOML = _WORKFLOW_DIR / "workflow.toml"
 _CLAUDE_ADAPTER = "npx -y @agentclientprotocol/claude-agent-acp"
 _IMPLEMENTER_ACP = 'acp.command="{{ inputs.acp_adapter }}"'
 _REVIEW_ACP = 'acp.command="{{ inputs.review_adapter }}"'
+_DISPOSITION_ACP = 'acp.command="{{ inputs.disposition_adapter }}"'
 _EXPECTED_IMPLEMENTER_ACP_LINES = 4  # implement, fix, pr, review_fix
 _EXPECTED_REVIEW_ACP_LINES = 1  # review
+_EXPECTED_DISPOSITION_ACP_LINES = 1  # disposition
 
 
 def _acp_lines() -> list[str]:
@@ -35,13 +38,14 @@ def test_every_acp_node_uses_a_parameterized_adapter() -> None:
     """No node hard-codes its adapter; each uses acp_adapter or review_adapter."""
     acp_lines = _acp_lines()
     assert acp_lines, "expected at least one acp.command node"
-    assert all(line in (_IMPLEMENTER_ACP, _REVIEW_ACP) for line in acp_lines)
+    assert all(line in (_IMPLEMENTER_ACP, _REVIEW_ACP, _DISPOSITION_ACP) for line in acp_lines)
 
 
 def test_implementer_and_review_nodes_use_their_respective_inputs() -> None:
     acp_lines = _acp_lines()
     assert acp_lines.count(_IMPLEMENTER_ACP) == _EXPECTED_IMPLEMENTER_ACP_LINES
     assert acp_lines.count(_REVIEW_ACP) == _EXPECTED_REVIEW_ACP_LINES
+    assert acp_lines.count(_DISPOSITION_ACP) == _EXPECTED_DISPOSITION_ACP_LINES
 
 
 def test_no_node_hardcodes_the_claude_adapter_command() -> None:
@@ -54,6 +58,15 @@ def test_toml_declares_acp_adapter_defaulting_to_claude() -> None:
     assert "[run.inputs]" in toml
     assert re.search(
         r'^\s*acp_adapter\s*=\s*"' + re.escape(_CLAUDE_ADAPTER) + r'"',
+        toml,
+        re.MULTILINE,
+    )
+
+
+def test_toml_declares_disposition_adapter_defaulting_to_claude() -> None:
+    toml = _WORKFLOW_TOML.read_text(encoding="utf-8")
+    assert re.search(
+        r'^\s*disposition_adapter\s*=\s*"' + re.escape(_CLAUDE_ADAPTER) + r'"',
         toml,
         re.MULTILINE,
     )
@@ -113,9 +126,10 @@ def test_scenario20_review_has_unconditional_fallback_to_human_gate() -> None:
 
 
 def test_scenario20_review_fix_cap_counts_fix_rounds_not_review_visits() -> None:
-    """Scenario 20: default cap=3 yields exactly three review-fix rounds."""
+    """Scenario 20: default cap=3 yields exactly three disposition/fix rounds."""
     dot = _WORKFLOW_DOT.read_text(encoding="utf-8")
     toml = _WORKFLOW_TOML.read_text(encoding="utf-8")
     assert "review_fix_visit_cap = 4" in toml
     assert "context.internal.node_visit_count < {{ inputs.review_fix_visit_cap }}" in dot
-    assert re.search(r"review_fix \[.*?max_visits=4", dot, re.DOTALL) is not None
+    assert re.search(r"disposition \[.*?max_visits=10", dot, re.DOTALL) is not None
+    assert re.search(r"review_fix \[.*?max_visits=10", dot, re.DOTALL) is not None
