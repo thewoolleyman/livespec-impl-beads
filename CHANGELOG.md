@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.46.10](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.9...v0.46.10) (2026-07-24)
+
+
+### Bug Fixes
+
+* allow unreleased dispatcher plugin builds ([ad715ea](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/ad715ea343704132fb85c3ba615b11e4efc221c3))
+* gate stale dispatcher plugin builds ([33bf8d5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/33bf8d5dd64986f6429a654614c2b522cdaee9ba))
+* staleness gate warns and proceeds when release context is unobservable (bd-ib-n7ce4n deadlock case) ([96ce547](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/96ce547e03c2efe6c9f58d08fdd561731a7e4728))
+
 ## [0.46.9](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.8...v0.46.9) (2026-07-24)
 
 
