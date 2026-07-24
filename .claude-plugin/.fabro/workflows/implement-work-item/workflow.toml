@@ -136,6 +136,13 @@ acp_adapter = "npx -y @agentclientprotocol/claude-agent-acp"
 # run does not substitute; CI never runs the review node.
 review_adapter = "ANTHROPIC_MODEL=claude-opus-4-8[1m] CLAUDE_CODE_EFFORT_LEVEL=high npx -y @agentclientprotocol/claude-agent-acp"
 
+# ACP adapter for the DISPOSITION node. Defaults to the same un-pinned,
+# implementer-class Claude adapter as `acp_adapter`; maintainers can pin the
+# disposition model independently by prefixing adapter-owned env assignments
+# here, using the same ANTHROPIC_MODEL / CLAUDE_CODE_EFFORT_LEVEL mechanism as
+# `review_adapter`.
+disposition_adapter = "npx -y @agentclientprotocol/claude-agent-acp"
+
 # Review fix rounds count implementer repair rounds, not review visits. The
 # workflow guard reads review node visits, so the default three fix rounds render
 # as a visit guard of four: initial review visit plus three fix rounds.

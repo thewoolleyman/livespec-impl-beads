@@ -86,6 +86,41 @@ def test_parse_review_gate_events_counts_fix_rounds_and_ship_on_cap_order_robust
     )
 
 
+def test_parse_review_gate_events_counts_disposition_rounds_after_split() -> None:
+    events = _jsonl(
+        _edge(
+            from_node="review",
+            to_node="disposition",
+            reason="preferred_label",
+            preferred_label="fix",
+            timestamp="2026-07-24T00:01:00Z",
+        ),
+        _edge(
+            from_node="review",
+            to_node="disposition",
+            reason="preferred_label",
+            preferred_label="fix",
+            timestamp="2026-07-24T00:02:00Z",
+        ),
+        _edge(
+            from_node="review",
+            to_node="pr",
+            reason="unconditional",
+            preferred_label=None,
+            timestamp="2026-07-24T00:03:00Z",
+        ),
+    )
+
+    telemetry = parse_review_gate_events(events_jsonl=events)
+
+    assert telemetry == ReviewGateTelemetry(
+        verdict="unknown",
+        fix_rounds=2,
+        hit_cap=True,
+        shipped_on_cap=True,
+    )
+
+
 def test_parse_review_gate_events_uses_stream_order_for_mixed_precision_timestamps() -> None:
     events = _jsonl(
         _edge(

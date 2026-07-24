@@ -100,10 +100,19 @@ masquerade as a defect.
 
 ## On re-review
 
-If the implementer rejected a prior finding with a rationale, HONOR that
-rejection unless it is a genuine correctness/security defect you can
-re-confirm. Do not re-litigate scope or preference disagreements they
-have declined.
+If a prior disposition record rejected a finding, HONOR that rejection
+unless it is a genuine correctness/security defect you can re-confirm.
+Read the visible `finding_dispositions_r<N>` run-context keys and the
+prior stage transcript; the disposition record, not implementer free
+text, is the source of truth for accepted versus rejected findings. Do
+not re-litigate scope or preference disagreements recorded as rejected.
+
+If the prior disposition routed `all_rejected`, no fresh janitor pass ran
+between the last review and this review. If the diff unexpectedly differs
+from the last-reviewed state despite an all-rejected, nothing-changed
+disposition, distrust the disposition record and treat that as BLOCKING
+or use the needs-human protocol rather than assuming the tree is still
+green.
 
 ## Output (required, exact)
 

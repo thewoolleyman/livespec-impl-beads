@@ -1,7 +1,9 @@
 # Fix stage — the janitor gate is red
 
-The previous stage's `mise exec -- just check` run FAILED in this
-sandbox clone. Its output is in the prior stage context above.
+The loop routed here after a red janitor check or a human-requested
+retry from an implement, disposition, review_fix, or PR-stage failure.
+The relevant failure output or operator context is in the prior stage
+context above.
 
 ## Your assignment (unchanged)
 
