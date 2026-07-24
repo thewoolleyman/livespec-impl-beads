@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.46.11](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.10...v0.46.11) (2026-07-24)
+
+
+### Bug Fixes
+
+* count disposition review rounds ([995b9a3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/995b9a362cda5c802b87e0e993e840806ca05028))
+
 ## [0.46.10](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.9...v0.46.10) (2026-07-24)
 
 
