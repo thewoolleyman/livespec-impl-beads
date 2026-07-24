@@ -25,10 +25,14 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFil
 from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_close import load_items
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
     journal_path,
+    plugin_root,
     workflow_toml,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     janitor_core_ref_from_config,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_staleness_gate import (
+    apply_dispatcher_staleness_gate,
 )
 from livespec_orchestrator_beads_fabro.commands._sibling_status_lookup import (
     make_sibling_status_lookup,
@@ -66,6 +70,12 @@ def prepare(
         _ = write_stderr(text="ERROR: --repo or workflow config does not exist\n")
         return None
     journal = JournalFile(path=journal_path(args=args, repo=repo))
+    staleness_exit = apply_dispatcher_staleness_gate(
+        plugin_root=plugin_root(),
+        journal=journal,
+    )
+    if staleness_exit is not None:
+        return None
     return load_items(repo=repo), journal
 
 
