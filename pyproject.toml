@@ -322,6 +322,10 @@ source_tree_prefixes = [
 ]
 tests_tree_prefix = "tests/"
 target_dirs = [".claude-plugin/scripts", ".claude-plugin/hooks", ".claude/hooks", "dev-tooling", "tests"]
+# No generated dataclasses schema tree is installed in this orchestrator plugin.
+dataclasses_tree = ""
+# No neutral hook body is installed in this orchestrator plugin.
+neutral_hook_body_path = ""
 
 # Path-prefix allowlist for the `no_direct_destructive_cli` check: files whose
 # repo-root-relative POSIX path starts with one of these entries are exempt
