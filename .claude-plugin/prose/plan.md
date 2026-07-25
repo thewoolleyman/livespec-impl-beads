@@ -50,6 +50,14 @@ two facets:
   sub-topic notes live under `plan/<topic>/research/` (the directory
   carries the topic, so the filenames do not repeat it). A young thread
   MAY be research-only (no handoff yet).
+- **At most one hosted supervision artifact** — the reserved
+  `plan/<topic>/supervisor-handoff.md`, authored by a Control-Plane
+  realization through the repository's normal reviewed commit path.
+  It is NOT a facet and NOT a handoff in this store's sense (it
+  resumes the SUPERVISING actor, never the thread's own work), so the
+  at-most-one-handoff rule is unaffected and the name is the
+  enumerated exception to the `handoff*.md` refusal. This operation
+  neither creates, reads, nor validates it.
 
 There is NO root `research/` tree: standalone analysis lives in a plan
 thread (or, once the thread closes, under `plan/archive/`), and a
