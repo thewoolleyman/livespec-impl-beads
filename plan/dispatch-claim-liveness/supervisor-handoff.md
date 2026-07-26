@@ -238,3 +238,18 @@ Seeded from the fleet's other charters (`livespec-overseer`
   against a worker that had cleanly finished. Corroborate any wedge verdict against
   the pane before acting on it; a false wedge signal invites an interrupt that
   would have destroyed real work.
+- **The supervisor drifted from supervising into implementing — this is the root
+  cause the other entries are symptoms of.** It hand-verified nearly every claim the
+  worker made, re-deriving them in its own context; it ran the factory-health checks
+  itself; and, most plainly, it authored, committed, pushed, CI-waited and merged
+  PR #972 as a complete worktree → PR → merge cycle of its own **while the supervised
+  session sat idle**. The cost was not merely duplicated tokens. Doing that work put
+  the supervisor far enough behind the worker that it escalated a ten-minute-old
+  interim snapshot to the maintainer as if it were current — and by the time the
+  picker was answered the worker had already retracted two of those recommendations
+  onto `master`. **A supervisor that is busy doing is not watching.** Vetting means
+  directing the session to prove a claim and then checking the proof; it does not
+  mean re-deriving the claim yourself. Repo mutations belong to the supervised
+  session — **including edits to this very file**, which is why this entry was
+  written by the worker on the supervisor's instruction rather than by the
+  supervisor directly.
