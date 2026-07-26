@@ -485,6 +485,13 @@ check:
         # master and reported for maintainer-side landing instead of being
         # discovered by GitHub's push rejection.
         check-no-workflow-edits
+        # ADOPTION gate for a livespec-dev-tooling release: replays the dispatch
+        # workflow's own conformance setup steps against a FRESH,
+        # UN-BOOTSTRAPPED clone. Every other target here runs on the
+        # bootstrapped primary, where those verifiers have always passed — which
+        # is how v0.54.24 auto-merged green while breaking every dispatch before
+        # any agent work. Not a canonical slug, so it rides in the private block.
+        check-fresh-clone-setup
         # livespec core's doctor STATIC phase (reference-discipline +
         # out-of-band invariants) against THIS repo's SPECIFICATION/ tree,
         # wired fleet-wide per livespec epic livespec-6jfq. Not a canonical
@@ -951,6 +958,15 @@ check-no-direct-tool-invocation:
 
 check-no-workflow-edits:
     uv run python .claude-plugin/scripts/bin/workflow_guard.py
+
+# ADOPTION gate for a livespec-dev-tooling release (livespec-dev-tooling-wvuefu
+# / bd-ib-u46hcv). Replays the dispatch workflow's conformance setup steps —
+# read FROM workflow.toml, not duplicated — against a fresh, un-bootstrapped
+# clone. This is the tree state the Fabro sandbox actually runs them in, and the
+# one `just check` never exercised: v0.54.24 made an absent gitignored pack a
+# FAIL, so every dispatch died at setup while this repo's gate stayed green.
+check-fresh-clone-setup:
+    bash orchestrator-image/fresh-clone-setup-gate.sh
 
 check-no-except-outside-io:
     uv run python -m livespec_dev_tooling.checks.no_except_outside_io
