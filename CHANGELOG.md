@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.46.23](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.22...v0.46.23) (2026-07-26)
+
+
+### Bug Fixes
+
+* provision the worktree pack in the post-merge janitor checkout ([14c3cae](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/14c3cae32c28bc1e7b2cab4d85dde1dfc497e308))
+
 ## [0.46.22](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.21...v0.46.22) (2026-07-26)
 
 
