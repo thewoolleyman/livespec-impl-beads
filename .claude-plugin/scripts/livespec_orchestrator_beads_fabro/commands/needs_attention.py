@@ -32,6 +32,7 @@ from livespec_orchestrator_beads_fabro.commands._needs_attention_untriaged_backl
     untriaged_backlog_items,
 )
 from livespec_orchestrator_beads_fabro.commands._needs_attention_work_items import (
+    auto_admission_items,
     host_only_items,
     human_valves,
     impl_next,
@@ -119,6 +120,7 @@ def build_attention(
             plan_threads=plan_threads(project_root=project_root),
             hygiene_scan=(),
         )
+        + auto_admission_items(project_root=project_root, repo=repo_name, items=materialized)
         + host_only_items(project_root=project_root, repo=repo_name, items=materialized)
         + stranded_dispatch_items(project_root=project_root, repo=repo_name, items=materialized)
         # A second raw read of the tenant: the triage marker is a label and the
