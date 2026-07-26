@@ -264,6 +264,49 @@ def test_move_transitions_item_to_allowed_status(tmp_path: Path) -> None:
     assert _fake().show_issue(issue_id="bd-ib-ready")["status"] == "blocked"
 
 
+def test_move_refuses_active_target_from_every_source_lane(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _write_fake_config(repo)
+    source_statuses = (
+        "backlog",
+        "ready",
+        "blocked",
+        "active",
+        "acceptance",
+        "pending-approval",
+    )
+    for source_status in source_statuses:
+        item_id = f"bd-ib-{source_status.replace('-', '')}"
+        append_work_item(path=_config(), item=_item(id=item_id, status=source_status))
+
+        result = run_human_valve_action(repo=repo, action_id=f"move:{item_id}:active")
+
+        assert result["status"] == "failed"
+        assert result["domain_error"] == "forbidden-move-target"
+        assert "'active' is not an operator-movable target" in result["summary"]
+        assert _fake().show_issue(issue_id=item_id)["status"] == source_status
+
+
+def test_move_keeps_backlog_ready_and_blocked_targets_allowed(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _write_fake_config(repo)
+    allowed_targets = ("backlog", "ready", "blocked")
+    for target_status in allowed_targets:
+        item_id = f"bd-ib-move-{target_status}"
+        append_work_item(
+            path=_config(),
+            item=_item(id=item_id, status="pending-approval"),
+        )
+
+        result = run_human_valve_action(repo=repo, action_id=f"move:{item_id}:{target_status}")
+
+        assert result["status"] == "green"
+        assert result["target_status"] == target_status
+        assert _fake().show_issue(issue_id=item_id)["status"] == target_status
+
+
 def test_move_refuses_forbidden_target_and_leaves_status(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
