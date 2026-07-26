@@ -14,15 +14,14 @@ monotonic: every abandonment costs a slot that never comes back.
 | slice | id | status 2026-07-26 | scope |
 |---|---|---|---|
 | S1 | `bd-ib-ohdu5a` | **DONE** — PR #978 merged `a869253` | Harden the dispatch lock's liveness verdict (`started_at_epoch` + `O_EXCL`) |
-| — | **`bd-ib-l2vglr`** | **`ready`, P1 — REGRESSION FROM S1** | A leaked lock now permanently blocks re-dispatch: `O_EXCL` landed without stale reclamation |
+| — | `bd-ib-l2vglr` | **DONE** — PR #982 merged `acf061c` | The S1 regression: stale reclamation for the now-exclusive lock write |
 | S2 | **`bd-ib-cfgkkk`** | `pending-approval` | Surface a stranded merged-yet-unfinished claim in needs-attention |
 | S3 | **`bd-ib-pme57n`** | `pending-approval` | Stop counting dead claims against the per-repo WIP cap |
 
-Two further items filed by this thread, both `ready`, neither part of the epic:
-**`bd-ib-l2vglr`** (P1, above) and **`bd-ib-hvuhxp`** (P2 — `CandidateSlice.priority`
-is dead API surface; fix is to DELETE the field, not wire it through, because
-`WorkItem` removed `priority` deliberately and `rank` is the sole ordering
-authority).
+One further item filed by this thread and still open, not part of the epic:
+**`bd-ib-hvuhxp`** (P2, `ready` — `CandidateSlice.priority` is dead API surface;
+fix is to DELETE the field, not wire it through, because `WorkItem` removed
+`priority` deliberately and `rank` is the sole ordering authority).
 
 The originating epic **`bd-ib-waov`** was CLOSED 2026-07-26T08:32:25Z by the groom
 with the explicit disposition "regroomed out into replacement slices:
@@ -39,40 +38,51 @@ reason points back to `bd-ib-waov`.
 
 ## ▶ CURRENT STATE + NEXT ACTION (read this first)
 
-**Status 2026-07-26: S1 SHIPPED, and it introduced a P1 regression that must land
-before S2 or S3.** Nothing is in flight; no background process is running.
+**Status 2026-07-26: the dispatch lock is now SOUND. S1 and its regression fix are
+both shipped and verified.** Nothing is in flight; no background process is running.
 
-**NEXT ACTION — dispatch `bd-ib-l2vglr` (P1, `ready`), NOT S2 or S3.**
+**NEXT ACTION — S2 (`bd-ib-cfgkkk`), then S3 (`bd-ib-pme57n`).** Both are
+`pending-approval`, so each needs its approval valve before dispatch. **S2 before
+S3 is a correctness precondition, not a preference** — see §"The corrected design
+makes S2 MANDATORY". S2 remains gated by `bd-ib-81l0` (below). **S3's predicate
+was AMENDED 2026-07-26 and is no longer "active + no live lock"** — see
+§"Rework doors".
 
-S1 (`bd-ib-ohdu5a`) merged as PR #978 / `a869253` and is verified: BOTH of its reds
-were demonstrated red before dispatch and re-verified flipped afterwards by
-executing the real product code. But its `O_EXCL` write-side fix landed **without
-the stale reclamation that makes exclusive claiming safe**, and both sibling locks
-have that half.
+**A second, separate assignment is also open: a `/livespec:revise` pass over
+`reconcile-merged-dispatch-lock.md` — and ONLY that file — belongs to this track**
+(maintainer-assigned 2026-07-26, scope corrected the same day). No deadline.
+`per-state-verb-vocabulary.md` is NOT ours. See §"The revise pass".
 
-`write_dispatch_lock` now does a bare `os.open(..., O_EXCL)` — no `attempt()`
-wrapper, no reclamation. Any lock leaked by a dispatch that died without its
-`ExitStack` (SIGKILL, host restart) makes every SUBSEQUENT dispatch of that
-work-item raise `FileExistsError` at `_dispatcher_loop.py:86` — **before** the
-`ExitStack` is entered, so nothing releases it, and admission has already written
-`active`. **The item strands: exactly the class this epic exists to eliminate.**
+The lock work, both halves verified by executing the real product code, not by
+reading a green dispatcher summary:
 
-Reproduced by execution against `bba89a8`, and **live, not hypothetical** — two
-leaked locks from 2026-07-24 are on disk (`tmp/fabro-dispatch-bd-ib-fe574e.lock`
-pid 930374, `…-bd-ib-fjj7f7.lock` pid 580668, both dead), so `bd-ib-fe574e` and
-`bd-ib-fjj7f7` are UN-DISPATCHABLE on this host until those files are removed.
+- **S1 `bd-ib-ohdu5a`** — PR #978 / `a869253`. Consults `started_at_epoch`, so a
+  recycled PID no longer reads as the original owner; and claims with `O_EXCL`.
+- **`bd-ib-l2vglr`** — PR #982 / `acf061c`, merged 2026-07-26T10:19:41Z. S1's
+  `O_EXCL` had landed WITHOUT the stale reclamation that makes exclusive claiming
+  safe, so any lock leaked by a dispatch that died without its `ExitStack`
+  permanently blocked re-dispatch of that work-item. `write_dispatch_lock` now
+  wraps the open in `attempt(...)`, and on `FileExistsError` runs
+  `_stale_dispatch_lock_reclaimed`: an `fcntl.flock` mutex on a sibling `.reclaim`
+  file, the S1 PID+start-time liveness verdict, **and a re-read of the payload
+  compared against the first read immediately before unlinking** — the TOCTOU
+  guard `bd-ib-w4h4` was filed about. Verified 2026-07-26 against the merged tree:
+  a dead-pid lock is RECLAIMED and re-stamped with the new caller's pid, while a
+  lock whose holder is LIVE is still REFUSED rather than clobbered.
 
-**Why it must precede S2/S3:** S3's entire predicate is the trustworthiness of this
-lock. Shipping the reclaim on top of a write path that can itself strand items
-compounds the failure being fixed. **This sequencing is a recommendation, not a
-ruling — the maintainer has not confirmed it.** If they prefer S2 first, that is
-their call; do not treat this paragraph as authorization.
+**The two live leaked locks need no hand removal.** `tmp/fabro-dispatch-bd-ib-fe574e.lock`
+(pid 930374) and `…-bd-ib-fjj7f7.lock` (pid 580668) are still on disk with dead
+pids. Verified 2026-07-26 by running the merged `write_dispatch_lock` against
+COPIES of both real payloads: each is reclaimed automatically, so `bd-ib-fe574e`
+and `bd-ib-fjj7f7` are dispatchable again. Leave the originals alone — they are
+now inert, and they are this regression's field evidence.
 
-**Own this honestly when you read `bd-ib-l2vglr`:** the regression traces to THIS
-THREAD's own brief on `bd-ib-ohdu5a`, which told the implementer "DO NOT add
-cleanup for leaked lock files — liveness is PID-keyed, so a lock whose owner is
-gone already reads dead." True before `O_EXCL`, false after it. The implementer
-followed the brief correctly.
+**Own this honestly:** the regression traced to THIS THREAD's own brief on
+`bd-ib-ohdu5a`, which told the implementer "DO NOT add cleanup for leaked lock
+files — liveness is PID-keyed, so a lock whose owner is gone already reads dead."
+True before `O_EXCL`, false after it. The implementer followed the brief
+correctly. The lesson generalizes: a brief's standing prohibitions must be
+re-checked against every scope addition made after it was written.
 
 Dependency layering, verified on the ledger: `bd-ib-cfgkkk` 1 dep / 1 dependent;
 `bd-ib-pme57n` 2 / 0. `bd-ib-l2vglr` and `bd-ib-hvuhxp` carry no edges.
@@ -93,12 +103,27 @@ wrapper — the dispatcher self-wraps but often cannot reach the credstore alone
 
 Verify preconditions FIRST every time: the `127.0.0.1:32276` listener's
 `/proc/<pid>/exe` must resolve to `~/.fabro/bin/fabro`; `fabro --version` must be
-`0.254.0 (b9b63a8)` (≥ 0.256 breaks `workflow.fabro`, exit 127 — halt); `fabro ps`
-clear; WIP headroom. Prove container ownership by an ALL-container run-config scan,
-never by name/image/position/timing — every container on this host exits 137, so
-137 is normal teardown here, never kill-proof. Establish outcomes from artifacts
-(merged PR, ledger row, journal), never exit codes: S1's dispatcher printed a green
-summary, and only re-executing the reds proved the fix was real.
+`0.254.0 (b9b63a8)` (≥ 0.256 breaks `workflow.fabro`, exit 127 — halt); WIP
+headroom. Prove container ownership by an ALL-container run-config scan, never by
+name/image/position/timing — every container on this host exits 137, so 137 is
+normal teardown here, never kill-proof. Establish outcomes from artifacts (merged
+PR, ledger row, journal), never exit codes: both S1's and `bd-ib-l2vglr`'s
+dispatchers printed a green summary, and only re-executing the reds proved either
+fix was real.
+
+**`fabro ps` need NOT be clear — do not treat a foreign run as a blocker.**
+`bd-ib-sd8o` closed 2026-07-24 `resolution:completed`: `host_dispatch_cap`
+(default 2, spec v047) demoted the interim host-wide dispatch mutex to a counting
+cap, verified live with two concurrent green dispatches. One foreign run is
+therefore normal and safe; a THIRD dispatch is what gets refused. When a foreign
+run IS present, identify its owner by the dispatcher **argv chain**
+(`ps -eo pid,ppid,args` → the `dispatch --item <id>` leaf and the
+`CODEX_COMPANION_SESSION_ID` in its launching shell), and name the owning SESSION,
+recovered from `~/.claude/projects/<slug>/<session-id>.jsonl` by grepping
+`Session renamed to:`. Demonstrated 2026-07-26: while this thread dispatched
+`bd-ib-l2vglr`, session **`orch-dirty`** (session
+`87f62319-9bda-4b9e-80b0-d35b178bef70`) concurrently dispatched `bd-ib-cfcmse`;
+both ran green.
 
 **The root cause below was CORRECTED on 2026-07-26** against the dispatch journal,
 the merged PR, and the ledger. The thread's original diagnosis ("the dispatcher
@@ -108,6 +133,142 @@ disagree.
 
 **Leave `bd-ib-w4h4` stranded.** It is S3's fixture. Do not un-strand or close it
 before the verifier exists. It becomes recoverable once `bd-ib-rxxx` lands.
+
+## ⚠ Rework doors — S3's predicate is NARROWER than "active + no live lock"
+
+**Found 2026-07-26 by the peer supervisor `console-happy-path-mvp-supervisor`,
+verified here, and APPROVED as a change to S3's already-approved acceptance
+criteria. `bd-ib-pme57n`'s description now carries the amendment; this section is
+the reasoning behind it.**
+
+TWO writers set `status="active"` **without passing through admission**, so they
+never hold a dispatch lock. Neither is an abandonment — each parks an item for
+re-dispatch:
+
+1. **`_drive_valves.py:189`** (`_reject_item`) — `reject:<id>:rework` on an
+   `acceptance` item sets `target_status = "active"`. **NOT journaled at all.**
+   `valve_success` (`_drive_valve_result.py:29`) builds a `"journal"` object
+   INSIDE the drive CLI's RESPONSE payload; neither drive module nor `drive.py`
+   references a `JournalFile`, and the dispatch journal holds **zero
+   `human-valve-*` records** across its whole history. (A peer brief described
+   this door as "journaled `human-valve-reject-rework`" — that is the response
+   field, not a journal record.)
+2. **`_dispatcher_acceptance_rework.py:79`** — auto-rework after a failing AI
+   acceptance pass, genuinely journaled `acceptance-auto-rework`. **Reachable in
+   practice:** fired 4 times across 3 distinct items (`bd-ib-vp3pwe` ×2,
+   `bd-ib-1jye.4`, `bd-ib-1jye.5`).
+
+A **third** unlocked writer exists today: the bare `move:<id>:active`, legal
+because `_MOVE_ALLOWED` (`_drive_policy_valves.py:40`) contains `"active"` and
+`move_item` guards only the TARGET status. It is unjournaled too. The pending
+`per-state-verb-vocabulary.md` proposal removes exactly that door.
+
+**The obvious discriminator does not work.** "Also require a terminal `outcome`
+journal record" fails, because the auto-rework park writes its terminal `outcome`
+AFTER the rework write and it is **green** — e.g. for `bd-ib-1jye.4`:
+`{"stage": "done", "status": "green", "pr_number": 800, "detail": "merged,
+post-merge janitor green"}`. An abandoned claim and a rework park both have one.
+
+**APPROVED PREDICATE** — reclaim (exclude from `active_count`, journal the
+abandonment) if and only if:
+
+```
+    item.status == "active"
+AND live_dispatch_lock(item) is None
+AND (the most recent terminal `outcome` for the item is non-green
+     OR no `outcome` record exists since its most recent `ledger-admit`)
+```
+
+| case | last outcome | verdict |
+|---|---|---|
+| `bd-ib-w4h4` (janitor-post-merge red) | `failed` | RECLAIM |
+| `acceptance-auto-rework` park | `green` | skip |
+| `reject:<id>:rework` park | `green` (it reached `acceptance` only via a green `ledger-complete`) | skip |
+| dispatch SIGKILLed mid-run | none since `ledger-admit` | RECLAIM |
+| queued in an admitted batch | — holds an admission-time lock | skip before the outcome leg is reached |
+
+The last row is why this is sound ONLY together with S3's admission-time lock
+move. Without it, a queued item has neither lock nor outcome and would be
+reclaimed while perfectly healthy.
+
+**KNOWN RESIDUAL, accepted at approval:** a bare `move:<id>:active` item has no
+lock and no outcome since its (nonexistent) admit, so it reads as abandoned. That
+is the door `per-state-verb-vocabulary.md` removes; if that proposal is not
+ratified, the residual needs its own decision.
+
+## The revise pass — OURS is `reconcile-merged-dispatch-lock.md` ONLY
+
+**Maintainer-assigned 2026-07-26; scope CORRECTED the same day.** No deadline; run
+it when the slices make it sensible. **Do not run it while a dispatch is in
+flight** — it authors spec text and cuts a `spec/*` branch, which should not race
+a live janitor.
+
+`SPECIFICATION/proposed_changes/` holds exactly two files.
+(`wip-cap-zero-dispatch-off.md` is GONE — ratified as spec v049 in `9941317` — so
+the coordination hazard this file used to record against it has resolved itself.)
+The two are split between tracks:
+
+| proposal | owner | this track's obligation |
+|---|---|---|
+| `reconcile-merged-dispatch-lock.md` | **THIS track** | Run its revise pass. Still pending, untouched by the peer. |
+| `per-state-verb-vocabulary.md` | the peer track (`console-happy-path-mvp-supervisor`) | **NONE.** Do not accept, modify, reject, or include it in any payload of ours. |
+
+**A revise pass is NOT all-or-nothing** — an earlier relay said it was, and that
+was retracted. The revise PROSE says process every in-flight file, but the CLI's
+`--revise-json` payload defines actual scope through its `decisions[]` array.
+Verified independently on the forge 2026-07-26, and the timing is decisive:
+
+- `SPECIFICATION/history/v049/proposed_changes/` contains ONLY
+  `wip-cap-zero-dispatch-off.md` and `wip-cap-zero-dispatch-off-revision.md`.
+- v049 was ratified at 2026-07-26T09:13:02Z (`9941317`).
+- `per-state-verb-vocabulary.md` was added at **08:46:07Z** (`495b903`) — 27
+  minutes BEFORE v049 was cut — and `reconcile-merged-dispatch-lock.md` on
+  2026-07-19 (`e957b35`), seven days before.
+
+Both therefore sat pending while v049 snapshotted and ratified a single proposal,
+and neither received a `-revision.md`. A single-proposal pass is mechanically
+supported and was demonstrated today.
+
+Step 3.5 halts on any local `refs/heads/spec/*` ahead of `origin/master`.
+Verified EMPTY 2026-07-26; **re-check immediately before running**, since branches
+accumulate.
+
+**Likely outcome of our pass: accept as written, no amendment.** The original spec
+clash is recorded DISSOLVED (§"CORRECTED") — the approved design leaves the item
+`active` and narrows the count, so the proposal's "a red janitor … MUST leave the
+item `active`" is honored literally. **Verify that reading against the proposal's
+current bytes rather than assuming it**, but expect a short pass.
+
+### The peer's proposal contradicts itself — HANDED BACK, not our blocker
+
+**Ruling 2026-07-26: hand back for amendment; delivered.** This is recorded for
+the peer's benefit and for provenance. It is **NOT a gate on our pass**, because
+`per-state-verb-vocabulary.md` is out of our scope entirely. Do not wait on it and
+do not edit the peer's proposal — it is a completed maintainer decision owned by
+another track.
+
+The proposal's door rule (line ~66) states:
+
+> "`active` is entered ONLY by a journaled dispatch: **factory dispatch** … or
+> **driver-dispatch**. Bare operator moves into `active` are removed from every
+> lane."
+
+Its own lane table (line ~56) simultaneously keeps `reject (rework | regroom)` as
+a valid operator verb on `acceptance` — and `reject:rework` lands the item in
+`active` (`_drive_valves.py:189`), which is neither a dispatch nor journaled. The
+document never states where reject-rework lands. **So this is an internal
+inconsistency, not merely a clash with shipped code** — the maintainer can settle
+it without adjudicating behavior at all. The second contradiction is
+`acceptance-auto-rework`: journaled, but not a dispatch.
+
+The intent is clearly to kill the BARE operator move (`_MOVE_ALLOWED`), which the
+rest of the proposal supports. The narrowest repair keeps that intent and makes
+the text true — for example: "`active` is entered only by a journaled dispatch
+(factory dispatch or driver-dispatch) **or by a rework return from `acceptance`
+— the `reject:rework` valve or the Dispatcher's `acceptance-auto-rework`
+disposition**. Bare operator moves into `active` are removed from every lane."
+Drafted here as a concrete option for whoever amends it; the wording is theirs to
+choose.
 
 ## Root cause — a partial terminal-outcome → ledger-transition mapping
 
@@ -351,12 +512,11 @@ Re-read `SPECIFICATION/proposed_changes/` at thread start; both may have moved.
 
   Its earlier heartbeat objection does NOT block requirement 1, because the
   dispatch-scoped lock it specifies is the signal requirement 1 should read.
-- **`wip-cap-zero-dispatch-off.md`** — **now TRACKED on `origin/master`** as of
-  `5dd2f8d` (2026-07-25T23:39:00Z), byte-identical to the draft analyzed here. It
-  is no longer volatile; sequence against it as a real pending proposal. It
-  blesses `wip_cap: 0` as the sanctioned dispatch-off value and touches the same
-  admission condition. One concrete constraint follows, worth honoring regardless
-  of that proposal's fate: `_dispatcher_admission.py:87-91` computes `active_count`
+- **`wip-cap-zero-dispatch-off.md`** — **RESOLVED: ratified as spec v049** in
+  `9941317` (2026-07-26T09:13:02Z). It is no longer a pending proposal and no
+  longer a coordination hazard; `wip_cap: 0` is now the documented dispatch-off
+  value. Its constraint on this thread SURVIVES ratification and is now normative
+  rather than speculative: `_dispatcher_admission.py:87-91` computes `active_count`
   only inside `if enforce_cap:`, so **requirement 1's reconcile must sit OUTSIDE
   that branch and must not be gated on "we need a slot"** — otherwise a repo at
   `wip_cap: 0`, or any run with `enforce_cap` false, never reconciles and never
@@ -640,7 +800,8 @@ S3 without S1 is not merely weaker; it is unsound after any SIGKILL.
 
 | slice | test | injected defect that makes it RED |
 |---|---|---|
-| S1 — **DONE, both reds verified flipped** | lock whose `pid` is live but whose `started_at_epoch` long predates that process's real start → assert DEAD; and a second claim on an existing lock is refused | shipped in PR #978. Follow-on `bd-ib-l2vglr` covers the reclamation half that `O_EXCL` needs |
+| S1 — **DONE, both reds verified flipped** | lock whose `pid` is live but whose `started_at_epoch` long predates that process's real start → assert DEAD; and a second claim on an existing lock is refused | shipped in PR #978 |
+| `bd-ib-l2vglr` — **DONE, red demonstrated before dispatch and verified flipped after** | leaked lock whose recorded pid is dead → assert `write_dispatch_lock` RECLAIMS and re-stamps with the new caller's pid; lock whose holder is LIVE → assert it still REFUSES | shipped in PR #982. Pre-dispatch red: bare `os.open(..., O_EXCL)` raised `FileExistsError` on the dead-pid lock. Injected defect that would re-red it: swallow the raise instead of reclaiming → two dispatches share one claim |
 | S2 | `active` item + no live lock + journal `janitor-post-merge`/`failed` record → assert a needs-attention lane naming the item and its merged PR | drop the lane → red |
 | S2 (no staleness) | an item with a `janitor-post-merge`/`failed` record in the journal that is now CLOSED → assert NO lane is emitted | key the lane off journal history alone (as the `host-only` lane does today) → the closed item is surfaced → red |
 | S2 (right handoff) | a stranded merged-yet-janitor-red item → assert its handoff invokes `reconcile-merged` | emit a handoff that moves the item (e.g. `resolve-blocked:<id>:ready`) → an already-merged item is pushed back into the dispatch queue → red |
@@ -652,6 +813,9 @@ S3 without S1 is not merely weaker; it is unsound after any SIGKILL.
 | S3 (cap-independence) | `enforce_cap` false / `wip_cap` 0 → assert the reconcile still runs | nest the reconcile inside `if enforce_cap:` → red |
 | S3 (admission window) | admit a batch larger than `--parallel`, run the gate while the queued items are still awaiting a worker → assert the queued `active` items are NOT reclaimed | leave `write_dispatch_lock` at `dispatch_one` entry → the queued items have no lock → reclaimed → red |
 | S3 (recycled pid) | leaked lock recording a pid now held by an unrelated LIVE process, stamped with the original owner's start time → assert the item IS reclaimed | judge liveness by bare `os.kill(pid, 0)` (i.e. ship S3 without S1) → the stale lock reads live → never reclaimed → red |
+| S3 (auto-rework park) — **added by the 2026-07-26 amendment** | `active` item parked by `acceptance-auto-rework` (no lock; most recent terminal `outcome` is green) → assert it is STILL COUNTED against the cap and gets NO abandonment record | use the bare "active + no live lock" predicate → the item is uncounted and a FALSE abandonment is journaled → red |
+| S3 (valve rework park) — **added by the 2026-07-26 amendment** | `active` item parked by `reject:<id>:rework` (no lock, no journal record of its own, most recent terminal `outcome` green) → assert likewise still counted and unjournaled | as above → red |
+| S3 (killed before outcome) — **added by the 2026-07-26 amendment** | a dispatch killed after `ledger-admit` but before any `outcome` record → assert the item IS reclaimed | require an explicit non-green outcome → a SIGKILLed dispatch is never reclaimed and requirement 3 goes unsatisfied → red |
 
 The S3 negative test is what discharges `reconcile-merged-dispatch-lock.md`'s
 objection: it proves a live dispatch inside its janitor window is never reclaimed.
@@ -989,6 +1153,21 @@ the constraint above.
 5. **The cut and every acceptance criterion — APPROVED as drafted**, plus two scope
    additions approved at groom time: S1 also closes the write-side `O_EXCL` gap, and
    S3 also moves `write_dispatch_lock` to admission time.
+
+Three further rulings, settled 2026-07-26 AFTER the groom:
+
+6. **S3's reclaim predicate — AMENDED.** It is no longer "active + no live lock";
+   it additionally requires that the item's most recent terminal `outcome` be
+   non-green, or that no `outcome` exist since its most recent `ledger-admit`.
+   `bd-ib-pme57n`'s description carries the amendment and three added verifiers.
+   See §"Rework doors".
+7. **`per-state-verb-vocabulary.md`'s self-contradiction — HAND BACK for amendment**,
+   delivered 2026-07-26. It is NOT a gate on this track's revise pass, because that
+   proposal is not in this track's scope. Never edit it here.
+8. **The revise pass is SINGLE-FILE.** This track owns
+   `reconcile-merged-dispatch-lock.md` only. An earlier relay claimed a pass is
+   all-or-nothing across every in-flight proposal; that was retracted and is
+   refuted by v049's own history. See §"The revise pass".
 
 Two further calls settled at groom time:
 
