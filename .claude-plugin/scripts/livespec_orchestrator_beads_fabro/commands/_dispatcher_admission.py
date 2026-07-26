@@ -12,9 +12,16 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 
+from livespec_orchestrator_beads_fabro.commands import _dispatcher_self_update as selfup
+from livespec_orchestrator_beads_fabro.commands._dispatcher_claim_reclaim import (
+    claimed_active_count,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_completion import host_only_refusal
 from livespec_orchestrator_beads_fabro.commands._dispatcher_decision_journal import (
     auto_disposition_journal_record,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_dispatch_lock import (
+    write_dispatch_lock,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
@@ -85,7 +92,7 @@ def admit_and_select(
         else:
             admittable.append(item)
     if enforce_cap:
-        active_count = sum(1 for item in items if item.status == "active")
+        active_count = claimed_active_count(repo=repo, items=items, journal=journal)
         free_slots = max(0, resolve_wip_cap(cwd=repo) - active_count)
     else:
         free_slots = len(admittable)
@@ -113,6 +120,8 @@ def admit_and_select(
         update_work_item_status(
             path=config, item_id=journal_item.id, status="active", assignee=assignee
         )
+        dispatch_id = selfup.run_id()
+        _ = write_dispatch_lock(repo=repo, work_item_id=item.id, dispatch_id=dispatch_id)
         journal.append(
             record={"stage": "ledger-admit", "work_item_id": item.id, "assignee": assignee}
         )

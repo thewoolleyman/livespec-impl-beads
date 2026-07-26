@@ -23,6 +23,8 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_credentials import (
     read_dispatch_labels,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_dispatch_lock import (
+    dispatch_lock_path,
+    live_dispatch_lock,
     release_dispatch_lock,
     write_dispatch_lock,
 )
@@ -82,8 +84,13 @@ def dispatch_one(
     journal: JournalFile,
     janitor: tuple[str, ...] | None,
 ) -> DispatchOutcome:
-    dispatch_id = run_id()
-    lock_path = write_dispatch_lock(repo=repo, work_item_id=item.id, dispatch_id=dispatch_id)
+    lock = live_dispatch_lock(repo=repo, work_item_id=item.id)
+    if lock is None or lock.dispatch_id is None:
+        dispatch_id = run_id()
+        lock_path = write_dispatch_lock(repo=repo, work_item_id=item.id, dispatch_id=dispatch_id)
+    else:
+        dispatch_id = lock.dispatch_id
+        lock_path = dispatch_lock_path(repo=repo, work_item_id=item.id)
     with ExitStack() as stack:
         _ = stack.callback(lambda: release_dispatch_lock(path=lock_path))
         return _dispatch_one_locked(
