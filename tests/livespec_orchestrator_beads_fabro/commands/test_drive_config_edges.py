@@ -83,7 +83,6 @@ def test_config_write_accepts_bool_true_and_enum_values(tmp_path: Path) -> None:
         "set-config:wip_cap:",
         "set-config:merge_on_review_cap:maybe",
         "set-config:wip_cap:nope",
-        "set-config:wip_cap:0",
     ],
 )
 def test_config_write_refuses_malformed_or_out_of_domain_values(
@@ -97,6 +96,19 @@ def test_config_write_refuses_malformed_or_out_of_domain_values(
     assert result["status"] == "failed"
     assert result["kind"] == "config-write"
     assert not (repo / ".livespec.jsonc").exists()
+
+
+def test_config_write_accepts_zero_wip_cap(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+
+    result = drive.run_action(repo=repo, action_id="set-config:wip_cap:0")
+
+    assert result["status"] == "green"
+    assert result["value"] == 0
+    assert json.loads((repo / ".livespec.jsonc").read_text(encoding="utf-8")) == {
+        _PLUGIN_BLOCK: {"dispatcher": {"wip_cap": 0}}
+    }
 
 
 @pytest.mark.parametrize(

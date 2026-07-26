@@ -7,8 +7,27 @@ from pathlib import Path
 from typing import Any
 
 from livespec_orchestrator_beads_fabro.commands import drive
+from livespec_orchestrator_beads_fabro.commands._drive_config_schema import (
+    coerce_config_value,
+    config_key_by_name,
+    parse_config_value,
+    value_domain,
+)
 
 _PLUGIN_BLOCK = "livespec-orchestrator-beads-fabro"
+
+
+def test_config_schema_distinguishes_positive_and_non_negative_integer_domains() -> None:
+    review_fix_cap = config_key_by_name(key="review_fix_cap")
+    wip_cap = config_key_by_name(key="wip_cap")
+
+    assert review_fix_cap is not None
+    assert wip_cap is not None
+    assert coerce_config_value(config_key=review_fix_cap, raw_value=4) == 4
+    assert coerce_config_value(config_key=review_fix_cap, raw_value=0) is None
+    assert parse_config_value(config_key=review_fix_cap, raw_value="nope") is None
+    assert parse_config_value(config_key=wip_cap, raw_value="0") == 0
+    assert value_domain(config_key=wip_cap) == "a non-negative integer"
 
 
 def _settings_by_key(*, payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -27,7 +46,7 @@ def test_drive_reads_all_effective_dispatcher_settings_with_sources(tmp_path: Pa
                     "dispatcher": {
                         "auto_approve_ready": True,
                         "acceptance_mode": "human-only",
-                        "wip_cap": 8,
+                        "wip_cap": 0,
                     }
                 }
             }
@@ -70,7 +89,7 @@ def test_drive_reads_all_effective_dispatcher_settings_with_sources(tmp_path: Pa
         "value": 2,
         "source": "default",
     }
-    assert by_key["wip_cap"] == {"key": "wip_cap", "value": 8, "source": "explicit"}
+    assert by_key["wip_cap"] == {"key": "wip_cap", "value": 0, "source": "explicit"}
 
 
 def test_drive_writes_one_dispatcher_setting_without_clobbering_siblings(
@@ -221,7 +240,7 @@ def test_drive_publishes_api_configurable_key_manifest(tmp_path: Path) -> None:
         },
         "wip_cap": {
             "key": "wip_cap",
-            "type": "positive_integer",
+            "type": "non_negative_integer",
             "default": 5,
             "per_item_override": False,
         },
