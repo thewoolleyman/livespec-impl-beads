@@ -7,7 +7,6 @@ from typing import Any, Protocol, cast
 
 from livespec_orchestrator_beads_fabro import store
 from livespec_orchestrator_beads_fabro.commands._config import resolve_store_config
-from livespec_orchestrator_beads_fabro.commands._dispatcher_valves import effective_admission_policy
 from livespec_orchestrator_beads_fabro.commands._drive_policy_valves import (
     CAP_ACTION_VERBS,
     move_item,
@@ -15,6 +14,7 @@ from livespec_orchestrator_beads_fabro.commands._drive_policy_valves import (
     set_cap,
     set_policy,
 )
+from livespec_orchestrator_beads_fabro.commands._drive_valve_predicates import can_approve_item
 from livespec_orchestrator_beads_fabro.commands._drive_valve_result import (
     invalid_source_state,
     valve_refusal,
@@ -143,7 +143,7 @@ def _approve_item(
 ) -> dict[str, Any]:
     if item.status != "pending-approval":
         return invalid_source_state(aid=action_id, item=item, expected="pending-approval")
-    if effective_admission_policy(item=item, cwd=repo) != "manual":
+    if not can_approve_item(item=item, cwd=repo):
         return valve_refusal(
             aid=action_id,
             wid=item.id,

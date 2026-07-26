@@ -15,7 +15,12 @@ from livespec_runtime.work_items.lifecycle import lane_of
 from livespec_orchestrator_beads_fabro.commands._dispatcher_dispatch_lock import (
     live_dispatch_lock,
 )
+from livespec_orchestrator_beads_fabro.commands._drive_valve_predicates import (
+    awaits_dispatcher_admission,
+    can_approve_item,
+)
 from livespec_orchestrator_beads_fabro.commands._needs_attention_handoffs import (
+    dispatcher_loop_command,
     drive_command,
     host_only_command,
 )
@@ -27,6 +32,7 @@ from livespec_orchestrator_beads_fabro.effects import AttemptFailure, attempt
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
 __all__: list[str] = [
+    "auto_admission_items",
     "host_only_items",
     "human_valves",
     "impl_next",
@@ -81,7 +87,7 @@ def human_valves(
             manifest=manifest,
             sibling_status_lookup=sibling_status_lookup,
         ).reason
-        if status == "pending-approval":
+        if can_approve_item(item=item, cwd=project_root):
             lanes.append(
                 _valve(
                     verb="approve",
@@ -112,6 +118,19 @@ def human_valves(
                 )
             )
     return lanes
+
+
+def auto_admission_items(
+    *,
+    project_root: Path,
+    repo: str,
+    items: list[WorkItem],
+) -> list[AttentionItem]:
+    return [
+        _awaiting_admission_item(project_root=project_root, repo=repo, item=item)
+        for item in items
+        if awaits_dispatcher_admission(item=item, cwd=project_root)
+    ]
 
 
 def host_only_items(
@@ -187,6 +206,20 @@ def _host_only_refusal_item_id(*, line: str) -> str | None:
         return None
     item_id = outcome_record.get("work_item_id")
     return item_id if isinstance(item_id, str) else None
+
+
+def _awaiting_admission_item(*, project_root: Path, repo: str, item: WorkItem) -> AttentionItem:
+    return AttentionItem(
+        id=f"internal:awaiting-admission:{item.id}",
+        kind="internal",
+        urgency="medium",
+        summary=(
+            f"Work-item {item.id} is pending automatic approval; "
+            "awaiting the next Dispatcher admission pass."
+        ),
+        source_ref=SourceRef(repo=repo, work_item=item.id),
+        handoff=Handoff(kind="shell", command=dispatcher_loop_command(project_root=project_root)),
+    )
 
 
 def _host_only_item(

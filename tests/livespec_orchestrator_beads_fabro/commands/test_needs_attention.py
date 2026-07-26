@@ -74,7 +74,15 @@ def _seed_raw(
     client.update_issue(issue_id=id_, status=status)
 
 
-def _write_config(project_root: Path) -> None:
+def _write_config(project_root: Path, *, auto_approve_ready: bool = False) -> None:
+    dispatcher = (
+        f""",
+    \"dispatcher\": {{
+      \"auto_approve_ready\": {str(auto_approve_ready).lower()}
+    }}"""
+        if auto_approve_ready
+        else ""
+    )
     (project_root / ".livespec.jsonc").write_text(
         """{
   \"livespec-orchestrator-beads-fabro\": {
@@ -86,6 +94,9 @@ def _write_config(project_root: Path) -> None:
       \"bd_path\": \"bd\",
       \"fake\": true
     }
+"""
+        + dispatcher
+        + """
   }
 }
 """,
@@ -146,6 +157,7 @@ def _item(
     rank: str = "a2",
     blocked_reason: str | None = None,
     factory_safety: str | None = None,
+    admission_policy: str | None = None,
 ) -> WorkItem:
     return WorkItem(
         id=id_,
@@ -165,6 +177,7 @@ def _item(
         superseded_by=None,
         blocked_reason=blocked_reason,  # type: ignore[arg-type]
         factory_safety=factory_safety,  # type: ignore[arg-type]
+        admission_policy=admission_policy,  # type: ignore[arg-type]
     )
 
 
@@ -204,6 +217,36 @@ def test_build_attention_composes_impl_human_valves_plan_threads_and_spec_next(
     assert attention[1].handoff.command.endswith("--action accept:bd-accept --json")
     assert attention[3].handoff.command.endswith("--action impl:bd-ready --json")
     assert attention[-1].source_ref.path == "plan/needs-attention/"
+
+
+def test_build_attention_advertises_approve_only_for_effective_manual_policy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_config(tmp_path, auto_approve_ready=True)
+    _stub_spec_next(monkeypatch, output=None)
+    _seed(_item(id_="bd-auto", status="pending-approval", rank="a1"))
+    _seed(
+        _item(
+            id_="bd-manual",
+            status="pending-approval",
+            rank="a2",
+            admission_policy="manual",
+        )
+    )
+
+    attention = build_attention(
+        project_root=tmp_path,
+        repo_name="repo",
+        include_hygiene=False,
+    )
+
+    assert [item.id for item in attention] == [
+        "valve:approve:bd-manual",
+        "internal:awaiting-admission:bd-auto",
+    ]
+    assert attention[0].handoff.action_id == "approve:bd-manual"
+    assert attention[1].kind == "internal"
+    assert "Dispatcher admission pass" in attention[1].summary
 
 
 def test_build_attention_surfaces_ready_factory_safety_item_as_host_only(

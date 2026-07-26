@@ -10,6 +10,7 @@ from livespec_runtime.needs_attention import PlanThreadOutput
 from livespec_orchestrator_beads_fabro.commands.list_plan_threads import list_plan_threads
 
 __all__: list[str] = [
+    "dispatcher_loop_command",
     "drive_command",
     "host_only_command",
     "plan_threads",
@@ -40,6 +41,13 @@ def drive_command(*, project_root: Path, action_id: str) -> str:
     return (
         f"python3 {_quote(path=_wrapper_path(name='drive.py'))} "
         f"--repo {_quote(path=project_root)} --action {shlex.quote(action_id)} --json"
+    )
+
+
+def dispatcher_loop_command(*, project_root: Path) -> str:
+    return (
+        f"python3 {_quote(path=_wrapper_path(name='dispatcher.py'))} "
+        f"loop --repo {_quote(path=project_root)} --budget 1 --parallel 1 --json"
     )
 
 
