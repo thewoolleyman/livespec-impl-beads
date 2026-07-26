@@ -48,8 +48,6 @@ __all__: list[str] = [
     "load_groom_context",
 ]
 
-_DEFAULT_PRIORITY = 2
-
 
 @dataclass(frozen=True, kw_only=True)
 class GroomContext:
@@ -91,7 +89,6 @@ class CandidateSlice:
     repo_target: str
     depends_on: tuple[str, ...] = ()
     is_spec_change: bool = False
-    priority: int = _DEFAULT_PRIORITY
 
 
 @dataclass(frozen=True, kw_only=True)
