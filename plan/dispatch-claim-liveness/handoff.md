@@ -190,10 +190,12 @@ invariant (`work_items/types.py:118`).
 
 1. **Reconcile at the gate.** Before computing `active_count`, establish whether
    each `active` item's dispatch is still alive; a dead claim is journaled as an
-   abandonment and moved out of `active`. **Use the per-work-item dispatch
+   abandonment and **excluded from the count**. **Use the per-work-item dispatch
    ownership lock, NOT the heartbeat** — see §"The signal already exists".
    Self-healing, no new lifecycle vocabulary, and it runs exactly when the answer
-   matters.
+   matters. (Earlier revisions of this line said "moved out of `active`". That is
+   RETRACTED — moving the item breaks the shipped `reconcile-merged` valve; see
+   §"CORRECTED".)
 2. **Surface it.** An `active` item whose dispatch is dead MUST reach
    needs-attention. Not optional polish: invisibility is why this sat six days,
    and the system's own design expects a human to run `reconcile-merged` while
@@ -560,8 +562,8 @@ S3 without S1 is not merely weaker; it is unsound after any SIGKILL.
 | S3 (status preserved) | reclaim a merged-yet-janitor-red item → assert its status is STILL `active` afterwards AND `reconcile-merged --item <id>` still passes its source-lane guard | move it to `blocked`/`backlog` → `reconcile-merged` refuses with "expected active item" → the item is stranded from its own recovery path → red |
 | S3 (uncounted, not moved) | one `active` item with no live lock plus `wip_cap` 1 → assert an admission-eligible ready item IS admitted on the same pass | count all `active` rows (today's `_dispatcher_admission.py:88`) → `free_slots` is 0 → nothing admitted → red |
 | S3 (live janitor window) | an `active` + PR-merged item whose dispatch is mid-janitor with a live lock, up to the 1h `_JANITOR_TIMEOUT_SECONDS` bound | infer death from `status == "active"` + a merged PR (the `bd-ib-ug4z` defect) → a live run's slot is reclaimed → red |
-| S3 (positive) | `active` item, no lock file → run the gate → assert moved out of `active` AND an abandonment journal record written | remove the reconcile call → item stays `active` → red |
-| S3 (negative) | `active` item WITH a lock written for `os.getpid()` → assert it STAYS `active` and still counts against the cap | make the reconcile ignore lock liveness → it reclaims a live run → red |
+| S3 (positive) | `active` item, no lock file → run the gate → assert it is EXCLUDED from `active_count` AND an abandonment journal record is written. **Do NOT assert it was moved out of `active`** — that expectation is retracted (§"CORRECTED") | remove the reconcile call → the item is still counted and no record is written → red |
+| S3 (negative) | `active` item WITH a lock written for `os.getpid()` → assert it STILL counts against the cap | make the reconcile ignore lock liveness → a live run's slot is released → red |
 | S3 (cap-independence) | `enforce_cap` false / `wip_cap` 0 → assert the reconcile still runs | nest the reconcile inside `if enforce_cap:` → red |
 | S3 (admission window) | admit a batch larger than `--parallel`, run the gate while the queued items are still awaiting a worker → assert the queued `active` items are NOT reclaimed | leave `write_dispatch_lock` at `dispatch_one` entry → the queued items have no lock → reclaimed → red |
 | S3 (recycled pid) | leaked lock recording a pid now held by an unrelated LIVE process, stamped with the original owner's start time → assert the item IS reclaimed | judge liveness by bare `os.kill(pid, 0)` (i.e. ship S3 without S1) → the stale lock reads live → never reclaimed → red |
@@ -571,7 +573,14 @@ objection: it proves a live dispatch inside its janitor window is never reclaime
 S3's positive test must assert BOTH the transition AND the abandonment record, or
 it passes vacuously on a status the healthy path also produces.
 
-### Draft amendment — resolving the spec collision in one sentence
+### Draft amendment — FALLBACK ONLY; likely not needed
+
+> **⛔ Read §"CORRECTED" first.** Under the corrected design (leave the item
+> `active`, narrow the count) the pending proposal's "MUST leave the item
+> `active`" is honored LITERALLY and **no spec amendment is required at all.**
+> This section is retained ONLY as a fallback for the case where the maintainer
+> prefers a status move despite the `reconcile-merged` source-lane guard. Do not
+> read it as live guidance.
 
 DRAFTED, NOT FILED. The spec side is the maintainer's; this exists so the
 decision is a yes/no on concrete text rather than an open design question.
