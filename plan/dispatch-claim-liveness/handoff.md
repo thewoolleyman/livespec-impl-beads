@@ -348,6 +348,35 @@ The staleness bug in the existing `host-only` lane is a **separate pre-existing
 defect**, not part of `bd-ib-waov`. It is recorded here because S2 must not
 inherit it; filing it is the maintainer's call.
 
+### ⚠ S2 CONSTRAINT — "run `reconcile-merged`" is not always an actionable handoff
+
+`bd-ib-w4h4`'s janitor red is **deterministic**, and `reconcile-merged` cannot
+recover it. All three attempts (2026-07-20 at 05:34, 16:48, 17:56) produced a
+byte-identical failure. The operative line is:
+
+```
+error: Recipe `check-coverage` failed with exit code 2
+error: Recipe `check` failed with exit code 1
+```
+
+Note the `livespec_footgun_guard.py:225` / `bd-guard-emit.py:112` lines that
+dominate the captured detail are `"phase": "0-warn"`, `"level": "warning"` — Phase-0
+WARNings that do NOT fail the gate. The actual cause is the coverage gate failing
+in a FRESH checkout of the merged ref, even though the PR's own CI was green
+before merge. Do not misread the warning noise as the failure.
+
+Consequence for S2: a lane whose handoff is bare "run `reconcile-merged --item
+<id>`" sends the operator into a loop that has already failed three times. The
+lane MUST carry the failing stage, the failure detail, and **how many prior
+attempts produced it**, so a repeat failure escalates instead of retrying. A
+recovery surface that cannot recover, offered without that context, is another
+way to re-hide the failure.
+
+(Why the coverage gate is red in a fresh checkout when pre-merge CI was green is
+a SEPARATE question — plausibly systemic, given `janitor-post-merge` is this
+repo's largest failure class at 20 occurrences. It is NOT part of `bd-ib-waov`;
+noted so the groom does not absorb it by accident.)
+
 ### ⚠ S3 DESIGN CONSTRAINT — "no live lock" is NOT sufficient on its own
 
 A naive S3 that reclaims every `active` item with no live dispatch lock would be
