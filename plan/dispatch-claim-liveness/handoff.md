@@ -716,6 +716,14 @@ these before cutting slices, or it will file work that is already shipped.
 | `bd-ib-hycf` | 1 | backlog | Largely FALSIFIED on re-check (a journal read-timing misread). Its surviving finding matters here: the **admission lock is released BEFORE the outcome event is journaled**, so a watcher keyed on lock release reads a torn state. |
 | `bd-ib-81l0` | 2 | ready | `reconcile_plan` hardcodes `fabro_bin='fabro'`, so **the recovery valve exec-fails inside the credential wrapper.** |
 
+Note on the two `acceptance` rows: `bd-ib-lza6` states it is "HELD from acceptance
+pending" `bd-ib-ug4z`. `bd-ib-ug4z`'s fix has SHIPPED (`_dispatcher_dispatch_lock.py`
+is on `master`) and the item now sits in `acceptance` itself, so whether lza6's hold
+is discharged depends on whether "pending this fix" means merged (satisfied) or
+accepted (not yet). Both have been parked since 2026-07-19. Worth the maintainer's
+eye — accepting them would settle the ratified recovery path this epic's
+requirement 2 is built around.
+
 **What this leaves genuinely NEW in `bd-ib-waov`** — and the groom should scope it
 to exactly this, not re-litigate the above:
 
@@ -839,6 +847,45 @@ stated: not "make it visible" (the blocked lane does that) but **"give it the
 right handoff"** — `reconcile-merged` carrying the failing stage, the merge
 evidence, and the prior-attempt count, instead of the generic
 `resolve-blocked → ready`.
+
+### ⛔ FILING CONSTRAINT — linking slices to the epic is KNOWN-BROKEN; read before filing
+
+The groom's output is "dependency-layered slices under `bd-ib-waov`". **The
+sanctioned store writer cannot express that link**, and failing halfway is its
+observed behavior — not a hypothetical.
+
+Two filed items, both P2 and both `blocked`:
+
+- **`bd-ib-vari3j`** — "store writer cannot express beads epic membership".
+  `_store_mutations._add_dependency_edges` maps every `depends_on` entry to
+  `bd dep add <item> <dep> --type blocks`, and the live backend REJECTS that when
+  the target is an epic: `Error: tasks can only block other tasks, not epics`.
+  `create_work_item` also calls `create_issue(parent_id=None)` hardcoded. So a
+  child→epic relationship **has no valid expression through the sanctioned
+  writer.**
+- **`bd-ib-kn63nm`** — the same defect's consequence: because edges are added
+  AFTER the item row is written, the rejection leaves a **PARTIALLY-COMPLETED
+  write.** The work-item EXISTS, its declared `depends_on` does not, and the
+  caller sees only a traceback. **Re-running the same filing therefore
+  DUPLICATES the item.**
+
+**What the groom must do about it:**
+
+1. **Do NOT give a slice a `depends_on` entry pointing at `bd-ib-waov`.** It will
+   traceback, and the row will already exist.
+2. **Inter-slice edges are FINE.** S1→S3 and S2→S3 are task→task, and `blocks` is
+   valid there. Only the child→EPIC edge fails.
+3. **Record epic membership in PROSE** (in each slice's description) until
+   `bd-ib-vari3j` / `bd-ib-kn63nm` land — the same "prose IS the link" device this
+   thread already uses for the cross-tenant `-6ma` supersession.
+4. **If any filing tracebacks, RE-READ the store before retrying.** The item is
+   probably already there.
+
+Also verified 2026-07-26: **`bd-ib-waov` currently has `dependency_count: 0`,
+`dependent_count: 0`, and no children** — it is entirely unlinked, and no other
+item in the ledger references it. The four overlapping items in §"LEDGER OVERLAP"
+are related only by this prose. Linking them is a groom deliverable, subject to
+the constraint above.
 
 ### Questions only the maintainer can settle
 
