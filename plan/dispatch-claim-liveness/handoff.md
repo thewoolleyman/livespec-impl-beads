@@ -18,10 +18,24 @@ monotonic: every abandonment costs a slot that never comes back.
 | S2 | **`bd-ib-cfgkkk`** | `pending-approval` | Surface a stranded merged-yet-unfinished claim in needs-attention |
 | S3 | **`bd-ib-pme57n`** | `pending-approval` | Stop counting dead claims against the per-repo WIP cap |
 
-One further item filed by this thread and still open, not part of the epic:
-**`bd-ib-hvuhxp`** (P2, `ready` — `CandidateSlice.priority` is dead API surface;
-fix is to DELETE the field, not wire it through, because `WorkItem` removed
-`priority` deliberately and `rank` is the sole ordering authority).
+Three further items filed by this thread and still open, none part of the epic:
+
+- **`bd-ib-hvuhxp`** (P2, `ready`) — `CandidateSlice.priority` is dead API
+  surface; fix is to DELETE the field, not wire it through, because `WorkItem`
+  removed `priority` deliberately and `rank` is the sole ordering authority.
+- **`bd-ib-2wgooj`** (P2, `ready`, factory-safe) — `_MOVE_ALLOWED` still permits
+  the bare `move:<id>:active` door that v050 retired. Discharges S3's accepted
+  residual. Scoped to the `active` target ONLY: the same frozenset still contains
+  `"ready"`, but that door is NOT a like-for-like removal here because
+  `auto_approve_ready: true` makes the `approve` valve refuse every item in this
+  repo, so the move is not a duplicate of a USABLE valve. That needs its own
+  ruling; do not widen the fix without one.
+- **`bd-ib-d6op2n`** (P2, `ready`, **host-only**) — the `livespec-driver-claude`
+  core-resolution misfire. Owned by that repo; filed in this tenant because beads
+  has no cross-tenant edge, so this prose IS the link and it must be routed by
+  hand. Carries `factory_safety: mutates-host-machinery`, verified to make
+  `is_host_only_item` return True, so the Dispatcher refuses to sandbox a fix
+  that does not live in this repo.
 
 The originating epic **`bd-ib-waov`** was CLOSED 2026-07-26T08:32:25Z by the groom
 with the explicit disposition "regroomed out into replacement slices:
@@ -48,10 +62,13 @@ makes S2 MANDATORY". S2 remains gated by `bd-ib-81l0` (below). **S3's predicate
 was AMENDED 2026-07-26 and is no longer "active + no live lock"** — see
 §"Rework doors".
 
-**A second, separate assignment is also open: a `/livespec:revise` pass over
-`reconcile-merged-dispatch-lock.md` — and ONLY that file — belongs to this track**
-(maintainer-assigned 2026-07-26, scope corrected the same day). No deadline.
-`per-state-verb-vocabulary.md` is NOT ours. See §"The revise pass".
+**A second, separate assignment is also open: a `/livespec:revise` pass over BOTH
+pending proposals — `reconcile-merged-dispatch-lock.md` and
+`rework-return-door-attribution.md` — belongs to this track**
+(maintainer-assigned 2026-07-26, scope corrected twice the same day). No deadline.
+Every pending proposal is now ours; the peer's was ratified as v050. **The pass is
+BLOCKED** on a local `spec/*` branch owned by another session — see §"The revise
+pass", and check the precondition at run time, never earlier.
 
 The lock work, both halves verified by executing the real product code, not by
 reading a green dispatcher summary:
@@ -191,32 +208,43 @@ The last row is why this is sound ONLY together with S3's admission-time lock
 move. Without it, a queued item has neither lock nor outcome and would be
 reclaimed while perfectly healthy.
 
-**KNOWN RESIDUAL, accepted at approval:** a bare `move:<id>:active` item has no
-lock and no outcome since its (nonexistent) admit, so it reads as abandoned. That
-is the door `per-state-verb-vocabulary.md` removes; if that proposal is not
-ratified, the residual needs its own decision.
+**KNOWN RESIDUAL, accepted at approval — now DISCHARGED at the spec level.** A
+bare `move:<id>:active` item has no lock and no outcome since its (nonexistent)
+admit, so it reads as abandoned. That door was retired by v050 (`27980bb`), and
+the shipped-code divergence — `_MOVE_ALLOWED` still contains `"active"` — is filed
+as **`bd-ib-2wgooj`**. `bd-ib-pme57n`'s description carries the same cross-
+reference. Prose link only; no dependency edge is asserted, because S3's
+predicate is correct either way and merely reads a bare-moved item as abandoned
+until `bd-ib-2wgooj` lands.
 
-## The revise pass — OURS is `reconcile-merged-dispatch-lock.md` ONLY
+## The revise pass — TWO files, BOTH ours
 
-**Maintainer-assigned 2026-07-26; scope CORRECTED the same day.** No deadline; run
-it when the slices make it sensible. **Do not run it while a dispatch is in
-flight** — it authors spec text and cuts a `spec/*` branch, which should not race
-a live janitor.
+**Maintainer-assigned 2026-07-26; scope corrected twice the same day — read the
+current table, not the earlier "ONLY that file" framing this section used to
+carry.** No deadline; run it when the slices make it sensible. **Do not run it
+while a dispatch is in flight** — it authors spec text and cuts a `spec/*` branch,
+which should not race a live janitor.
 
-`SPECIFICATION/proposed_changes/` holds exactly two files.
-(`wip-cap-zero-dispatch-off.md` is GONE — ratified as spec v049 in `9941317` — so
-the coordination hazard this file used to record against it has resolved itself.)
-The two are split between tracks:
+`SPECIFICATION/proposed_changes/` on `origin/master` holds exactly two files, and
+**both are ours**:
 
-| proposal | owner | this track's obligation |
+| proposal | filed | this track's obligation |
 |---|---|---|
-| `reconcile-merged-dispatch-lock.md` | **THIS track** | Run its revise pass. Still pending, untouched by the peer. |
-| `per-state-verb-vocabulary.md` | the peer track (`console-happy-path-mvp-supervisor`) | **NONE.** Do not accept, modify, reject, or include it in any payload of ours. |
+| `reconcile-merged-dispatch-lock.md` | 2026-07-19 (`e957b35`) | Process it. Pending since filing, untouched by any other track. |
+| `rework-return-door-attribution.md` | 2026-07-26 (PR #996, `e7c0651`) | Process it. Two separable findings; see §"Rework doors" and the v050 correction below. |
 
-**A revise pass is NOT all-or-nothing** — an earlier relay said it was, and that
-was retracted. The revise PROSE says process every in-flight file, but the CLI's
-`--revise-json` payload defines actual scope through its `decisions[]` array.
-Verified independently on the forge 2026-07-26, and the timing is decisive:
+The peer's `per-state-verb-vocabulary.md` is **GONE** — ratified as v050 in
+`27980bb` — and `wip-cap-zero-dispatch-off.md` before it as v049 in `9941317`.
+**Consequence: the all-or-nothing property now costs us nothing.** Every pending
+proposal is ours, so no coordination with another track is required and no
+proposal has to be carved out of the payload. Earlier revisions of this section
+recorded a cross-track split; that split no longer exists.
+
+**A revise pass is NOT all-or-nothing anyway** — an early relay said it was, and
+that was retracted. The revise PROSE says process every in-flight file, but the
+CLI's `--revise-json` payload defines actual scope through its `decisions[]`
+array. Verified independently on the forge 2026-07-26, and the timing is
+decisive:
 
 - `SPECIFICATION/history/v049/proposed_changes/` contains ONLY
   `wip-cap-zero-dispatch-off.md` and `wip-cap-zero-dispatch-off-revision.md`.
@@ -229,15 +257,50 @@ Both therefore sat pending while v049 snapshotted and ratified a single proposal
 and neither received a `-revision.md`. A single-proposal pass is mechanically
 supported and was demonstrated today.
 
-Step 3.5 halts on any local `refs/heads/spec/*` ahead of `origin/master`.
-Verified EMPTY 2026-07-26; **re-check immediately before running**, since branches
-accumulate.
+### ⛔ The blocking precondition — check it IMMEDIATELY BEFORE the run
 
-**Likely outcome of our pass: accept as written, no amendment.** The original spec
-clash is recorded DISSOLVED (§"CORRECTED") — the approved design leaves the item
-`active` and narrows the count, so the proposal's "a red janitor … MUST leave the
-item `active`" is honored literally. **Verify that reading against the proposal's
-current bytes rather than assuming it**, but expect a short pass.
+Step 3.5 halts on any local `refs/heads/spec/*` ahead of `origin/master`.
+
+**This check is binding at run time, not at session start.** It was verified
+EMPTY twice on 2026-07-26 and was non-empty again within the hour on both
+occasions. Two demonstrations, both real:
+
+1. `refs/heads/spec/ratify-verb-vocabulary` — the peer track's v050 pass. Its
+   remote branch was deleted when PR #995 merged, so the LOCAL ref plus its
+   worktree at `~/.worktrees/livespec-orchestrator-beads-fabro/spec-ratify-verb-vocabulary`
+   is pure residue — but Step 3.5 does not care, and it BLOCKS us. It is owned by
+   session `console-happy-path-mvp-supervisor`; **do not remove it ourselves** —
+   the never-touch-another-session's-worktree clause is absolute. Ask its owner.
+2. This thread's OWN propose-change cut and deleted `spec/rework-return-door-attribution`
+   inside a single turn. Filing a proposal is itself a way to trip the gate.
+
+So: `git for-each-ref refs/heads/spec/` MUST be empty at the moment of the run.
+An earlier-in-session verification proves nothing.
+
+**Likely outcome for `reconcile-merged-dispatch-lock.md`: accept as written, no
+amendment.** The original spec clash is recorded DISSOLVED (§"CORRECTED") — the
+approved design leaves the item `active` and narrows the count, so the proposal's
+"a red janitor … MUST leave the item `active`" is honored literally.
+
+**But re-read before accepting: v050 landed AFTER that analysis and changed the
+door rules around `active`.** The DISSOLVED reading was derived pre-v050. Verify
+it against BOTH the proposal's current bytes and the ratified v050 text in
+`SPECIFICATION/contracts.md` rather than trusting the earlier conclusion. Expect
+a short pass, but do not assume one.
+
+### A driver defect that can misfire this very pass
+
+`bd-ib-d6op2n` (P2, `ready`, host-only): every `livespec-driver-claude` binding —
+all eight, `revise` included — ships a core-resolution snippet that tests the
+prose DIRECTORY (`-d "./.claude-plugin/prose"`) while its own documented rule 2
+tests that operation's prose FILE. This repo HAS a `.claude-plugin/prose/` (six
+orchestrator prose files, none of them spec-side), so the snippet resolves
+`<core-root>` to THIS repo and the not-found guard — which re-tests the directory
+— passes it through silently.
+
+**Workaround, already used successfully:** apply the documented rule-2 condition
+(test for `prose/revise.md` specifically), or resolve rule 3 directly from
+`~/.claude/plugins/installed_plugins.json`. Do not trust the shipped snippet.
 
 ### The peer's proposal contradicts itself — HANDED BACK, not our blocker
 
@@ -1164,10 +1227,27 @@ Three further rulings, settled 2026-07-26 AFTER the groom:
 7. **`per-state-verb-vocabulary.md`'s self-contradiction — HAND BACK for amendment**,
    delivered 2026-07-26. It is NOT a gate on this track's revise pass, because that
    proposal is not in this track's scope. Never edit it here.
-8. **The revise pass is SINGLE-FILE.** This track owns
-   `reconcile-merged-dispatch-lock.md` only. An earlier relay claimed a pass is
-   all-or-nothing across every in-flight proposal; that was retracted and is
-   refuted by v049's own history. See §"The revise pass".
+8. **The revise pass covers BOTH pending proposals, and both are ours** —
+   `reconcile-merged-dispatch-lock.md` and `rework-return-door-attribution.md`.
+   This ruling was corrected twice: an early relay claimed a pass is
+   all-or-nothing across every in-flight proposal (retracted, and refuted by
+   v049's own history); the correction then scoped us to one file, which went
+   stale the moment the peer's proposal ratified as v050 and we filed our own.
+   No cross-track coordination is required any more. See §"The revise pass".
+9. **The v050 rework-return journaling claim is FALSE and a correction is filed.**
+   `reject:rework` is journaled nowhere — the `"journal"` object lives in the
+   drive CLI's response payload, and the dispatch journal holds zero
+   `human-valve-*` records over 134 dispatches. Filed against OUR spec tree as
+   `rework-return-door-attribution.md`. Its second finding — whether the
+   unattributable door gains attribution or is removed — is deliberately left for
+   ratification to settle, with the recommendation stated. See §"Rework doors".
+10. **Two follow-on items filed 2026-07-26**, both `ready`, neither part of the
+    epic: **`bd-ib-2wgooj`** (P2, factory-safe — `_MOVE_ALLOWED` still permits the
+    bare `move:<id>:active` door that v050 retired; discharges S3's accepted
+    residual) and **`bd-ib-d6op2n`** (P2, **host-only**, `factory_safety:
+    mutates-host-machinery` — the `livespec-driver-claude` core-resolution
+    misfire; owned by that repo, filed in this tenant because beads has no
+    cross-tenant edge, so the prose IS the link and it must be routed by hand).
 
 Two further calls settled at groom time:
 
