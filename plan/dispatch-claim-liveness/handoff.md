@@ -16,23 +16,38 @@ monotonic: every abandonment costs a slot that never comes back.
 | S1 | `bd-ib-ohdu5a` | **DONE** — PR #978 merged `a869253` | Harden the dispatch lock's liveness verdict (`started_at_epoch` + `O_EXCL`) |
 | — | `bd-ib-l2vglr` | **DONE** — PR #982 merged `acf061c` | The S1 regression: stale reclamation for the now-exclusive lock write |
 | S2 | `bd-ib-cfgkkk` | **DONE** — PR #1006 merged `ebe7419` | Surface a stranded merged-yet-unfinished claim in needs-attention |
-| S3 | **`bd-ib-pme57n`** | **`ready`, THE LAST SLICE — blocked by a sandbox-setup failure** | Stop counting dead claims against the per-repo WIP cap |
+| S3 | `bd-ib-pme57n` | **DONE** — PR #1014 merged `5b32017`, item `closed` | Stop counting dead claims against the per-repo WIP cap |
 
 Open items filed by this thread, none part of the epic. All `ready`.
 
-- **`bd-ib-bic7hb`** (P2, **host-only**) — **the current S3 blocker.** Sandbox
-  setup's `mise install` 403s on `aqua:koalaman/shellcheck`; root cause NOT
-  settled. See §"⛔ THE S3 BLOCKER".
+- **`bd-ib-bic7hb`** (P2, **host-only**) — **was** the S3 blocker; **root cause is
+  now SETTLED and half of it has shipped** (PR #1008, `5846ab7`). See §"THE S3
+  BLOCKER — SETTLED". **Ownership is borrowed, and the loan is recorded.** By
+  charter this belongs to `plan/factory-hardening/` ("reliability hardening of the
+  dark-factory dispatch path"), which already holds two items of the same class
+  (`bd-ib-bwgko4`, `bd-ib-wmqsn7`). We took it because it was the sole blocker on
+  S3 and that thread is dormant with both its items BLOCKED on a maintainer
+  autonomy-tier assignment. The transfer is written into
+  `plan/factory-hardening/handoff.md`'s ledger table and into the item's own
+  description, so it cannot be worked twice or dropped.
 - **`bd-ib-u46hcv`** (P2, **host-only**) — the upstream `livespec-dev-tooling`
-  check defect that took the factory down. Owns BOTH the pin-hold removal and the
-  gate-blindness acceptance. See §"The v0.54.19 pin hold".
+  check defect that took the factory down. **NO plan thread owns it.** The
+  ownership is SPLIT and the split is the point: the *fix* is upstream in
+  `livespec-dev-tooling` and is nobody's here, while the *pin-hold removal* (the
+  two guards in §"The v0.54.19 pin hold") is OURS and must not be discharged until
+  that upstream fix lands. Also carries the gate-blindness acceptance. Do not
+  adopt the fix half into this epic — it is not dispatchable here.
 - **`bd-ib-d6op2n`** (P2, **host-only**) — the `livespec-driver-claude`
   core-resolution misfire; can misfire our own revise pass. Owned by that repo;
   filed here because beads has no cross-tenant edge, so this prose IS the link and
-  it must be routed by hand.
+  it must be routed by hand. **NO plan thread owns it** — do not assume a
+  successor has picked it up, and do not adopt it into this epic.
 - **`bd-ib-5ymv5p`** (P2, factory-safe) — `move_item` leaves a STALE assignee.
-  **`bd-ib-pme57n` currently carries `assignee: fabro` while `ready` because of
-  it** — that is this defect, not a dispatch in progress. Do not hand-patch it.
+  It bit this thread twice on `bd-ib-pme57n`: after each failed setup the recovery
+  `move:bd-ib-pme57n:ready` left `assignee: fabro` on a `ready` row, which reads
+  exactly like a dispatch in progress. (The item is now `closed`, so that
+  particular symptom is gone; the defect is not.) Do not hand-patch a stale
+  assignee — fix it here.
 - **`bd-ib-hvuhxp`** (P2, factory-safe) — `CandidateSlice.priority` is dead API
   surface; DELETE the field rather than wiring it through, because `WorkItem`
   removed `priority` deliberately and `rank` is the sole ordering authority.
@@ -58,11 +73,12 @@ reason points back to `bd-ib-waov`.
 
 ## ▶ CURRENT STATE + NEXT ACTION (read this first)
 
-### ⛔ THE EPIC IS **NOT DONE**. S3 is not shipped.
+### ✅ THE EPIC IS DONE. All three slices shipped and were verified by execution.
 
-Say it in those words. Four of five pieces landed, which makes an "almost done"
-framing tempting — and that framing is the same silent-success failure this thread
-was opened to kill.
+Say that plainly too — this thread's charter cuts both ways. It was opened because a
+silent failure looked like normal operation for six days, so an unearned "done" is
+the same sin as an unearned "almost done". What follows is what was actually
+executed, not what a green dispatcher summary reported.
 
 **Shipped and verified** (each red demonstrated by execution BEFORE dispatch and
 re-verified flipped afterwards against the merged tree):
@@ -74,22 +90,53 @@ re-verified flipped afterwards against the merged tree):
 | `bd-ib-81l0` — S2's gate: `reconcile_plan` threads `resolve_fabro_bin` | #1000 / `47c75ac` |
 | `bd-ib-2wgooj` — `_MOVE_ALLOWED` drops `"active"` (v050 divergence) | #1003 / `817aeb1` |
 | S2 `bd-ib-cfgkkk` — the `host-only:stranded-dispatch` attention lane | #1006 / `ebe7419` |
+| `bd-ib-bic7hb` (partial) — sandbox `mise install` runs anonymously | #1008 / `5846ab7` |
+| **S3 `bd-ib-pme57n` — the WIP-cap arithmetic** | **#1014 / `5b32017`** |
 
-**NOT shipped: S3 `bd-ib-pme57n`** — the WIP-cap arithmetic. Status `ready`. Until
-it lands, a dead claim still permanently consumes a slot: the epic's core defect is
-UNFIXED.
+**S3's verification, 2026-07-26.** The headline red was captured against `5846ab7`
+BEFORE the dispatch (`wip_cap` 1, one dead claim, `admitted=[]`, nothing journaled)
+and re-run against the merged tree, where it flips. All EIGHT acceptance clauses were
+then exercised against the real `admit_and_select` — including the three added by the
+predicate amendment — and each passes with a named injected defect that would re-red
+it: the dead claim releases its slot; the abandonment is journaled
+(`dispatch-claim-abandoned`, reason `terminal-outcome-non-green`); the row's status is
+UNTOUCHED; a live lock still consumes its slot; both rework parks (green last outcome)
+still COUNT and are NOT journaled; a dispatch killed after `ledger-admit` with no
+outcome since IS reclaimed (`no-outcome-since-ledger-admit`); and the reconcile still
+runs at `enforce_cap` false / `wip_cap` 0. Structurally confirmed in the shipped code:
+`claimed_active_count` is called OUTSIDE the `if enforce_cap:` branch
+(`_dispatcher_admission.py:93`), and `write_dispatch_lock` now fires at ADMISSION time
+(`:124`) as well as at `dispatch_one` entry.
 
-Nothing is in flight; no background process is running. Repo clean on `master`, no
-orphaned worktrees from this session.
+**End-to-end on the real tenant, which is the proof that matters.** Against the live
+ledger and a COPY of the real journal (read-only — the real journal was not written):
+`bd-ib-w4h4`, the six-day stranded claim this epic was opened for, has no live lock
+and a non-green terminal outcome, so `claimed_active_count` now returns **0** where the
+raw `active` row count is **1**. Its status is untouched, so `reconcile-merged` still
+accepts it. And S2's lane surfaces it with the right handoff, carrying the
+prior-attempt count the S2 constraint demanded:
 
-**`bd-ib-pme57n` carries `assignee: fabro` while `ready`.** That is the
-`bd-ib-5ymv5p` stale-assignee defect (a `move` out of `active` passes no assignee),
-NOT a dispatch in progress. Do not hand-patch it.
+```
+host-only:stranded-dispatch:bd-ib-w4h4 [high] Reconcile merged active work-item
+  bd-ib-w4h4: PR #836 merged at ba9fdaf...; janitor-post-merge failed across 3
+  prior attempts.
+  Handoff: dispatcher.py reconcile-merged --repo <path> --item bd-ib-w4h4 --json
+```
 
-**`bd-ib-w4h4` remains deliberately stranded** as S3's fixture. It is the ONLY
-`active` row and must stay that way.
+Reclaimed capacity AND a surfaced failure with an actionable handoff — the pair the
+charter insisted on, since either alone re-hides the defect.
 
-### ⛔ THE S3 BLOCKER — do NOT just retry
+Nothing is in flight from this thread. Repo clean on `master`, no orphaned worktrees.
+
+**`bd-ib-w4h4` remains deliberately stranded, and that is still correct.** It is the
+live fixture, it is the ONLY `active` row, and it now costs no WIP slot — which is
+precisely the fixed behavior. It becomes recoverable once `bd-ib-rxxx` lands; do not
+un-strand or close it before then.
+
+**Remaining open work is NOT part of this epic** — see the filed-items list above and
+§"The revise pass". The epic anchor `bd-ib-waov` was already closed at groom time.
+
+### ✅ THE S3 BLOCKER — SETTLED 2026-07-26, and the blocking half has SHIPPED
 
 **S3 was dispatched twice on 2026-07-26 and both runs died in sandbox SETUP**, before
 any agent work, leaving the item stranded `active` each time (recovered by hand both
@@ -108,39 +155,76 @@ mise ERROR Failed to install aqua:koalaman/shellcheck@0.11.0: HTTP status client
   (https://api.github.com/repos/koalaman/shellcheck/releases/tags/v0.11.0)
 ```
 
-**A THIRD BLIND RETRY IS NOT THE NEXT ACTION.** Two identical fast failures buy no
-new information and strand the item again each time.
+**ROOT CAUSE — the sandbox's `mise install` was spending the FACTORY'S OWN GitHub
+App credit on a third-party public-repo fetch, and that credit ran out.**
 
-**Root cause is NOT settled, and the obvious theory is REFUTED BY OBSERVATION.** An
-initial reading of "unauthenticated api.github.com rate limiting" was proposed and
-then falsified — record it as refuted, not merely unproven:
+`_dispatcher_credentials.py` projects an ephemeral App INSTALLATION token into the
+sandbox as `GITHUB_TOKEN`. mise's aqua backend picks that variable up automatically,
+so the release-metadata lookup for `koalaman/shellcheck` went out AUTHENTICATED —
+charged against the App installation's single **5000/hr PRIMARY** rate-limit bucket,
+the same bucket every `gh`, janitor and merge-poll call in the fleet draws on.
+Captured from inside the real sandbox image at 2026-07-26T20:27:16Z:
 
-- The retry ran INSIDE the window that had just been measured fresh (reset
-  21:03:33Z, so the window began ~20:03) and failed anyway.
-- Host unauthenticated quota at 20:05:39Z: **59/60 remaining** — not exhausted.
-- The same URL from the host, at effectively the same moment: **HTTP 200**.
-- A deliberately invalid bearer token returns **401**, not 403, so a merely
-  malformed or expired credential does not explain it either.
+```
+HTTP 403
+{"message": "API rate limit exceeded for installation ID 131208965. ..."}
+x-ratelimit-limit: 5000   x-ratelimit-remaining: 0   x-ratelimit-used: 5000
+x-ratelimit-resource: core
+```
 
-**What IS established: something differs between SANDBOX and HOST egress, and it is
-PERSISTENT rather than a quota that rolls over.** Two live candidates, both
-consistent, neither confirmed — full write-up in **`bd-ib-bic7hb`** (filed, P2,
-`ready`, host-only): (A) the sandbox receives `GITHUB_TOKEN` = an ephemeral **App
-installation token** (`_dispatcher_credentials.py:131-145`), which mise's aqua
-backend would use, and which GitHub answers with 403 on a third-party repo outside
-the installation; (B) a GitHub **secondary** rate limit, which also returns 403 and
-does NOT decrement the counter that was measured at 59/60. The diagnostic that
-settles it is capturing the failing request's RESPONSE BODY (mise surfaced only the
-status).
+**In the SAME sandbox, in the SAME second, the ANONYMOUS request for that same URL
+returned 200.** That one pairing is the whole proof: identical egress, identical URL,
+identical instant — only the credential differs.
 
-**The two productive paths — record both; do not pick one under time pressure:**
+**BOTH candidates this thread previously recorded are REFUTED BY EXECUTION.** Neither
+was merely unproven; each was tested and failed:
 
-1. **Make setup not need the fetch.** Pre-bake `shellcheck` and every other
-   aqua-backed tool into `orchestrator-image/`, so setup makes no api.github.com
-   call at all. Correct under BOTH candidates, which is its main virtue while the
-   cause is open. `bd-ib-dwv` (image un-rebuildable) is likely a prerequisite.
-2. **Establish why sandbox egress differs from host egress**, per the diagnostic
-   above, then fix the actual mechanism.
+- **Candidate A — "an installation token is unauthorized on a third-party repo."**
+  REFUTED. An App installation token returns **200** on that URL, with
+  `x-accepted-github-permissions: contents=read` and a 5000/hr limit. Installation
+  tokens are not denied public-repo reads.
+- **Candidate B — "a GitHub SECONDARY rate limit."** REFUTED. The failure carries the
+  PRIMARY limit's headers and message body, not a secondary-limit message.
+- The earlier host-side reading of **59/60 anonymous remaining** was accurate and
+  simply IRRELEVANT — the failing request was never anonymous, so it drew on a
+  different bucket. (A container on this host does share the host's anonymous bucket:
+  verified same egress IP `66.94.121.15`, same reset epoch, decrementing counter.)
+
+**SHIPPED: PR #1008, merged `5846ab7`.** The `mise install` prepare step in
+`.claude-plugin/.fabro/workflows/implement-work-item/workflow.toml` now scrubs
+`GITHUB_TOKEN`, `GH_TOKEN` and `GITHUB_API_TOKEN` from that ONE command's
+environment, so aqua tool resolution runs anonymously and no longer consumes factory
+credit. Anonymous is the correct posture rather than a workaround: the fetch reads
+public release metadata only and touches the anonymous bucket ~2-3 times per
+dispatch. Verifier `tests/integration/test_workflow_mise_install_anonymous.py`,
+demonstrated RED against the unscrubbed step and GREEN against the scrubbed one; the
+mechanism was independently proven in the sandbox image (a deliberately bad
+`GITHUB_TOKEN` makes `mise install` fail 401, `env -u GITHUB_TOKEN` in the same shell
+installs `shellcheck 0.11.0` cleanly). **Hand-built, not dispatched, deliberately:**
+the janitor's `check-no-workflow-edits` hard gate refuses workflow-file drift from
+inside a dispatch, so a dispatched agent cannot edit `workflow.toml` at all.
+
+**Proven live:** dispatch `01KYG2Q1028H` of `bd-ib-pme57n` cleared the mise-install
+step in 2s (20:44:05Z → 20:44:07Z) and ran on into the workflow, where the two prior
+runs had died at that exact step.
+
+**STILL OPEN on `bd-ib-bic7hb`: the durable prevention.** Pre-bake `shellcheck` and
+every other aqua-backed tool so setup makes NO api.github.com call at all. **Correct
+the target while you are there:** it is NOT `orchestrator-image/` as the item
+originally said — the dispatch sandbox pins
+`ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-agent-v0.54.19`, the FAMILY
+image built in `livespec-dev-tooling`. So pre-baking is a CROSS-REPO change plus a
+pin bump here, gated on `bd-ib-dwv` (image un-rebuildable) AND on `bd-ib-u46hcv`
+(the pin is frozen at v0.54.19; see §"The v0.54.19 pin hold").
+
+**A SEPARATE, LARGER FINDING falls out of this and belongs to nobody yet.** The App
+installation's 5000/hr bucket reaching ZERO is a fleet-level problem. While it is
+empty, EVERY credentialed GitHub call the factory makes fails the same way — `gh pr
+create` in the pr node, the merge poll, the janitor. The sandbox `mise install` was
+merely the first consumer to surface it. Nothing here measures what burns 5000
+requests/hour against installation 131208965; a sample at 20:28:24Z showed a healthy
+bucket (10 used), so the burn is BURSTY rather than steady. Recorded in
+`bd-ib-bic7hb` under §"SEPARATE FINDING"; it is not part of this epic.
 
 **S3's red is already captured** in `bd-ib-pme57n`'s description — executed against
 the real `admit_and_select` with `wip_cap: 1`: a dead claim consumed the only slot,
@@ -235,6 +319,15 @@ indefinitely.**
 approve requires an effective-manual pending-approval item`. **The approve valve is
 closed by construction.** Another session hit exactly this on `bd-ib-wuotqm` on
 2026-07-26 and had to route around it.
+
+**⛔ That defect is NOT OURS — `plan/valve-advertisement-mismatch/` owns it**
+(opened 2026-07-26). Its `research/prior-work-and-collisions.md` carries an
+"Already filed — do NOT duplicate" section and names THIS thread explicitly in its
+"Other live tracks — checked, no collision" section, so the cross-check has already
+been done from their side. **Do not file against it, do not fix it in passing, and
+do not fold it into this epic.** For us it is a standing WORKAROUND note only: the
+approve valve is closed here, so dispatch `pending-approval` items directly, per
+the rest of this section.
 
 **What actually works: dispatch it directly. No approval step, no status move.**
 `ready_items` (`_dispatcher_loop_selection.py:102-120`) filters with
@@ -398,6 +491,22 @@ which should not race a live janitor.
 | `reconcile-merged-dispatch-lock.md` | 2026-07-19 (`e957b35`) | Process it. Pending since filing, untouched by any other track. |
 | `rework-return-door-attribution.md` | 2026-07-26 (PR #996, `e7c0651`) | Process it. Two separable findings; see §"Rework doors" and the v050 correction below. |
 
+#### ⚠ Ratification ORDERING against `plan/valve-advertisement-mismatch/` — SETTLED, do not re-litigate
+
+`rework-return-door-attribution.md` is pending against the **same
+`SPECIFICATION/contracts.md` §"Door rules" block** that any amendment out of the
+`valve-advertisement-mismatch` thread must also touch. That thread records the
+clash as its "Live collision #2" and asks whoever files theirs to check whether
+ours has landed.
+
+**DECISION: OURS RATIFIES FIRST.** Ours is already filed and is narrow — it
+corrects a single false justification sentence — so ratifying it leaves a
+*corrected* paragraph for their broader amendment to build on. The reverse order
+would have them amend text we are about to correct, and the correction would then
+have to be re-derived against their new wording. This ordering is recorded so it
+is not re-decided; it is worth relaying to that thread, but **do not edit their
+files to say so** — surface it to the maintainer for relay.
+
 The peer's `per-state-verb-vocabulary.md` is **GONE** — ratified as v050 in
 `27980bb` — and `wip-cap-zero-dispatch-off.md` before it as v049 in `9941317`.
 **Consequence: the all-or-nothing property now costs us nothing.** Every pending
@@ -430,17 +539,39 @@ Step 3.5 halts on any local `refs/heads/spec/*` ahead of `origin/master`.
 EMPTY twice on 2026-07-26 and was non-empty again within the hour on both
 occasions. Two demonstrations, both real:
 
-1. `refs/heads/spec/ratify-verb-vocabulary` — the peer track's v050 pass. Its
-   remote branch was deleted when PR #995 merged, so the LOCAL ref plus its
-   worktree at `~/.worktrees/livespec-orchestrator-beads-fabro/spec-ratify-verb-vocabulary`
-   is pure residue — but Step 3.5 does not care, and it BLOCKS us. It is owned by
-   session `console-happy-path-mvp-supervisor`; **do not remove it ourselves** —
-   the never-touch-another-session's-worktree clause is absolute. Ask its owner.
+1. `refs/heads/spec/ratify-verb-vocabulary` — the peer track's v050 pass, which
+   blocked this pass for most of 2026-07-26. **RESOLVED 2026-07-26: removed on
+   maintainer authorization** (branch was `30ffe29`, plus its worktree at
+   `~/.worktrees/livespec-orchestrator-beads-fabro/spec-ratify-verb-vocabulary`).
+   Checked to destruction first: `git diff origin/master 30ffe29 -- SPECIFICATION/`
+   showed the branch carried NOTHING under `SPECIFICATION/` that master lacks —
+   the whole v050 ratification is on master via PR #995 / `27980bb` — the worktree
+   was clean and no process held it. It was the pre-rebase twin of a merged commit.
+   `console-happy-path-mvp-supervisor` was notified after the fact.
+
+   **CORRECTION, recorded because this thread relayed it wrong.** Earlier revisions
+   of this file said the branch "is owned by session
+   `console-happy-path-mvp-supervisor`; do not remove it ourselves". That
+   attribution originated here, was relayed onward unverified, and was wrong: their
+   pass CREATED it, but what remained was a **local ref in OUR clone with no unique
+   content** — our housekeeping, not theirs. The standing
+   never-touch-another-session's-worktree clause is UNCHANGED for everything else;
+   the exemption here is narrow and was earned by proving the ref carried nothing.
+   The general lesson is this thread's own recurring one: an ownership claim is a
+   claim with a timestamp, and "another session owns it" needs the same evidence
+   standard as any other assertion before it is allowed to block work.
 2. This thread's OWN propose-change cut and deleted `spec/rework-return-door-attribution`
    inside a single turn. Filing a proposal is itself a way to trip the gate.
 
 So: `git for-each-ref refs/heads/spec/` MUST be empty at the moment of the run.
-An earlier-in-session verification proves nothing.
+An earlier-in-session verification proves nothing — **including the 2026-07-26
+removal recorded above.**
+
+**And do not run the pass while a dispatch is in flight** (already stated above,
+repeated here because this is where a successor will be standing): the pass
+authors spec text and cuts a `spec/*` branch, which must not race a live janitor.
+On 2026-07-26 the precondition came clear WHILE S3's dispatch was running, and the
+correct answer was still to wait for the dispatch, not to start the pass.
 
 **Likely outcome for `reconcile-merged-dispatch-lock.md`: accept as written, no
 amendment.** The original spec clash is recorded DISSOLVED (§"CORRECTED") — the
