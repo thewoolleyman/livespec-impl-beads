@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.46.19](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.18...v0.46.19) (2026-07-26)
+
+
+### Bug Fixes
+
+* surface stranded dispatch attention lane ([ebe7419](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/ebe7419ee6334fdc7a8a5011512503852ef2cefb))
+
 ## [0.46.18](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.17...v0.46.18) (2026-07-26)
 
 
