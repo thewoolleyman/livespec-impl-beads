@@ -1,5 +1,6 @@
 """Focused coverage for needs-attention work-item host-only lanes."""
 
+import importlib
 import json
 from pathlib import Path
 from typing import Any
@@ -54,6 +55,80 @@ def _outcome(
             "stage": stage,
         },
     }
+
+
+def _dispatch_outcome(
+    *,
+    work_item_id: object = "bd-active",
+    status: object = "failed",
+    stage: object = "janitor-post-merge",
+    pr_number: object = 836,
+    merge_sha: object = "ba9fdafef895",
+) -> dict[str, Any]:
+    return {
+        "stage": "outcome",
+        "outcome": {
+            "work_item_id": work_item_id,
+            "status": status,
+            "stage": stage,
+            "pr_number": pr_number,
+            "merge_sha": merge_sha,
+            "detail": "post-merge janitor red",
+        },
+    }
+
+
+def test_stranded_dispatch_items_surface_active_terminal_janitor_failures(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_journal_lines(
+        tmp_path,
+        records=[
+            _dispatch_outcome(work_item_id="bd-active"),
+            _dispatch_outcome(work_item_id="bd-active"),
+            _dispatch_outcome(work_item_id="bd-closed"),
+            _dispatch_outcome(work_item_id="bd-locked"),
+        ],
+    )
+
+    def _live_lock(*, repo: Path, work_item_id: str) -> object | None:
+        _ = repo
+        return object() if work_item_id == "bd-locked" else None
+
+    module = importlib.import_module(
+        "livespec_orchestrator_beads_fabro.commands._needs_attention_work_items"
+    )
+    assert hasattr(module, "stranded_dispatch_items")
+    monkeypatch.setattr(
+        "livespec_orchestrator_beads_fabro.commands._needs_attention_work_items.live_dispatch_lock",
+        _live_lock,
+    )
+
+    attention = module.stranded_dispatch_items(
+        project_root=tmp_path,
+        repo="repo",
+        items=[
+            _item(id_="bd-active", status="active"),
+            _item(id_="bd-closed", status="done"),
+            _item(id_="bd-locked", status="active"),
+        ],
+    )
+
+    assert [item.id for item in attention] == ["host-only:stranded-dispatch:bd-active"]
+    stranded = attention[0]
+    assert stranded.kind == "host-only"
+    assert stranded.urgency == "high"
+    assert stranded.source_ref.work_item == "bd-active"
+    assert "bd-active" in stranded.summary
+    assert "PR #836" in stranded.summary
+    assert "janitor-post-merge" in stranded.summary
+    assert "2 prior attempts" in stranded.summary
+    assert "ba9fdafef895" in stranded.summary
+    assert stranded.handoff.kind == "shell"
+    assert "reconcile-merged" in stranded.handoff.command
+    assert "--item bd-active" in stranded.handoff.command
+    assert "resolve-blocked" not in stranded.handoff.command
 
 
 def test_host_only_items_ignores_done_items_and_malformed_journal_records(tmp_path: Path) -> None:

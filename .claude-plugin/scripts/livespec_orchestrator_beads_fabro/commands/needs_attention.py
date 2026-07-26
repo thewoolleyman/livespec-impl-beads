@@ -35,6 +35,7 @@ from livespec_orchestrator_beads_fabro.commands._needs_attention_work_items impo
     host_only_items,
     human_valves,
     impl_next,
+    stranded_dispatch_items,
 )
 from livespec_orchestrator_beads_fabro.commands._sibling_status_lookup import (
     make_sibling_status_lookup,
@@ -119,6 +120,7 @@ def build_attention(
             hygiene_scan=(),
         )
         + host_only_items(project_root=project_root, repo=repo_name, items=materialized)
+        + stranded_dispatch_items(project_root=project_root, repo=repo_name, items=materialized)
         # A second raw read of the tenant: the triage marker is a label and the
         # urgency tier is the beads-native `priority` column, and the
         # materialized `WorkItem` above carries neither (labels are decoded into

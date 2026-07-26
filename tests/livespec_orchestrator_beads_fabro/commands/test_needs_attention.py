@@ -267,6 +267,41 @@ def test_build_attention_surfaces_recorded_factory_safety_refusal(tmp_path, monk
     ]
 
 
+def test_build_attention_surfaces_stranded_merged_dispatch(tmp_path, monkeypatch) -> None:
+    _write_config(tmp_path)
+    _stub_spec_next(monkeypatch, output=None)
+    _seed(_item(id_="bd-active", status="active"))
+    _write_journal_record(
+        tmp_path,
+        record={
+            "stage": "outcome",
+            "outcome": {
+                "work_item_id": "bd-active",
+                "status": "failed",
+                "stage": "janitor-post-merge",
+                "pr_number": 836,
+                "merge_sha": "ba9fdafef895",
+                "detail": "post-merge janitor red",
+            },
+        },
+    )
+
+    attention = build_attention(
+        project_root=tmp_path,
+        repo_name="repo",
+        include_hygiene=False,
+    )
+
+    assert [(item.id, item.kind, item.handoff.kind) for item in attention] == [
+        ("host-only:stranded-dispatch:bd-active", "host-only", "shell")
+    ]
+    stranded = attention[0]
+    assert "PR #836" in stranded.summary
+    assert "janitor-post-merge" in stranded.summary
+    assert "reconcile-merged" in stranded.handoff.command
+    assert "--item bd-active" in stranded.handoff.command
+
+
 def test_build_attention_surfaces_untriaged_backlog_and_summarizes_the_remainder(
     tmp_path, monkeypatch
 ) -> None:
