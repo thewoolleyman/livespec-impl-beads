@@ -385,6 +385,48 @@ The staleness bug in the existing `host-only` lane is a **separate pre-existing
 defect**, not part of `bd-ib-waov`. It is recorded here because S2 must not
 inherit it; filing it is the maintainer's call.
 
+### ⚠ S2 SHAPE — how to keep S2 in-repo (it is easy to make it cross-repo by accident)
+
+S2 is only the cheap in-repo slice if it is built the RIGHT way. Two natural-looking
+choices silently convert it into the same cross-repo shape as S4.
+
+1. **Do NOT invent a new `AttentionKind`.** It is a CLOSED `Literal` in the
+   VENDORED runtime (`_vendor/livespec_runtime/attention_item.py`) with exactly
+   seven values: `human-valve`, `impl`, `spec`, `plan`, `hygiene`, `internal`,
+   `host-only`. Adding an eighth means an upstream `livespec-runtime` change plus
+   `just vendor-update livespec_runtime` — the same cross-repo path as S4, and the
+   same reason S4 is recommended dropped. `validate_attention_item_id`'s prefix
+   sets (`_TWO_PART_PREFIXES = {impl, plan}`,
+   `_THREE_PART_PREFIXES = {host-only, valve, hygiene, spec}`) are upstream too.
+   **Reuse an existing kind.**
+2. **Do NOT route S2 through `human_valves()`.** `compose_needs_attention`
+   hardcodes `handoff=Handoff(kind="drive", …)` for EVERY valve lane. But
+   `reconcile-merged` is a `dispatcher.py` CLI subcommand, not a `drive` action-id,
+   so a valve-routed lane would misdeclare its handoff and a consumer rendering it
+   would try to run it as a drive action.
+
+**The correct in-repo precedent is `host_only_items`, not `human_valves`.** It
+builds its `AttentionItem` DIRECTLY with `Handoff(kind="shell", command=…)`, and
+`build_attention` CONCATENATES it onto the composed list rather than passing it
+through `compose_needs_attention`:
+
+```python
+compose_needs_attention(… human_valve_lanes=human_valves(…) …)
++ host_only_items(project_root=project_root, repo=repo_name, items=materialized)
+```
+
+S2 should follow that pattern exactly: build the item directly, `Handoff(kind="shell")`
+carrying the `reconcile-merged` invocation, concatenated in `build_attention`. No
+upstream change, no re-vendor.
+
+**One latent trap in that pattern.** Items concatenated this way BYPASS
+`_append_if_valid`, so nothing validates their id grammar — an id that violates it
+is simply never caught. S2 must therefore keep its id grammar-valid by discipline:
+three parts, prefixed with one of `_THREE_PART_PREFIXES`, each component non-empty
+and non-numeric (`_is_stable_component`). `valve:<verb>:<work-item-id>` qualifies,
+and `verb` is free text (`WorkItemHumanValveLane.verb: str`), so no upstream change
+is needed to name the new verb.
+
 ### ⚠ S2 CONSTRAINT — "run `reconcile-merged`" is not always an actionable handoff
 
 `bd-ib-w4h4`'s janitor red is **deterministic**, and `reconcile-merged` cannot
