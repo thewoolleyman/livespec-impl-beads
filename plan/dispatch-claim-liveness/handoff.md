@@ -295,7 +295,7 @@ Drafted 2026-07-26, NOT filed. The maintainer owns the cut and the acceptance.
 |---|---|---|---|
 | **S1** harden dispatch-lock liveness: consult `started_at_epoch` (PID + process start time), adopting `_dispatcher_admission_mutex._pid_start_time_mismatches` | 3 | in-repo, pure, small | — |
 | **S2** needs-attention lane: `active` item with no live dispatch lock, enriched from the journal terminal `outcome` record (carry `pr_number`/`merge_sha`, hand off `reconcile-merged`) | 2 | in-repo | S1 (soft) |
-| **S3** reconcile at the admission gate: per `active` item, no live lock → journal an abandonment and move it out of `active`; must sit outside `if enforce_cap:` | 1 | in-repo | S1, S2 |
+| **S3** reconcile at the admission gate: per `active` item, no live lock → journal an abandonment and move it out of `active`; must sit outside `if enforce_cap:` | 1 | in-repo | S1 (**required — S3 is unsound without it after a SIGKILL**), S2 |
 | **S4** stale-`active` detection in the fleet hygiene scan | 4 | **cross-repo** (see §"Scope boundary") — but see §"S4 SCOPE": recommended DROPPED, as it protects zero tenants today | independent |
 
 **The ordering is the point: S2 before S3.** Shipping the reclaim first produces a
@@ -453,6 +453,43 @@ lock" unambiguous and makes requirements 1 and 3 both sound. Weaker fallbacks
 (a grace period/TTL before reclaiming; checking whether the admitting dispatcher
 process is alive at repo level) do not close the window, only narrow it.
 
+#### Pressure-testing that resolution — four things implementation will hit
+
+The admission-time-lock recommendation was checked against the code rather than
+asserted. It holds, with these specifics worth knowing before the work starts:
+
+1. **`dispatch_id` is NOT available at admission.** `dispatch_id = run_id()` is
+   generated inside `dispatch_one` (`_dispatcher_loop.py:85`), so an
+   admission-written lock carries `dispatch_id: null`. That is already legal —
+   `DispatchLock.dispatch_id` is typed `str | None` and
+   `_dispatch_lock_from_payload` accepts `None`. `dispatch_one` can rewrite the
+   lock to fill the id in once it has one; nothing needs the id to judge liveness.
+2. **The pid does not change, only the timing.** The pool is a
+   `ThreadPoolExecutor`, not a process pool, so `os.getpid()` is identical at
+   admission and at `dispatch_one`. Moving the write earlier changes WHEN the
+   claim is stamped, not WHOSE it is.
+3. **Every item written `active` does reach `dispatch_one`, so the existing
+   release still covers it.** `_dispatcher_admission.py` appends to `admitted`
+   only on the same path that writes `active` (:113-119); held items go to
+   `refused` and never get an `active` write. The loop then does
+   `pool.submit(dispatch_one, …)` for each `admission.admitted`, and the
+   `ExitStack` fires on both normal return and exception. Leave the release where
+   it is.
+4. **A leaked lock file is HARMLESS, and that property is what makes this safe.**
+   Liveness is PID-keyed, so a lock whose owner is gone reads dead and the item is
+   reclaimable. Do NOT add cleanup machinery for leaked lock files — there is
+   nothing to clean up correctness-wise, and cleanup would reintroduce the
+   unlink-by-pathname TOCTOU class that `bd-ib-w4h4` was filed about.
+
+**This makes the S1 → S3 dependency load-bearing, not a preference.** Consider a
+loop process killed by SIGKILL: the `ExitStack` does not run, so its locks leak
+with that pid recorded. If the OS later recycles that pid to an unrelated live
+process, a bare `os.kill(pid, 0)` check reports the stale lock as LIVE and the
+stranded item is **never** reclaimed — the exact bug this thread exists to fix,
+reintroduced through the fix itself. Only S1's PID + `started_at_epoch` check
+distinguishes "the original owner" from "some new process that inherited its pid".
+S3 without S1 is not merely weaker; it is unsound after any SIGKILL.
+
 ### Verifiers — each with the injected defect that makes it red
 
 | slice | test | injected defect that makes it RED |
@@ -464,6 +501,7 @@ process is alive at repo level) do not close the window, only narrow it.
 | S3 (negative) | `active` item WITH a lock written for `os.getpid()` → assert it STAYS `active` and still counts against the cap | make the reconcile ignore lock liveness → it reclaims a live run → red |
 | S3 (cap-independence) | `enforce_cap` false / `wip_cap` 0 → assert the reconcile still runs | nest the reconcile inside `if enforce_cap:` → red |
 | S3 (admission window) | admit a batch larger than `--parallel`, run the gate while the queued items are still awaiting a worker → assert the queued `active` items are NOT reclaimed | leave `write_dispatch_lock` at `dispatch_one` entry → the queued items have no lock → reclaimed → red |
+| S3 (recycled pid) | leaked lock recording a pid now held by an unrelated LIVE process, stamped with the original owner's start time → assert the item IS reclaimed | judge liveness by bare `os.kill(pid, 0)` (i.e. ship S3 without S1) → the stale lock reads live → never reclaimed → red |
 
 The S3 negative test is what discharges `reconcile-merged-dispatch-lock.md`'s
 objection: it proves a live dispatch inside its janitor window is never reclaimed.
