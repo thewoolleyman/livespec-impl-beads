@@ -198,3 +198,43 @@ Seeded from the fleet's other charters (`livespec-overseer`
   silence — a sibling track lost 2h39m to a hung turn that looked exactly like
   thinking. Recovery there took TWO Escapes: the first only repainted the UI and
   the resent message silently re-queued.
+
+### Recorded by this thread's first supervisor, 2026-07-26
+
+- **Re-verify currency at the MOMENT of escalation, not when you drafted the
+  question.** This supervisor read the worker's interim scratchpad prep at its
+  ~10-minute mark, spent time verifying it, and then put it to the maintainer as a
+  four-question batch. By the time the picker was answered the worker had finished
+  a 34-minute pass, found four overlapping ledger items, and RETRACTED two of those
+  recommendations onto `master` — so three of the four answers were superseded on
+  arrival, and one (`blocked`/needs-human as the reclaim destination) would have
+  stranded reclaimed items from the very `reconcile-merged` valve `bd-ib-lza6`
+  shipped. A supervisor's snapshot of a working agent goes stale FASTER than a
+  filed item does. Re-read the forge and the worker's latest output immediately
+  before sending, and prefer escalating after the worker reports done rather than
+  mid-pass.
+- **`bd list --json` without `--limit 0` silently truncates, and the truncation
+  looks like a complete answer.** This supervisor surveyed the tenant, saw exactly
+  one `active` item, and reported that as the full picture. The real store is 80
+  rows holding 6 `acceptance` and 10 `blocked` items — including `bd-ib-lza6` and
+  `bd-ib-ug4z`, the two items that had ALREADY shipped this thread's design. Always
+  `bd list --limit 0 --json` and filter client-side; `--status open` matches nothing
+  in this store. The repo-level rule now lives in `AGENTS.md`; the supervisor-level
+  lesson is that a vetting layer which skips the parked lanes vets nothing.
+- **Parked lanes are where binding maintainer rulings hide.** A 2026-07-19 ruling on
+  `bd-ib-lza6` had already selected the operator-valve fix and explicitly rejected
+  the two alternatives this thread was re-deriving. It sat in `acceptance`, invisible
+  to a source-only reading and to a default `bd list`. Before escalating ANY design
+  question, scan `acceptance` and `blocked` for the defect class and read the full
+  descriptions — you may be asking the maintainer to re-decide something they
+  already decided.
+- **When the worker's later work contradicts your escalation, say so first and
+  plainly.** The charter's "its verification wins" applies to your own already-
+  delivered briefs too. Lead the correction, name what is superseded, and re-ask
+  only what is genuinely still open — do not let an approved-but-stale answer stand
+  because withdrawing it is awkward.
+- **A turn-end watcher keyed on the last transcript record misreads a finished
+  agent as wedged.** This supervisor's `stop_reason` check fired "possible wedge"
+  against a worker that had cleanly finished. Corroborate any wedge verdict against
+  the pane before acting on it; a false wedge signal invites an interrupt that
+  would have destroyed real work.
