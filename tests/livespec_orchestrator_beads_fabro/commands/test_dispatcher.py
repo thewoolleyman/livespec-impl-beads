@@ -912,6 +912,7 @@ def test_build_plan_derives_publish_branch_and_default_janitor(tmp_path: Path) -
         "--",
         "just",
         "check-no-workflow-edits",
+        "install-worktree-pack",
         "check",
     )
     assert plan.janitor_checkout == tmp_path / "janitor-co"
@@ -927,8 +928,32 @@ def test_janitor_argv_with_default_passthrough_and_empty() -> None:
         "--",
         "just",
         "check-no-workflow-edits",
+        "install-worktree-pack",
         "check",
     )
+
+
+def test_default_janitor_provisions_the_worktree_pack_before_checks() -> None:
+    """The janitor checkout must MATERIALIZE the pack, not be exempted from it.
+
+    The post-merge janitor runs in a FRESH worktree that never ran
+    `just bootstrap`, and the worktree-discipline pack is gitignored — so it is
+    absent there by construction. Since livespec-dev-tooling v0.54.24 an absent
+    pack is a FAIL by default, which reds the janitor's own `just check` on a
+    conformant repo. This surfaced for real on the reconcile of `bd-ib-hvuhxp`.
+
+    The janitor is a normal worktree-equivalent, NOT a declared sandbox, so the
+    fix is to PROVISION the pack here rather than to exempt the venue: the
+    assertion must become TRUE, not skipped. `install-worktree-pack` therefore
+    precedes `check`, and presence enforcement is left untouched.
+    """
+    argv = janitor_argv_with_default(janitor=())
+    assert (
+        "install-worktree-pack" in argv
+    ), f"the default janitor must materialize the gitignored pack; got {argv!r}"
+    assert argv.index("install-worktree-pack") < argv.index(
+        "check"
+    ), f"the pack must be installed BEFORE `check` reads it; got {argv!r}"
 
 
 def test_janitor_checkout_path_lives_under_home_worktrees(
@@ -2164,7 +2189,16 @@ def test_engine_runs_configured_janitor_in_fresh_checkout(tmp_path: Path) -> Non
     janitor_calls = [
         (argv, cwd)
         for argv, cwd in runner.calls
-        if argv == ["mise", "exec", "--", "just", "check-no-workflow-edits", "check"]
+        if argv
+        == [
+            "mise",
+            "exec",
+            "--",
+            "just",
+            "check-no-workflow-edits",
+            "install-worktree-pack",
+            "check",
+        ]
     ]
     assert len(janitor_calls) == 1
     assert janitor_calls[0][1] == tmp_path / "janitor-co"
