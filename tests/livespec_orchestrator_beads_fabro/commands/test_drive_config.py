@@ -8,6 +8,7 @@ from typing import Any
 
 from livespec_orchestrator_beads_fabro.commands import drive
 from livespec_orchestrator_beads_fabro.commands._drive_config_schema import (
+    ConfigKey,
     coerce_config_value,
     config_key_by_name,
     parse_config_value,
@@ -15,6 +16,10 @@ from livespec_orchestrator_beads_fabro.commands._drive_config_schema import (
 )
 
 _PLUGIN_BLOCK = "livespec-orchestrator-beads-fabro"
+_V049_WIP_CAP_ZERO_MESSAGE = (
+    "v049 Per-repo WIP cap clause requires wip_cap to accept 0; retiring it "
+    "requires a propose-change."
+)
 
 
 def test_config_schema_distinguishes_positive_and_non_negative_integer_domains() -> None:
@@ -28,6 +33,28 @@ def test_config_schema_distinguishes_positive_and_non_negative_integer_domains()
     assert parse_config_value(config_key=review_fix_cap, raw_value="nope") is None
     assert parse_config_value(config_key=wip_cap, raw_value="0") == 0
     assert value_domain(config_key=wip_cap) == "a non-negative integer"
+
+
+def test_v049_wip_cap_guard_accepts_zero_on_schema_and_manifest_surfaces() -> None:
+    schema_key = config_key_by_name(key="wip_cap")
+    manifest = json.loads(
+        Path(".claude-plugin/api-configurable-keys.json").read_text(encoding="utf-8")
+    )
+    manifest_entries = {str(entry["key"]): entry for entry in manifest["keys"]}
+    manifest_entry = manifest_entries["wip_cap"]
+    manifest_key = ConfigKey(
+        key="wip_cap",
+        value_type=str(manifest_entry["type"]),
+        default=manifest_entry["default"],
+        per_item_override=bool(manifest_entry["per_item_override"]),
+        values=tuple(str(value) for value in manifest_entry.get("values", ())),
+    )
+
+    assert schema_key is not None
+    assert coerce_config_value(config_key=schema_key, raw_value=0) == 0, _V049_WIP_CAP_ZERO_MESSAGE
+    assert (
+        coerce_config_value(config_key=manifest_key, raw_value=0) == 0
+    ), _V049_WIP_CAP_ZERO_MESSAGE
 
 
 def _settings_by_key(*, payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
