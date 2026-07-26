@@ -539,6 +539,8 @@ S3 without S1 is not merely weaker; it is unsound after any SIGKILL.
 | S1 | lock whose `pid` is live but whose `started_at_epoch` long predates that process's real start → assert DEAD | **none needed — red against current `master` today** (demonstrated above); the cheapest honest red available |
 | S2 | `active` item + no live lock + journal `janitor-post-merge`/`failed` record → assert a needs-attention lane naming the item and its merged PR | drop the lane → red |
 | S2 (no staleness) | an item with a `janitor-post-merge`/`failed` record in the journal that is now CLOSED → assert NO lane is emitted | key the lane off journal history alone (as the `host-only` lane does today) → the closed item is surfaced → red |
+| S2 (right handoff) | a reclaimed merged-yet-janitor-red item → assert its handoff invokes `reconcile-merged`, NOT `resolve-blocked:<id>:ready` | rely on the generic `blocked`/needs-human valve lane → the handoff pushes an already-merged item back to `ready` → red |
+| S3 (destination) | reclaim a merged-yet-janitor-red item → assert it lands `blocked`/`needs-human` and is NOT admission-eligible on the next gate pass | send it to `backlog` → the next pass re-admits and re-dispatches already-merged work → red |
 | S3 (positive) | `active` item, no lock file → run the gate → assert moved out of `active` AND an abandonment journal record written | remove the reconcile call → item stays `active` → red |
 | S3 (negative) | `active` item WITH a lock written for `os.getpid()` → assert it STAYS `active` and still counts against the cap | make the reconcile ignore lock liveness → it reclaims a live run → red |
 | S3 (cap-independence) | `enforce_cap` false / `wip_cap` 0 → assert the reconcile still runs | nest the reconcile inside `if enforce_cap:` → red |
@@ -550,16 +552,65 @@ objection: it proves a live dispatch inside its janitor window is never reclaime
 S3's positive test must assert BOTH the transition AND the abandonment record, or
 it passes vacuously on a status the healthy path also produces.
 
+### Reclaim destination — recommend `blocked` + `needs-human`, NOT `backlog`
+
+Researched 2026-07-26. `backlog` is the wrong destination, and the repo already
+argues so in its own words.
+
+**`backlog` would re-dispatch already-merged work.** A `janitor-post-merge` red
+means the PR IS ON MASTER (`bd-ib-w4h4` carries `pr_number: 836`,
+`merge_sha: ba9fdaf…`). `backlog` leaves the item admission-eligible, so the
+Dispatcher would pick it up again and try to redo work that already shipped.
+`bounce_non_convergence_to_backlog` is a fine precedent for a slice that never
+converged — it is the wrong precedent for a slice that converged and merged.
+
+**The repo's own precedent says so.** `escalate_needs_human_block`'s docstring:
+
+> "Persist that as a Dispatcher-level terminal ledger state, not as `backlog`:
+> the item remains unavailable to autonomous admission until a human valve
+> deliberately clears the block."
+
+That is exactly this situation. The write seam already exists —
+`update_work_item_blocked_state(path=…, item_id=…, status="blocked",
+blocked_reason="needs-human", admission_policy="manual")` — and sets the
+admission policy in the same call. Admission-ineligibility is guaranteed by
+construction: `is_item_ready` is defined as `lane_of(...).name == "ready"`, and
+`lane_of` maps a stored `blocked` to `Lane("blocked", <blocked_reason>)`.
+
+**This partially satisfies requirement 2 for free — but NOT completely, and the
+residue is the important part.** `lane_of` returns
+`Lane("blocked", item.blocked_reason)`, and `human_valves()` already has:
+
+```python
+elif status == "blocked" and lane_reason == "needs-human":
+    lanes.append(_valve(verb="resolve-blocked", …,
+                        action_id=f"resolve-blocked:{item_id}:ready"))
+```
+
+So a reclaimed item SHOWS UP in needs-attention immediately, with no new lane
+code. **But that lane's handoff is `resolve-blocked:<id>:ready` — which pushes an
+already-merged item back to `ready` and straight into the dispatch queue.** The
+default surfacing is therefore actively wrong for this class: it tells the
+operator to do the one thing that redoes merged work.
+
+**This SHARPENS the S2-before-S3 ordering rather than weakening it.** Shipping S3
+alone would not leave the failure unsurfaced — it would surface it with a handoff
+that causes a second defect. S2's real job is narrower and clearer than first
+stated: not "make it visible" (the blocked lane does that) but **"give it the
+right handoff"** — `reconcile-merged` carrying the failing stage, the merge
+evidence, and the prior-attempt count, instead of the generic
+`resolve-blocked → ready`.
+
 ### Questions only the maintainer can settle
 
 1. **Spec collision.** Does `reconcile-merged-dispatch-lock.md`'s "a red janitor …
    MUST leave the item `active`" get bounded by ownership-lock liveness (one added
    sentence, keeping requirement 1 legal), or does requirement 1 narrow to
    "surface only, never auto-reclaim"?
-2. **Reclaim destination.** Where does S3 send a reclaimed item? `backlog` follows
-   the `bounce_non_convergence_to_backlog` precedent, but for a MERGED-yet-janitor-red
-   item the PR is already shipped, so `backlog` misrepresents it; `blocked`
-   (needs-human, pointing at `reconcile-merged`) may be truer.
+2. **Reclaim destination.** Where does S3 send a reclaimed item? **Now carries a
+   researched recommendation — `blocked` + `blocked_reason="needs-human"`. See
+   §"Reclaim destination" below.** Still the maintainer's call, but no longer an
+   open toss-up.
 3. **Requirement 4 scope upstream** — see below.
 4. **The slice cut itself**, and each slice's acceptance criteria.
 
