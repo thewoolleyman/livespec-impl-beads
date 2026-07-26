@@ -13,6 +13,7 @@ __all__: list[str] = [
     "drive_command",
     "host_only_command",
     "plan_threads",
+    "reconcile_merged_command",
     "untriaged_backlog_command",
     "untriaged_backlog_summary_command",
 ]
@@ -48,6 +49,14 @@ def host_only_command(*, project_root: Path, work_item: str) -> str:
         "Run it on the host with required credentials; do not dispatch it to Fabro."
     )
     return f"cd {_quote(path=project_root)} && codex exec {shlex.quote(prompt)} < /dev/null"
+
+
+def reconcile_merged_command(*, project_root: Path, work_item: str) -> str:
+    return (
+        f"python3 {_quote(path=_wrapper_path(name='dispatcher.py'))} "
+        f"reconcile-merged --repo {_quote(path=project_root)} "
+        f"--item {shlex.quote(work_item)} --json"
+    )
 
 
 def untriaged_backlog_command(*, project_root: Path, work_item: str) -> str:

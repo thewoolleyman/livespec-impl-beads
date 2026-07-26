@@ -12,9 +12,15 @@ from livespec_runtime.cross_repo.types import CrossRepoManifest, RefStatus
 from livespec_runtime.needs_attention import ImplNextOutput, WorkItemHumanValveLane
 from livespec_runtime.work_items.lifecycle import lane_of
 
+from livespec_orchestrator_beads_fabro.commands._dispatcher_dispatch_lock import (
+    live_dispatch_lock,
+)
 from livespec_orchestrator_beads_fabro.commands._needs_attention_handoffs import (
     drive_command,
     host_only_command,
+)
+from livespec_orchestrator_beads_fabro.commands._needs_attention_stranded_dispatch import (
+    stranded_dispatch_items as _stranded_dispatch_items,
 )
 from livespec_orchestrator_beads_fabro.commands.next import rank_candidates
 from livespec_orchestrator_beads_fabro.effects import AttemptFailure, attempt
@@ -24,6 +30,7 @@ __all__: list[str] = [
     "host_only_items",
     "human_valves",
     "impl_next",
+    "stranded_dispatch_items",
 ]
 
 _HOST_ONLY_REFUSAL_STAGE = "host-only-refused"
@@ -118,6 +125,24 @@ def host_only_items(
         _host_only_item(project_root=project_root, repo=repo, work_item=item_id, reason=reason)
         for item_id, reason in reasons.items()
     ]
+
+
+def stranded_dispatch_items(
+    *,
+    project_root: Path,
+    repo: str,
+    items: list[WorkItem],
+) -> list[AttentionItem]:
+    return _stranded_dispatch_items(
+        project_root=project_root,
+        repo=repo,
+        items=items,
+        live_lock_lookup=_live_dispatch_lock,
+    )
+
+
+def _live_dispatch_lock(*, repo: Path, work_item_id: str) -> object | None:
+    return live_dispatch_lock(repo=repo, work_item_id=work_item_id)
 
 
 def _host_only_reasons(*, project_root: Path, items: list[WorkItem]) -> dict[str, str]:

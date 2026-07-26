@@ -1,0 +1,132 @@
+"""Focused coverage for stranded-dispatch attention lanes."""
+
+import json
+from pathlib import Path
+from typing import Any
+
+import pytest
+from livespec_orchestrator_beads_fabro.commands._needs_attention_stranded_dispatch import (
+    stranded_dispatch_items,
+)
+from livespec_orchestrator_beads_fabro.types import WorkItem
+
+
+def _item(*, id_: str, status: str = "active") -> WorkItem:
+    return WorkItem(
+        id=id_,
+        type="task",
+        status=status,  # type: ignore[arg-type]
+        title=f"{id_} title",
+        description="d",
+        origin="freeform",
+        gap_id=None,
+        rank="a1",
+        assignee=None,
+        depends_on=(),
+        captured_at="2026-05-19T00:00:00Z",
+        resolution=None,
+        reason=None,
+        audit=None,
+        superseded_by=None,
+    )
+
+
+def _write_journal_lines(project_root: Path, *, records: list[object]) -> None:
+    journal = project_root / "tmp" / "fabro-dispatch-journal.jsonl"
+    journal.parent.mkdir(parents=True)
+    lines = [record if isinstance(record, str) else json.dumps(record) for record in records]
+    _ = journal.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _outcome(**overrides: object) -> dict[str, Any]:
+    payload: dict[str, object] = {
+        "work_item_id": "bd-active",
+        "status": "failed",
+        "stage": "janitor-post-merge",
+        "pr_number": 836,
+        "merge_sha": "ba9fdafef895",
+    }
+    payload.update(overrides)
+    return {"stage": "outcome", "outcome": payload}
+
+
+def _no_live_lock(*, repo: Path, work_item_id: str) -> None:
+    _ = (repo, work_item_id)
+
+
+def test_stranded_dispatch_items_render_reconcile_handoff(tmp_path: Path) -> None:
+    _write_journal_lines(tmp_path, records=[_outcome()])
+
+    attention = stranded_dispatch_items(
+        project_root=tmp_path,
+        repo="repo",
+        items=[_item(id_="bd-active")],
+        live_lock_lookup=_no_live_lock,
+    )
+
+    assert [item.id for item in attention] == ["host-only:stranded-dispatch:bd-active"]
+    assert attention[0].handoff.kind == "shell"
+    assert "reconcile-merged" in attention[0].handoff.command
+
+
+def test_stranded_dispatch_items_fail_soft_when_journal_is_absent(tmp_path: Path) -> None:
+    assert (
+        stranded_dispatch_items(
+            project_root=tmp_path,
+            repo="repo",
+            items=[_item(id_="bd-active")],
+            live_lock_lookup=_no_live_lock,
+        )
+        == []
+    )
+
+
+def test_stranded_dispatch_items_fail_soft_when_journal_cannot_be_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_journal_lines(tmp_path, records=[_outcome()])
+
+    def _raise(*args: object, **kwargs: object) -> str:
+        _ = args
+        _ = kwargs
+        raise OSError("unreadable")
+
+    monkeypatch.setattr(Path, "read_text", _raise)
+
+    assert (
+        stranded_dispatch_items(
+            project_root=tmp_path,
+            repo="repo",
+            items=[_item(id_="bd-active")],
+            live_lock_lookup=_no_live_lock,
+        )
+        == []
+    )
+
+
+def test_stranded_dispatch_items_ignore_malformed_or_non_merged_outcomes(tmp_path: Path) -> None:
+    _write_journal_lines(
+        tmp_path,
+        records=[
+            "{",
+            [],
+            {"stage": "fabro-run"},
+            {"stage": "outcome", "outcome": "not-a-dict"},
+            _outcome(status="green"),
+            _outcome(work_item_id=""),
+            _outcome(stage=""),
+            _outcome(pr_number=True),
+            _outcome(pr_number="836"),
+            _outcome(merge_sha=""),
+            _outcome(work_item_id="bd-other"),
+        ],
+    )
+
+    attention = stranded_dispatch_items(
+        project_root=tmp_path,
+        repo="repo",
+        items=[_item(id_="bd-active")],
+        live_lock_lookup=_no_live_lock,
+    )
+
+    assert attention == []
