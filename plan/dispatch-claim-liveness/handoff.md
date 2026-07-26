@@ -317,6 +317,45 @@ combined slice**, which carries four requirements plus a cross-repo leg. Note th
 journal's own `sizing-warn` on `bd-ib-w4h4`: "description is 4897 chars (> 1500) …
 consider splitting" and "carries 5 enumerated parts".
 
+### ⚠ S3 DESIGN CONSTRAINT — "no live lock" is NOT sufficient on its own
+
+A naive S3 that reclaims every `active` item with no live dispatch lock would be
+**destructive**. There is an uncovered window between the `active` write and the
+lock write, and it is not small.
+
+`_dispatcher_loop_command.py:187-231` admits a BATCH and then dispatches it
+through a thread pool:
+
+```python
+admission = admit_and_select(..., enforce_cap=True)   # writes `active` for ALL admitted
+with ThreadPoolExecutor(max_workers=max(1, args.parallel)) as pool:
+    futures = [pool.submit(dispatch_one, ..., item=item) for item in admission.admitted]
+```
+
+`write_dispatch_lock` is called at `dispatch_one`'s entry
+(`_dispatcher_loop.py:86`), so an admitted item acquires its lock only when a
+worker thread picks it up. `--parallel` **defaults to 1**
+(`dispatcher.py:317`), and the admitted batch is bounded by
+`min(--budget, free_slots)`. So with `--budget 3 --parallel 1`, items 2 and 3 sit
+`active` with NO lock for the full duration of the dispatches ahead of them —
+and this repo's journal records individual dispatches of 100+ minutes. The
+window is hours, not the ~2s the `bd-ib-w4h4` trail
+(`ledger-admit` 04:57:07Z → `dispatch-id` 04:57:09Z) suggests in the budget-1 case.
+
+Note this is the OPPOSITE window from the one the previous revision feared. The
+post-merge janitor window is COVERED — the lock is held across it and released by
+the `ExitStack` at `dispatch_one` exit. The uncovered window is
+**admission → worker-thread start**.
+
+Cleanest resolution, and the one to take to the groom: **write the dispatch lock
+at ADMISSION time**, alongside the `active` write in `_dispatcher_admission.py`,
+rather than at `dispatch_one` entry — keeping the `ExitStack` release. The lock
+then means "this dispatcher process owns this claim" and spans admission →
+dispatch → janitor → disposition with no gap, which makes "active with no live
+lock" unambiguous and makes requirements 1 and 3 both sound. Weaker fallbacks
+(a grace period/TTL before reclaiming; checking whether the admitting dispatcher
+process is alive at repo level) do not close the window, only narrow it.
+
 ### Verifiers — each with the injected defect that makes it red
 
 | slice | test | injected defect that makes it RED |
@@ -326,6 +365,7 @@ consider splitting" and "carries 5 enumerated parts".
 | S3 (positive) | `active` item, no lock file → run the gate → assert moved out of `active` AND an abandonment journal record written | remove the reconcile call → item stays `active` → red |
 | S3 (negative) | `active` item WITH a lock written for `os.getpid()` → assert it STAYS `active` and still counts against the cap | make the reconcile ignore lock liveness → it reclaims a live run → red |
 | S3 (cap-independence) | `enforce_cap` false / `wip_cap` 0 → assert the reconcile still runs | nest the reconcile inside `if enforce_cap:` → red |
+| S3 (admission window) | admit a batch larger than `--parallel`, run the gate while the queued items are still awaiting a worker → assert the queued `active` items are NOT reclaimed | leave `write_dispatch_lock` at `dispatch_one` entry → the queued items have no lock → reclaimed → red |
 
 The S3 negative test is what discharges `reconcile-merged-dispatch-lock.md`'s
 objection: it proves a live dispatch inside its janitor window is never reclaimed.
