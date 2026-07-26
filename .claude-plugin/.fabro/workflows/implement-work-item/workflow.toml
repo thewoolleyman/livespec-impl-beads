@@ -257,7 +257,47 @@ enabled = false
 script = "livespec-step-timer fetch-unshallow -- git fetch --unshallow --quiet"
 
 [[run.prepare.steps]]
-script = "livespec-step-timer mise-install -- sh -c 'mise trust && mise install --quiet'"
+# `mise install` resolves the aqua-backed pins in .mise.toml (today
+# `shellcheck`) through api.github.com. It runs ANONYMOUSLY, on purpose:
+# the GitHub credential is SCRUBBED from this one step's environment.
+#
+# WHY (work-item bd-ib-bic7hb, root-caused 2026-07-26 by live capture
+# inside this very sandbox image): the Dispatcher's run-config overlay
+# projects an ephemeral App INSTALLATION token as GITHUB_TOKEN, and
+# mise's aqua backend picks that variable up automatically. That silently
+# enlists a third-party PUBLIC-repo metadata fetch as a consumer of the
+# factory's own App-installation credit — a single 5000/hr primary
+# rate-limit bucket shared with every `gh`, janitor and merge-poll call
+# the fleet makes. When that bucket empties, mise gets
+#
+#   403 {"message": "API rate limit exceeded for installation ID ..."}
+#   x-ratelimit-limit: 5000  x-ratelimit-remaining: 0  x-ratelimit-used: 5000
+#
+# the prepare step exits 1, and the run dies before ANY agent work while
+# the admitted work-item is left stranded in `active`. Measured: two
+# dispatches of bd-ib-pme57n died this way (2026-07-26 20:02:42Z and
+# 20:05:17Z), and the cause was reproduced at 20:27:16Z — in the same
+# sandbox, in the same second, the ANONYMOUS request for the same URL
+# returned 200 while the credentialed one returned 403.
+#
+# Anonymous is the right posture, not a workaround: this fetch reads
+# public release metadata only, so it needs no credential at all, and
+# the anonymous bucket it lands in (60/hr per egress IP) is one this
+# step touches ~2-3 times per dispatch. Scrubbing the credential
+# DECOUPLES tool resolution from factory credit entirely.
+#
+# GH_TOKEN and GITHUB_API_TOKEN are scrubbed alongside GITHUB_TOKEN
+# because mise accepts any of the three; scrubbing only the one the
+# overlay happens to set today would regress the moment another is
+# introduced. The scrub is scoped to this single command — every later
+# step, and every agent node, still sees the full credential
+# environment.
+#
+# The durable prevention (pre-bake the aqua-backed tools into the sandbox
+# image so setup makes no api.github.com call at all) remains open on
+# bd-ib-bic7hb; it needs a family image rebuild and is blocked behind
+# bd-ib-dwv.
+script = "livespec-step-timer mise-install -- sh -c 'mise trust && env -u GITHUB_TOKEN -u GH_TOKEN -u GITHUB_API_TOKEN mise install --quiet'"
 
 [[run.prepare.steps]]
 script = "livespec-step-timer uv-sync -- uv sync --all-groups"
