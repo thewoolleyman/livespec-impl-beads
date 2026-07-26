@@ -470,10 +470,12 @@ attempts produced it**, so a repeat failure escalates instead of retrying. A
 recovery surface that cannot recover, offered without that context, is another
 way to re-hide the failure.
 
-(Why the coverage gate is red in a fresh checkout when pre-merge CI was green is
-a SEPARATE question — plausibly systemic, given `janitor-post-merge` is this
-repo's largest failure class at 20 occurrences. It is NOT part of `bd-ib-waov`;
-noted so the groom does not absorb it by accident.)
+(Why the gate is red in a fresh checkout when pre-merge CI was green is a SEPARATE
+question — and it is **already filed twice**, as `bd-ib-rxxx` and `bd-ib-d6v1`,
+both P1. `bd-ib-rxxx` was filed while dispatching `bd-ib-w4h4` and names it. It is
+NOT part of `bd-ib-waov`; see §"The janitor red's ROOT CAUSE is already filed" for
+the corroboration and for two discrepancies in `bd-ib-rxxx` worth the maintainer's
+eye.)
 
 ### ⚠ S3 DESIGN CONSTRAINT — "no live lock" is NOT sufficient on its own
 
@@ -739,6 +741,55 @@ Two consequences for the plan:
   `status == "active"` + a merged PR, which is NOT unique to a dead process. **S3
   must not repeat that inference.** This is the strongest available justification for
   keying the reclaim on the live dispatch lock rather than on status, age, or a TTL.
+
+### The janitor red's ROOT CAUSE is already filed — keep it out of `bd-ib-waov`
+
+An earlier revision called the fresh-checkout janitor red "a SEPARATE question —
+plausibly systemic" and left it there. It is separate, and it is **already filed
+twice**, both P1 `backlog`:
+
+- **`bd-ib-rxxx`** — "janitor gate is checkout-dependent: `supervisor_discipline`
+  passes on master, fails in a fresh janitor checkout, stranding items."
+  **Filed 2026-07-20 while dispatching `bd-ib-w4h4` and naming it explicitly.** It
+  measured both sides: the primary checkout at clean `origin/master` returns rc=0
+  with 8 × `"phase": "0-warn"` for `.claude/hooks/livespec_footgun_guard.py` and
+  `bd-guard/bd-guard-emit.py` — the SAME two files `bd-ib-w4h4`'s janitor-red
+  detail cites, with `"newly_covered": true`. Strong corroboration.
+- **`bd-ib-d6v1`** — "`just check-coverage` reuses a STALE `.coverage` with no
+  freshness check", so a standalone invocation reports coverage for a tree state
+  unrelated to the working tree.
+
+**Consequence for the groom: `bd-ib-waov` must NOT try to fix the janitor red.**
+Its cause is owned elsewhere. `bd-ib-waov` owns the *consequence* — that a
+stranded claim silently eats a WIP slot and nobody is told — which is true
+regardless of why the janitor went red.
+
+It also means **`bd-ib-w4h4` becomes recoverable once `bd-ib-rxxx` lands**, since
+its janitor red would stop reproducing. That is the natural moment to un-strand it
+— but not before the requirement-1 verifier exists, since it is the fixture.
+
+#### Two discrepancies in `bd-ib-rxxx` worth the maintainer's eye
+
+Recorded because this thread's own charter says a filed item is a claim with a
+timestamp, and both were checked against the forge.
+
+1. **`bd-ib-rxxx` says the dispatch "STRANDED that item `active` with no PR". That
+   is FALSE.** PR **#836** exists, its head branch is literally
+   `feat/bd-ib-w4h4`, it MERGED at 2026-07-20T05:31:50Z with merge commit
+   `ba9fdaf`, and all three of `bd-ib-w4h4`'s terminal outcome records carry
+   `pr_number: 836` + that merge SHA. This matters practically: a maintainer
+   reading "no PR" could reasonably re-dispatch `bd-ib-w4h4`, which would try to
+   rebuild an already-merged change — the exact failure `bd-ib-lza6` documents as
+   a non-viable workaround.
+2. **The two sources attribute the red differently.** `bd-ib-rxxx` attributes it to
+   checkout-dependent `supervisor_discipline`; the captured janitor tail carries an
+   explicit `error: Recipe `check-coverage` failed with exit code 2` (the
+   `supervisor_discipline` lines in that same tail are `"phase": "0-warn"`,
+   `"level": "warning"`, which do not fail the gate). Both readings are recorded
+   here without adjudication — `bd-ib-rxxx` did a measured both-sides comparison,
+   which is stronger evidence than reading a truncated stderr tail, but it does not
+   explain the explicit non-zero `check-coverage` line. `bd-ib-d6v1` may reconcile
+   them. **Settling this belongs to `bd-ib-rxxx`, not here.**
 
 ### Reclaim destination — SUPERSEDED, retained for the reasoning about `backlog`
 
