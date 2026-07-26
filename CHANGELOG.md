@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.46.12](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.11...v0.46.12) (2026-07-26)
+
+
+### Bug Fixes
+
+* **config:** describe the current role-key regime, not the retired fallback ([aab10e3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/aab10e37c5cac777094b85778f844f5109f16dff))
+
 ## [0.46.11](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.10...v0.46.11) (2026-07-24)
 
 
