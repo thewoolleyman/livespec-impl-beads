@@ -56,11 +56,11 @@ reason points back to `bd-ib-waov`.
 both shipped and verified.** Nothing is in flight; no background process is running.
 
 **NEXT ACTION — S2 (`bd-ib-cfgkkk`), then S3 (`bd-ib-pme57n`).** Both are
-`pending-approval`, so each needs its approval valve before dispatch. **S2 before
-S3 is a correctness precondition, not a preference** — see §"The corrected design
-makes S2 MANDATORY". S2 remains gated by `bd-ib-81l0` (below). **S3's predicate
-was AMENDED 2026-07-26 and is no longer "active + no live lock"** — see
-§"Rework doors".
+`pending-approval`. **Do NOT wait for an approval valve — dispatch them directly;
+see §"Dispatching a `pending-approval` slice".** **S2 before S3 is a correctness
+precondition, not a preference** — see §"The corrected design makes S2 MANDATORY".
+S2's `bd-ib-81l0` gate is DISCHARGED (below). **S3's predicate was AMENDED
+2026-07-26 and is no longer "active + no live lock"** — see §"Rework doors".
 
 **A second, separate assignment is also open: a `/livespec:revise` pass over BOTH
 pending proposals — `reconcile-merged-dispatch-lock.md` and
@@ -104,11 +104,66 @@ re-checked against every scope addition made after it was written.
 Dependency layering, verified on the ledger: `bd-ib-cfgkkk` 1 dep / 1 dependent;
 `bd-ib-pme57n` 2 / 0. `bd-ib-l2vglr` and `bd-ib-hvuhxp` carry no edges.
 
-**S2 is additionally gated by `bd-ib-81l0`** — that gate could NOT be expressed as
-an edge (groom resolves `depends_on` handles only to earlier slices in the same
-draft), so it lives in `bd-ib-cfgkkk`'s description as prose. Land `bd-ib-81l0`
-before shipping S2, or the lane points operators at a valve that exec-fails under
-the credential wrapper.
+**S2's `bd-ib-81l0` gate is DISCHARGED.** It shipped 2026-07-26 as PR #1000
+(`47c75ac`): `reconcile_plan` now threads `resolve_fabro_bin(cwd=repo)` instead of
+the bare literal, so S2's `reconcile-merged` handoff no longer exec-fails under the
+credential wrapper. Verified by re-executing the red against the merged tree —
+`plan.fabro_bin` is now `/home/ubuntu/.fabro/bin/fabro` and execs at exit 0, where
+the bare name raised `FileNotFoundError`. (The gate could never be an edge — groom
+resolves `depends_on` handles only to earlier slices in the same draft — so it
+lived in `bd-ib-cfgkkk`'s description as prose.)
+
+## ⛔ Dispatching a `pending-approval` slice — the obvious answer is WRONG
+
+Both remaining slices sit in `pending-approval`, and the intuitive move — "run the
+approve valve first" — **cannot work on this repo and would block the track
+indefinitely.**
+
+`.livespec.jsonc:93` commits `auto_approve_ready: true`, so
+`effective_admission_policy` resolves to `auto`, and `_approve_item`
+(`_drive_valves.py:141-152`) refuses EVERY item here with `invalid-source-state —
+approve requires an effective-manual pending-approval item`. **The approve valve is
+closed by construction.** Another session hit exactly this on `bd-ib-wuotqm` on
+2026-07-26 and had to route around it.
+
+**What actually works: dispatch it directly. No approval step, no status move.**
+`ready_items` (`_dispatcher_loop_selection.py:102-120`) filters with
+`is_dispatch_candidate`, which re-tests a `pending-approval` item under a READY
+PROJECTION (`:138-145`). The `--item` preflight
+(`_dispatcher_run_checks.requested_items_preflight_error`) checks membership in
+that same set, so it passes. Admission then does both writes in ONE pass:
+`_dispatcher_admission.py:102` writes `ready` on the auto-approve leg, `:114` writes
+`active`.
+
+Verified 2026-07-26 by executing the real predicates against the live tenant:
+
+```
+bd-ib-cfgkkk: status='pending-approval' depends_on=(bd-ib-ohdu5a,)
+  is_dispatch_candidate                          -> True
+  in ready_items set                             -> True
+  requested_items_preflight_error({'bd-ib-cfgkkk'}) -> None
+```
+
+So `dispatcher.py dispatch --item bd-ib-cfgkkk` just works.
+
+**Do NOT reach for `dispatcher.py loop` to obtain the auto-approve.** A loop pass
+admits a BATCH to `active` and then dispatches under `--parallel 1`, which is
+exactly the unlocked-claim window S3 exists to close — and S3 has not shipped.
+Per-item `dispatch --item` writes its lock at `dispatch_one` entry, so each claim is
+covered for its whole life. Per-item dispatch is the rule until S3 lands.
+
+**`move:<id>:ready` is a working fallback if the direct path ever regresses**, and
+it is CLEAN for a `pending-approval` item in a way it is not for an `active` one: the
+item has never been `active`, so `assignee` is already `None` and the
+`bd-ib-5ymv5p` stale-assignee side effect cannot arise. v050 retires the
+move-into-`active` door, NOT move-into-`ready`, so this stays sanctioned.
+
+**Hazard recorded on `bd-ib-4m5f`.** That item reports `next` and the Dispatcher
+disagreeing on the candidate set — and the divergence is what makes the above work.
+Resolving it by narrowing the Dispatcher to `next`'s stored-status-only reading
+would make every `pending-approval` item undispatchable here, with no approval valve
+to unblock it. Converge by teaching `next` the ready-projection rule, not by
+narrowing the drain.
 
 **Dispatch recipe that worked** (run it from the repo root, already inside the
 wrapper — the dispatcher self-wraps but often cannot reach the credstore alone):
