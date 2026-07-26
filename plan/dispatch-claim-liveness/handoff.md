@@ -317,6 +317,37 @@ combined slice**, which carries four requirements plus a cross-repo leg. Note th
 journal's own `sizing-warn` on `bd-ib-w4h4`: "description is 4897 chars (> 1500) …
 consider splitting" and "carries 5 enumerated parts".
 
+### ⚠ S2 CONSTRAINT — do not copy the precedent's staleness bug
+
+The precedent S2 should follow carries a latent defect. In
+`_needs_attention_work_items._host_only_reasons`, the second loop adds every
+journal-derived id with **no status check at all**:
+
+```python
+for item_id in _recorded_host_only_refusals(project_root=project_root):
+    if item_id not in reasons:
+        reasons[item_id] = _RECORDED_REFUSAL_REASON
+```
+
+The journal is append-only and never pruned, so an item refused once is surfaced
+forever. Measured 2026-07-26: the lane derives five items from journal history
+(`bd-ib-qcnbbp`, `bd-ib-fjj7f7`, `bd-ib-lgv`, `bd-ib-tyxzhv`, `bd-ib-p3sjiy`) and
+**all five are CLOSED** — the lane surfaces five stale rows today and zero live
+ones.
+
+**S2 MUST intersect journal evidence with CURRENT ledger status.** Copied
+verbatim, S2 would surface all 18 items that ever hit a `janitor-post-merge` red
+— 17 of them long closed — to expose the single live one. That is the same
+failure this thread exists to fix, inverted: a signal buried in noise is as
+invisible as no signal. The journal record supplies the EVIDENCE (`pr_number`,
+`merge_sha`, the failing stage); the ledger supplies the PREDICATE
+(`status == "active"`); the dispatch lock supplies the LIVENESS. All three are
+required.
+
+The staleness bug in the existing `host-only` lane is a **separate pre-existing
+defect**, not part of `bd-ib-waov`. It is recorded here because S2 must not
+inherit it; filing it is the maintainer's call.
+
 ### ⚠ S3 DESIGN CONSTRAINT — "no live lock" is NOT sufficient on its own
 
 A naive S3 that reclaims every `active` item with no live dispatch lock would be
@@ -362,6 +393,7 @@ process is alive at repo level) do not close the window, only narrow it.
 |---|---|---|
 | S1 | lock whose `pid` is live but whose `started_at_epoch` long predates that process's real start → assert DEAD | **none needed — red against current `master` today** (demonstrated above); the cheapest honest red available |
 | S2 | `active` item + no live lock + journal `janitor-post-merge`/`failed` record → assert a needs-attention lane naming the item and its merged PR | drop the lane → red |
+| S2 (no staleness) | an item with a `janitor-post-merge`/`failed` record in the journal that is now CLOSED → assert NO lane is emitted | key the lane off journal history alone (as the `host-only` lane does today) → the closed item is surfaced → red |
 | S3 (positive) | `active` item, no lock file → run the gate → assert moved out of `active` AND an abandonment journal record written | remove the reconcile call → item stays `active` → red |
 | S3 (negative) | `active` item WITH a lock written for `os.getpid()` → assert it STAYS `active` and still counts against the cap | make the reconcile ignore lock liveness → it reclaims a live run → red |
 | S3 (cap-independence) | `enforce_cap` false / `wip_cap` 0 → assert the reconcile still runs | nest the reconcile inside `if enforce_cap:` → red |
