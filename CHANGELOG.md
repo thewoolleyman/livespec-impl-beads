@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.46.15](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.14...v0.46.15) (2026-07-26)
+
+
+### Bug Fixes
+
+* honor zero wip cap ([a60986e](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/a60986e2fefcedfb027bef73b250306f25e2348d))
+
 ## [0.46.14](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.13...v0.46.14) (2026-07-26)
 
 
