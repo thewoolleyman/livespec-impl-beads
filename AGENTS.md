@@ -415,3 +415,23 @@ pass `--no-verify`.
   telemetry emitter, the factory-safe slice F1 was first offered as "hand-build
   (recommended) vs dispatch (heavier)"; the maintainer corrected that the
   factory-safe slice is exactly what should be dispatched.)
+- **Name the OWNING SESSION when attributing work to another session**
+  (maintainer-declared 2026-07-26). When you report that another session made a
+  change — a dirty file, a live branch, an in-flight PR, a concurrent worktree —
+  identify it by its **session name** (its `/rename` value), not merely by
+  project directory or session UUID. The maintainer runs many concurrent
+  sessions across the family and coordinates them BY NAME (the names are the
+  tmux window names), so "a session in `livespec-console-beads-fabro`" is not
+  actionable — it does not say which window to look at. Establish the name
+  BEFORE asking any question whose answer depends on what that session is
+  doing. Recover it by grepping the session transcript
+  (`~/.claude/projects/<project-slug>/<session-id>.jsonl`) for
+  `Session renamed to:` — a `type: system` / `subtype: local_command` record
+  carrying the `/rename` args — and report it as `<session-name>` (project
+  `<project>`, session `<uuid>`), leading with the name. (Context: a revise
+  pass blocked on a stale-branch precondition tripped by another session's
+  live branch; the options were presented without naming the owner, and the
+  maintainer's reply was simply "you need to tell me the name of the session
+  which is making this change." Naming it also resolved the block — that
+  session's own transcript showed it had already merged the branch and had no
+  intent to revise.)
