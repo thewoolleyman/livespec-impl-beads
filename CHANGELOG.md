@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.46.20](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.19...v0.46.20) (2026-07-26)
+
+
+### Bug Fixes
+
+* align needs-attention approve advertisement ([8e46eea](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/8e46eeaa02115ca3f4bf75a12f437f716f07b168))
+
 ## [0.46.19](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.18...v0.46.19) (2026-07-26)
 
 
