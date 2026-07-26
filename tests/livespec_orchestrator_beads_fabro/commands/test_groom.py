@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from livespec_orchestrator_beads_fabro.commands.groom import CandidateSlice, CrossRepoSlice
 
 
@@ -16,7 +17,18 @@ def test_candidate_slice_defaults_to_factory_slice() -> None:
 
     assert candidate.depends_on == ()
     assert candidate.is_spec_change is False
-    assert candidate.priority == 2
+
+
+def test_candidate_slice_rejects_priority_argument() -> None:
+    with pytest.raises(TypeError):
+        CandidateSlice(
+            title="slice",
+            description="Do one thing.",
+            acceptance="Factory can verify it.",
+            autonomy_tier="T1",
+            repo_target="local-repo",
+            priority=1,
+        )
 
 
 def test_cross_repo_slice_carries_minted_id() -> None:
