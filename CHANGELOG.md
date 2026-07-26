@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.46.22](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.21...v0.46.22) (2026-07-26)
+
+
+### Bug Fixes
+
+* reject dead groom priority input ([d3d7cfd](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/d3d7cfd76d70095585e044c21b50bdc558cb3ab0))
+
 ## [0.46.21](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.20...v0.46.21) (2026-07-26)
 
 
