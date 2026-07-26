@@ -552,6 +552,54 @@ objection: it proves a live dispatch inside its janitor window is never reclaime
 S3's positive test must assert BOTH the transition AND the abandonment record, or
 it passes vacuously on a status the healthy path also produces.
 
+### Draft amendment — resolving the spec collision in one sentence
+
+DRAFTED, NOT FILED. The spec side is the maintainer's; this exists so the
+decision is a yes/no on concrete text rather than an open design question.
+
+`reconcile-merged-dispatch-lock.md` (TRACKED, still pending on `origin/master`)
+contains, at line 70 of its proposed contract block:
+
+> "A red janitor, missing merged PR, wrong source lane, ambiguous merged PR, or
+> held janitor checkout lock MUST leave the item `active` and report the failed
+> guarded precondition or janitor stage."
+
+Read literally, that forbids requirement 1. The narrowest fix is to bound the
+claim by the ownership lock the SAME proposal already mandates, appending one
+sentence immediately after it:
+
+```markdown
+An item left `active` by this valve remains claimed only while a live
+dispatch-scoped ownership lock names it. Once no live lock owns the item the
+claim is abandoned, and the Dispatcher's admission valve MUST NOT count it
+against the per-repo WIP cap: it MUST journal the abandonment and move the item
+out of `active` to `blocked` with `blocked_reason` `needs-human`, so the recovery
+this valve exists for is surfaced for a human rather than silently held.
+```
+
+Why this shape:
+
+- It reuses the proposal's OWN vocabulary — the "dispatch-scoped ownership lock"
+  is introduced two paragraphs earlier in the same block — so it adds no new
+  concept and needs no new definition.
+- It preserves the clause's intent exactly. The item still stays `active` for the
+  dispatch that owns it, which is what the clause is protecting; it only stops
+  `active` from outliving every owner.
+- It names `blocked`/`needs-human` rather than `backlog`, consistent with
+  §"Reclaim destination" and with `escalate_needs_human_block`'s existing
+  reasoning.
+- It is additive: no existing sentence is deleted or reworded, so it does not
+  disturb the rest of a proposal already under review.
+
+**Two routes, maintainer's choice.** Either fold this into
+`reconcile-merged-dispatch-lock.md` BEFORE it is revised in (cleanest — the
+contract lands coherent the first time), or ratify that proposal as-is and file a
+follow-on `propose-change` afterwards (lower coupling, but leaves a window where
+the ratified contract forbids requirement 1). If the maintainer instead rules
+that requirement 1 narrows to "surface only, never auto-reclaim", **no spec change
+is needed at all** — S2 alone is legal under the clause as written, and S3 drops
+out of the cut.
+
 ### Reclaim destination — recommend `blocked` + `needs-human`, NOT `backlog`
 
 Researched 2026-07-26. `backlog` is the wrong destination, and the repo already
@@ -606,7 +654,9 @@ evidence, and the prior-attempt count, instead of the generic
 1. **Spec collision.** Does `reconcile-merged-dispatch-lock.md`'s "a red janitor …
    MUST leave the item `active`" get bounded by ownership-lock liveness (one added
    sentence, keeping requirement 1 legal), or does requirement 1 narrow to
-   "surface only, never auto-reclaim"?
+   "surface only, never auto-reclaim"? **Draft amendment text is prepared — see
+   §"Draft amendment" below.** Nothing has been filed; the spec side is the
+   maintainer's.
 2. **Reclaim destination.** Where does S3 send a reclaimed item? **Now carries a
    researched recommendation — `blocked` + `blocked_reason="needs-human"`. See
    §"Reclaim destination" below.** Still the maintainer's call, but no longer an
