@@ -305,6 +305,26 @@ def test_reconcile_merged_uses_checkout_path_distinct_from_loop_janitor(
     assert plan.janitor_checkout.name == f"janitor-reconcile-{item.id}"
 
 
+def test_reconcile_plan_uses_resolved_fabro_bin(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _assert_reconcile_command_registered(capsys=capsys)
+    module = _reconcile_module()
+    repo = _repo(tmp_path=tmp_path)
+    item = _item(id="bd-ib-fabro")
+    fabro_bin = tmp_path / "resolved-fabro"
+    _ = fabro_bin.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    fabro_bin.chmod(0o755)
+    monkeypatch.setenv("LIVESPEC_FABRO_BIN", str(fabro_bin))
+
+    plan = module.reconcile_plan(repo=repo, item=item, janitor=None)
+
+    assert plan.fabro_bin == str(fabro_bin)
+    assert plan.fabro_bin != "fabro"
+
+
 @pytest.mark.parametrize("status", ["ready", "acceptance"])
 def test_reconcile_merged_refuses_non_active_items(
     status: str,
