@@ -206,7 +206,8 @@ invariant (`work_items/types.py:118`).
    scan. **This is CROSS-REPO and larger than a missing check** — see
    §"Scope boundary". Explicitly the weakest of the four: detection, not
    prevention. It exists so the class is caught in tenants whose dispatcher path
-   differs.
+   differs — **but no such tenant exists today, and dropping this slice is the
+   standing recommendation; see §"S4 SCOPE".**
 
 **A verifier must be able to fail.** Each requirement needs a test whose injected
 defect would make it red. See §"Prepared slice cut" for each slice's red.
@@ -295,7 +296,7 @@ Drafted 2026-07-26, NOT filed. The maintainer owns the cut and the acceptance.
 | **S1** harden dispatch-lock liveness: consult `started_at_epoch` (PID + process start time), adopting `_dispatcher_admission_mutex._pid_start_time_mismatches` | 3 | in-repo, pure, small | — |
 | **S2** needs-attention lane: `active` item with no live dispatch lock, enriched from the journal terminal `outcome` record (carry `pr_number`/`merge_sha`, hand off `reconcile-merged`) | 2 | in-repo | S1 (soft) |
 | **S3** reconcile at the admission gate: per `active` item, no live lock → journal an abandonment and move it out of `active`; must sit outside `if enforce_cap:` | 1 | in-repo | S1, S2 |
-| **S4** stale-`active` detection in the fleet hygiene scan | 4 | **cross-repo** (see §"Scope boundary") | independent |
+| **S4** stale-`active` detection in the fleet hygiene scan | 4 | **cross-repo** (see §"Scope boundary") — but see §"S4 SCOPE": recommended DROPPED, as it protects zero tenants today | independent |
 
 **The ordering is the point: S2 before S3.** Shipping the reclaim first produces a
 system that silently cleans up after a failure nobody is told about — a worse
@@ -316,6 +317,42 @@ Rejected: **reclaim-first (S3→S2)**, which re-hides the failure; and **one
 combined slice**, which carries four requirements plus a cross-repo leg. Note the
 journal's own `sizing-warn` on `bd-ib-w4h4`: "description is 4897 chars (> 1500) …
 consider splitting" and "carries 5 enumerated parts".
+
+### ⚠ S4 SCOPE — requirement 4 is speculative today; consider dropping the slice
+
+Requirement 4's stated rationale is that it "exists so the class is caught in
+tenants whose dispatcher path differs." **Verified on the forge 2026-07-26: there
+is no such tenant.** Two findings, both checkable:
+
+1. **No second dispatcher-bearing orchestrator exists.** The only other
+   orchestrator in the family, `livespec-orchestrator-git-jsonl`, vendors the SAME
+   `livespec_runtime/hygiene_scan.py` but has **no dispatcher at all** — no
+   `_dispatcher_admission.py`, no `wip_cap`, no `status == "active"` admission
+   concept anywhere under its plugin scripts. (Its only "dispatch" matches are the
+   unrelated CI workflows `bump-pin-from-dispatch.yml` and
+   `release-dispatch.yml`.) So requirement 4 protects zero additional tenants
+   today; it is insurance against a future backend, not coverage of a live gap.
+2. **The scanner is deliberately store-agnostic, and the architecture already puts
+   store-derived lanes on the CONSUMER side.** Upstream, `scan_hygiene` is invoked
+   only by its own CLI (`hygiene_scan_cli.py`) and its tests — it is a standalone
+   git-level tool. Meanwhile `compose_needs_attention` already accepts
+   `impl_next` and `human_valve_lanes`, i.e. work-item-derived inputs **supplied by
+   the consumer**. That split is intentional: the fleet has more than one
+   work-items backend, so a store-reading check cannot live in the shared scanner
+   without first inventing a store abstraction upstream.
+
+Put together: "add a stale-`active` check to the fleet hygiene scan" asks a
+deliberately store-agnostic scanner to read a store, to protect tenants that do
+not exist. The consumer-side home for exactly this check is
+`_needs_attention_work_items.py` — **which is where S2 already puts it.**
+
+Recommendation to take to the groom: **drop S4 as a slice.** Either defer it until
+a second dispatcher-bearing orchestrator actually exists, or reframe it as a
+recorded CONVENTION — each orchestrator surfaces its own stale-`active` lane
+through its own needs-attention composition — which S2 already satisfies for this
+repo. That reduces the epic from four slices to three and removes the only
+cross-repo leg. **This is a scoping recommendation, not a ruling; requirement 4 is
+the maintainer's to keep, defer, or drop.**
 
 ### ⚠ S2 CONSTRAINT — do not copy the precedent's staleness bug
 
