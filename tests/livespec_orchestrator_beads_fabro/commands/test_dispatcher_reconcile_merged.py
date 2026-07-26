@@ -5,12 +5,16 @@ from __future__ import annotations
 import importlib
 import json
 import os
+import time
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from types import ModuleType
 
 import pytest
-from livespec_orchestrator_beads_fabro.commands import _dispatcher_completion
+from livespec_orchestrator_beads_fabro.commands import (
+    _dispatcher_completion,
+    _dispatcher_dispatch_lock,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import CommandResult
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import janitor_checkout_path
 from livespec_orchestrator_beads_fabro.commands.dispatcher import main
@@ -197,6 +201,27 @@ def test_reconcile_merged_janitor_red_leaves_item_active(
     assert stages[-1] == "outcome"
 
 
+def test_dispatch_lock_stays_live_when_process_start_time_is_unobservable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo = _repo(tmp_path=tmp_path)
+    item_id = "bd-ib-lock"
+    _write_dispatch_lock(
+        repo=repo,
+        item_id=item_id,
+        pid=os.getpid(),
+        started_at=1.0,
+        dispatch_id="dispatch-live",
+    )
+    monkeypatch.setattr(
+        _dispatcher_dispatch_lock,
+        "process_started_at_epoch",
+        lambda **_: None,
+    )
+
+    assert _dispatcher_dispatch_lock.live_dispatch_lock(repo=repo, work_item_id=item_id)
+
+
 def test_reconcile_merged_refuses_live_dispatch_lock_before_pr_resolution(
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
@@ -214,7 +239,7 @@ def test_reconcile_merged_refuses_live_dispatch_lock_before_pr_resolution(
         repo=repo,
         item_id=item.id,
         pid=os.getpid(),
-        started_at=1.0,
+        started_at=time.time(),
         dispatch_id="dispatch-live",
     )
 
