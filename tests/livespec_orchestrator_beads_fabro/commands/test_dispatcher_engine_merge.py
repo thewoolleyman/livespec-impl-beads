@@ -182,11 +182,28 @@ def test_post_merge_runs_janitor_in_fresh_checkout(tmp_path: Path) -> None:
     janitor_calls = [
         (argv, cwd)
         for argv, cwd in runner.calls
-        if argv == ["mise", "exec", "--", "just", "check-no-workflow-edits", "check"]
+        if argv
+        == [
+            "mise",
+            "exec",
+            "--",
+            "just",
+            "check-no-workflow-edits",
+            "install-worktree-pack",
+            "check",
+        ]
     ]
     assert janitor_calls == [
         (
-            ["mise", "exec", "--", "just", "check-no-workflow-edits", "check"],
+            [
+                "mise",
+                "exec",
+                "--",
+                "just",
+                "check-no-workflow-edits",
+                "install-worktree-pack",
+                "check",
+            ],
             tmp_path / "janitor-co",
         )
     ]

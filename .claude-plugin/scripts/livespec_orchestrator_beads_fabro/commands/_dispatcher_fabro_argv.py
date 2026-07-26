@@ -37,12 +37,25 @@ __all__: list[str] = [
     "pull_primary_argv",
 ]
 
+# `install-worktree-pack` PRECEDES `check` because the janitor checkout is a
+# fresh worktree that never ran `just bootstrap`, and the worktree-discipline
+# pack is gitignored — so it is absent there by construction. Since
+# livespec-dev-tooling v0.54.24 an absent pack is a FAIL by default, which reds
+# the janitor's own `just check` on a fully conformant repo (observed on the
+# `bd-ib-hvuhxp` reconcile: PR #1018 merged green, then reconcile-merged failed
+# at janitor-post-merge with worktree_pack_absent and stranded the claim).
+#
+# The janitor is a normal worktree-equivalent, NOT a declared sandbox, so this
+# PROVISIONS the pack rather than exempting the venue: the asserted property
+# becomes TRUE instead of skipped. Presence enforcement stays intact and no
+# second `livespec.sandboxExempt` marker is introduced.
 _DEFAULT_JANITOR: tuple[str, ...] = (
     "mise",
     "exec",
     "--",
     "just",
     "check-no-workflow-edits",
+    "install-worktree-pack",
     "check",
 )
 _DEFAULT_JANITOR_CORE_REPO_URL = "https://github.com/thewoolleyman/livespec.git"

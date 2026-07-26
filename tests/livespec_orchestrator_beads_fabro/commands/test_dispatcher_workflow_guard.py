@@ -135,5 +135,6 @@ def test_default_janitor_runs_workflow_guard_before_full_check() -> None:
         "--",
         "just",
         "check-no-workflow-edits",
+        "install-worktree-pack",
         "check",
     )

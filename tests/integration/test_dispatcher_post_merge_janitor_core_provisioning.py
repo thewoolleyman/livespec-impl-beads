@@ -282,6 +282,10 @@ def _target_repo(*, tmp_path: Path) -> Path:
             '    @echo "No .github/workflows/ changes detected."\n'
             "\ninstall-commit-refuse-hooks:\n"
             "    @just bootstrap\n"
+            # The janitor materializes the gitignored worktree pack before
+            # `check` reads it; a fresh checkout never ran `just bootstrap`.
+            "\ninstall-worktree-pack:\n"
+            '    @echo "installed worktree pack"\n'
         )
     _git(target, "init", "-b", "master")
     _git(target, "config", "user.email", "janitor-test@example.invalid")
