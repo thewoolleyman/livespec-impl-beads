@@ -11,11 +11,18 @@ monotonic: every abandonment costs a slot that never comes back.
 **Ledger anchor:** the three P1 slices below. Status is READ from the ledger
 (`list-work-items` / `next`), never stored here.
 
-| slice | id | scope |
-|---|---|---|
-| S1 | **`bd-ib-ohdu5a`** | Harden the dispatch lock's liveness verdict (`started_at_epoch` + `O_EXCL`) |
-| S2 | **`bd-ib-cfgkkk`** | Surface a stranded merged-yet-unfinished claim in needs-attention |
-| S3 | **`bd-ib-pme57n`** | Stop counting dead claims against the per-repo WIP cap |
+| slice | id | status 2026-07-26 | scope |
+|---|---|---|---|
+| S1 | `bd-ib-ohdu5a` | **DONE** — PR #978 merged `a869253` | Harden the dispatch lock's liveness verdict (`started_at_epoch` + `O_EXCL`) |
+| — | **`bd-ib-l2vglr`** | **`ready`, P1 — REGRESSION FROM S1** | A leaked lock now permanently blocks re-dispatch: `O_EXCL` landed without stale reclamation |
+| S2 | **`bd-ib-cfgkkk`** | `pending-approval` | Surface a stranded merged-yet-unfinished claim in needs-attention |
+| S3 | **`bd-ib-pme57n`** | `pending-approval` | Stop counting dead claims against the per-repo WIP cap |
+
+Two further items filed by this thread, both `ready`, neither part of the epic:
+**`bd-ib-l2vglr`** (P1, above) and **`bd-ib-hvuhxp`** (P2 — `CandidateSlice.priority`
+is dead API surface; fix is to DELETE the field, not wire it through, because
+`WorkItem` removed `priority` deliberately and `rank` is the sole ordering
+authority).
 
 The originating epic **`bd-ib-waov`** was CLOSED 2026-07-26T08:32:25Z by the groom
 with the explicit disposition "regroomed out into replacement slices:
@@ -32,23 +39,66 @@ reason points back to `bd-ib-waov`.
 
 ## ▶ CURRENT STATE + NEXT ACTION (read this first)
 
-**Status: GROOMED AND FILED 2026-07-26. Nothing is implemented yet; nothing is in
-flight.** All three maintainer rulings are in and the cut is on the ledger.
+**Status 2026-07-26: S1 SHIPPED, and it introduced a P1 regression that must land
+before S2 or S3.** Nothing is in flight; no background process is running.
 
-**Next action: dispatch S1 (`bd-ib-ohdu5a`), which is `ready` now.** S2 and S3 are
-`pending-approval` behind their blockers and become eligible as each lands. S1's
-read-side test is **RED against `master` today** — demonstrate that red before
-writing the fix.
+**NEXT ACTION — dispatch `bd-ib-l2vglr` (P1, `ready`), NOT S2 or S3.**
 
-Dependency layering, verified on the ledger after filing: `bd-ib-ohdu5a` has 0
-dependencies / 2 dependents; `bd-ib-cfgkkk` 1 / 1; `bd-ib-pme57n` 2 / 0. Exactly
-S1 → S2 → S3.
+S1 (`bd-ib-ohdu5a`) merged as PR #978 / `a869253` and is verified: BOTH of its reds
+were demonstrated red before dispatch and re-verified flipped afterwards by
+executing the real product code. But its `O_EXCL` write-side fix landed **without
+the stale reclamation that makes exclusive claiming safe**, and both sibling locks
+have that half.
+
+`write_dispatch_lock` now does a bare `os.open(..., O_EXCL)` — no `attempt()`
+wrapper, no reclamation. Any lock leaked by a dispatch that died without its
+`ExitStack` (SIGKILL, host restart) makes every SUBSEQUENT dispatch of that
+work-item raise `FileExistsError` at `_dispatcher_loop.py:86` — **before** the
+`ExitStack` is entered, so nothing releases it, and admission has already written
+`active`. **The item strands: exactly the class this epic exists to eliminate.**
+
+Reproduced by execution against `bba89a8`, and **live, not hypothetical** — two
+leaked locks from 2026-07-24 are on disk (`tmp/fabro-dispatch-bd-ib-fe574e.lock`
+pid 930374, `…-bd-ib-fjj7f7.lock` pid 580668, both dead), so `bd-ib-fe574e` and
+`bd-ib-fjj7f7` are UN-DISPATCHABLE on this host until those files are removed.
+
+**Why it must precede S2/S3:** S3's entire predicate is the trustworthiness of this
+lock. Shipping the reclaim on top of a write path that can itself strand items
+compounds the failure being fixed. **This sequencing is a recommendation, not a
+ruling — the maintainer has not confirmed it.** If they prefer S2 first, that is
+their call; do not treat this paragraph as authorization.
+
+**Own this honestly when you read `bd-ib-l2vglr`:** the regression traces to THIS
+THREAD's own brief on `bd-ib-ohdu5a`, which told the implementer "DO NOT add
+cleanup for leaked lock files — liveness is PID-keyed, so a lock whose owner is
+gone already reads dead." True before `O_EXCL`, false after it. The implementer
+followed the brief correctly.
+
+Dependency layering, verified on the ledger: `bd-ib-cfgkkk` 1 dep / 1 dependent;
+`bd-ib-pme57n` 2 / 0. `bd-ib-l2vglr` and `bd-ib-hvuhxp` carry no edges.
 
 **S2 is additionally gated by `bd-ib-81l0`** — that gate could NOT be expressed as
 an edge (groom resolves `depends_on` handles only to earlier slices in the same
 draft), so it lives in `bd-ib-cfgkkk`'s description as prose. Land `bd-ib-81l0`
 before shipping S2, or the lane points operators at a valve that exec-fails under
 the credential wrapper.
+
+**Dispatch recipe that worked** (run it from the repo root, already inside the
+wrapper — the dispatcher self-wraps but often cannot reach the credstore alone):
+
+```bash
+/usr/local/bin/with-livespec-env.sh -- python3 .claude-plugin/scripts/bin/dispatcher.py \
+    dispatch --item <id> --repo /data/projects/livespec-orchestrator-beads-fabro
+```
+
+Verify preconditions FIRST every time: the `127.0.0.1:32276` listener's
+`/proc/<pid>/exe` must resolve to `~/.fabro/bin/fabro`; `fabro --version` must be
+`0.254.0 (b9b63a8)` (≥ 0.256 breaks `workflow.fabro`, exit 127 — halt); `fabro ps`
+clear; WIP headroom. Prove container ownership by an ALL-container run-config scan,
+never by name/image/position/timing — every container on this host exits 137, so
+137 is normal teardown here, never kill-proof. Establish outcomes from artifacts
+(merged PR, ledger row, journal), never exit codes: S1's dispatcher printed a green
+summary, and only re-executing the reds proved the fix was real.
 
 **The root cause below was CORRECTED on 2026-07-26** against the dispatch journal,
 the merged PR, and the ledger. The thread's original diagnosis ("the dispatcher
@@ -277,7 +327,9 @@ dispatch lock can adopt that helper directly.
 `started_at_epoch` predates that process's real start by 24h,
 `live_dispatch_lock()` answers ALIVE while
 `_dispatcher_admission_mutex._lock_holder_matches_pid()`, on identical data,
-answers DEAD. Requirement 3 is red against current `master` today.
+answers DEAD. Requirement 3 was red against `master` until 2026-07-26 — **it is now
+FIXED** by S1 (PR #978 / `a869253`), verified by re-executing the demonstration.
+This section is retained as the diagnosis, not as a live defect.
 
 ## Coordination hazards — check both before designing
 
@@ -588,7 +640,7 @@ S3 without S1 is not merely weaker; it is unsound after any SIGKILL.
 
 | slice | test | injected defect that makes it RED |
 |---|---|---|
-| S1 | lock whose `pid` is live but whose `started_at_epoch` long predates that process's real start → assert DEAD | **none needed — red against current `master` today** (demonstrated above); the cheapest honest red available |
+| S1 — **DONE, both reds verified flipped** | lock whose `pid` is live but whose `started_at_epoch` long predates that process's real start → assert DEAD; and a second claim on an existing lock is refused | shipped in PR #978. Follow-on `bd-ib-l2vglr` covers the reclamation half that `O_EXCL` needs |
 | S2 | `active` item + no live lock + journal `janitor-post-merge`/`failed` record → assert a needs-attention lane naming the item and its merged PR | drop the lane → red |
 | S2 (no staleness) | an item with a `janitor-post-merge`/`failed` record in the journal that is now CLOSED → assert NO lane is emitted | key the lane off journal history alone (as the `host-only` lane does today) → the closed item is surfaced → red |
 | S2 (right handoff) | a stranded merged-yet-janitor-red item → assert its handoff invokes `reconcile-merged` | emit a handoff that moves the item (e.g. `resolve-blocked:<id>:ready`) → an already-merged item is pushed back into the dispatch queue → red |
