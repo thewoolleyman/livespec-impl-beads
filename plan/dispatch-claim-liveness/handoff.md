@@ -28,6 +28,10 @@ journal, the merged PR, and the ledger. The thread's original diagnosis ("the
 dispatcher process died mid-flight") is DISPROVEN — see §"Root cause". The open
 question the previous revision told you to settle FIRST is now SETTLED with data.
 
+**The ledger epic `bd-ib-waov` has NOT been updated to match** — its description
+still carries the superseded root cause. That is deliberate; see §"Read first"
+item 2. Where the two disagree, THIS FILE is current.
+
 **Next action:** groom `bd-ib-waov` into dependency-layered slices via
 `/livespec-orchestrator-beads-fabro:groom` — a read-only drafting conversation in
 which the **maintainer owns every cut and every acceptance**. Do not file slices
@@ -365,8 +369,15 @@ it passes vacuously on a status the healthy path also produces.
 ## Read first
 
 1. This file, then `supervisor-handoff.md` beside it.
-2. `bd-ib-waov` in the ledger — the requirements are restated there as the durable
-   record.
+2. `bd-ib-waov` in the ledger — **but read it with this caveat.** As of
+   2026-07-26 its description still carries the SUPERSEDED root cause ("a
+   dispatcher whose process then dies … if that process does not survive to the
+   second half"), still points requirement 1 at the heartbeat/`decide_stall`
+   primitives, and still frames requirement 4 as in-repo. THIS FILE is the current
+   record on all three. The epic was deliberately NOT rewritten from this thread:
+   restating it is a ledger write on a maintainer-owned record, and the groom is
+   where that restatement belongs. **Restating `bd-ib-waov`'s description is
+   itself a groom deliverable.**
 
 Product paths below are all under
 `.claude-plugin/scripts/livespec_orchestrator_beads_fabro/`:
