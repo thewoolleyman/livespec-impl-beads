@@ -15,27 +15,33 @@ monotonic: every abandonment costs a slot that never comes back.
 |---|---|---|---|
 | S1 | `bd-ib-ohdu5a` | **DONE** — PR #978 merged `a869253` | Harden the dispatch lock's liveness verdict (`started_at_epoch` + `O_EXCL`) |
 | — | `bd-ib-l2vglr` | **DONE** — PR #982 merged `acf061c` | The S1 regression: stale reclamation for the now-exclusive lock write |
-| S2 | **`bd-ib-cfgkkk`** | `pending-approval` | Surface a stranded merged-yet-unfinished claim in needs-attention |
-| S3 | **`bd-ib-pme57n`** | `pending-approval` | Stop counting dead claims against the per-repo WIP cap |
+| S2 | `bd-ib-cfgkkk` | **DONE** — PR #1006 merged `ebe7419` | Surface a stranded merged-yet-unfinished claim in needs-attention |
+| S3 | **`bd-ib-pme57n`** | **`ready`, THE LAST SLICE — blocked by a sandbox-setup failure** | Stop counting dead claims against the per-repo WIP cap |
 
-Three further items filed by this thread and still open, none part of the epic:
+Open items filed by this thread, none part of the epic. All `ready`.
 
-- **`bd-ib-hvuhxp`** (P2, `ready`) — `CandidateSlice.priority` is dead API
-  surface; fix is to DELETE the field, not wire it through, because `WorkItem`
+- **`bd-ib-bic7hb`** (P2, **host-only**) — **the current S3 blocker.** Sandbox
+  setup's `mise install` 403s on `aqua:koalaman/shellcheck`; root cause NOT
+  settled. See §"⛔ THE S3 BLOCKER".
+- **`bd-ib-u46hcv`** (P2, **host-only**) — the upstream `livespec-dev-tooling`
+  check defect that took the factory down. Owns BOTH the pin-hold removal and the
+  gate-blindness acceptance. See §"The v0.54.19 pin hold".
+- **`bd-ib-d6op2n`** (P2, **host-only**) — the `livespec-driver-claude`
+  core-resolution misfire; can misfire our own revise pass. Owned by that repo;
+  filed here because beads has no cross-tenant edge, so this prose IS the link and
+  it must be routed by hand.
+- **`bd-ib-5ymv5p`** (P2, factory-safe) — `move_item` leaves a STALE assignee.
+  **`bd-ib-pme57n` currently carries `assignee: fabro` while `ready` because of
+  it** — that is this defect, not a dispatch in progress. Do not hand-patch it.
+- **`bd-ib-hvuhxp`** (P2, factory-safe) — `CandidateSlice.priority` is dead API
+  surface; DELETE the field rather than wiring it through, because `WorkItem`
   removed `priority` deliberately and `rank` is the sole ordering authority.
-- **`bd-ib-2wgooj`** (P2, `ready`, factory-safe) — `_MOVE_ALLOWED` still permits
-  the bare `move:<id>:active` door that v050 retired. Discharges S3's accepted
-  residual. Scoped to the `active` target ONLY: the same frozenset still contains
-  `"ready"`, but that door is NOT a like-for-like removal here because
-  `auto_approve_ready: true` makes the `approve` valve refuse every item in this
-  repo, so the move is not a duplicate of a USABLE valve. That needs its own
-  ruling; do not widen the fix without one.
-- **`bd-ib-d6op2n`** (P2, `ready`, **host-only**) — the `livespec-driver-claude`
-  core-resolution misfire. Owned by that repo; filed in this tenant because beads
-  has no cross-tenant edge, so this prose IS the link and it must be routed by
-  hand. Carries `factory_safety: mutates-host-machinery`, verified to make
-  `is_host_only_item` return True, so the Dispatcher refuses to sandbox a fix
-  that does not live in this repo.
+
+Shipped by this thread beyond the slices: **`bd-ib-81l0`** (PR #1000 `47c75ac`,
+S2's gate — `reconcile_plan` now threads `resolve_fabro_bin`) and
+**`bd-ib-2wgooj`** (PR #1003 `817aeb1` — `_MOVE_ALLOWED` no longer contains
+`"active"`, discharging S3's residual). Both verified by re-executing their reds
+against the merged tree.
 
 The originating epic **`bd-ib-waov`** was CLOSED 2026-07-26T08:32:25Z by the groom
 with the explicit disposition "regroomed out into replacement slices:
@@ -52,15 +58,119 @@ reason points back to `bd-ib-waov`.
 
 ## ▶ CURRENT STATE + NEXT ACTION (read this first)
 
-**Status 2026-07-26: the dispatch lock is now SOUND. S1 and its regression fix are
-both shipped and verified.** Nothing is in flight; no background process is running.
+### ⛔ THE EPIC IS **NOT DONE**. S3 is not shipped.
 
-**NEXT ACTION — S2 (`bd-ib-cfgkkk`), then S3 (`bd-ib-pme57n`).** Both are
-`pending-approval`. **Do NOT wait for an approval valve — dispatch them directly;
-see §"Dispatching a `pending-approval` slice".** **S2 before S3 is a correctness
-precondition, not a preference** — see §"The corrected design makes S2 MANDATORY".
-S2's `bd-ib-81l0` gate is DISCHARGED (below). **S3's predicate was AMENDED
-2026-07-26 and is no longer "active + no live lock"** — see §"Rework doors".
+Say it in those words. Four of five pieces landed, which makes an "almost done"
+framing tempting — and that framing is the same silent-success failure this thread
+was opened to kill.
+
+**Shipped and verified** (each red demonstrated by execution BEFORE dispatch and
+re-verified flipped afterwards against the merged tree):
+
+| piece | PR / sha |
+|---|---|
+| S1 `bd-ib-ohdu5a` — PID + `started_at_epoch` liveness, `O_EXCL` claim | #978 / `a869253` |
+| `bd-ib-l2vglr` — the S1 regression: TOCTOU-correct stale reclamation | #982 / `acf061c` |
+| `bd-ib-81l0` — S2's gate: `reconcile_plan` threads `resolve_fabro_bin` | #1000 / `47c75ac` |
+| `bd-ib-2wgooj` — `_MOVE_ALLOWED` drops `"active"` (v050 divergence) | #1003 / `817aeb1` |
+| S2 `bd-ib-cfgkkk` — the `host-only:stranded-dispatch` attention lane | #1006 / `ebe7419` |
+
+**NOT shipped: S3 `bd-ib-pme57n`** — the WIP-cap arithmetic. Status `ready`. Until
+it lands, a dead claim still permanently consumes a slot: the epic's core defect is
+UNFIXED.
+
+Nothing is in flight; no background process is running. Repo clean on `master`, no
+orphaned worktrees from this session.
+
+**`bd-ib-pme57n` carries `assignee: fabro` while `ready`.** That is the
+`bd-ib-5ymv5p` stale-assignee defect (a `move` out of `active` passes no assignee),
+NOT a dispatch in progress. Do not hand-patch it.
+
+**`bd-ib-w4h4` remains deliberately stranded** as S3's fixture. It is the ONLY
+`active` row and must stay that way.
+
+### ⛔ THE S3 BLOCKER — do NOT just retry
+
+**S3 was dispatched twice on 2026-07-26 and both runs died in sandbox SETUP**, before
+any agent work, leaving the item stranded `active` each time (recovered by hand both
+times via `move:bd-ib-pme57n:ready`):
+
+| run id | at | duration | failure |
+|---|---|---|---|
+| `01KYG0ANS08T5V1HY1A92WR67J` | 20:02:42Z | 11s | `mise install` → 403 |
+| `01KYG0FDVJKEDPCRPWQ11NH6CV` | 20:05:17Z | 8s | identical |
+
+```
+Setup command failed (exit code 1): livespec-step-timer mise-install --
+  sh -c 'mise trust && mise install --quiet'
+mise ERROR Failed to install aqua:koalaman/shellcheck@0.11.0: HTTP status client
+  error (403 Forbidden) for url
+  (https://api.github.com/repos/koalaman/shellcheck/releases/tags/v0.11.0)
+```
+
+**A THIRD BLIND RETRY IS NOT THE NEXT ACTION.** Two identical fast failures buy no
+new information and strand the item again each time.
+
+**Root cause is NOT settled, and the obvious theory is REFUTED BY OBSERVATION.** An
+initial reading of "unauthenticated api.github.com rate limiting" was proposed and
+then falsified — record it as refuted, not merely unproven:
+
+- The retry ran INSIDE the window that had just been measured fresh (reset
+  21:03:33Z, so the window began ~20:03) and failed anyway.
+- Host unauthenticated quota at 20:05:39Z: **59/60 remaining** — not exhausted.
+- The same URL from the host, at effectively the same moment: **HTTP 200**.
+- A deliberately invalid bearer token returns **401**, not 403, so a merely
+  malformed or expired credential does not explain it either.
+
+**What IS established: something differs between SANDBOX and HOST egress, and it is
+PERSISTENT rather than a quota that rolls over.** Two live candidates, both
+consistent, neither confirmed — full write-up in **`bd-ib-bic7hb`** (filed, P2,
+`ready`, host-only): (A) the sandbox receives `GITHUB_TOKEN` = an ephemeral **App
+installation token** (`_dispatcher_credentials.py:131-145`), which mise's aqua
+backend would use, and which GitHub answers with 403 on a third-party repo outside
+the installation; (B) a GitHub **secondary** rate limit, which also returns 403 and
+does NOT decrement the counter that was measured at 59/60. The diagnostic that
+settles it is capturing the failing request's RESPONSE BODY (mise surfaced only the
+status).
+
+**The two productive paths — record both; do not pick one under time pressure:**
+
+1. **Make setup not need the fetch.** Pre-bake `shellcheck` and every other
+   aqua-backed tool into `orchestrator-image/`, so setup makes no api.github.com
+   call at all. Correct under BOTH candidates, which is its main virtue while the
+   cause is open. `bd-ib-dwv` (image un-rebuildable) is likely a prerequisite.
+2. **Establish why sandbox egress differs from host egress**, per the diagnostic
+   above, then fix the actual mechanism.
+
+**S3's red is already captured** in `bd-ib-pme57n`'s description — executed against
+the real `admit_and_select` with `wip_cap: 1`: a dead claim consumed the only slot,
+`admitted=[]`, and no abandonment was journaled. The next session does not need to
+re-derive it. **S3's predicate is the AMENDED one**, not "active + no live lock" —
+see §"Rework doors".
+
+Both slices were `pending-approval` and both dispatched directly with NO approval
+step — see §"Dispatching a `pending-approval` slice"; the approve valve is closed by
+construction on this repo.
+
+### The v0.54.19 pin hold — guarded, but TEMPORARY
+
+`livespec-dev-tooling` is deliberately held at **v0.54.19** (PR #998 `a26228c`,
+reverting five bump commits `03ac67b`..`66f6b9d`). v0.54.20..v0.54.24 take the
+factory DOWN: `primary_checkout_commit_refuse_hook_installed` asserts the presence
+of the gitignored worktree pack, which cannot exist in a fresh clone, and the
+sandbox runs that check as a SETUP command on a fresh clone.
+
+Two guards keep the hold from being undone unattended (PR #999 `04702d4`):
+`pin-freshness.yml` passes `staleness_threshold_releases: 99` (GLOBAL — no source
+scoping exists, so no source gets a freshness PR while it stands), and
+`bump-pin-from-dispatch.yml` carries a source-scoped
+`if: ... != 'livespec-dev-tooling'`.
+
+**`bd-ib-u46hcv` owns BOTH the upstream fix and the removal of these two guards**,
+and carries the gate-blindness acceptance: `just check` runs on the BOOTSTRAPPED
+checkout where the broken check PASSES, which is how v0.54.24 merged green.
+**Do NOT move the pin off v0.54.19 until a REAL dispatch is proven to survive setup
+on the new pin — a green `just check` is not that proof.**
 
 **A second, separate assignment is also open: a `/livespec:revise` pass over BOTH
 pending proposals — `reconcile-merged-dispatch-lock.md` and
