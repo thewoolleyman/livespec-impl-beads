@@ -201,6 +201,89 @@ def test_write_dispatch_lock_refuses_to_overwrite_existing_claim(tmp_path: Path)
     assert path.read_text(encoding="utf-8") == first_payload
 
 
+def test_write_dispatch_lock_reclaims_dead_holder_claim(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    item_id = "bd-ib-lock"
+    dead_pid = 999_999_999
+    _write_dispatch_lock(repo=tmp_path, item_id=item_id, pid=dead_pid, started_at=1.0)
+
+    def report_dead(*args: object) -> None:
+        _ = args
+        raise ProcessLookupError
+
+    monkeypatch.setattr(_dispatcher_dispatch_lock.os, "kill", report_dead)
+
+    path = _dispatcher_dispatch_lock.write_dispatch_lock(
+        repo=tmp_path,
+        work_item_id=item_id,
+        dispatch_id="dispatch-new",
+    )
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["pid"] == os.getpid()
+    assert isinstance(payload["started_at_epoch"], float)
+    assert payload["dispatch_id"] == "dispatch-new"
+
+
+def test_write_dispatch_lock_refuses_live_holder_claim(tmp_path: Path) -> None:
+    item_id = "bd-ib-lock"
+    path = _dispatcher_dispatch_lock.write_dispatch_lock(
+        repo=tmp_path,
+        work_item_id=item_id,
+        dispatch_id="dispatch-a",
+    )
+    first_payload = path.read_text(encoding="utf-8")
+
+    with pytest.raises(FileExistsError):
+        _ = _dispatcher_dispatch_lock.write_dispatch_lock(
+            repo=tmp_path,
+            work_item_id=item_id,
+            dispatch_id="dispatch-b",
+        )
+
+    assert path.read_text(encoding="utf-8") == first_payload
+
+
+def test_write_dispatch_lock_preserves_live_replacement_when_stale_reclaim_races(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    item_id = "bd-ib-lock"
+    stale_pid = 999_999_999
+    stale_payload = {
+        "work_item_id": item_id,
+        "pid": stale_pid,
+        "started_at_epoch": 1.0,
+        "dispatch_id": "dispatch-stale",
+    }
+    live_payload = {
+        "work_item_id": item_id,
+        "pid": os.getpid(),
+        "started_at_epoch": 2.0,
+        "dispatch_id": "dispatch-live-replacement",
+    }
+    path = tmp_path / "tmp" / f"fabro-dispatch-{item_id}.lock"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(stale_payload), encoding="utf-8")
+    live_bytes = json.dumps(live_payload, sort_keys=True).encode() + b"\n"
+
+    def replace_stale_with_live(*args: object) -> None:
+        _ = args
+        path.write_bytes(live_bytes)
+        raise ProcessLookupError
+
+    monkeypatch.setattr(_dispatcher_dispatch_lock.os, "kill", replace_stale_with_live)
+
+    with pytest.raises(FileExistsError):
+        _ = _dispatcher_dispatch_lock.write_dispatch_lock(
+            repo=tmp_path,
+            work_item_id=item_id,
+            dispatch_id="dispatch-racing-claimant",
+        )
+
+    assert path.read_bytes() == live_bytes
+
+
 def test_parse_merged_pr_list_rejects_non_default_base(tmp_path: Path) -> None:
     _ = tmp_path
     from livespec_orchestrator_beads_fabro.commands import _dispatcher_reconcile_merged
