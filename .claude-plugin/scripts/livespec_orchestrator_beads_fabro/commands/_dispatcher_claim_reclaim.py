@@ -24,7 +24,7 @@ class _TerminalHistory:
 
 
 def claimed_active_count(*, repo: Path, items: list[WorkItem], journal: JournalFile) -> int:
-    histories = _terminal_histories(journal=journal)
+    histories: dict[str, _TerminalHistory] | None = None
     count = 0
     for item in items:
         if item.status != "active":
@@ -32,10 +32,13 @@ def claimed_active_count(*, repo: Path, items: list[WorkItem], journal: JournalF
         if live_dispatch_lock(repo=repo, work_item_id=item.id) is not None:
             count += 1
             continue
-        if _claim_still_counts(history=histories.get(item.id)):
+        if histories is None:
+            histories = _terminal_histories(journal=journal)
+        history = histories.get(item.id)
+        if _claim_still_counts(history=history):
             count += 1
             continue
-        journal.append(record=_abandoned_record(item=item, history=histories.get(item.id)))
+        journal.append(record=_abandoned_record(item=item, history=history))
     return count
 
 
