@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
+from livespec_orchestrator_beads_fabro.commands._config import resolve_fabro_bin
 from livespec_orchestrator_beads_fabro.commands._dispatcher_command_common import (
     EXIT_FAILURE,
     EXIT_PRECONDITION_ERROR,
@@ -143,7 +144,7 @@ def reconcile_plan(*, repo: Path, item: WorkItem, janitor: tuple[str, ...] | Non
         work_item_id=item.id,
         workflow_toml=repo / "tmp" / f"reconcile-{item.id}-workflow.toml",
         goal_file=repo / "tmp" / f"reconcile-{item.id}-goal.md",
-        fabro_bin="fabro",
+        fabro_bin=resolve_fabro_bin(cwd=repo),
         janitor=janitor,
         janitor_checkout=janitor_reconcile_checkout_path(repo=repo, work_item_id=item.id),
         janitor_core_ref=janitor_core_ref(repo=repo),
