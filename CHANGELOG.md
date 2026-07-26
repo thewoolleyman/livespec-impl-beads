@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.46.16](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.15...v0.46.16) (2026-07-26)
+
+
+### Bug Fixes
+
+* accept zero wip cap in drive config ([3262f60](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/3262f60ac589d1a3ddeeefb34cb85c1fc50e0a48))
+
 ## [0.46.15](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.14...v0.46.15) (2026-07-26)
 
 
