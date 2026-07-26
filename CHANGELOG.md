@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.46.21](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.20...v0.46.21) (2026-07-26)
+
+
+### Bug Fixes
+
+* reclaim dead claims for uncapped admission ([5b32017](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/5b32017b9d2d3bbc12b12ceb97374136879c3b0e))
+* reclaim dead dispatch claims ([e156b36](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/e156b369e59bcdcea6e8ffa322aa7d5a90e8de4c))
+
 ## [0.46.20](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.19...v0.46.20) (2026-07-26)
 
 
