@@ -8,8 +8,20 @@ outcome with no defined ledger transition is left in `active` with
 silent — a full cap is indistinguishable from a busy factory — and it is
 monotonic: every abandonment costs a slot that never comes back.
 
-**Ledger anchor:** epic **`bd-ib-waov`** (P1). Status is READ from the ledger
+**Ledger anchor:** the three P1 slices below. Status is READ from the ledger
 (`list-work-items` / `next`), never stored here.
+
+| slice | id | scope |
+|---|---|---|
+| S1 | **`bd-ib-ohdu5a`** | Harden the dispatch lock's liveness verdict (`started_at_epoch` + `O_EXCL`) |
+| S2 | **`bd-ib-cfgkkk`** | Surface a stranded merged-yet-unfinished claim in needs-attention |
+| S3 | **`bd-ib-pme57n`** | Stop counting dead claims against the per-repo WIP cap |
+
+The originating epic **`bd-ib-waov`** was CLOSED 2026-07-26T08:32:25Z by the groom
+with the explicit disposition "regroomed out into replacement slices:
+`bd-ib-ohdu5a`, `bd-ib-cfgkkk`, `bd-ib-pme57n`". Its description was corrected
+BEFORE closing, so the closed record carries the corrected root cause and all three
+maintainer rulings rather than the superseded framing.
 
 **Supersedes `livespec-console-beads-fabro-6ma`** (P1, filed 2026-07-20 in the
 CONSOLE tenant, closed as superseded + mis-filed). That item diagnosed the
@@ -20,23 +32,32 @@ reason points back to `bd-ib-waov`.
 
 ## ▶ CURRENT STATE + NEXT ACTION (read this first)
 
-**Status: NOTHING IMPLEMENTED. Nothing is in flight.** The epic exists; it has no
-children.
+**Status: GROOMED AND FILED 2026-07-26. Nothing is implemented yet; nothing is in
+flight.** All three maintainer rulings are in and the cut is on the ledger.
 
-**The root cause below was CORRECTED on 2026-07-26** against the dispatch
-journal, the merged PR, and the ledger. The thread's original diagnosis ("the
-dispatcher process died mid-flight") is DISPROVEN — see §"Root cause". The open
-question the previous revision told you to settle FIRST is now SETTLED with data.
+**Next action: dispatch S1 (`bd-ib-ohdu5a`), which is `ready` now.** S2 and S3 are
+`pending-approval` behind their blockers and become eligible as each lands. S1's
+read-side test is **RED against `master` today** — demonstrate that red before
+writing the fix.
 
-**The ledger epic `bd-ib-waov` has NOT been updated to match** — its description
-still carries the superseded root cause. That is deliberate; see §"Read first"
-item 2. Where the two disagree, THIS FILE is current.
+Dependency layering, verified on the ledger after filing: `bd-ib-ohdu5a` has 0
+dependencies / 2 dependents; `bd-ib-cfgkkk` 1 / 1; `bd-ib-pme57n` 2 / 0. Exactly
+S1 → S2 → S3.
 
-**Next action:** groom `bd-ib-waov` into dependency-layered slices via
-`/livespec-orchestrator-beads-fabro:groom` — a read-only drafting conversation in
-which the **maintainer owns every cut and every acceptance**. Do not file slices
-before the groom. A prepared cut (evidence, options, recommendation, per-slice
-verifiers with their injected reds) is summarized in §"Prepared slice cut".
+**S2 is additionally gated by `bd-ib-81l0`** — that gate could NOT be expressed as
+an edge (groom resolves `depends_on` handles only to earlier slices in the same
+draft), so it lives in `bd-ib-cfgkkk`'s description as prose. Land `bd-ib-81l0`
+before shipping S2, or the lane points operators at a valve that exec-fails under
+the credential wrapper.
+
+**The root cause below was CORRECTED on 2026-07-26** against the dispatch journal,
+the merged PR, and the ledger. The thread's original diagnosis ("the dispatcher
+process died mid-flight") is DISPROVEN — see §"Root cause". The epic's own
+description was corrected to match before it was closed, so the two no longer
+disagree.
+
+**Leave `bd-ib-w4h4` stranded.** It is S3's fixture. Do not un-strand or close it
+before the verifier exists. It becomes recoverable once `bd-ib-rxxx` lands.
 
 ## Root cause — a partial terminal-outcome → ledger-transition mapping
 
@@ -289,7 +310,17 @@ Re-read `SPECIFICATION/proposed_changes/` at thread start; both may have moved.
   `wip_cap: 0`, or any run with `enforce_cap` false, never reconciles and never
   surfaces a stale claim. Cheap now, expensive to retrofit.
 
-## Prepared slice cut — RECOMMENDED: signal before reclaim
+## Slice cut — APPROVED AND FILED 2026-07-26
+
+> **This section is now HISTORY plus the filed record.** The cut below was approved
+> by the maintainer as drafted and filed through
+> `/livespec-orchestrator-beads-fabro:groom`. **S4 was DROPPED** (ruling 2), so the
+> table's S4 row is retained only for the rationale that killed it — do not
+> resurrect it. Filed ids: S1 `bd-ib-ohdu5a`, S2 `bd-ib-cfgkkk`, S3 `bd-ib-pme57n`.
+> Two approved scope changes are folded into the FILED slices and are NOT reflected
+> in the table rows below: **S1 also closes the write-side `O_EXCL` gap**, and
+> **S3 also moves `write_dispatch_lock` to admission time**. Read the filed items
+> for the authoritative scope.
 
 Drafted 2026-07-26, NOT filed. The maintainer owns the cut and the acceptance.
 
@@ -887,24 +918,35 @@ item in the ledger references it. The four overlapping items in §"LEDGER OVERLA
 are related only by this prose. Linking them is a groom deliverable, subject to
 the constraint above.
 
-### Questions only the maintainer can settle
+### Maintainer rulings — ALL SETTLED 2026-07-26. Do not re-ask.
 
-1. **Spec collision — LIKELY DISSOLVED, confirm.** Under the corrected design
-   (§"CORRECTED": don't move the item, narrow the count) the pending proposal's
-   "a red janitor … MUST leave the item `active`" is honored LITERALLY, so **no
-   spec amendment is needed.** §"Draft amendment" is retained only as a fallback
-   if the maintainer prefers a status move after all. Confirm the reading.
-2. **Reclaim mechanism — RECOMMENDATION CORRECTED.** Not "where do we send it"
-   but "do we move it at all". Recommendation: **do not move it** — narrow
-   `active_count` instead, because `reconcile-merged` refuses any item not in
-   `active` (`_dispatcher_reconcile_merged.py:110-113`). The earlier
-   `blocked`/`needs-human` recommendation is RETRACTED; see §"CORRECTED".
-3. **Requirement 4 scope upstream** — recommend dropping S4; see §"S4 SCOPE".
-4. **Scope against the four overlapping ledger items** (§"LEDGER OVERLAP") —
-   especially whether `bd-ib-waov` narrows to the three genuinely-new pieces, and
-   whether **`bd-ib-81l0`** (the recovery valve exec-fails under the credential
-   wrapper) is pulled in as an S2 dependency.
-5. **The slice cut itself**, and each slice's acceptance criteria.
+1. **Spec collision — DISSOLVED.** The reclaim narrows the count and leaves status
+   untouched, so the pending proposal's "a red janitor … MUST leave the item
+   `active`" is honored LITERALLY. **No amendment to
+   `reconcile-merged-dispatch-lock.md` is needed**; §"Draft amendment" stays
+   FALLBACK ONLY.
+2. **Reclaim mechanism — narrow the count, do NOT move the item.** The
+   `blocked`/`needs-human` destination stays RETRACTED, because
+   `_dispatcher_reconcile_merged.py:110-113` refuses any item not in `active`.
+3. **Requirement 4 / S4 — DROPPED, not deferred.** Closed out of the epic entirely
+   on the finding that it protects zero tenants today. The rationale is recorded in
+   the closed epic's description so a successor does not resurrect it as an
+   oversight. See §"S4 SCOPE".
+4. **Epic scope — narrowed to the three genuinely-new pieces**, with `bd-ib-81l0`
+   pulled in as S2's gate (as prose; it cannot be an edge).
+5. **The cut and every acceptance criterion — APPROVED as drafted**, plus two scope
+   additions approved at groom time: S1 also closes the write-side `O_EXCL` gap, and
+   S3 also moves `write_dispatch_lock` to admission time.
+
+Two further calls settled at groom time:
+
+- **Closing the anchor epic was accepted.** `file_approved_slices` always closes the
+  target; the anchor moved to the three filed slices and this file was repointed.
+- **`CandidateSlice.priority` is dead API surface** — declared on the dataclass but
+  never read by `_work_item_for`, and `WorkItem` dropped `priority` entirely. The
+  filed slices therefore came out at the store default P2 despite the draft passing
+  `priority=1`; they were set back to P1 to match the epic. Worth its own item;
+  filing that is the maintainer's call.
 
 ## Scope boundary
 
