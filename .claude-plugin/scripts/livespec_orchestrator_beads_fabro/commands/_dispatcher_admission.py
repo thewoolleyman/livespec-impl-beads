@@ -91,8 +91,8 @@ def admit_and_select(
             refused.append(host_refusal)
         else:
             admittable.append(item)
+    active_count = claimed_active_count(repo=repo, items=items, journal=journal)
     if enforce_cap:
-        active_count = claimed_active_count(repo=repo, items=items, journal=journal)
         free_slots = max(0, resolve_wip_cap(cwd=repo) - active_count)
     else:
         free_slots = len(admittable)

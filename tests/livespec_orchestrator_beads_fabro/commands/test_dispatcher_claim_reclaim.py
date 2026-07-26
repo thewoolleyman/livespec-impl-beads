@@ -47,7 +47,70 @@ def test_claimed_active_count_reclaims_when_latest_admit_has_no_outcome(
     count = claimed_active_count(repo=tmp_path, items=[item], journal=journal)
 
     assert count == 0
+    last_record = json.loads(journal.path.read_text(encoding="utf-8").splitlines()[-1])
+    assert last_record["reason"] == "no-outcome-since-ledger-admit"
+
+
+def test_claimed_active_count_reclaims_active_claim_with_missing_journal(
+    tmp_path: Path,
+) -> None:
+    item = _item(item_id="bd-missing-journal", status="active")
+    journal = JournalFile(path=tmp_path / "missing-journal.jsonl")
+
+    count = claimed_active_count(repo=tmp_path, items=[item], journal=journal)
+
+    assert count == 0
     assert _records(path=journal.path)[-1]["reason"] == "no-outcome-since-ledger-admit"
+
+
+def test_claimed_active_count_tolerates_malformed_journal_for_active_items(
+    tmp_path: Path,
+) -> None:
+    item = _item(item_id="bd-malformed-active", status="active")
+    journal = JournalFile(path=tmp_path / "journal.jsonl")
+    journal_text = "\n".join(
+        (
+            "not-json",
+            "[]",
+            json.dumps({"stage": "ledger-admit", "work_item_id": 7}),
+            json.dumps({"stage": "outcome", "outcome": "not-an-object"}),
+            json.dumps({"stage": "outcome", "outcome": {"work_item_id": item.id}}),
+        )
+    )
+    _ = journal.path.write_text(journal_text + "\n", encoding="utf-8")
+
+    count = claimed_active_count(repo=tmp_path, items=[item], journal=journal)
+
+    assert count == 0
+    last_record = json.loads(journal.path.read_text(encoding="utf-8").splitlines()[-1])
+    assert last_record["reason"] == "no-outcome-since-ledger-admit"
+
+
+def test_claimed_active_count_reuses_loaded_history_for_multiple_dead_claims(
+    tmp_path: Path,
+) -> None:
+    green = _item(item_id="bd-green-park", status="active")
+    failed = _item(item_id="bd-failed-claim", status="active")
+    journal = JournalFile(path=tmp_path / "journal.jsonl")
+    journal.append(record={"stage": "ledger-admit", "work_item_id": green.id})
+    journal.append(
+        record={
+            "stage": "outcome",
+            "outcome": {"work_item_id": green.id, "status": "green", "stage": "done"},
+        }
+    )
+    journal.append(record={"stage": "ledger-admit", "work_item_id": failed.id})
+    journal.append(
+        record={
+            "stage": "outcome",
+            "outcome": {"work_item_id": failed.id, "status": "failed", "stage": "fabro-run"},
+        }
+    )
+
+    count = claimed_active_count(repo=tmp_path, items=[green, failed], journal=journal)
+
+    assert count == 1
+    assert _records(path=journal.path)[-1]["work_item_id"] == failed.id
 
 
 def test_claimed_active_count_ignores_malformed_journal_for_inactive_items(
