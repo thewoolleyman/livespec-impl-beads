@@ -263,19 +263,27 @@ exclude_also = [
 # livespec/SPECIFICATION/contracts.md §"Consumer configuration schema".
 #
 # IMPORTANT — why every role key is spelled out here:
-# `livespec_dev_tooling.config.load_config` has two regimes. With NO
-# `[tool.livespec_dev_tooling]` block, it falls back to the livespec-core
-# historical layout (`_livespec_core_config`). The MOMENT any key in this
-# block exists, that whole-block-absent fallback is gone and every omitted
-# role key reverts to an EMPTY baseline — which would silently break every
-# load_config-driven check (coverage mirror pairings, source/pure/covered
-# trees, supervisor entries, etc.). This repo's layout matches the core
-# fallback exactly, so we needed to introduce a `destructive_cli_allowlist`
-# (read by `no_direct_destructive_cli`) WITHOUT triggering that empty-baseline
-# flip. The fix is to restate the full core layout here verbatim, so
-# load_config produces the identical Config it produced before this block
-# existed, plus the new allowlist key. Keep these in lockstep with
-# `_livespec_core_config` if the upstream layout ever changes.
+# Every role key MUST be DECLARED. An undeclared key that a wired check
+# consumes is a hard ERROR naming the key and the two sanctioned outs —
+# declare its real value, or declare it explicitly empty (`[]` for list keys,
+# `""` for the scalar `dataclasses_tree` / `neutral_hook_body_path`) with a
+# comment giving the reason. Declared-empty is the sanctioned, VISIBLE
+# opt-out: the gating check no-ops and says so in a structured `info` event.
+# Omission is NOT a silent baseline and NOT a way to opt out.
+#
+# HISTORY, retained because it explains the SHAPE of this block: under the
+# PRE-v0.54.12 regime `load_config` had two modes — with NO
+# `[tool.livespec_dev_tooling]` block it fell back to livespec-core's
+# historical layout, and the moment any key appeared every omitted key
+# reverted to an empty baseline. This repo's layout matched that core
+# fallback exactly, so introducing `destructive_cli_allowlist` (read by
+# `no_direct_destructive_cli`) meant restating the full layout verbatim to
+# avoid tripping that flip. BOTH the fallback and the flip are RETIRED
+# (livespec-dev-tooling epic livespec-dev-tooling-e9j slice L, v0.54.12), and
+# the `_livespec_core_config` function the old note named was DELETED by the
+# same slice — so there is no upstream layout left to keep these "in lockstep"
+# with. The keys below now stand on their own as this repo's declared layout,
+# which is what the current regime requires regardless.
 # ---------------------------------------------------------------------------
 
 [tool.livespec_dev_tooling]
