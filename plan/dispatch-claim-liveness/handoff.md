@@ -295,7 +295,7 @@ Drafted 2026-07-26, NOT filed. The maintainer owns the cut and the acceptance.
 |---|---|---|---|
 | **S1** harden dispatch-lock liveness: consult `started_at_epoch` (PID + process start time), adopting `_dispatcher_admission_mutex._pid_start_time_mismatches` | 3 | in-repo, pure, small | — |
 | **S2** needs-attention lane: `active` item with no live dispatch lock, enriched from the journal terminal `outcome` record (carry `pr_number`/`merge_sha`, hand off `reconcile-merged`) | 2 | in-repo | S1 (soft) |
-| **S3** reconcile at the admission gate: per `active` item, no live lock → journal an abandonment and move it out of `active`; must sit outside `if enforce_cap:` | 1 | in-repo | S1 (**required — S3 is unsound without it after a SIGKILL**), S2 |
+| **S3** narrow `active_count` to claims a LIVE dispatch lock still holds, and journal the abandonment. **Do NOT move the item's status** (§"CORRECTED"); must sit outside `if enforce_cap:` | 1 | in-repo | S1 (**required — S3 is unsound without it after a SIGKILL**), S2 |
 | **S4** stale-`active` detection in the fleet hygiene scan | 4 | **cross-repo** (see §"Scope boundary") — but see §"S4 SCOPE": recommended DROPPED, as it protects zero tenants today | independent |
 
 **The ordering is the point: S2 before S3.** Both existing reclamation paths
@@ -556,8 +556,10 @@ S3 without S1 is not merely weaker; it is unsound after any SIGKILL.
 | S1 | lock whose `pid` is live but whose `started_at_epoch` long predates that process's real start → assert DEAD | **none needed — red against current `master` today** (demonstrated above); the cheapest honest red available |
 | S2 | `active` item + no live lock + journal `janitor-post-merge`/`failed` record → assert a needs-attention lane naming the item and its merged PR | drop the lane → red |
 | S2 (no staleness) | an item with a `janitor-post-merge`/`failed` record in the journal that is now CLOSED → assert NO lane is emitted | key the lane off journal history alone (as the `host-only` lane does today) → the closed item is surfaced → red |
-| S2 (right handoff) | a reclaimed merged-yet-janitor-red item → assert its handoff invokes `reconcile-merged`, NOT `resolve-blocked:<id>:ready` | rely on the generic `blocked`/needs-human valve lane → the handoff pushes an already-merged item back to `ready` → red |
-| S3 (destination) | reclaim a merged-yet-janitor-red item → assert it lands `blocked`/`needs-human` and is NOT admission-eligible on the next gate pass | send it to `backlog` → the next pass re-admits and re-dispatches already-merged work → red |
+| S2 (right handoff) | a stranded merged-yet-janitor-red item → assert its handoff invokes `reconcile-merged` | emit a handoff that moves the item (e.g. `resolve-blocked:<id>:ready`) → an already-merged item is pushed back into the dispatch queue → red |
+| S3 (status preserved) | reclaim a merged-yet-janitor-red item → assert its status is STILL `active` afterwards AND `reconcile-merged --item <id>` still passes its source-lane guard | move it to `blocked`/`backlog` → `reconcile-merged` refuses with "expected active item" → the item is stranded from its own recovery path → red |
+| S3 (uncounted, not moved) | one `active` item with no live lock plus `wip_cap` 1 → assert an admission-eligible ready item IS admitted on the same pass | count all `active` rows (today's `_dispatcher_admission.py:88`) → `free_slots` is 0 → nothing admitted → red |
+| S3 (live janitor window) | an `active` + PR-merged item whose dispatch is mid-janitor with a live lock, up to the 1h `_JANITOR_TIMEOUT_SECONDS` bound | infer death from `status == "active"` + a merged PR (the `bd-ib-ug4z` defect) → a live run's slot is reclaimed → red |
 | S3 (positive) | `active` item, no lock file → run the gate → assert moved out of `active` AND an abandonment journal record written | remove the reconcile call → item stays `active` → red |
 | S3 (negative) | `active` item WITH a lock written for `os.getpid()` → assert it STAYS `active` and still counts against the cap | make the reconcile ignore lock liveness → it reclaims a live run → red |
 | S3 (cap-independence) | `enforce_cap` false / `wip_cap` 0 → assert the reconcile still runs | nest the reconcile inside `if enforce_cap:` → red |
@@ -617,7 +619,90 @@ that requirement 1 narrows to "surface only, never auto-reclaim", **no spec chan
 is needed at all** — S2 alone is legal under the clause as written, and S3 drops
 out of the cut.
 
-### Reclaim destination — recommend `blocked` + `needs-human`, NOT `backlog`
+### ⛔ CORRECTED 2026-07-26 — do NOT move the item at all; stop COUNTING it
+
+**This supersedes §"Reclaim destination" below, which recommended
+`blocked`/`needs-human`. That recommendation was WRONG and is retracted.** It was
+made without checking the shipped recovery valve.
+
+`_dispatcher_reconcile_merged.py:110-113`:
+
+```python
+if item.status != "active":
+    detail = f"ERROR: reconcile-merged expected active item {item.id}; found {item.status}\n"
+    return EXIT_PRECONDITION_ERROR
+```
+
+Moving a reclaimed item OUT of `active` — to `blocked`, `backlog`, or anything
+else — makes it **unrecoverable by the sanctioned valve**, which is precisely the
+state `bd-ib-lza6` was filed to fix. A reclaim that strands the item from its own
+recovery path is worse than the leak.
+
+**The corrected design: leave the status alone and fix the ARITHMETIC.** Requirement
+1's actual goal is "a dead claim must not hold a WIP slot", not "the row must
+change status". Narrow `active_count` (`_dispatcher_admission.py:88`) to count only
+`active` items that a LIVE dispatch lock still claims. Everything else follows:
+
+- **`reconcile-merged` keeps working** — the item stays `active`, so its source-lane
+  guard passes.
+- **The pending proposal is satisfied LITERALLY.** "A red janitor … MUST leave the
+  item `active`" is honored exactly. **So §"Draft amendment" is NOT needed** — the
+  spec collision dissolves rather than requiring a ratification-tier change. Keep
+  the draft only as a fallback if the maintainer prefers a status move after all.
+- **Requirement 2 returns to its original shape.** The item stays `active`, so the
+  `blocked`/`needs-human` valve lane does NOT fire and surfacing is NOT free. S2
+  must build its own lane, exactly as §"S2 SHAPE" describes. The claim in
+  §"Reclaim destination" that surfacing comes free is retracted with it.
+- **It is a strictly smaller change** — one predicate in the admission arithmetic,
+  no ledger write, no new lifecycle vocabulary, no spec amendment.
+
+Requirement 3 is still satisfied: the claim is bounded in EFFECT (it stops
+consuming capacity) even though the row keeps its status. "Unbounded" does not
+survive as the answer.
+
+The abandonment MUST still be journaled — dropping the ledger write does not
+license dropping the record. See §"S2 CONSTRAINT" clauses; silence is the
+anti-precedent.
+
+### ⚠ LEDGER OVERLAP — `bd-ib-waov` is NOT greenfield; four items already cover parts
+
+Scanned 2026-07-26 across all 80 non-closed items. The groom MUST reconcile against
+these before cutting slices, or it will file work that is already shipped.
+
+| item | P | status | relationship to `bd-ib-waov` |
+|---|---|---|---|
+| **`bd-ib-lza6`** | 2 | **acceptance** | **The same defect, already ruled and shipped.** "Merged items strand in `active` when the dispatch process does not complete its post-run disposition." Maintainer ruled 2026-07-19: build FIX OPTION 2, the `reconcile-merged` valve (PR #797). Options 1 ("route to an acceptance-recoverable state / dedicated lane") and 3 ("make the janitor gate pre-merge") were **explicitly NOT selected.** Held from acceptance pending `bd-ib-ug4z`. |
+| **`bd-ib-ug4z`** | 1 | **acceptance** | Added the liveness guard to `reconcile-merged` — this is where `_dispatcher_dispatch_lock.py` came from. |
+| `bd-ib-hycf` | 1 | backlog | Largely FALSIFIED on re-check (a journal read-timing misread). Its surviving finding matters here: the **admission lock is released BEFORE the outcome event is journaled**, so a watcher keyed on lock release reads a torn state. |
+| `bd-ib-81l0` | 2 | ready | `reconcile_plan` hardcodes `fabro_bin='fabro'`, so **the recovery valve exec-fails inside the credential wrapper.** |
+
+**What this leaves genuinely NEW in `bd-ib-waov`** — and the groom should scope it
+to exactly this, not re-litigate the above:
+
+1. **The WIP-cap consequence.** `bd-ib-lza6` built a recovery path; nothing has ever
+   addressed the fact that a stranded claim permanently consumes a slot. That is
+   this epic's core.
+2. **The notification gap (requirement 2).** `bd-ib-lza6`'s design assumes a human is
+   told to run `reconcile-merged`. **Nothing tells them.** Requirement 2 is precisely
+   the missing half of an already-ruled design — which is a much stronger warrant
+   than "surface it as polish".
+3. **The liveness hardening (requirement 3).** `bd-ib-ug4z` shipped the lock but left
+   `started_at_epoch` unconsulted.
+
+Two consequences for the plan:
+
+- **`bd-ib-81l0` is a de-facto dependency of S2.** S2's whole handoff is "run
+  `reconcile-merged`", and that valve currently exec-fails under the credential
+  wrapper. Surfacing a lane pointing at a broken command is not a fix.
+- **The 1-hour janitor timeout is the hard bound S3 must respect.**
+  `_dispatcher_engine_janitor.py:40` sets `_JANITOR_TIMEOUT_SECONDS = 3600.0`, so a
+  LIVE, healthy dispatch can legitimately sit `active` + PR-merged + mid-janitor for
+  a full hour. `bd-ib-ug4z` was filed because `reconcile-merged` inferred death from
+  `status == "active"` + a merged PR, which is NOT unique to a dead process. **S3
+  must not repeat that inference.** This is the strongest available justification for
+  keying the reclaim on the live dispatch lock rather than on status, age, or a TTL.
+
+### Reclaim destination — SUPERSEDED, retained for the reasoning about `backlog`
 
 Researched 2026-07-26. `backlog` is the wrong destination, and the repo already
 argues so in its own words.
@@ -668,18 +753,22 @@ evidence, and the prior-attempt count, instead of the generic
 
 ### Questions only the maintainer can settle
 
-1. **Spec collision.** Does `reconcile-merged-dispatch-lock.md`'s "a red janitor …
-   MUST leave the item `active`" get bounded by ownership-lock liveness (one added
-   sentence, keeping requirement 1 legal), or does requirement 1 narrow to
-   "surface only, never auto-reclaim"? **Draft amendment text is prepared — see
-   §"Draft amendment" below.** Nothing has been filed; the spec side is the
-   maintainer's.
-2. **Reclaim destination.** Where does S3 send a reclaimed item? **Now carries a
-   researched recommendation — `blocked` + `blocked_reason="needs-human"`. See
-   §"Reclaim destination" below.** Still the maintainer's call, but no longer an
-   open toss-up.
-3. **Requirement 4 scope upstream** — see below.
-4. **The slice cut itself**, and each slice's acceptance criteria.
+1. **Spec collision — LIKELY DISSOLVED, confirm.** Under the corrected design
+   (§"CORRECTED": don't move the item, narrow the count) the pending proposal's
+   "a red janitor … MUST leave the item `active`" is honored LITERALLY, so **no
+   spec amendment is needed.** §"Draft amendment" is retained only as a fallback
+   if the maintainer prefers a status move after all. Confirm the reading.
+2. **Reclaim mechanism — RECOMMENDATION CORRECTED.** Not "where do we send it"
+   but "do we move it at all". Recommendation: **do not move it** — narrow
+   `active_count` instead, because `reconcile-merged` refuses any item not in
+   `active` (`_dispatcher_reconcile_merged.py:110-113`). The earlier
+   `blocked`/`needs-human` recommendation is RETRACTED; see §"CORRECTED".
+3. **Requirement 4 scope upstream** — recommend dropping S4; see §"S4 SCOPE".
+4. **Scope against the four overlapping ledger items** (§"LEDGER OVERLAP") —
+   especially whether `bd-ib-waov` narrows to the three genuinely-new pieces, and
+   whether **`bd-ib-81l0`** (the recovery valve exec-fails under the credential
+   wrapper) is pulled in as an S2 dependency.
+5. **The slice cut itself**, and each slice's acceptance criteria.
 
 ## Scope boundary
 
