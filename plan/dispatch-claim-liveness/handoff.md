@@ -298,25 +298,42 @@ Drafted 2026-07-26, NOT filed. The maintainer owns the cut and the acceptance.
 | **S3** reconcile at the admission gate: per `active` item, no live lock → journal an abandonment and move it out of `active`; must sit outside `if enforce_cap:` | 1 | in-repo | S1 (**required — S3 is unsound without it after a SIGKILL**), S2 |
 | **S4** stale-`active` detection in the fleet hygiene scan | 4 | **cross-repo** (see §"Scope boundary") — but see §"S4 SCOPE": recommended DROPPED, as it protects zero tenants today | independent |
 
-**The ordering is the point: S2 before S3.** Shipping the reclaim first produces a
-system that silently cleans up after a failure nobody is told about — a worse
-record than today's. Both existing reclamation paths
+**The ordering is the point: S2 before S3.** Both existing reclamation paths
 (`_stale_admission_mutex_reclaimed`, `_stale_janitor_lock_reclaimed`) reclaim
 silently and journal nothing; S3 must not copy that silence.
 
-Requirement 2 is cheaper than it looks: `_needs_attention_work_items.py` is
+> **Refined by later research — read §"Reclaim destination" before relying on
+> this paragraph.** The original argument was "shipping the reclaim first cleans
+> up silently after a failure nobody is told about." That is now too strong: if
+> S3 sends the item to `blocked`/`needs-human` (the recommended destination), the
+> EXISTING `human_valves()` lane surfaces it with no new code. The accurate
+> argument is worse for S3-alone, not better — the default lane's handoff is
+> `resolve-blocked:<id>:ready`, which pushes an ALREADY-MERGED item back into the
+> dispatch queue. So S3 alone does not fail to surface; it surfaces with a handoff
+> that causes a second defect. The ordering holds, for a sharper reason.
+
+Requirement 2 is cheaper than it looks — `_needs_attention_work_items.py` is
 in-repo, and `_recorded_host_only_refusals()` ALREADY reads
 `tmp/fabro-dispatch-journal.jsonl`, filters `stage == "outcome"`, matches an
 `outcome.stage`, and builds an `AttentionItem` lane. The janitor-red record is the
 same verified shape (`detail`, `fabro_run_id`, `merge_sha`, `pr_number`, `stage`,
-`status`, `work_item_id`). S2 is a near-copy with a different stage match.
-`human_valves()` today surfaces `pending-approval`, `acceptance`, and
-`blocked`(needs-human) — never `active`.
+`status`, `work_item_id`). `human_valves()` today surfaces `pending-approval`,
+`acceptance`, and `blocked`(needs-human) — never `active`.
 
-Rejected: **reclaim-first (S3→S2)**, which re-hides the failure; and **one
-combined slice**, which carries four requirements plus a cross-repo leg. Note the
-journal's own `sizing-warn` on `bd-ib-w4h4`: "description is 4897 chars (> 1500) …
-consider splitting" and "carries 5 enumerated parts".
+**But "near-copy" is a trap; three constraints bound it.** S2 is only cheap and
+only in-repo if it (a) is built like `host_only_items` rather than routed through
+`human_valves()`, and invents no new `AttentionKind` — §"S2 SHAPE"; (b) intersects
+journal evidence with CURRENT ledger status rather than copying the precedent's
+staleness bug — §"S2 CONSTRAINT — do not copy…"; and (c) carries an actionable
+handoff with the prior-attempt count, since `reconcile-merged` cannot always
+recover — §"S2 CONSTRAINT — 'run `reconcile-merged`'…". Read all three before
+sizing S2.
+
+Rejected: **reclaim-first (S3→S2)**, which ships the wrong handoff first; and
+**one combined slice**, which carries four requirements (and, unless S4 is dropped
+per §"S4 SCOPE", a cross-repo leg). Note the journal's own `sizing-warn` on
+`bd-ib-w4h4`: "description is 4897 chars (> 1500) … consider splitting" and
+"carries 5 enumerated parts".
 
 ### ⚠ S4 SCOPE — requirement 4 is speculative today; consider dropping the slice
 
