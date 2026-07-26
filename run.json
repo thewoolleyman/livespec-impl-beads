@@ -226,7 +226,7 @@
     "kind": "running"
   },
   "status_updated_at": "2026-07-26T20:25:55.073555096Z",
-  "last_event_at": "2026-07-26T20:25:57.215540562Z",
+  "last_event_at": "2026-07-26T20:26:03.061350295Z",
   "pending_control": null,
   "checkpoints": [
     {
@@ -267,9 +267,9 @@
       "diff": {}
     },
     {
-      "seq": 0,
+      "seq": 27,
       "checkpoint": {
-        "timestamp": "2026-07-26T20:25:58.061696338Z",
+        "timestamp": "2026-07-26T20:26:03.058783630Z",
         "current_node": "probe",
         "completed_nodes": [
           "start",
@@ -277,22 +277,22 @@
         ],
         "node_retries": {},
         "context_values": {
-          "outcome": "succeeded",
-          "graph.default_max_retries": "0",
-          "internal.run_id": "01KYG1NWQCTCP2XT12X5GHMM6G",
-          "internal.fidelity": "compact",
-          "command.output": "blob://sha256/f3f2653d55b97ff5bb2ec308edc6b538dbfd78183f49c8e88900f28cd741804c",
-          "internal.retry_count.probe": 0,
-          "internal.work_dir": "/workspace/livespec-orchestrator-beads-fabro",
           "internal.node_visit_count": 1,
+          "outcome": "succeeded",
+          "internal.work_dir": "/workspace/livespec-orchestrator-beads-fabro",
           "failure_signature": "",
-          "graph.goal": "Probe the sandbox github egress",
+          "internal.fidelity": "compact",
+          "internal.run_id": "01KYG1NWQCTCP2XT12X5GHMM6G",
+          "internal.retry_count.probe": 0,
           "failure_class": "",
-          "thread.start.current_node": "probe",
-          "internal.thread_id": "start",
-          "graph.stall_timeout": "900000ms",
           "current_node": "probe",
-          "internal.retry_count.start": 0
+          "internal.retry_count.start": 0,
+          "thread.start.current_node": "probe",
+          "graph.stall_timeout": "900000ms",
+          "internal.thread_id": "start",
+          "command.output": "blob://sha256/f3f2653d55b97ff5bb2ec308edc6b538dbfd78183f49c8e88900f28cd741804c",
+          "graph.default_max_retries": "0",
+          "graph.goal": "Probe the sandbox github egress"
         },
         "node_outcomes": {
           "probe": {
@@ -315,15 +315,58 @@
           }
         },
         "next_node_id": "exit",
+        "git_commit_sha": "d5f6516df6cbb3689e3f5e28bbdc2366482725e9",
         "node_visits": {
-          "probe": 1,
-          "start": 1
+          "start": 1,
+          "probe": 1
         }
       },
-      "diff": {}
+      "diff": {
+        "summary": {
+          "files_changed": 0,
+          "additions": 0,
+          "deletions": 0
+        }
+      }
     }
   ],
-  "conclusion": null,
+  "conclusion": {
+    "timestamp": "2026-07-26T20:26:03.135163253Z",
+    "status": "succeeded",
+    "timing": {
+      "wall_time_ms": 8052,
+      "inference_time_ms": 0,
+      "tool_time_ms": 795,
+      "active_time_ms": 795
+    },
+    "final_git_commit_sha": "d5f6516df6cbb3689e3f5e28bbdc2366482725e9",
+    "stages": [
+      {
+        "stage_id": "start",
+        "stage_label": "start",
+        "timing": {
+          "wall_time_ms": 0,
+          "inference_time_ms": 0,
+          "tool_time_ms": 0,
+          "active_time_ms": 0
+        },
+        "retries": 0
+      },
+      {
+        "stage_id": "probe",
+        "stage_label": "probe",
+        "timing": {
+          "wall_time_ms": 829,
+          "inference_time_ms": 0,
+          "tool_time_ms": 795,
+          "active_time_ms": 795
+        },
+        "retries": 0
+      }
+    ],
+    "total_retries": 0,
+    "diff": {}
+  },
   "sandbox": {
     "kind": "ready",
     "plan": {
@@ -388,7 +431,12 @@
       "first_event_seq": 20,
       "prompt": null,
       "response": null,
-      "completion": null,
+      "completion": {
+        "outcome": "succeeded",
+        "notes": "Script completed: sh -c 'echo IyEvYmluL3NoCiMgYmQtaWItYmljN2hiIGRpYWdub3N0aWMg4oCUIHJ1bnMgSU5TSURFIHRoZSByZWFsIGZhYnJvIHNhbmRib3guCiMgUHJpbnRzIG9ubHkgdG9rZW4gTkFNRS9sZW5ndGgvcHJlZml4LCBuZXZlciBhIHRva2VuIHZhbHVlLgpzZXQgK2UKCmVjaG8gIj09PSBbMV0gZ2l0aHViLWlzaCBlbnYga2V5cyBwcmVzZW50IChuYW1lcyBvbmx5KSA9PT0iCmZvciBrIGluIEdJVEhVQl9UT0tFTiBHSF9UT0tFTiBHSVRIVUJfQVBJX1RPS0VOIE1JU0VfR0lUSFVCX1RPS0VOIEdJVEhVQl9BUElfVVJMOyBkbwogIHY9JChwcmludGVudiAiJGsiKQogIGlmIFsgLW4gIiR2IiBdOyB0aGVuCiAgICBlY2hvICIgICRrIFBSRVNFTlQgbGVuPSQocHJpbnRmICVzICIkdiIgfCB3YyAtYykgcHJlZml4PSQocHJpbnRmICVzICIkdiIgfCBjdXQgLWMxLTQpIgogIGVsc2UKICAgIGVjaG8gIiAgJGsgYWJzZW50IgogIGZpCmRvbmUKClVSTD1odHRwczovL2FwaS5naXRodWIuY29tL3JlcG9zL2tvYWxhbWFuL3NoZWxsY2hlY2svcmVsZWFzZXMvdGFncy92MC4xMS4wCgplY2hvICI9PT0gWzJdIEFOT05ZTU9VUyBHRVQgPT09Igpjb2RlPSQoY3VybCAtc1MgLW8gL3RtcC9hbm9uLmpzb24gLXcgJyV7aHR0cF9jb2RlfScgLUggJ0FjY2VwdDogYXBwbGljYXRpb24vdm5kLmdpdGh1Yitqc29uJyAiJFVSTCIpCmVjaG8gIiAgc3RhdHVzPSRjb2RlIgplY2hvICIgIGJvZHk6ICQoaGVhZCAtYyAzMDAgL3RtcC9hbm9uLmpzb24pIgoKZWNobyAiPT09IFszXSBBVVRIRU5USUNBVEVEIEdFVCB3aXRoIEdJVEhVQl9UT0tFTiAoaWYgcHJlc2VudCkgPT09IgppZiBbIC1uICIkR0lUSFVCX1RPS0VOIiBdOyB0aGVuCiAgY29kZT0kKGN1cmwgLXNTIC1vIC90bXAvYXV0aC5qc29uIC1EIC90bXAvYXV0aC5oZHIgLXcgJyV7aHR0cF9jb2RlfScgXAogICAgLUggJ0FjY2VwdDogYXBwbGljYXRpb24vdm5kLmdpdGh1Yitqc29uJyBcCiAgICAtSCAiQXV0aG9yaXphdGlvbjogQmVhcmVyICRHSVRIVUJfVE9LRU4iICIkVVJMIikKICBlY2hvICIgIHN0YXR1cz0kY29kZSIKICBlY2hvICIgIGJvZHk6ICQoaGVhZCAtYyAzMDAgL3RtcC9hdXRoLmpzb24pIgogIGdyZXAgLWkgLUUgJ3gtcmF0ZWxpbWl0fHgtYWNjZXB0ZWQtZ2l0aHViLXBlcm1pc3Npb25zfHJldHJ5LWFmdGVyJyAvdG1wL2F1dGguaGRyIHwgc2VkICdzL14vICBoZHI6IC8nCmVsc2UKICBlY2hvICIgIHNraXBwZWQ6IEdJVEhVQl9UT0tFTiBhYnNlbnQiCmZpCgplY2hvICI9PT0gWzRdIHRoZSByZWFsIHByZXBhcmUgc3RlcDogbWlzZSB0cnVzdCAmJiBtaXNlIGluc3RhbGwgPT09IgpjZCAvcmVwb3MvdGhld29vbGxleW1hbi9saXZlc3BlYy1vcmNoZXN0cmF0b3ItYmVhZHMtZmFicm8gMj4vZGV2L251bGwgfHwgY2QgIiQocHdkKSIKZWNobyAiICBjd2Q9JChwd2QpIgptaXNlIHRydXN0Ck1JU0VfVkVSQk9TRT0xIG1pc2UgaW5zdGFsbCAyPiYxIHwgdGFpbCAtNDAKZWNobyAiICBtaXNlLWluc3RhbGwtZXhpdD0kPyIKbWlzZSBscyAtLWluc3RhbGxlZCAyPiYxIHwgZ3JlcCAtaSBzaGVsbGNoZWNrIHx8IGVjaG8gIiAgc2hlbGxjaGVjayBOT1QgaW5zdGFsbGVkIgoKZWNobyAiPT09IHByb2JlIGNvbXBsZXRlID09PSIKZXhpdCAwCg== | base64 -d > /tmp/p.sh; sh /tmp/p.sh'",
+        "failure_reason": null,
+        "timestamp": "2026-07-26T20:25:58.044792375Z"
+      },
       "provider_used": null,
       "diff": null,
       "script_invocation": {
@@ -397,11 +445,27 @@
         "language": "shell",
         "timeout_ms": 600000
       },
-      "script_timing": null,
+      "script_timing": {
+        "output": "blob://sha256/f3f2653d55b97ff5bb2ec308edc6b538dbfd78183f49c8e88900f28cd741804c",
+        "exit_code": 0,
+        "duration_ms": 795,
+        "termination": "exited",
+        "output_bytes": 867,
+        "live_streaming": true
+      },
       "parallel_results": null,
       "output": null,
+      "output_bytes": 867,
+      "live_streaming": true,
+      "termination": "exited",
       "started_at": "2026-07-26T20:25:57.212865764Z",
       "handler": "command",
+      "timing": {
+        "wall_time_ms": 829,
+        "inference_time_ms": 0,
+        "tool_time_ms": 795,
+        "active_time_ms": 795
+      },
       "usage": {
         "input_tokens": 0,
         "output_tokens": 0,
@@ -410,7 +474,41 @@
         "cache_read_tokens": 0,
         "cache_write_tokens": 0
       },
-      "state": "running"
+      "state": "succeeded"
+    },
+    "exit@1": {
+      "first_event_seq": 30,
+      "prompt": null,
+      "response": null,
+      "completion": {
+        "outcome": "succeeded",
+        "notes": null,
+        "failure_reason": null,
+        "timestamp": "2026-07-26T20:26:03.061350295Z"
+      },
+      "provider_used": null,
+      "diff": null,
+      "script_invocation": null,
+      "script_timing": null,
+      "parallel_results": null,
+      "output": null,
+      "started_at": "2026-07-26T20:26:03.061320479Z",
+      "handler": "exit",
+      "timing": {
+        "wall_time_ms": 0,
+        "inference_time_ms": 0,
+        "tool_time_ms": 0,
+        "active_time_ms": 0
+      },
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "reasoning_tokens": 0,
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0
+      },
+      "state": "succeeded"
     }
   }
 }
