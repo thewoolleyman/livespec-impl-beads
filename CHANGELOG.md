@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.46.14](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.13...v0.46.14) (2026-07-26)
+
+
+### Bug Fixes
+
+* reclaim stale dispatch locks ([acf061c](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/acf061cf669c56e5588c3465fc34dae6adc471ef))
+
 ## [0.46.13](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.12...v0.46.13) (2026-07-26)
 
 
