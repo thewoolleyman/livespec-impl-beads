@@ -73,7 +73,7 @@ _ACCEPTANCE_POLICIES = frozenset(("ai-only", "ai-then-human", "human-only"))
 
 def resolve_wip_cap(*, cwd: Path) -> int:
     """Read the per-repo WIP cap from `.livespec.jsonc`, defaulting to 5."""
-    return _resolve_positive_int_setting(cwd=cwd, key=_WIP_CAP_KEY, default=DEFAULT_WIP_CAP)
+    return _resolve_non_negative_int_setting(cwd=cwd, key=_WIP_CAP_KEY, default=DEFAULT_WIP_CAP)
 
 
 def resolve_host_dispatch_cap(*, cwd: Path) -> int:
@@ -201,6 +201,13 @@ def _resolve_bool_setting(*, cwd: Path, key: str, default: bool) -> bool:
 def _resolve_positive_int_setting(*, cwd: Path, key: str, default: int) -> int:
     value = _read_dispatcher_config_value(cwd=cwd, key=key)
     if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+        return value
+    return default
+
+
+def _resolve_non_negative_int_setting(*, cwd: Path, key: str, default: int) -> int:
+    value = _read_dispatcher_config_value(cwd=cwd, key=key)
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
         return value
     return default
 

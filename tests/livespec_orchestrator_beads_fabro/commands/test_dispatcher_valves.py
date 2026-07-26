@@ -133,7 +133,7 @@ def test_resolve_wip_cap_defaults_when_dispatcher_block_not_object(tmp_path: Pat
     assert resolve_wip_cap(cwd=cwd) == DEFAULT_WIP_CAP
 
 
-@pytest.mark.parametrize("raw", ['"3"', "true", "0", "-1"])
+@pytest.mark.parametrize("raw", ['"3"', "true", "-1"])
 def test_resolve_wip_cap_defaults_when_value_invalid(tmp_path: Path, raw: str) -> None:
     cwd = _write_config(
         tmp_path=tmp_path,

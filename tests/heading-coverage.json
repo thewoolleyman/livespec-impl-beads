@@ -652,8 +652,8 @@
     "heading": "## Scenario 50 — A committed wip_cap of 0 admits nothing (dispatch-off)",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "reason": "New scenario ratified with the wip-cap-zero-dispatch-off proposal (v049): a committed `dispatcher.wip_cap` of 0 is the sanctioned consumer-project dispatch-off posture value, so the read must resolve 0 to 0 rather than falling back to the default 5 and the admission valve must admit nothing. Untestable against the shipped code until the impl lands — `_resolve_positive_int_setting` still coerces a committed 0 to DEFAULT_WIP_CAP, and `_drive_config_schema.py` / `api-configurable-keys.json` still declare `wip_cap` as positive_integer; the gap-detection pass over v049 owes that work."
+    "test": "tests.integration.test_dispatcher_admission_acceptance_scenarios22_25::test_loop_admits_nothing_when_committed_wip_cap_is_zero",
+    "reason": "Integration-tier binding for Scenario 50: the dispatcher loop runs against the real CLI + store/client seam with a committed `.livespec.jsonc` carrying `dispatcher.wip_cap: 0`, asserts the resolver returns 0 rather than DEFAULT_WIP_CAP, records no dispatch launches, and leaves the ready item unassigned at ready."
   },
   {
     "heading": "## Codex full-access runtime constraints",

@@ -29,6 +29,7 @@ from livespec_orchestrator_beads_fabro._beads_client import reset_fake_singleton
 from livespec_orchestrator_beads_fabro.commands import _dispatcher_loop
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import DispatchPlan
+from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings import resolve_wip_cap
 from livespec_orchestrator_beads_fabro.commands._dispatcher_valves import (
     DEFAULT_DOER,
     reject_routing,
@@ -189,6 +190,36 @@ def test_loop_admits_highest_rank_up_to_wip_cap(
     assert (stored["bd-ib-a1"].status, stored["bd-ib-a1"].assignee) == ("active", DEFAULT_DOER)
     # a2 is capacity-deferred: not admitted, still ready, no assignee.
     assert (stored["bd-ib-a2"].status, stored["bd-ib-a2"].assignee) == ("ready", None)
+
+
+def test_loop_admits_nothing_when_committed_wip_cap_is_zero(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, workflow = _repo_with_workflow(tmp_path=tmp_path, wip_cap=0)
+    item = _item(id="bd-ib-off", status="ready", rank="a0")
+    append_work_item(path=_config(), item=item)
+    calls: list[str] = []
+    monkeypatch.setattr(_dispatcher_loop, "run_dispatch", _green_recording(calls))
+
+    assert resolve_wip_cap(cwd=repo) == 0
+
+    exit_code = main(
+        argv=[
+            "loop",
+            "--repo",
+            str(repo),
+            "--budget",
+            "1",
+            "--workflow",
+            str(workflow),
+        ]
+    )
+
+    assert exit_code == 0
+    assert calls == []
+    stored = _stored()[item.id]
+    assert (stored.status, stored.assignee) == ("ready", None)
 
 
 # ---------------------------------------------------------------------------
