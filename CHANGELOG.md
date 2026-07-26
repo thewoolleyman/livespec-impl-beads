@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.46.17](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.16...v0.46.17) (2026-07-26)
+
+
+### Bug Fixes
+
+* resolve reconcile fabro binary ([47c75ac](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/47c75ac53e1751afba496f7c16e657a019a067d0))
+
 ## [0.46.16](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.15...v0.46.16) (2026-07-26)
 
 
