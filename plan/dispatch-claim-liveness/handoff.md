@@ -295,7 +295,7 @@ Drafted 2026-07-26, NOT filed. The maintainer owns the cut and the acceptance.
 |---|---|---|---|
 | **S1** harden dispatch-lock liveness: consult `started_at_epoch` (PID + process start time), adopting `_dispatcher_admission_mutex._pid_start_time_mismatches` | 3 | in-repo, pure, small | — |
 | **S2** needs-attention lane: `active` item with no live dispatch lock, enriched from the journal terminal `outcome` record (carry `pr_number`/`merge_sha`, hand off `reconcile-merged`) | 2 | in-repo | S1 (soft) |
-| **S3** narrow `active_count` to claims a LIVE dispatch lock still holds, and journal the abandonment. **Do NOT move the item's status** (§"CORRECTED"); must sit outside `if enforce_cap:` | 1 | in-repo | S1 (**required — S3 is unsound without it after a SIGKILL**), S2 |
+| **S3** narrow `active_count` to claims a LIVE dispatch lock still holds, and journal the abandonment. **Do NOT move the item's status** (§"CORRECTED"); must sit outside `if enforce_cap:` | 1 | in-repo | S1 (**required — unsound without it after a SIGKILL**), S2 (**required — S3 alone deletes the only backpressure; see §"S2 MANDATORY"**) |
 | **S4** stale-`active` detection in the fleet hygiene scan | 4 | **cross-repo** (see §"Scope boundary") — but see §"S4 SCOPE": recommended DROPPED, as it protects zero tenants today | independent |
 
 **The ordering is the point: S2 before S3.** Both existing reclamation paths
@@ -663,6 +663,35 @@ survive as the answer.
 The abandonment MUST still be journaled — dropping the ledger write does not
 license dropping the record. See §"S2 CONSTRAINT" clauses; silence is the
 anti-precedent.
+
+#### The corrected design makes S2 MANDATORY, not merely first
+
+This follows directly and is the sharpest form of this thread's thesis.
+
+**Today the leak is self-limiting, in a perverse way.** Every stranded claim
+permanently costs one slot, so at `wip_cap` 5 the fifth abandonment halts dispatch
+entirely. That total stoppage IS the current forcing function — it is ugly and
+slow, but it guarantees a human eventually looks. The console tenant's four-of-five
+rows are exactly that pressure, one abandonment from the wall.
+
+**Narrowing `active_count` removes that forcing function.** Under the corrected
+design a stranded claim costs nothing, so the cap never fills, dispatch never
+stops, and NOTHING ever compels anyone to look. The row sits `active` forever,
+uncounted and unexamined.
+
+So S3 shipped alone would not merely "re-hide" the failure — it would **delete the
+only backpressure that currently surfaces it, while adding no signal in its place.**
+That is strictly worse than today's behavior, not a partial improvement.
+
+**Therefore S2 is not a sequencing preference under the corrected design; it is a
+correctness precondition.** S3 MUST NOT merge before the attention lane exists. If
+the maintainer wants S3 sooner, the honest options are to ship S2 first, or to ship
+them as ONE slice — never S3 alone.
+
+(This is a stronger claim than the earlier "ordering is the point" paragraph, and
+it supersedes it. That paragraph argued S2-first on record-keeping grounds; this
+argues it on capacity-backpressure grounds, which holds even if one considers the
+record adequate.)
 
 ### ⚠ LEDGER OVERLAP — `bd-ib-waov` is NOT greenfield; four items already cover parts
 
