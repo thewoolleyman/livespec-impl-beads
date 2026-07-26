@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.46.18](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.17...v0.46.18) (2026-07-26)
+
+
+### Bug Fixes
+
+* refuse bare active moves ([817aeb1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/817aeb1e1c8dc61526c3f5742c822df2ed32fafa))
+
 ## [0.46.17](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.16...v0.46.17) (2026-07-26)
 
 
