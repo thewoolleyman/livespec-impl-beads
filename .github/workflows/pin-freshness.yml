@@ -31,7 +31,52 @@ on:
     - cron: '0 13 * * *'
   workflow_dispatch: {}
 
+# ─────────────────────────────────────────────────────────────────────
+# TEMPORARY HOLD — 2026-07-26. REMOVE per the condition below.
+#
+# `livespec-dev-tooling` is deliberately held at v0.54.19 because
+# v0.54.20..v0.54.24 take the dark factory DOWN: the
+# `primary_checkout_commit_refuse_hook_installed` check asserts the
+# presence of the gitignored worktree-discipline pack, which cannot
+# exist in a fresh clone, and the fabro sandbox runs that check as a
+# SETUP command on a fresh clone. Every dispatch dies at setup, exit 4.
+# See PR #998 (the revert) and ledger item `bd-ib-u46hcv` (the upstream
+# defect and its fix).
+#
+# This raises `staleness_threshold_releases` so the daily 13:00 UTC
+# sweep does not open an auto-merge bump PR that would silently undo
+# that hold while nobody is watching.
+#
+# WHY THIS IS NOT A FORBIDDEN BYPASS: the threshold is a SCHEDULING
+# knob on when to propose a bump. It weakens no check, and it is not a
+# skip flag or env lever that lets a failing gate pass. The broken
+# check still fails wherever it runs; we are declining to auto-adopt
+# the release that carries it.
+#
+# KNOWN COST, stated rather than hidden: this input is GLOBAL to the
+# sweep — the reusable workflow accepts no per-source scoping — so
+# while it is raised, NO source gets a freshness bump PR, not just
+# livespec-dev-tooling. The primary `sibling-released` dispatch path
+# still bumps every OTHER source normally (see
+# `bump-pin-from-dispatch.yml`, whose hold is source-scoped), and this
+# sweep is documented upstream as the safety net for MISSED dispatch
+# events — so the exposure is a missed dispatch during the hold, not a
+# stalled pin.
+#
+# RE-ENABLE CONDITION (both must hold):
+#   1. `bd-ib-u46hcv` is closed — the upstream check no longer fails in
+#      a fresh clone.
+#   2. A REAL dispatch has been proven to survive the sandbox setup
+#      step on the new pin. A green `just check` is NOT that proof: it
+#      runs on the bootstrapped primary checkout, where this check
+#      passes, which is exactly how v0.54.24 merged green.
+# Then delete this block and the `with:` below.
+# ─────────────────────────────────────────────────────────────────────
 jobs:
   freshness:
     uses: thewoolleyman/livespec-dev-tooling/.github/workflows/reusable-pin-freshness.yml@v0.54.19
     secrets: inherit
+    with:
+      # 99 >> the 5-release distance v0.54.19..v0.54.24, with headroom
+      # for further upstream releases while the hold stands.
+      staleness_threshold_releases: 99
