@@ -186,6 +186,30 @@ that a secret is missing. Re-run under your project's configured env wrapper
 (`with-<project>-env.sh`) -- `<command>`. Never hand-hunt the secret or reach
 around the seam with raw `mysql` / `dolt` / `sudo`.
 
+**`bd list --status open` matches NOTHING here.** This store holds livespec
+lifecycle statuses — `backlog`, `ready`, `blocked`, `active`, `acceptance`,
+`pending-approval`, `closed`. The beads-native `open` / `in_progress` names are
+normalized away (`_NATIVE_STATUS_REMAP` in
+`commands/_dispatcher_ledger_close.py` maps `open`→`backlog`,
+`in_progress`→`active`), so a native-name filter silently returns an empty set
+rather than erroring. To survey the ledger, list everything and filter
+client-side: `bd list --limit 0 --json`.
+
+**Query the ledger for prior art BEFORE designing a fix — reading the source is
+not sufficient.** Scan every non-closed item for the defect class you are about to
+design for, and read the FULL description of anything that overlaps: maintainer
+rulings and explicitly rejected options are recorded there and are binding
+context. **Include `acceptance` and `blocked` items, not just `backlog`** —
+parked items are where shipped-but-unaccepted work hides, which is precisely what
+a source-only reading cannot see. Treat each filed item as a claim with a
+timestamp, not as fact; verify its specifics against the forge before relying on
+them. (Cost of skipping this, 2026-07-26: the `dispatch-claim-liveness` thread
+verified the code exhaustively, published two design recommendations to a durable
+handoff on `master`, and had to retract both — `bd-ib-lza6` sat in `acceptance`
+having already shipped the `reconcile-merged` valve that one recommendation would
+have broken, and a filed item asserted a dispatch produced "no PR" when its PR had
+in fact merged.)
+
 ## Host Fabro server (self-hosted dark factory)
 
 The Dispatcher's host-direct path (`dispatcher.py loop` run on the host, NOT in
