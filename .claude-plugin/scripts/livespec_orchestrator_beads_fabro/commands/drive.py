@@ -73,7 +73,7 @@ def run_action(
                 "'set-review-fix-cap:<id>:<positive-int>', "
                 "'set-acceptance-rework-cap:<id>:<positive-int>' "
                 "(any set-*-cap accepts 'clear' as the value to inherit-global), "
-                "'move:<id>:backlog|ready|blocked|active', "
+                "'move:<id>:backlog|ready|blocked', "
                 "'config', 'config-manifest', or 'set-config:<key>:<value>'."
             ),
         }

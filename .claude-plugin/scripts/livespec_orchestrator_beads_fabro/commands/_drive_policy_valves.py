@@ -37,7 +37,7 @@ __all__: list[str] = [
 # is reached only by accepting from `acceptance` (the ship-guard against
 # force-shipping unverified work), and `acceptance`/`pending-approval` are
 # entered only on their own guarded/entry paths.
-_MOVE_ALLOWED: frozenset[str] = frozenset({"backlog", "ready", "blocked", "active"})
+_MOVE_ALLOWED: frozenset[str] = frozenset({"backlog", "ready", "blocked"})
 
 # Each per-item cap-override drive verb, mapped to (its `.livespec.jsonc`
 # dispatcher setting key, the raw beads-label prefix the Dispatcher resolver
@@ -167,7 +167,7 @@ def move_item(
 ) -> dict[str, Any]:
     """Move a selected item to an operator-movable status for queue control.
 
-    Broad by design (`backlog`/`ready`/`blocked`/`active`) but ship-guarded:
+    Broad by design (`backlog`/`ready`/`blocked`) but ship-guarded:
     `done`, `acceptance`, and `pending-approval` are refused with a clear error,
     so no operator can force unverified work to `done` outside the
     accept-from-acceptance path. Writes through the same `update_work_item_status`
