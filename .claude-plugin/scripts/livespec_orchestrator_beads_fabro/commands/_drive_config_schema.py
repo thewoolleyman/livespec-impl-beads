@@ -62,7 +62,7 @@ CONFIG_KEYS: tuple[ConfigKey, ...] = (
     ),
     ConfigKey(
         key="wip_cap",
-        value_type="positive_integer",
+        value_type="non_negative_integer",
         default=5,
         per_item_override=False,
     ),
@@ -93,10 +93,8 @@ def config_key_by_name(*, key: str) -> ConfigKey | None:
 def coerce_config_value(*, config_key: ConfigKey, raw_value: object) -> bool | int | str | None:
     if config_key.value_type == "boolean" and isinstance(raw_value, bool):
         return raw_value
-    if config_key.value_type == "positive_integer":
-        if isinstance(raw_value, int) and not isinstance(raw_value, bool) and raw_value > 0:
-            return raw_value
-        return None
+    if config_key.value_type in ("positive_integer", "non_negative_integer"):
+        return _coerce_int_value(config_key=config_key, raw_value=raw_value)
     if (
         config_key.value_type == "enum"
         and isinstance(raw_value, str)
@@ -111,6 +109,8 @@ def parse_config_value(*, config_key: ConfigKey, raw_value: str) -> bool | int |
         return _parse_bool_value(raw_value=raw_value)
     if config_key.value_type == "positive_integer":
         return _parse_positive_int_value(raw_value=raw_value)
+    if config_key.value_type == "non_negative_integer":
+        return _parse_non_negative_int_value(raw_value=raw_value)
     if raw_value in config_key.values:
         return raw_value
     return None
@@ -125,7 +125,19 @@ def value_domain(*, config_key: ConfigKey) -> str:
         return "true or false"
     if config_key.value_type == "positive_integer":
         return "a positive integer"
+    if config_key.value_type == "non_negative_integer":
+        return "a non-negative integer"
     return "one of " + ", ".join(config_key.values)
+
+
+def _coerce_int_value(*, config_key: ConfigKey, raw_value: object) -> int | None:
+    if not isinstance(raw_value, int) or isinstance(raw_value, bool):
+        return None
+    if config_key.value_type == "positive_integer" and raw_value > 0:
+        return raw_value
+    if config_key.value_type == "non_negative_integer" and raw_value >= 0:
+        return raw_value
+    return None
 
 
 def _parse_bool_value(*, raw_value: str) -> bool | None:
@@ -143,6 +155,12 @@ def _parse_positive_int_value(*, raw_value: str) -> int | None:
     if parsed > 0:
         return parsed
     return None
+
+
+def _parse_non_negative_int_value(*, raw_value: str) -> int | None:
+    if not raw_value.isdecimal():
+        return None
+    return int(raw_value)
 
 
 def _manifest_entry(*, config_key: ConfigKey) -> dict[str, Any]:

@@ -38,7 +38,7 @@
     },
     {
       "key": "wip_cap",
-      "type": "positive_integer",
+      "type": "non_negative_integer",
       "default": 5,
       "per_item_override": false
     },
