@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 from livespec_orchestrator_beads_fabro.commands import (
+    _dispatcher_admission_mutex,
     _dispatcher_completion,
     _dispatcher_dispatch_lock,
 )
@@ -139,6 +140,65 @@ def test_dispatch_lock_ignores_malformed_payloads(tmp_path: Path) -> None:
     ):
         _ = path.write_text(payload, encoding="utf-8")
         assert _dispatcher_dispatch_lock.live_dispatch_lock(repo=repo, work_item_id=item_id) is None
+
+
+def test_dispatch_lock_rejects_reused_live_pid(tmp_path: Path) -> None:
+    repo = _repo(tmp_path=tmp_path)
+    item_id = "bd-ib-lock"
+    lock_started_at = 1_000.0
+    _write_dispatch_lock(
+        repo=repo,
+        item_id=item_id,
+        pid=os.getpid(),
+        started_at=lock_started_at,
+    )
+    admission_path = _dispatcher_admission_mutex.admission_mutex_slot_path(repo=repo, slot=0)
+    admission_path.parent.mkdir(parents=True, exist_ok=True)
+    _ = admission_path.write_text(
+        json.dumps({"pid": os.getpid(), "started_at_epoch": lock_started_at}),
+        encoding="utf-8",
+    )
+
+    admission_result = _dispatcher_admission_mutex.claim_dispatch_admission_mutex(
+        repo=repo,
+        fabro_bin="/abs/fabro",
+        runner=_Runner(queue=[_ok(stdout=json.dumps({"runs": []}))]),
+        cap=1,
+    )
+
+    assert isinstance(admission_result, _dispatcher_admission_mutex.AdmissionMutexClaim)
+    assert _dispatcher_dispatch_lock.live_dispatch_lock(repo=repo, work_item_id=item_id) is None
+
+
+def test_dispatch_lock_written_by_current_process_stays_live(tmp_path: Path) -> None:
+    item_id = "bd-ib-lock"
+
+    _ = _dispatcher_dispatch_lock.write_dispatch_lock(
+        repo=tmp_path,
+        work_item_id=item_id,
+        dispatch_id="dispatch-live",
+    )
+
+    assert _dispatcher_dispatch_lock.live_dispatch_lock(repo=tmp_path, work_item_id=item_id)
+
+
+def test_write_dispatch_lock_refuses_to_overwrite_existing_claim(tmp_path: Path) -> None:
+    item_id = "bd-ib-lock"
+    path = _dispatcher_dispatch_lock.write_dispatch_lock(
+        repo=tmp_path,
+        work_item_id=item_id,
+        dispatch_id="dispatch-a",
+    )
+    first_payload = path.read_text(encoding="utf-8")
+
+    with pytest.raises(FileExistsError):
+        _ = _dispatcher_dispatch_lock.write_dispatch_lock(
+            repo=tmp_path,
+            work_item_id=item_id,
+            dispatch_id="dispatch-b",
+        )
+
+    assert path.read_text(encoding="utf-8") == first_payload
 
 
 def test_parse_merged_pr_list_rejects_non_default_base(tmp_path: Path) -> None:

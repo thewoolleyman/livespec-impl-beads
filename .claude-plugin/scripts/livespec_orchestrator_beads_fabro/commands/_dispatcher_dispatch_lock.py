@@ -9,6 +9,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
+from livespec_orchestrator_beads_fabro.commands._dispatcher_pid_liveness import (
+    process_started_at_epoch,
+)
 from livespec_orchestrator_beads_fabro.effects import AttemptFailure, attempt, parse_json
 
 __all__: list[str] = [
@@ -18,6 +21,8 @@ __all__: list[str] = [
     "release_dispatch_lock",
     "write_dispatch_lock",
 ]
+
+_PROCESS_START_TOLERANCE_SECONDS = 2.0
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -35,14 +40,21 @@ def dispatch_lock_path(*, repo: Path, work_item_id: str) -> Path:
 def write_dispatch_lock(*, repo: Path, work_item_id: str, dispatch_id: str) -> Path:
     path = dispatch_lock_path(repo=repo, work_item_id=work_item_id)
     path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    _write_dispatch_lock(descriptor=descriptor, work_item_id=work_item_id, dispatch_id=dispatch_id)
+    return path
+
+
+def _write_dispatch_lock(*, descriptor: int, work_item_id: str, dispatch_id: str) -> None:
     payload = {
         "work_item_id": work_item_id,
         "pid": os.getpid(),
         "started_at_epoch": time.time(),
         "dispatch_id": dispatch_id,
     }
-    _ = path.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
-    return path
+    with os.fdopen(descriptor, "wb") as handle:
+        _ = handle.write(json.dumps(payload, sort_keys=True).encode())
+        _ = handle.write(b"\n")
 
 
 def release_dispatch_lock(*, path: Path) -> None:
@@ -59,7 +71,7 @@ def live_dispatch_lock(*, repo: Path, work_item_id: str) -> DispatchLock | None:
         return None
     parsed = cast("dict[str, object]", parsed_raw)
     lock = _dispatch_lock_from_payload(payload=parsed, expected_work_item_id=work_item_id)
-    if lock is None or not _pid_is_alive(pid=lock.pid):
+    if lock is None or not _lock_holder_matches_pid(lock=lock):
         return None
     return lock
 
@@ -87,9 +99,21 @@ def _dispatch_lock_from_payload(
     )
 
 
-def _pid_is_alive(*, pid: int) -> bool:
-    # Known residual risk: this pidfile lock accepts standard PID-reuse ambiguity.
-    probed = attempt(action=lambda: os.kill(pid, 0), exceptions=(OSError,))
-    if not isinstance(probed, AttemptFailure):
-        return True
-    return not isinstance(probed.error, ProcessLookupError)
+def _lock_holder_matches_pid(*, lock: DispatchLock) -> bool:
+    started_at_epoch = _process_started_at_epoch(pid=lock.pid)
+    probed = attempt(action=lambda: os.kill(lock.pid, 0), exceptions=(OSError,))
+    if isinstance(probed, AttemptFailure) and isinstance(probed.error, ProcessLookupError):
+        return False
+    if _pid_start_time_mismatches(lock=lock, started_at_epoch=started_at_epoch):
+        return False
+    return not isinstance(probed, AttemptFailure)
+
+
+def _pid_start_time_mismatches(*, lock: DispatchLock, started_at_epoch: float | None) -> bool:
+    if started_at_epoch is None:
+        return False
+    return started_at_epoch > lock.started_at_epoch + _PROCESS_START_TOLERANCE_SECONDS
+
+
+def _process_started_at_epoch(*, pid: int) -> float | None:
+    return process_started_at_epoch(pid=pid)
