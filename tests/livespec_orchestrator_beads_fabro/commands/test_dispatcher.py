@@ -44,7 +44,9 @@ from coverage import Coverage
 from coverage.files import GlobMatcher, prep_patterns
 from livespec_orchestrator_beads_fabro._beads_client import FakeBeadsClient, make_beads_client
 from livespec_orchestrator_beads_fabro.commands import (
+    _dispatcher_admission,
     _dispatcher_completion,
+    _dispatcher_dispatch_lock,
     _dispatcher_ledger_close,
     _dispatcher_loop,
     _dispatcher_loop_command,
@@ -2617,6 +2619,152 @@ class _RecordingCostGate:
 
 def _stored() -> dict[str, WorkItem]:
     return materialize_work_items(records=read_work_items(path=_config()))
+
+
+def test_admission_reclaims_dead_active_claim_and_journals_abandonment(
+    tmp_path: Path,
+) -> None:
+    repo, _workflow = _repo_with_workflow(tmp_path=tmp_path)
+    active = _item(id="bd-dead-claim", status="active")
+    ready = _item(id="bd-ready-claim", status="ready", rank="a1")
+    append_work_item(path=_config(), item=active)
+    append_work_item(path=_config(), item=ready)
+    _ = (repo / ".livespec.jsonc").write_text(
+        '{"livespec-orchestrator-beads-fabro": {"connection": {"prefix": "bd-ib"},'
+        ' "dispatcher": {"wip_cap": 1}}}',
+        encoding="utf-8",
+    )
+    journal = JournalFile(path=repo / "journal.jsonl")
+    journal.append(record={"stage": "ledger-admit", "work_item_id": active.id, "assignee": "ai"})
+
+    admission = _dispatcher_admission.admit_and_select(
+        repo=repo,
+        items=[active, ready],
+        candidates=[ready],
+        journal=journal,
+        enforce_cap=True,
+    )
+
+    assert [item.id for item in admission.admitted] == [ready.id]
+    assert _stored()[active.id].status == "active"
+    records = [json.loads(line) for line in journal.path.read_text(encoding="utf-8").splitlines()]
+    abandoned = [
+        record
+        for record in records
+        if record["stage"] == "dispatch-claim-abandoned" and record["work_item_id"] == active.id
+    ]
+    assert len(abandoned) == 1
+
+
+def test_admission_counts_green_rework_parks_without_abandonment(
+    tmp_path: Path,
+) -> None:
+    repo, _workflow = _repo_with_workflow(tmp_path=tmp_path)
+    active = _item(id="bd-rework-park", status="active")
+    ready = _item(id="bd-ready-blocked", status="ready", rank="a1")
+    append_work_item(path=_config(), item=active)
+    append_work_item(path=_config(), item=ready)
+    _ = (repo / ".livespec.jsonc").write_text(
+        '{"livespec-orchestrator-beads-fabro": {"connection": {"prefix": "bd-ib"},'
+        ' "dispatcher": {"wip_cap": 1}}}',
+        encoding="utf-8",
+    )
+    journal = JournalFile(path=repo / "journal.jsonl")
+    journal.append(record={"stage": "ledger-admit", "work_item_id": active.id, "assignee": "ai"})
+    journal.append(
+        record={
+            "stage": "outcome",
+            "outcome": {
+                "work_item_id": active.id,
+                "status": "green",
+                "stage": "done",
+            },
+        }
+    )
+    journal.append(record={"stage": "acceptance-auto-rework", "work_item_id": active.id})
+
+    admission = _dispatcher_admission.admit_and_select(
+        repo=repo,
+        items=[active, ready],
+        candidates=[ready],
+        journal=journal,
+        enforce_cap=True,
+    )
+
+    assert admission.admitted == []
+    records = [json.loads(line) for line in journal.path.read_text(encoding="utf-8").splitlines()]
+    assert "dispatch-claim-abandoned" not in {record["stage"] for record in records}
+
+
+def test_admission_counts_live_dispatch_lock_against_cap(tmp_path: Path) -> None:
+    repo, _workflow = _repo_with_workflow(tmp_path=tmp_path)
+    active = _item(id="bd-live-claim", status="active")
+    ready = _item(id="bd-ready-blocked", status="ready", rank="a1")
+    append_work_item(path=_config(), item=active)
+    append_work_item(path=_config(), item=ready)
+    _ = (repo / ".livespec.jsonc").write_text(
+        '{"livespec-orchestrator-beads-fabro": {"connection": {"prefix": "bd-ib"},'
+        ' "dispatcher": {"wip_cap": 1}}}',
+        encoding="utf-8",
+    )
+    _ = _dispatcher_dispatch_lock.write_dispatch_lock(
+        repo=repo,
+        work_item_id=active.id,
+        dispatch_id="live-dispatch",
+    )
+    journal = JournalFile(path=repo / "journal.jsonl")
+
+    admission = _dispatcher_admission.admit_and_select(
+        repo=repo,
+        items=[active, ready],
+        candidates=[ready],
+        journal=journal,
+        enforce_cap=True,
+    )
+
+    assert admission.admitted == []
+    records = (
+        []
+        if not journal.path.exists()
+        else [json.loads(line) for line in journal.path.read_text(encoding="utf-8").splitlines()]
+    )
+    assert "dispatch-claim-abandoned" not in {record["stage"] for record in records}
+
+
+def test_admission_time_lock_protects_queued_batch_items(tmp_path: Path) -> None:
+    repo, _workflow = _repo_with_workflow(tmp_path=tmp_path)
+    first = _item(id="bd-ready-first", status="ready", rank="a1")
+    second = _item(id="bd-ready-second", status="ready", rank="a2")
+    append_work_item(path=_config(), item=first)
+    append_work_item(path=_config(), item=second)
+    _ = (repo / ".livespec.jsonc").write_text(
+        '{"livespec-orchestrator-beads-fabro": {"connection": {"prefix": "bd-ib"},'
+        ' "dispatcher": {"wip_cap": 2}}}',
+        encoding="utf-8",
+    )
+    journal = JournalFile(path=repo / "journal.jsonl")
+
+    admission = _dispatcher_admission.admit_and_select(
+        repo=repo,
+        items=[first, second],
+        candidates=[first, second],
+        journal=journal,
+        enforce_cap=True,
+    )
+
+    assert [item.id for item in admission.admitted] == [first.id, second.id]
+    assert _dispatcher_dispatch_lock.live_dispatch_lock(repo=repo, work_item_id=first.id)
+    assert _dispatcher_dispatch_lock.live_dispatch_lock(repo=repo, work_item_id=second.id)
+    second_pass = _dispatcher_admission.admit_and_select(
+        repo=repo,
+        items=admission.admitted,
+        candidates=[],
+        journal=journal,
+        enforce_cap=False,
+    )
+    assert second_pass.admitted == []
+    records = [json.loads(line) for line in journal.path.read_text(encoding="utf-8").splitlines()]
+    assert "dispatch-claim-abandoned" not in {record["stage"] for record in records}
 
 
 def test_dispatch_green_closes_item_and_journals(
