@@ -27,6 +27,18 @@ Definition-of-Ready → `ready`, then dispatch each through the factory
 |---|---|---|
 | **`bd-ib-bwgko4`** | BLOCKED (needs-tier) | pr node: rebase onto fresh `origin/master` before push — kill the stale-workflow push-gate race. |
 | **`bd-ib-wmqsn7`** | BLOCKED (needs-tier) | `check-master-ci-green`: tolerate a transient/re-runnable master-CI flake instead of fail-closing every dispatch. |
+| **`bd-ib-bic7hb`** | `ready` — **TAKEN BY `plan/dispatch-claim-liveness/`, 2026-07-26** | Sandbox setup 403s in `mise install`: the projected App installation token made a third-party public-repo fetch spend factory GitHub credit. Partially mitigated (PR #1008, `5846ab7` — the fetch now runs anonymously); the durable pre-bake remains open. **Do not work it here** — it is owned there and is not a second copy. |
+
+**Why `bd-ib-bic7hb` is not owned by this thread even though it belongs to this
+class.** It is a dark-factory dispatch-path reliability defect and by charter it
+is ours, alongside the two rows above. It was taken by
+`plan/dispatch-claim-liveness/` on 2026-07-26 because it was the **sole blocker**
+on that epic's last slice (S3, `bd-ib-pme57n`) while this thread is dormant with
+both its own items BLOCKED on a maintainer autonomy-tier assignment — so routing
+it here would have blocked that epic indefinitely. The transfer is recorded in
+both directions: this row, the item's own description, and that thread's
+filed-items list. If this thread is revived, read the item before touching it;
+its root cause is settled and half of it has shipped.
 
 ## Root cause #1 — stale-workflow push-gate race (`bd-ib-bwgko4`)
 
