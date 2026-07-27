@@ -497,6 +497,24 @@ else
     fail "reopen: fail-mode block (rc=$RC)"
 fi
 
+# Help is read-only introspection, not a reopen. It must remain available even
+# in fail mode and must not emit the violation that pages the maintainer.
+run_wrapper fail 0 "reopen help" -- reopen --help
+if was_called && assert_argv reopen --help && [ "$RC" -eq 0 ] \
+        && stdout_is "reopen help" && stderr_empty; then
+    pass "reopen: --help passes through in fail mode without a violation"
+else
+    fail "reopen: --help passthrough (rc=$RC, stderr=$(cat "$ERR_FILE"))"
+fi
+
+run_wrapper fail 0 "reopen help" -- reopen abc-8 -h
+if was_called && assert_argv reopen abc-8 -h && [ "$RC" -eq 0 ] \
+        && stdout_is "reopen help" && stderr_empty; then
+    pass "reopen: trailing -h passes through in fail mode without a violation"
+else
+    fail "reopen: trailing -h passthrough (rc=$RC, stderr=$(cat "$ERR_FILE"))"
+fi
+
 # reopen as a VALUE of a global flag is not the subcommand -> not flagged
 run_wrapper warn 0 "" -- --actor reopen list
 if was_called && stderr_empty; then
@@ -840,6 +858,14 @@ if was_called && assert_argv defer abc-1 && [ "$RC" -eq 0 ] && stderr_has "bd de
     pass "defer: 'bd defer abc-1' warns and still execs in warn mode (argv preserved)"
 else
     fail "defer: warn-mode passthrough (rc=$RC, stderr=$(cat "$ERR_FILE"))"
+fi
+
+run_wrapper fail 0 "defer help" -- defer --help
+if was_called && assert_argv defer --help && [ "$RC" -eq 0 ] \
+        && stdout_is "defer help" && stderr_empty; then
+    pass "defer: --help passes through in fail mode without a violation"
+else
+    fail "defer: --help passthrough (rc=$RC, stderr=$(cat "$ERR_FILE"))"
 fi
 
 # ===========================================================================
