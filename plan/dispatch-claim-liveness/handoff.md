@@ -322,7 +322,9 @@ green: `just check` runs on the BOOTSTRAPPED checkout, where the broken check pa
 **⚠ ONE THING IS UNVERIFIED, and it is the condition this section used to state.**
 The rule was "do NOT move the pin until a REAL dispatch is proven to survive setup
 on the new pin — a green `just check` is not that proof." **That proof does not
-exist for v0.56.2.** The dispatch journal's last record is `2026-07-27T00:39:28Z`,
+exist for v0.56.2 — nor for v0.56.3, which the pin reached later the same day
+(`60abb97`), making SIX bumps with no dispatch between them.** The dispatch
+journal's last record is `2026-07-27T00:39:28Z`,
 before the first bump at 06:01:53Z, so **no dispatch has run on any pin after
 v0.54.19.** S3's dispatch (`01KYG2Q1028H`) is not the proof either — it ran at
 `5846ab7`, where the pin was still v0.54.19 (verified by reading that commit's
@@ -333,8 +335,8 @@ v0.54.19.** S3's dispatch (`01KYG2Q1028H`) is not the proof either — it ran at
 over it. Carry this assumption instead, stated so a successor inherits it explicitly
 rather than rediscovering it:
 
-> **v0.56.2 is PRESUMED SOUND until the next real dispatch tests it, and THE NEXT
-> DISPATCH IS THE TEST.**
+> **The current pin is PRESUMED SOUND until the next real dispatch tests it, and THE
+> NEXT DISPATCH IS THE TEST.**
 
 So whoever runs the next dispatch should know in advance: **a setup failure is the
 EXPECTED FIRST SUSPECT, not a mystery.** If it dies in setup — particularly on
@@ -342,6 +344,13 @@ EXPECTED FIRST SUSPECT, not a mystery.** If it dies in setup — particularly on
 anything. The failing shape to look for is the one v0.54.20..v0.54.24 produced: the
 check asserts the gitignored worktree pack, which cannot exist in the sandbox's fresh
 clone.
+
+**⚠ That first-suspect guidance is now SUPERSEDED for the setup leg — read
+§"SETUP IS NOW VERIFIED" below before acting on it.** Setup was measured directly on
+v0.56.3 and passes, so a setup failure is no longer the expected first suspect; the
+janitor and pr stages are. The assumption itself still stands for everything past
+setup. (This paragraph is kept rather than deleted because it states the failing
+shape, which is still what to look for IF setup ever does fail.)
 
 **Record the shape of the closure, not just the fact of it.** `bd-ib-u46hcv` was
 closed with **NO close reason and NO resolution recorded**. The maintainer released
@@ -358,6 +367,54 @@ step passes on a fresh clone". That is materially stronger than the bootstrapped
 check` blindness that let v0.54.24 through — but it is still a gate, not a dispatch,
 and this section's own standard says a gate is not the proof. Treat it as good reason
 to expect success, not as the verification.
+
+#### ✅ SETUP IS NOW VERIFIED ON v0.56.3 — measured 2026-07-27T20:59Z, at zero risk
+
+**The pin moved again while this was being written** — SIX bumps total, now
+`livespec-dev-tooling` **v0.56.3** (`60abb97`) and sandbox image
+`ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-agent-v0.56.3` — and the journal
+still showed **ZERO dispatch records after the first bump**. So rather than wait for a
+real dispatch to discover the answer expensively, the setup leg was tested directly.
+
+**Method — a NON-ADMITTING probe, and the technique is reusable.** A bare
+`fabro run` (run `01KYJNZX4GQMQ7R583GPFBJCCY`), NOT `dispatcher.py dispatch`: the probe
+workflow pins the SAME image as `workflow.toml` and carries the **eight real
+`[[run.prepare.steps]]` script lines extracted verbatim** from `workflow.toml`, with a
+trivial confirm node in place of the agent graph. Because nothing is admitted, no
+work-item can strand — which is precisely the cost that made the earlier blind retries
+of `bd-ib-pme57n` unacceptable. **Use this shape whenever the question is "does sandbox
+setup survive X"; it answers in ~15s and risks nothing.**
+
+**Result: all 8 setup commands completed in 13s, and the run SUCCEEDED.**
+
+```
+Sandbox: pulling ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-agent-v0.56.3...
+Setup: 8 commands (12s)
+```
+
+The two things that most needed proving, both confirmed from the node's own output:
+
+- **`verify-commit-refuse-hook` — the EXACT check that took the factory down on
+  v0.54.20..v0.54.24 — completed**, and re-running
+  `livespec_dev_tooling.checks.primary_checkout_commit_refuse_hook_installed` inside
+  the sandbox printed `COMMIT-REFUSE-CHECK-OK`. The fresh-clone worktree-pack failure
+  mode does NOT reproduce on v0.56.3.
+- **`shellcheck 0.11.0` installed via the anonymous mise path** (`mise-install` step,
+  2s), so PR #1008's credential scrub works on the new image too.
+
+**⚠ WHAT THIS DOES *NOT* PROVE — do not overclaim it.** This is a real fabro sandbox
+running a real fresh clone through the real setup, which is strictly stronger than the
+host-side `fresh-clone-setup-gate`. But it is **not a dispatch**: no ledger admission,
+no agent nodes, no janitor `just check`, no pr node, no post-merge path. So:
+
+- The **setup-failure** risk this section was written about is **DISCHARGED** for
+  v0.56.3. A dispatch dying in setup is no longer the expected first suspect.
+- The **rest of the dispatch path on the new pin remains untested.** If the next
+  dispatch fails, look at the janitor and pr stages rather than at setup — the
+  `just check` aggregate runs a much larger surface of v0.56.3 than setup does.
+
+The standing assumption above is therefore NARROWED, not retired: v0.56.3 is
+**verified through setup** and presumed sound beyond it.
 
 (Corroborating the defect class is still live somewhere: this session hit
 `failure_mode: "worktree_pack_absent"` from that exact check in a fresh worktree on
