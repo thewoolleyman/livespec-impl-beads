@@ -18,11 +18,39 @@ monotonic: every abandonment costs a slot that never comes back.
 | S2 | `bd-ib-cfgkkk` | **DONE** — PR #1006 merged `ebe7419` | Surface a stranded merged-yet-unfinished claim in needs-attention |
 | S3 | `bd-ib-pme57n` | **DONE** — PR #1014 merged `5b32017`, item `closed` | Stop counting dead claims against the per-repo WIP cap |
 
-Open items filed by this thread, none part of the epic. All `ready`.
+Items filed by this thread, none part of the epic. Statuses vary — read each line.
 
-- **`bd-ib-bic7hb`** (P2, **host-only**) — **was** the S3 blocker; **root cause is
-  now SETTLED and half of it has shipped** (PR #1008, `5846ab7`). See §"THE S3
-  BLOCKER — SETTLED". **Ownership is borrowed, and the loan is recorded.** By
+- **`bd-ib-ri1x`** (**P1**, host-only, `backlog`) — **the fleet-level finding, and
+  the most valuable thing this thread surfaced.** The family GitHub App
+  installation's single 5000/hr PRIMARY bucket is exhaustible and unmeasured; while
+  it is empty EVERY credentialed call fails identically (`gh pr create`, the merge
+  poll, the janitor), and `mise install` was merely the first consumer to reach it.
+  **Explicitly NOT owned by this repo or this epic** — the installation is shared
+  fleet-wide, so no single orchestrator can measure or fix it. Filed in this tenant
+  only because beads has no cross-tenant edge (`bd-ib-dvmh`: cross-repo slices mint
+  ids the target tenant cannot resolve), so the prose IS the link and it must be
+  routed by hand. It carries the observable signature and the recommendation to
+  **measure before mitigating** — nothing today can answer "what spent 5000
+  requests", so any mitigation chosen now is a guess.
+- **`bd-ib-3lmt`** (P2, factory-safe, `backlog`) — `check-heading-coverage` is
+  enforced in CI but not at pre-commit, so a five-second local correction becomes a
+  push/CI/fix/re-push cycle; on this repo it can burn a dispatch's expensive tail
+  rather than its cheap head. **Fix the gate, not the bypass** — the CI check is
+  right and must not be relaxed; the local leg is what is incomplete.
+- **`bd-ib-ktxb`** (P2, factory-safe, `backlog`) — the shipped-code half of spec
+  v051's `rework-return-door-attribution` finding 2: `reject:<id>:rework` must write
+  a DURABLE journal record. Closes `## Scenario 51`, whose
+  `tests/heading-coverage.json` entry is `TODO` and must bind to an integration-tier
+  test when it lands.
+- **`bd-ib-bic7hb`** (P2, **host-only**, `ready`) — **was** the S3 blocker; **root
+  cause is now SETTLED and half of it has shipped** (PR #1008, `5846ab7`). See §"THE
+  S3 BLOCKER — SETTLED". **It stays OPEN deliberately** and its description now
+  leads with a status block saying so: the durable prevention (pre-baking the
+  aqua-backed tools) is unshipped and is the first two clauses of its acceptance;
+  only the third (a real dispatch survives setup) is discharged. It sits `ready`
+  rather than `blocked` because host-only items are refused by admission and
+  host-routed — that is where they legitimately wait — so **do not dispatch it**.
+  **Ownership is borrowed, and the loan is recorded.** By
   charter this belongs to `plan/factory-hardening/` ("reliability hardening of the
   dark-factory dispatch path"), which already holds two items of the same class
   (`bd-ib-bwgko4`, `bd-ib-wmqsn7`). We took it because it was the sole blocker on
@@ -137,6 +165,36 @@ un-strand or close it before then.
 
 **Remaining open work is NOT part of this epic** — see the filed-items list above and
 §"The revise pass". The epic anchor `bd-ib-waov` was already closed at groom time.
+
+### ✅ CLOSE-OUT 2026-07-27 — this thread has NO in-flight work
+
+Both assignments this thread carried are complete. Stated plainly so a successor does
+not go looking for work that is finished, and does not mistake the leftovers for it:
+
+| assignment | outcome |
+|---|---|
+| The epic `bd-ib-waov` — all three slices | **DONE.** S1 `bd-ib-ohdu5a` #978/`a869253`; S2 `bd-ib-cfgkkk` #1006/`ebe7419`; S3 `bd-ib-pme57n` #1014/`5b32017`. Plus `bd-ib-l2vglr` #982/`acf061c`, `bd-ib-81l0` #1000/`47c75ac`, `bd-ib-2wgooj` #1003/`817aeb1`, and `bd-ib-bic7hb` (partial) #1008/`5846ab7`. |
+| The `/livespec:revise` pass over BOTH pending proposals | **DONE.** Ratified as **v051**, PR #1036 / `715d81a`. `reconcile-merged-dispatch-lock` → modify; `rework-return-door-attribution` → accept, both findings. |
+
+Verified on the forge after a fetch, not from a working tree:
+
+- **`SPECIFICATION/proposed_changes/` is EMPTY** of in-flight proposals (`.gitkeep`
+  only), and `SPECIFICATION/history/v051/` is present on `master`.
+- **`git for-each-ref refs/heads/spec/` is EMPTY** — the next revise pass's Step 3.5
+  precondition is clear. (Re-check it at ITS run time anyway; that is the whole
+  lesson of §"The blocking precondition".)
+- Primary checkout clean on `master`; no worktrees left by this thread.
+
+**What remains is filed, not in flight.** The two new filings — `bd-ib-ri1x` (P1,
+fleet GitHub budget) and `bd-ib-3lmt` (P2, the CI-only gate) — plus `bd-ib-ktxb`
+(v051's shipped-code half) and the pre-existing unowned items `bd-ib-bic7hb`,
+`bd-ib-d6op2n`, `bd-ib-5ymv5p`, `bd-ib-hvuhxp`. **None of them is part of this
+epic**, none is blocked on this thread, and the filed-items list above says for each
+one who owns it and why it is where it is.
+
+**The one live obligation anyone inherits is the pin assumption**, not a task: the
+next factory dispatch is the test of `livespec-dev-tooling` v0.56.2. See §"The
+v0.54.19 pin hold".
 
 ### ✅ THE S3 BLOCKER — SETTLED 2026-07-26, and the blocking half has SHIPPED
 
@@ -268,9 +326,30 @@ exist for v0.56.2.** The dispatch journal's last record is `2026-07-27T00:39:28Z
 before the first bump at 06:01:53Z, so **no dispatch has run on any pin after
 v0.54.19.** S3's dispatch (`01KYG2Q1028H`) is not the proof either — it ran at
 `5846ab7`, where the pin was still v0.54.19 (verified by reading that commit's
-`pyproject.toml`). **The next factory dispatch is the test.** If it dies in setup on
-`primary_checkout_commit_refuse_hook_installed`, this is why — check the pin first
-rather than re-deriving the cause.
+`pyproject.toml`).
+
+**⛔ THE STANDING ASSUMPTION, and it is NOT a blocker — maintainer ruling
+2026-07-27.** Do not treat the missing proof as blocking, and do not stall a dispatch
+over it. Carry this assumption instead, stated so a successor inherits it explicitly
+rather than rediscovering it:
+
+> **v0.56.2 is PRESUMED SOUND until the next real dispatch tests it, and THE NEXT
+> DISPATCH IS THE TEST.**
+
+So whoever runs the next dispatch should know in advance: **a setup failure is the
+EXPECTED FIRST SUSPECT, not a mystery.** If it dies in setup — particularly on
+`primary_checkout_commit_refuse_hook_installed` — check the pin before re-deriving
+anything. The failing shape to look for is the one v0.54.20..v0.54.24 produced: the
+check asserts the gitignored worktree pack, which cannot exist in the sandbox's fresh
+clone.
+
+**Record the shape of the closure, not just the fact of it.** `bd-ib-u46hcv` was
+closed with **NO close reason and NO resolution recorded**. The maintainer released
+the hold deliberately, so **do NOT reopen it** — but that empty closure carries no
+evidence, and it MUST NOT be read as proof that the dispatch condition was ever met.
+A closed item is a decision; it is not a verification. The two are being distinguished
+here precisely because this thread has twice been burned by reading a filed record as
+a measurement.
 
 **Evidence pointing the other way, recorded fairly.** On v0.56.2, `just check`'s
 `fresh-clone-setup-gate` PASSES in a fresh worktree, and that gate exercises the four
