@@ -69,7 +69,11 @@ def gate_state(*, env: dict[str, str] | None = None, repo: Path | None = None) -
         return "on"
     if override is False:
         return "off"
-    marker_repo = repo if repo is not None else (_project_root_from_env(env=environment) or owning_repo_root())
+    marker_repo = (
+        repo
+        if repo is not None
+        else (_project_root_from_env(env=environment) or owning_repo_root())
+    )
     return "on" if read_marker(repo=marker_repo) else "off"
 
 
@@ -114,11 +118,7 @@ def repo_name_from_remote_url(*, remote_url: str) -> str | None:
 
 def with_marker(*, config_text: str, fleet_listed: bool) -> str:
     """Return `config_text` with an up-to-date top-level codex marker block."""
-    block = (
-        '  "codex_full_access": {\n'
-        f'    "fleet_listed": {str(fleet_listed).lower()}\n'
-        "  }"
-    )
+    block = '  "codex_full_access": {\n' f'    "fleet_listed": {str(fleet_listed).lower()}\n' "  }"
     existing = re.compile(r'(?ms)^  "codex_full_access": \{\n.*?^  \}(,?)\n')
     if existing.search(config_text):
         return existing.sub(f"{block}\\1\n", config_text, count=1)
@@ -136,10 +136,14 @@ def with_marker(*, config_text: str, fleet_listed: bool) -> str:
     return f"{config_text[:line_end]}{prefix_comma}\n{block}{suffix_comma}\n{suffix}"
 
 
+# `refresh <manifest-path>` — the only accepted invocation, hence the arity.
+_REFRESH_ARGC: int = 2
+
+
 def main(*, argv: list[str] | None = None) -> int:
     """Refresh the local marker from a checked-out core manifest."""
     args = list(sys.argv[1:] if argv is None else argv)
-    if len(args) != 2 or args[0] != "refresh":
+    if len(args) != _REFRESH_ARGC or args[0] != "refresh":
         return 2
     repo = Path.cwd()
     manifest_path = Path(args[1])
@@ -156,7 +160,9 @@ def main(*, argv: list[str] | None = None) -> int:
         owner=owner,
         repo=repo_name_from_remote_url(remote_url=remote_url),
     )
-    _ = config_path.write_text(with_marker(config_text=config_text, fleet_listed=listed), encoding="utf-8")
+    _ = config_path.write_text(
+        with_marker(config_text=config_text, fleet_listed=listed), encoding="utf-8"
+    )
     return 0
 
 
@@ -193,7 +199,7 @@ def _repo_local_root_from_file() -> Path:
         try:
             return Path.cwd()
         except OSError:
-            return Path(".")
+            return Path()
 
 
 def _strip_jsonc_comments(*, text: str) -> str:
@@ -238,7 +244,7 @@ def _insert_before_final_brace(*, config_text: str, block: str) -> str:
     if index == -1:
         return config_text
     prefix = config_text[:index].rstrip()
-    separator = "," if prefix.endswith("}") or prefix.endswith('"') else ""
+    separator = "," if prefix.endswith(("}", '"')) else ""
     suffix = config_text[index:]
     return f"{prefix}{separator}\n{block}\n{suffix}"
 

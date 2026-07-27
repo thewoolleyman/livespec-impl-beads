@@ -330,10 +330,28 @@ def test_main_keeps_patching_later_versions_after_one_bad_file(
     assert str(last) in capsys.readouterr().out
 
 
-def test_main_warns_and_continues_when_a_file_raises_unexpectedly(
+def test_main_stays_fail_open_when_a_file_raises_unexpectedly(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """The last-resort bulkhead: an unforeseen error is a warning, not a crash."""
+    """An unforeseen error reaches the SOLE boundary and exits 0 — no per-file bulkhead.
+
+    This replaces a test asserting the opposite ("warns and continues"), because
+    the behavior it pinned was withdrawn by livespec
+    non-functional-requirements.md, whose supervisor-discipline rules state that
+    a daemon supervising N independent units must not carry an additional broad
+    catch around its supervision-loop body. The old per-file bulkhead caught broadly
+    around each file so one failure could not abort the rest; the spec's
+    reasoning is that a loop which swallows a bug and re-enters "presents as
+    supervising while enforcing nothing".
+
+    What is still guaranteed, and is what this asserts, is the property a
+    SessionStart hook actually needs: the session is NEVER wedged. `main`
+    returns 0 and emits nothing. What is deliberately NO LONGER guaranteed is
+    that later files are still processed after a BUG — the expected failures
+    (`OSError`, `UnicodeDecodeError`) remain narrowly handled at their own read
+    and write boundaries and are covered by the sibling tests below, so anything
+    reaching this catch is a defect rather than an environmental condition.
+    """
     monkeypatch.setenv("HOME", str(tmp_path))
     target = _cached_mjs(home=tmp_path, version="1.0.6")
     _ = target.write_text(_stock_source(), encoding="utf-8")
@@ -347,8 +365,7 @@ def test_main_warns_and_continues_when_a_file_raises_unexpectedly(
 
     captured = capsys.readouterr()
     assert captured.out == ""
-    assert "WARNING" in captured.err
-    assert str(target) in captured.err
+    assert captured.err == ""
 
 
 def test_main_skips_a_glob_match_that_cannot_be_read(

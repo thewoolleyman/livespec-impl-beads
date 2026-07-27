@@ -82,7 +82,14 @@ force-exclude = true
 # throwaway clone, not impl-beads product code. It deliberately uses bare
 # `assert`/magic values (pytest idiom) and is NOT subject to this repo's strict
 # rule set; exclude it from the lint scan (pyright already scopes via `include`).
-extend-exclude = [".claude/hooks/**", ".claude-plugin/hooks/**", ".claude/skills/**", "**/_vendor/**", "**/__pycache__/**", "mutants/**", "orchestrator-image/e2e-skeleton/**"]
+# `.claude/hooks/**` and `.claude-plugin/hooks/**` USED to sit here, on the
+# ground that hook scripts are fail-open boundary code whose blind catches and
+# direct prints are the contract. The premise was right and the remedy was
+# wrong: excluding the trees took the BLE001 backstop down with them, and
+# `check-no-except-outside-io` treats an inspected-but-ruff-excluded file as an
+# error precisely because the position rule alone is half the pair. All four
+# hooks now conform, with only the narrow waivers below.
+extend-exclude = [".claude/skills/**", "**/_vendor/**", "**/__pycache__/**", "mutants/**", "orchestrator-image/e2e-skeleton/**"]
 
 [tool.ruff.lint]
 select = [
@@ -139,6 +146,17 @@ ban-relative-imports = "all"
 "shelve" = { msg = "arbitrary-code-execution surface on load(); use JSON / JSONC" }
 
 [tool.ruff.lint.per-file-ignores]
+# The two guard hooks, replacing the wholesale hook-tree exclusions removed
+# above so BLE001 stays LIVE over them and their sole fail-open boundary
+# markers are real directives rather than dead ones. Only SHAPE rules are
+# waived, and only where collapsing the shape would reshape behavior-critical
+# guard logic that has no test coverage: `_check_segment` returns early once
+# per footgun pattern, and the gate's `main` is a linear refresh sequence.
+# Every other diagnostic these files raised was FIXED rather than waived
+# (E501, PLR2004, PTH201, PIE810, and both T201 prints). Same disposition as
+# livespec-driver-claude's `C901` waiver on `no_shadow_ledger.py`.
+".claude/hooks/livespec_footgun_guard.py" = ["PLR0911"]
+".claude-plugin/hooks/codex_yolo_gate.py" = ["PLR0915"]
 # Shebang-wrapper contract: shebang → docstring → `from _bootstrap import
 # bootstrap` → `bootstrap()` → `from <pkg>.<...> import main` →
 # `raise SystemExit(main())`. The post-bootstrap() import structurally
@@ -308,9 +326,18 @@ io_trees = [
     ".claude-plugin/scripts/livespec_orchestrator_beads_fabro/io",
 ]
 commands_trees = [".claude-plugin/scripts/livespec_orchestrator_beads_fabro/commands"]
+# Each guard hook is a supervisor entry artifact: it owns the hook-protocol
+# stdout/stderr contract `no_write_direct` otherwise bans, and its `main()`
+# carries the ONE fail-open boundary catch livespec
+# non-functional-requirements.md line 114 grants a hook. Listing them here is
+# what makes those exemptions legible, and it exempts their `sys.exit` from
+# `check-supervisor-discipline`. They are deliberately NOT in `io_trees`: the
+# same clause forecloses exempting a hook tree wholesale ("There is NO 'thin
+# repo' exemption").
 supervisor_entry_files = [
     ".claude-plugin/scripts/bin/_bootstrap.py",
     ".claude/hooks/beads_access_guard.py",
+    ".claude/hooks/livespec_footgun_guard.py",
     ".claude-plugin/hooks/codex_yolo_reapply.py",
 ]
 pure_trees = []
