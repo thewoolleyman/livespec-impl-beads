@@ -29,37 +29,9 @@ on:
   repository_dispatch:
     types: [sibling-released]
 
-# ─────────────────────────────────────────────────────────────────────
-# TEMPORARY HOLD — 2026-07-26. REMOVE per the condition below.
-#
-# Companion to the hold in `pin-freshness.yml`; same cause. See PR #998
-# (the revert to v0.54.19) and ledger item `bd-ib-u46hcv`.
-#
-# This path is NOT time-bounded — it fires on ANY `sibling-released`
-# dispatch, so a livespec-dev-tooling release at any moment would open
-# an auto-merge bump PR and silently undo the hold.
-#
-# The reusable workflow takes NO staleness threshold — its only inputs
-# are `source_repo`, `tag`, `release_url` — so the freshness sweep's
-# knob has no analogue here. The guard is therefore a shim-level `if:`
-# on the payload's publishing repo. `source_repo` is the SHORT name
-# (this repo's own `release-dispatch.yml` sends
-# `livespec-orchestrator-beads-fabro`), so the comparison below matches
-# the value actually sent.
-#
-# This hold is SOURCE-SCOPED and therefore narrower than the freshness
-# one: every OTHER sibling's release still bumps normally. Only
-# livespec-dev-tooling is declined.
-#
-# RE-ENABLE CONDITION: identical to `pin-freshness.yml`'s — close
-# `bd-ib-u46hcv`, AND prove a real dispatch survives the sandbox setup
-# step on the new pin (a green `just check` is not that proof; it runs
-# where the broken check passes). Then delete this block and the `if:`.
-# ─────────────────────────────────────────────────────────────────────
 jobs:
   bump:
-    if: github.event.client_payload.source_repo != 'livespec-dev-tooling'
-    uses: thewoolleyman/livespec-dev-tooling/.github/workflows/reusable-bump-pin-from-dispatch.yml@v0.54.19
+    uses: thewoolleyman/livespec-dev-tooling/.github/workflows/reusable-bump-pin-from-dispatch.yml@v0.54.26
     secrets: inherit
     with:
       source_repo: ${{ github.event.client_payload.source_repo }}
