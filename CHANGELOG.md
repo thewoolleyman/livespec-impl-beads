@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.46.24](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.23...v0.46.24) (2026-07-27)
+
+
+### Bug Fixes
+
+* clear assignee on operator moves ([a219f88](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/a219f88fa78453ca23c7cf6b5ae59f299c29d72f))
+
 ## [0.46.23](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.22...v0.46.23) (2026-07-26)
 
 
