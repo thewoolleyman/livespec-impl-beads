@@ -16,8 +16,12 @@ Separately, it **normalizes** every qualifying `bd create` (see **Create
 normalization** below) to the lifecycle status `backlog`.
 
 Everything else — `list`, `show`, `close`, `dep`, `config`, `history`, `--json`,
-a bare `bd ready` list (or `bd ready --status <x>` filtering), and every other
-subcommand/flag — passes through **unchanged**.
+help for every subcommand, a bare `bd ready` list (or `bd ready --status <x>`
+filtering), and every other subcommand/flag — passes through **unchanged**.
+
+In particular, `bd reopen --help` / `-h` and `bd defer --help` / `-h` are
+read-only CLI introspection, not lifecycle writes. They pass through without a
+warning or block even in `fail` mode; a real `reopen` or `defer` remains guarded.
 
 This is a **STOPGAP** until beads ships the upstream fixes (a `status.default`
 and a lifecycle-aware `--claim`/`--status`). It is designed to be **trivially
