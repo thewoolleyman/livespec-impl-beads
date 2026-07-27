@@ -185,7 +185,12 @@ def move_item(
                 "acceptance and pending-approval are entered only on their guarded paths."
             ),
         )
-    store.update_work_item_status(path=config, item_id=item.id, status=target_status)
+    store.update_work_item_status(
+        path=config,
+        item_id=item.id,
+        status=target_status,
+        clear_assignee=True,
+    )
     return valve_success(
         aid=aid,
         wid=item.id,

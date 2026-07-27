@@ -96,13 +96,16 @@ def update_work_item_status(
     item_id: str,
     status: str,
     assignee: str | None = None,
+    clear_assignee: bool = False,
 ) -> None:
     """Transition an existing item's `status` (and optional `assignee`) IN PLACE.
 
     The Dispatcher's non-terminal lifecycle write seam — the `ready -> active`
     admit (which also sets the `assignee`), the `active -> acceptance`
     complete, the `acceptance -> active`/`backlog` reject routing, and the
-    non-convergence bounce to `backlog`. Unlike `append_work_item` (which
+    non-convergence bounce to `backlog`. `assignee=None` preserves the existing
+    assignee; `clear_assignee=True` is the explicit clear affordance for
+    operator moves to statuses no runner claims. Unlike `append_work_item` (which
     CREATES a fresh issue or CLOSES one in place) this mutates an EXISTING
     non-`done` issue's status without re-creating it, mirroring
     `update_work_item_rank`'s in-place shape. The `done` terminal is NOT
@@ -116,6 +119,7 @@ def update_work_item_status(
         issue_id=item_id,
         status=_beads_status_for(status=status),
         assignee=assignee,
+        clear_assignee=clear_assignee,
     )
 
 

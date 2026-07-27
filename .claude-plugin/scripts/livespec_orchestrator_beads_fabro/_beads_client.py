@@ -114,6 +114,7 @@ class BeadsClient(Protocol):
         issue_id: str,
         status: str | None = None,
         assignee: str | None = None,
+        clear_assignee: bool = False,
         parent_id: str | None = None,
         add_labels: list[str] | None = None,
         remove_labels: list[str] | None = None,
@@ -123,7 +124,9 @@ class BeadsClient(Protocol):
 
         `assignee` maps onto `bd update --assignee` — the seam the admission
         valve uses to set the doer when it transitions a ready item to
-        `active`. `remove_labels` maps onto `bd update --remove-label`
+        `active`. `clear_assignee` maps onto the same flag with an empty value
+        for operator moves that leave the runner-owned lane. `remove_labels`
+        maps onto `bd update --remove-label`
         (repeatable); it is the seam used by lifecycle routing to clear retired labels and
         policy labels when an item changes state. Removing a
         label the issue does not carry is a no-op (bd is idempotent here).
@@ -235,6 +238,7 @@ class ShellBeadsClient:
         issue_id: str,
         status: str | None = None,
         assignee: str | None = None,
+        clear_assignee: bool = False,
         parent_id: str | None = None,
         add_labels: list[str] | None = None,
         remove_labels: list[str] | None = None,
@@ -244,6 +248,7 @@ class ShellBeadsClient:
             issue_id=issue_id,
             status=status,
             assignee=assignee,
+            clear_assignee=clear_assignee,
             parent_id=parent_id,
             add_labels=add_labels,
             remove_labels=remove_labels,

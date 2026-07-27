@@ -104,6 +104,19 @@ def test_build_update_argv_includes_assignee() -> None:
     assert argv[assignee_index + 1] == "fabro"
 
 
+def test_build_update_argv_can_clear_assignee() -> None:
+    argv = build_update_argv(
+        issue_id="li-a",
+        status="ready",
+        parent_id=None,
+        add_labels=None,
+        metadata=None,
+        clear_assignee=True,
+    )
+    assignee_index = argv.index("--assignee")
+    assert argv[assignee_index + 1] == ""
+
+
 def test_build_update_argv_repeats_add_label_per_label() -> None:
     argv = build_update_argv(
         issue_id="li-a",

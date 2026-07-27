@@ -125,6 +125,23 @@ def test_update_work_item_status_transitions_and_sets_assignee_in_place() -> Non
     assert (read_back.status, read_back.assignee) == ("acceptance", "fabro")
 
 
+def test_update_work_item_status_can_explicitly_clear_assignee() -> None:
+    append_work_item(
+        path=_config(),
+        item=_minimal_work_item(id_="li-clear", status="active", assignee="fabro"),
+    )
+
+    update_work_item_status(
+        path=_config(),
+        item_id="li-clear",
+        status="ready",
+        clear_assignee=True,
+    )
+
+    [read_back] = list(read_work_items(path=_config()))
+    assert (read_back.status, read_back.assignee) == ("ready", None)
+
+
 def test_update_work_item_policy_replaces_requested_labels_only() -> None:
     append_work_item(
         path=_config(),
