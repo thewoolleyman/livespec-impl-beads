@@ -31,12 +31,14 @@ Open items filed by this thread, none part of the epic. All `ready`.
   `plan/factory-hardening/handoff.md`'s ledger table and into the item's own
   description, so it cannot be worked twice or dropped.
 - **`bd-ib-u46hcv`** (P2, **host-only**) — the upstream `livespec-dev-tooling`
-  check defect that took the factory down. **NO plan thread owns it.** The
-  ownership is SPLIT and the split is the point: the *fix* is upstream in
-  `livespec-dev-tooling` and is nobody's here, while the *pin-hold removal* (the
-  two guards in §"The v0.54.19 pin hold") is OURS and must not be discharged until
-  that upstream fix lands. Also carries the gate-blindness acceptance. Do not
-  adopt the fix half into this epic — it is not dispatchable here.
+  check defect that took the factory down. **CLOSED 2026-07-27T00:22:55Z, and its
+  pin hold has been lifted** — the pin ran v0.54.19 → v0.56.2 later that morning
+  and both guards are gone. This thread's pin-hold obligation is DISCHARGED; do
+  not re-impose it. It closed with NO recorded close reason or resolution, and the
+  "a REAL dispatch must survive setup on the new pin" condition is still UNMET, so
+  the next dispatch is the test — see §"The v0.54.19 pin hold". (Earlier revisions
+  of this line said no plan thread owned it and that the pin-hold half was ours.
+  Both were true when written and are now superseded.)
 - **`bd-ib-d6op2n`** (P2, **host-only**) — the `livespec-driver-claude`
   core-resolution misfire; can misfire our own revise pass. Owned by that repo;
   filed here because beads has no cross-tenant edge, so this prose IS the link and
@@ -236,25 +238,52 @@ Both slices were `pending-approval` and both dispatched directly with NO approva
 step — see §"Dispatching a `pending-approval` slice"; the approve valve is closed by
 construction on this repo.
 
-### The v0.54.19 pin hold — guarded, but TEMPORARY
+### The v0.54.19 pin hold — LIFTED 2026-07-27. Not ours any more; one thing is UNVERIFIED.
 
-`livespec-dev-tooling` is deliberately held at **v0.54.19** (PR #998 `a26228c`,
-reverting five bump commits `03ac67b`..`66f6b9d`). v0.54.20..v0.54.24 take the
-factory DOWN: `primary_checkout_commit_refuse_hook_installed` asserts the presence
-of the gitignored worktree pack, which cannot exist in a fresh clone, and the
-sandbox runs that check as a SETUP command on a fresh clone.
+**Status changed while this thread was mid-session, so read the dates, not the
+prose you may remember.** `bd-ib-u46hcv` was **CLOSED 2026-07-27T00:22:55Z** — with
+**no recorded close reason and no resolution** — and the pin then moved off v0.54.19
+in five bumps between 06:01:53Z and 09:55:22Z: `v0.55.0` (`e45527d`), `v0.55.1`
+(`9e630e1`), `v0.56.0` (`15f1281`), `v0.56.1` (`b8c8121`), `v0.56.2` (`6b2e0c9`).
+The sandbox image pin moved with it — `workflow.toml` now pins
+`ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-agent-v0.56.2`. Both hold
+guards are gone from `pin-freshness.yml` and `bump-pin-from-dispatch.yml`.
 
-Two guards keep the hold from being undone unattended (PR #999 `04702d4`):
-`pin-freshness.yml` passes `staleness_threshold_releases: 99` (GLOBAL — no source
-scoping exists, so no source gets a freshness PR while it stands), and
-`bump-pin-from-dispatch.yml` carries a source-scoped
-`if: ... != 'livespec-dev-tooling'`.
+The ordering is coherent — item closed FIRST, then the bumps flowed — so this reads
+as deliberate discharge by the owning item, **not** unattended drift. This thread's
+pin-hold obligation is therefore DISCHARGED and is no longer ours to defend. Do not
+try to re-impose the hold.
 
-**`bd-ib-u46hcv` owns BOTH the upstream fix and the removal of these two guards**,
-and carries the gate-blindness acceptance: `just check` runs on the BOOTSTRAPPED
-checkout where the broken check PASSES, which is how v0.54.24 merged green.
-**Do NOT move the pin off v0.54.19 until a REAL dispatch is proven to survive setup
-on the new pin — a green `just check` is not that proof.**
+**What was held at v0.54.19 and why** (retained so a successor can judge the risk):
+v0.54.20..v0.54.24 took the factory DOWN because
+`primary_checkout_commit_refuse_hook_installed` asserts the presence of the
+gitignored worktree pack, which cannot exist in a fresh clone — and the sandbox runs
+that check as a SETUP command on a fresh clone. The gate-blindness that let it merge
+green: `just check` runs on the BOOTSTRAPPED checkout, where the broken check passes.
+
+**⚠ ONE THING IS UNVERIFIED, and it is the condition this section used to state.**
+The rule was "do NOT move the pin until a REAL dispatch is proven to survive setup
+on the new pin — a green `just check` is not that proof." **That proof does not
+exist for v0.56.2.** The dispatch journal's last record is `2026-07-27T00:39:28Z`,
+before the first bump at 06:01:53Z, so **no dispatch has run on any pin after
+v0.54.19.** S3's dispatch (`01KYG2Q1028H`) is not the proof either — it ran at
+`5846ab7`, where the pin was still v0.54.19 (verified by reading that commit's
+`pyproject.toml`). **The next factory dispatch is the test.** If it dies in setup on
+`primary_checkout_commit_refuse_hook_installed`, this is why — check the pin first
+rather than re-deriving the cause.
+
+**Evidence pointing the other way, recorded fairly.** On v0.56.2, `just check`'s
+`fresh-clone-setup-gate` PASSES in a fresh worktree, and that gate exercises the four
+sandbox setup steps including the offending check, reporting "every conformance setup
+step passes on a fresh clone". That is materially stronger than the bootstrapped-`just
+check` blindness that let v0.54.24 through — but it is still a gate, not a dispatch,
+and this section's own standard says a gate is not the proof. Treat it as good reason
+to expect success, not as the verification.
+
+(Corroborating the defect class is still live somewhere: this session hit
+`failure_mode: "worktree_pack_absent"` from that exact check in a fresh worktree on
+v0.56.2 — it passes only after `just bootstrap` materializes the gitignored pack.
+The fresh-clone gate bootstraps, which is why the gate is green.)
 
 **A second, separate assignment is also open: a `/livespec:revise` pass over BOTH
 pending proposals — `reconcile-merged-dispatch-lock.md` and
