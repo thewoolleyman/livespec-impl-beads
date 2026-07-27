@@ -141,6 +141,7 @@ def build_update_argv(  # noqa: PLR0913 — kw-only argv builder mirroring updat
     metadata: dict[str, Any] | None,
     remove_labels: list[str] | None = None,
     assignee: str | None = None,
+    clear_assignee: bool = False,
 ) -> list[str]:
     """Build the `bd update <id> ...` verb argv (pure; fully covered).
 
@@ -150,12 +151,15 @@ def build_update_argv(  # noqa: PLR0913 — kw-only argv builder mirroring updat
     `--add-label <label>` pair. Label REMOVALS use the symmetric repeatable
     `--remove-label` flag (the lifecycle router clears retired labels this way).
     `--assignee` sets the doer (the admission valve's `ready -> active`
-    transition).
+    transition). With `clear_assignee`, the same flag is emitted with an empty
+    value, which is the bd update form for clearing the native assignee field.
     """
     argv: list[str] = ["update", issue_id]
     if status is not None:
         argv.extend(["--status", status])
-    if assignee is not None:
+    if clear_assignee:
+        argv.extend(["--assignee", ""])
+    elif assignee is not None:
         argv.extend(["--assignee", assignee])
     if parent_id is not None:
         argv.extend(["--parent", parent_id])

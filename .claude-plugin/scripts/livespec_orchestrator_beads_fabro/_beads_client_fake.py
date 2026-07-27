@@ -112,6 +112,7 @@ class FakeBeadsClient:
         issue_id: str,
         status: str | None = None,
         assignee: str | None = None,
+        clear_assignee: bool = False,
         parent_id: str | None = None,
         add_labels: list[str] | None = None,
         remove_labels: list[str] | None = None,
@@ -125,8 +126,8 @@ class FakeBeadsClient:
             )
         if status is not None:
             record["status"] = status
-        if assignee is not None:
-            record["assignee"] = assignee
+        if clear_assignee or assignee is not None:
+            record["assignee"] = None if clear_assignee else assignee
         if parent_id is not None:
             record["parent_id"] = parent_id
         if add_labels is not None:

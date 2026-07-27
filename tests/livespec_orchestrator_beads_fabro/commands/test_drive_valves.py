@@ -264,6 +264,20 @@ def test_move_transitions_item_to_allowed_status(tmp_path: Path) -> None:
     assert _fake().show_issue(issue_id="bd-ib-ready")["status"] == "blocked"
 
 
+def test_move_from_active_to_ready_clears_factory_assignee(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _write_fake_config(repo)
+    append_work_item(path=_config(), item=_item(status="active", assignee="fabro"))
+
+    result = run_human_valve_action(repo=repo, action_id="move:bd-ib-ready:ready")
+
+    assert result["status"] == "green"
+    [read_back] = _fake().list_issues()
+    assert read_back["status"] == "ready"
+    assert read_back["assignee"] is None
+
+
 def test_move_refuses_active_target_from_every_source_lane(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
