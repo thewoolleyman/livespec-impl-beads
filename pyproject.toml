@@ -303,9 +303,25 @@ exclude_also = [
 file_lloc_hard_gate = true
 scenario_tiers = ["tests.e2e-cli", "tests.e2e", "tests.integration", "tests.consumer", "tests.prompts", "tests.bin"]
 source_trees = [".claude-plugin/scripts/livespec_orchestrator_beads_fabro"]
+# The two hook trees joined `io_trees` on 2026-07-27 (`bd-ib-53fq`, child of the
+# fleet epic `livespec-dev-tooling-hev1`). They are BOUNDARY trees, not
+# extensions of the package's `effects`/`io`: hook scripts are fail-open
+# boundary code whose blind catches and direct prints are the contract, not a
+# smell — the same fact the ruff `extend-exclude` above already records. Both
+# sit outside `source_trees`, so the railway checks do not reach them today;
+# they will once `livespec-dev-tooling-i532` derives their universe from the git
+# index, at which point all four hook files here would be reported (ruff-backstop
+# gaps) along with real blind `except Exception`s in `livespec_footgun_guard.py`
+# and `codex_yolo_reapply.py`. Two of these files ALSO appear in
+# `supervisor_entry_files` below; that is deliberate and the roles are not
+# redundant — `io_trees` exempts them from the catch-position and domain-raise
+# rules, while `supervisor_entry_files` is what exempts them from
+# `no_write_direct`'s `sys.stdout.write`/`sys.stderr.write` ban.
 io_trees = [
     ".claude-plugin/scripts/livespec_orchestrator_beads_fabro/effects",
     ".claude-plugin/scripts/livespec_orchestrator_beads_fabro/io",
+    ".claude/hooks",
+    ".claude-plugin/hooks",
 ]
 commands_trees = [".claude-plugin/scripts/livespec_orchestrator_beads_fabro/commands"]
 supervisor_entry_files = [
