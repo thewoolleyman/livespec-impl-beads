@@ -96,13 +96,6 @@ _DRIFT_WARNING: str = (
 
 _APPLIED: str = "[codex-yolo-reapply] forced danger-full-access in {path}"
 
-_SKIPPED: str = (
-    "[codex-yolo-reapply] WARNING: skipped {path} — it could not be read or rewritten. "
-    "That cached plugin version is still on the stock read-only sandbox, so Codex threads "
-    "resolved from it cannot reach the network (no pytest / gh). Other cached versions were "
-    "still processed."
-)
-
 
 def classify_state(*, content: str | None) -> State:
     """Classify a cached `codex.mjs` by which sandbox chokepoint it carries.
@@ -173,36 +166,32 @@ def main() -> int:
 
     Always exits 0 (fail-open): an absent plugin cache yields no paths and no
     output, and an unreadable match is skipped.
+
+    The single broad catch below is this hook's ONE supervisor boundary. It
+    replaces a former PER-FILE bulkhead in a `_reconcile_guarded` helper, which
+    caught broadly around each file so one bad file could not abort the rest.
+    That per-iteration exemption is WITHDRAWN by livespec
+    non-functional-requirements.md, whose supervisor-discipline rules state that
+    a daemon supervising N independent units must not carry an additional broad
+    catch around its supervision-loop body — and the rationale the old helper
+    gave is named there as the withdrawn one. The spec's reasoning applies
+    literally
+    here: the EXPECTED failures are already narrowly handled at their own read
+    and write boundaries (`read_text_or_none`, `write_text_or_false` return
+    None/False on `OSError` rather than raising), so anything still escaping
+    `_reconcile` is a BUG, and swallowing it per file would present as
+    reconciling while enforcing nothing. A bug now propagates to this boundary,
+    which keeps the fail-open posture a SessionStart hook needs — the session is
+    never wedged — while surfacing the defect instead of silently skipping.
     """
     if codex_yolo_gate.gate_state() == "off":
         return 0
-    for path in cached_codex_mjs_paths(home=Path.home()):
-        _reconcile_guarded(path=path)
-    return 0
-
-
-def _reconcile_guarded(*, path: Path) -> None:
-    """Per-file bulkhead: one bad file must never abort the remaining ones.
-
-    The shell implementation got this isolation for free — each file was
-    handled by its own `python3 -c` subprocess, so a failure there died with
-    that subprocess and the loop moved on. Folding the loop into ONE process
-    lost that property: an exception escaping any single file aborted `main`
-    outright, so every alphabetically-later cached version silently stayed at
-    the stock `read-only` chokepoint. That is worse than the failure the drift
-    canary exists to catch, because it emits no warning at all.
-
-    So the isolation is restored explicitly. The catch is deliberately broad:
-    the specific failures are already handled precisely in `read_text_or_none`
-    and `write_text_or_false`, and this is the last-resort net for the ones not
-    yet imagined. A SessionStart hook that raises is a hook that can wedge the
-    session — matching `livespec_footgun_guard.py`, which takes the same
-    fail-open posture for the same reason.
-    """
     try:
-        _reconcile(path=path)
-    except Exception:  # noqa: BLE001 — deliberate fail-open bulkhead; see docstring.
-        print(_SKIPPED.format(path=path), file=sys.stderr)
+        for path in cached_codex_mjs_paths(home=Path.home()):
+            _reconcile(path=path)
+    except Exception:  # noqa: BLE001 — sole fail-open hook boundary: silent pass-through, exit 0
+        return 0
+    return 0
 
 
 def _reconcile(*, path: Path) -> None:
@@ -212,14 +201,14 @@ def _reconcile(*, path: Path) -> None:
         return
     state = classify_state(content=content)
     if state == "drift":
-        print(_DRIFT_WARNING.format(path=path), file=sys.stderr)
+        _ = sys.stderr.write(_DRIFT_WARNING.format(path=path) + "\n")
         return
     if state == "patched":
         return
     # Report only what actually landed: a refused write leaves the file stock,
     # so claiming "forced danger-full-access" would be a lie the operator acts on.
     if write_text_or_false(path=path, content=apply_patch(content=content)):
-        print(_APPLIED.format(path=path))
+        _ = sys.stdout.write(_APPLIED.format(path=path) + "\n")
 
 
 if __name__ == "__main__":

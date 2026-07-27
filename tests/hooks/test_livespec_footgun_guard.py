@@ -56,12 +56,17 @@ def _bash_payload(*, command: str) -> str:
 
 
 def _drive_main(*, payload: str | Any, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Run `main()` in-process over `payload` and assert it always exits 0."""
+    """Run `main()` in-process over `payload` and assert it always exits 0.
+
+    `main()` RETURNS its exit code rather than calling `sys.exit` itself — the
+    module-level `raise SystemExit(main())` is what turns that into the process
+    exit. Asserting the returned code keeps the always-exit-0 fail-open contract
+    under test while dropping the assertion that `main` is the thing that
+    terminates, which was an implementation detail.
+    """
     stdin = io.StringIO(payload) if isinstance(payload, str) else payload
     monkeypatch.setattr(sys, "stdin", stdin)
-    with pytest.raises(SystemExit) as exit_info:
-        guard.main()
-    assert exit_info.value.code == 0
+    assert guard.main() == 0
 
 
 class _ExplodingStdin:
