@@ -1,5 +1,41 @@
 # Handoff — dispatch-claim-liveness
 
+> # ⛔ STOP — READ THIS BOX BEFORE ANYTHING ELSE (last written 2026-07-27)
+>
+> **THIS THREAD IS FINISHED. THERE IS NO IN-FLIGHT WORK AND NOTHING TO PICK UP.**
+>
+> You were handed this file with "read it and follow it". **Following it correctly
+> means NOT restarting the work below.** Both assignments this thread carried are
+> COMPLETE and MERGED:
+>
+> - **Epic `bd-ib-waov` — DONE**, all three slices. S1 `bd-ib-ohdu5a` (PR #978), S2
+>   `bd-ib-cfgkkk` (PR #1006), S3 `bd-ib-pme57n` (PR #1014 / `5b32017`). The core
+>   defect — a dead claim permanently eating a WIP slot — is FIXED and was verified
+>   end-to-end on the live tenant.
+> - **The `/livespec:revise` pass — DONE.** Both pending proposals processed and
+>   ratified as **v051** (PR #1036 / `715d81a`). `SPECIFICATION/proposed_changes/` is
+>   empty.
+>
+> **Everything below this box is the RECORD of how that was done, plus filed items
+> this thread does NOT own.** It is reference material, not a task list. The slice
+> tables, requirement lists and design sections describe SHIPPED work — do not read
+> them as pending.
+>
+> **If you are looking for something to do, the honest answer is: this thread has
+> nothing for you.** Go to §"CLOSE-OUT 2026-07-27" for the verified end state and the
+> short list of filed-but-unowned items, and check with the maintainer before adopting
+> any of them — several are explicitly other threads' or fleet-level.
+>
+> **The only thing anyone INHERITS is an assumption, not a task:** the dispatch path
+> PAST setup is untested on `livespec-dev-tooling` v0.56.3 (setup itself is verified).
+> If the next factory dispatch fails, look at the janitor and pr stages first. See
+> §"The v0.54.19 pin hold".
+>
+> **`bd-ib-w4h4` must stay `active`.** It is the deliberate live fixture, it is the
+> only `active` row, and it now costs no WIP slot — which IS the fixed behavior. Do
+> not un-strand or close it until `bd-ib-rxxx` lands (still `backlog`, re-checked
+> 2026-07-27).
+
 ## What this thread is
 
 A work-item admitted to `active` by a dispatch that then reaches a terminal
@@ -205,9 +241,55 @@ fleet GitHub budget) and `bd-ib-3lmt` (P2, the CI-only gate) — plus `bd-ib-ktx
 epic**, none is blocked on this thread, and the filed-items list above says for each
 one who owns it and why it is where it is.
 
-**The one live obligation anyone inherits is the pin assumption**, not a task: the
-next factory dispatch is the test of `livespec-dev-tooling` v0.56.2. See §"The
-v0.54.19 pin hold".
+**The one live obligation anyone inherits is the pin assumption**, not a task — and it
+is now **NARROWED**: the setup leg is VERIFIED on v0.56.3, so what remains untested is
+the dispatch path PAST setup. See §"The v0.54.19 pin hold" → §"SETUP IS NOW VERIFIED".
+
+#### Session close-out addendum — work done AFTER the close-out above
+
+All of it merged; none of it changed the "no in-flight work" status. Recorded because
+two pieces live on the LEDGER and would otherwise be invisible to a successor reading
+only this file.
+
+| what | where it landed |
+|---|---|
+| Pin setup verified on v0.56.3 by a non-admitting probe | PR #1041 / `5aaceeb` (in this file) |
+| Acceptance evidence for `bd-ib-lza6` + `bd-ib-ug4z`; first `bd-ib-ri1x` measurements | PR #1042 / `a35b804` (in this file) |
+| **`bd-ib-3lmt` root-caused, costed, retitled** | **ledger notes only** |
+| **`bd-ib-ri1x` control experiment + problem sizing** | **ledger notes only** |
+
+**`bd-ib-3lmt` is now implementation-ready — read its notes before touching it.** The
+defect is NOT "one check was forgotten": `just check-pre-commit` takes a **doc-only
+fast path** whenever zero `.py` is staged (`justfile:1176-1198`), and that path
+(`:1230-1250`) runs **3 of the aggregate's 72 targets** — all three of them
+Python/tooling checks — so **every spec-and-doc-integrity check is skipped on exactly
+the change shape this repo makes most often.** Cost measured: the six cheap doc checks
+add **5.26s** (1.50s → 6.76s), while `check-doctor-static` alone is **10.13s**;
+recommended two-tier split with doctor gated on `SPECIFICATION/**` being staged. The
+check that actually fired, `check-heading-coverage`, is the **cheapest of the seven at
+0.87s** — there was never a performance reason for its absence.
+
+**`bd-ib-ri1x` now has a unit and a control.** A REST call with the installation token
+spends exactly **1 core point** (verified against `gh api`, so the earlier zero-deltas
+are real eliminations and not a dead counter). Therefore draining 5000 needs **~83 REST
+calls/minute sustained for an hour** — which no observed factory operation approaches,
+since the merge poll (982 calls across the WHOLE journal) spends **zero** core. That
+points the search away from this repo's dispatch loop and corroborates the item's
+fleet-level framing.
+
+**Two things this session deliberately did NOT do. Do not redo the reasoning; reopen
+only if you disagree with it.**
+
+1. **Did not dispatch the factory-safe items it filed** (`bd-ib-3lmt`, `bd-ib-ktxb`).
+   They sit `backlog` because they were filed with raw `bd create`, which bypasses the
+   intake dialogue. Reaching a dispatchable lane requires the six-gate Definition-of-
+   Ready (`intake_dor.py`), one gate of which — `autonomy_tiered` — is a deliberate
+   HUMAN sign-off before an unattended dispatch. Self-signing one's own filing through
+   that gate is precisely what it exists to prevent. **Route them through the intake
+   front-end, or have the maintainer tier them.**
+2. **Did not modify `check-pre-commit`** despite having the fix scoped and costed.
+   It is a SHARED surface — every session's commits run it — and other sessions were
+   actively committing throughout. That is a maintainer call, not a unilateral one.
 
 ### ✅ THE S3 BLOCKER — SETTLED 2026-07-26, and the blocking half has SHIPPED
 
