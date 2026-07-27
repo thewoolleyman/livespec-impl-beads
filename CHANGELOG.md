@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.46.25](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.24...v0.46.25) (2026-07-27)
+
+
+### Bug Fixes
+
+* **bd-guard:** allow help on direct mutation commands ([9e652a3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/9e652a3476f7446ec6543e4a0f2bae22bb315457))
+
 ## [0.46.24](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.23...v0.46.24) (2026-07-27)
 
 
