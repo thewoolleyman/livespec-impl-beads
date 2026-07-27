@@ -31,7 +31,20 @@ Items filed by this thread, none part of the epic. Statuses vary — read each l
   ids the target tenant cannot resolve), so the prose IS the link and it must be
   routed by hand. It carries the observable signature and the recommendation to
   **measure before mitigating** — nothing today can answer "what spent 5000
-  requests", so any mitigation chosen now is a guess.
+  requests", so any mitigation chosen now is a guess. **First measurements were
+  taken 2026-07-27 and are recorded on the item: the two prime suspects are
+  ELIMINATED by execution.** The discriminator is that the exhausted bucket was
+  `core`, and GitHub meters `core` (REST) and `graphql` separately. (1) The merge
+  poll — the factory's highest-volume GitHub operation at **982 `pr-view` records
+  across 118 dispatches**, up to 85 on one item — costs **1 graphql point and ZERO
+  core**, even returning 94 `statusCheckRollup` entries in a 30 KB payload. (2)
+  Installation-token minting costs **zero core** (App-JWT requests are metered
+  separately), for one mint or three. So the burn is neither of the obvious
+  candidates, and the search now points at REST calls made with the installation
+  token — `gh pr merge`/`create`, the now-decoupled `mise install` path, and
+  consumers OUTSIDE this repo sharing the fleet-wide installation. The bracketing
+  technique (diff `GET /rate_limit` around one real production argv; the call is
+  itself free) is written up on the item and eliminates a candidate in ~10s.
 - **`bd-ib-3lmt`** (P2, factory-safe, `backlog`) — `check-heading-coverage` is
   enforced in CI but not at pre-commit, so a five-second local correction becomes a
   push/CI/fix/re-push cycle; on this repo it can burn a dispatch's expensive tail
@@ -1494,6 +1507,41 @@ is discharged depends on whether "pending this fix" means merged (satisfied) or
 accepted (not yet). Both have been parked since 2026-07-19. Worth the maintainer's
 eye — accepting them would settle the ratified recovery path this epic's
 requirement 2 is built around.
+
+**✅ EVIDENCE NOW ASSEMBLED, 2026-07-27 — the decision is a yes/no, not an open
+question.** Both items now carry an `## ACCEPTANCE EVIDENCE` note written by this
+thread. **The accept valve was NOT operated** — `accept` is the human door into `done`
+and stays the maintainer's — but the verification work is done, so nothing is waiting
+on analysis any more. `needs-attention` surfaces both as
+`valve:accept:bd-ib-ug4z` / `valve:accept:bd-ib-lza6`, both `[high]`.
+
+What was verified, by execution rather than by reading:
+
+- **`bd-ib-ug4z`** — the guard is not merely present but CONSUMED:
+  `_dispatcher_reconcile_merged.py` imports `live_dispatch_lock` (`:20`) and calls it
+  (`:128`) inside the `if not args.force:` preflight (`:118`), so it runs BEFORE PR
+  resolution and janitor provisioning, which is the ordering the item required.
+  Exercised on all three cases: a LIVE lock is HELD; a lock whose pid is alive but
+  whose `started_at_epoch` is bogus correctly reads DEAD; a dead-pid lock is
+  reclaimable. **The middle case is stronger than the item asked for** — it was filed
+  when liveness was a bare `os.kill(pid, 0)` carrying an admitted PID-reuse residual,
+  and S1 (#978) plus `bd-ib-l2vglr` (#982) removed exactly that residual.
+- **`bd-ib-lza6`** — PR **#797** merged `63d8184`, verified an ancestor of
+  `origin/master`; the valve is a reachable `dispatcher.py` subcommand and its
+  source-lane guard fires correctly, exercised LIVE read-only:
+  `reconcile-merged --item bd-ib-pme57n` → `ERROR: reconcile-merged expected active
+  item bd-ib-pme57n; found done`. **Its hold is discharged on the reading that
+  matters**, and the design it ratified is now COMPLETE rather than half-built: it
+  assumed a human would be told to run the valve, nothing did, and that gap was this
+  epic's requirement 2 — closed by S2 (#1006), with S3 (#1014) stopping the stranded
+  claim from eating a slot while it waits.
+
+**Two caveats recorded so the accept is informed, neither an argument against it:**
+`bd-ib-ug4z`'s guard is verified at the unit level and by code path, NOT by a staged
+live race between a real dispatch and a real reconcile; and `reconcile-merged` still
+cannot recover `bd-ib-w4h4`, whose janitor red is deterministic — that cause is owned
+by `bd-ib-rxxx`/`bd-ib-d6v1` (both still `backlog`, re-checked today), not by
+`bd-ib-lza6`.
 
 **What this leaves genuinely NEW in `bd-ib-waov`** — and the groom should scope it
 to exactly this, not re-litigate the above:
