@@ -539,6 +539,46 @@ stale `origin/master` (refuted — `worktree add` needs the object locally, and 
 closes the window), and a "zero `git fetch` calls" argument that was a **search artifact**
 — the code says `pull`, not `fetch`.
 
+### The admission-heuristic census — measured over the whole tenant. DO NOT file a systemic item.
+
+Run 2026-07-28 after discovering that this thread's own `bd-ib-lfm7` would have been refused
+at dispatch. **Every non-closed row was checked against the live predicate**
+(`_dispatcher_host_only._text_declares_workflow_edit`, which scans `title` + `description` +
+`reason` — **not** notes). Result over **88** rows:
+
+| category | count | rows |
+|---|---|---|
+| Legitimately host-only via a `factory-safety:` label — correctly refused **by design** | 3 | `bd-ib-6vu`, `bd-ib-bic7hb`, `bd-ib-js4t57` |
+| Would refuse on the **workflow-edit heuristic alone** (false positives) | 2 | `bd-ib-d6ds`, `bd-ib-qrth` — both flagged on their own rows |
+| Carry the `workflow-scope-override:citation-only` label | 0 | — |
+
+**None of the affected rows is in `ready`, so no imminent dispatch fails today.** This is a
+correctness/ergonomics defect, not an outage, and **it is not systemic — 2 of 88.** A future
+session should not file a sweeping item on the strength of a small sample; the population has
+been measured and the number is small.
+
+**The sampling lesson, which is this thread's signature failure in miniature.** The first
+three rows checked came back 2-of-3 refusing, which reads as a fleet-wide emergency. The
+population rate is **2 of 88 (~2%)**. The sample was not random — it was exactly the rows that
+*discuss the workflow guard*, i.e. the most concentrated possible draw for this defect. Same
+shape as the three plugin-cache sampling errors catalogued on `bd-ib-91wj`: **a biased draw
+producing a confident wrong magnitude rather than an obviously empty result.**
+
+**A new row came out of the census: `bd-ib-zlhb` (P2).** `bd-ib-qrth`'s trip is not an
+incidental citation — it is **its own safety declaration**: *"DISPATCHABLE — factory-safe,
+touches no root .github/workflows/."* The prose escape recognises only the shape *"no file(s)
+under|in `<path>`"*, so "touches no root …" is read as a declaration of intent to edit. **The
+sentence written to assert the item is safe is what makes it refuse.** Measured: 4 of 11
+natural safety phrasings refuse. That row also records why the obvious fix is the wrong one —
+broadening the negation regex trades a false refusal for a false ADMISSION on a
+factory-boundary gate, which is the direction `ci-gate-discipline.md` forbids; fix the
+diagnostic and prefer the structured label instead.
+
+**Carry-forward, cheap and worth doing every time:** before tiering ANY row for dispatch, run
+the predicate against its title+description. `bd-ib-lfm7`'s notes carry the one-command method
+and the per-line semantics of the negation escape (a global scope-fence sentence clears only
+its own line).
+
 ## Operational facts for diagnosing a dispatch failure
 
 Contributed by `console-happy-path-mvp-supervisor` from their 2026-07-28 recovery of a
