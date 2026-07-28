@@ -2,12 +2,26 @@
 
 ## ⛔ START HERE — read before doing anything
 
-**This thread has no work to pick up. Do not go hunting for some.** As of
+**This thread has no DISPATCHABLE work to pick up. Do not go hunting for some.** As of
 2026-07-28 the in-repo queue for its class is exhausted — that is a *checked*
 conclusion (every remaining non-closed item was assessed and its reason for being
 out of scope is named in §"CURRENT STATE"), not an assumption. Everything that
 remains is one of **three maintainer decisions**, indexed in the table below.
 None of them is yours to take: each is either cross-repo or a spec-change.
+
+> **⚠ AMENDED 2026-07-28, later the same day — and read the amendment before trusting the
+> paragraph above.** When this block was first written it said "no work to pick up", full
+> stop. That was **too broad**: a *non-dispatch* obligation was outstanding and the block
+> missed it. `bd-ib-91wj` was on hold pending THIS thread's plugin-resolution mechanism
+> result; the result had been published to this file minutes earlier and never relayed to
+> the item. **It has now been delivered — `bd-ib-91wj` is rewritten in place and the hold
+> is lifted** (§"The `bd-ib-91wj` discharge"). Doing so also **refuted that item's central
+> claim** and **corrected a false claim in this very file**, so the pass was not ceremony.
+>
+> **The durable lesson: "the dispatch queue is empty" is not "there are no obligations."**
+> Before concluding this thread is idle, grep the whole tenant for rows that NAME it —
+> `bd list --limit 0 --json`, then match on `factory-hardening` — not just rows in its
+> defect class. That check takes seconds and is what this block was missing.
 
 **What a fresh session should actually do, in order:**
 
@@ -28,7 +42,10 @@ None of them is yours to take: each is either cross-repo or a spec-change.
    this tenant. Slice A is already merged, which was its ordering precondition.
    Read §"Decision 1 in full" for the verified premise and the named caveat
    before writing any code.
-3. **If nothing has changed:** say so plainly and hold. Reporting "still waiting
+3. **Grep the tenant for rows that name this thread**, not just rows in its defect
+   class — `bd list --limit 0 --json`, match on `factory-hardening`. This is the
+   step the first draft of this block lacked; see the amendment above.
+4. **If nothing has changed:** say so plainly and hold. Reporting "still waiting
    on three maintainer decisions, here they are" is the correct output. Do not
    manufacture work, do not re-audit what is already recorded below, and do not
    file anything against another thread's class.
@@ -36,7 +53,9 @@ None of them is yours to take: each is either cross-repo or a spec-change.
 **Do not re-derive these — they are settled and recorded below:** the plugin-build
 resolution mechanism; why no plugin-currency item was filed (the gate already
 ships); the fleet copies of `export-ci-telemetry.sh` (all eight safe); the
-verb-parity audit (one gap in each direction); and `bd-ib-p16s`'s refutation.
+verb-parity audit (one gap in each direction); `bd-ib-p16s`'s refutation; and the
+`bd-ib-91wj` discharge (two causes, not one — the console's publish refusal is
+their repo-local prompt fork, NOT their plugin pin).
 
 **Never in scope for this thread:** `bd-ib-bic7hb` and `bd-ib-w4h4` belong to
 `plan/dispatch-claim-liveness/`; `bd-ib-dohu2g` belongs to
@@ -172,10 +191,24 @@ session-frozen one.
 `.claude-plugin/scripts/bin/dispatcher.py` from the repo checkout. Reproducing the
 resolution: `plugin_root()` → `/data/projects/livespec-orchestrator-beads-fabro/.claude-plugin`,
 and that code file contains `master_ci_preflight_refusal`. **So slice A was in force
-for every dispatch this thread ran.** Independently, `workflow_toml()` prefers a
-*repo-local* `.claude-plugin/.fabro/workflows/…/workflow.toml` over `plugin_root()`,
-and this repo commits one — so the pr-stage prose was current for a second,
-independent reason.
+for every dispatch this thread ran.**
+
+**CORRECTION 2026-07-28 — the "second, independent reason" this section used to claim is
+FALSE, and checking it is what opened the `bd-ib-91wj` finding below.** An earlier revision
+said *"`workflow_toml()` prefers a repo-local `.claude-plugin/.fabro/workflows/…/workflow.toml`
+over `plugin_root()`, and this repo commits one — so the pr-stage prose was current for a
+second, independent reason."* Both halves are wrong. The repo-local branch probes
+`<repo>/.fabro/workflows/implement-work-item/workflow.toml` (`_WORKFLOW_SUBPATH`,
+`_dispatcher_paths.py:37`) — **not** `.claude-plugin/.fabro/…` — and **this repo does not
+commit that path**. Our only committed workflow is the plugin-bundled `.claude-plugin/.fabro/…`
+copy, reached through `plugin_root()` (branch 3), *the same seam as the Python modules*. So
+the pr-stage prose was current for exactly ONE reason, not two, and the conclusion is **less**
+over-determined than claimed — though unaffected, since `plugin_root()` → the repo checkout is
+verified independently.
+
+**A repo that DOES commit the repo-local path takes a completely different seam, and one
+does: `livespec-console-beads-fabro`.** That is the whole of the `bd-ib-91wj` correction
+below.
 
 ### Nothing to file — the gate the phenomenon calls for already ships
 
@@ -199,6 +232,109 @@ is present and covers both dispatch paths.
 So the phenomenon is real and worth knowing, but it is part harness behaviour (when
 Claude Code re-resolves a plugin version) and part already-mitigated in-repo. **No
 item was filed.**
+
+## The `bd-ib-91wj` discharge — obligation met, and its central claim refuted
+
+**Done 2026-07-28. `bd-ib-91wj` has been rewritten in place; the hold is lifted.** This
+section records what was delivered and the one substantive correction it forced, so nobody
+re-derives either.
+
+### Why there WAS work when the START HERE block said there was none
+
+The block was written at 15:57Z and was accurate about the *dispatch* queue. It missed a
+non-dispatch obligation: **`bd-ib-91wj` was on hold pending THIS thread's mechanism
+result.** The timing is the whole explanation — the item's hold note was written at
+15:49:27Z, this thread published its mechanism result to this file at 15:51:16Z
+(`cae25b0`), and `plan/dispatch-claim-liveness/`'s wrap-up naming the obligation landed at
+16:00:49Z (`d4da1dd`), *after* the START HERE block. So the result existed and was never
+relayed, and the block could not have known.
+
+**Carry-forward:** an exhaustion claim scoped to "dispatchable work" is not an exhaustion
+claim over *obligations*. When closing out, grep the tenant for rows naming this thread —
+`bd list --limit 0 --json` then match the thread slug — not just rows in its defect class.
+
+### What was delivered
+
+Per `plan/dispatch-claim-liveness/`'s three instructions: rewritten **in place** (never
+closed-and-refiled — it is the ONE record by cross-track agreement), the
+`PROVISIONAL / ON HOLD` title prefix dropped, and the three-sessions sampling lesson
+retained. Its ~29k of notes were preserved; only the description and title were replaced.
+
+**CONFIRMED — the entry-point framing.** `plugin_root()` honours `CLAUDE_PLUGIN_ROOT` when
+set, else resolves `__file__`-relative. The dispatcher subprocess is launched **bare**, so
+it always takes the `__file__` branch and is **never session-pinned**; only the skill
+entry point is, and that is the harness expanding `${CLAUDE_PLUGIN_ROOT}` in a SKILL.md,
+not our Python. Corroborated by the archived §VP2 verification
+(`plan/archive/orchestrator-plugin-self-containment/research/02-verification.md`), which
+had already established repo-wide that nothing in our tree exports that variable.
+
+### ⛔ REFUTED — "ONE cause, not two". There are two, and a plugin refresh fixes only one.
+
+`bd-ib-91wj` asserted in bold that the consumer's stale-base publish refusal and their
+janitor `worktree_pack_absent` shared one cause — the stale plugin pin — and that a plugin
+refresh was "the whole remedy". **Wrong, and the remedy is half wrong.**
+
+- **`worktree_pack_absent` ← stale plugin cache.** Unchanged. The janitor argv comes from
+  the plugin's `_DEFAULT_JANITOR`, so a revision predating `14c3cae` lacks
+  `install-worktree-pack`. A refresh fixes this.
+- **Stale-base publish refusal ← a REPO-LOCAL WORKFLOW OVERRIDE.**
+  `livespec-console-beads-fabro` commits its own
+  `.fabro/workflows/implement-work-item/` tree — including **its own copy of all five
+  prompts** — and that override wins over the plugin's bundled workflow. Their
+  `prompts/pr.md` never received `231e9a4` (the `bd-ib-qq7f` rebase fix) and **no plugin
+  update can deliver it**, because the plugin's `pr.md` is not the file their dispatch
+  reads.
+
+Verified link by link, each independently:
+
+1. The precedence is by design — `workflow_toml()` (`_dispatcher_paths.py:49-74`) prefers
+   the dispatch target's own committed workflow so a differing toolchain "governs its own
+   execution substrate". The console is the intended case: a Rust repo.
+2. **It fired for the failing run, from THEIR OWN JOURNAL.** The dispatcher journals the
+   winning file under the `dispatch-id` stage's `workflow_toml` key
+   (`_dispatcher_loop.py:147-155`). For `livespec-console-beads-fabro-dm5f7q` — the exact
+   work-item in §"Operational facts" above — it recorded their repo-local path. All 37 of
+   their journaled dispatches record it.
+3. Prompts resolve next to that file: `workflow.fabro` uses `prompt="@prompts/pr.md"`, and
+   the per-dispatch overlay rewrites only `graph`, to an absolute path anchored at the
+   committed workflow's own directory (`_dispatcher_overlay.py:177-186`).
+4. Their `pr.md` has no `rebase origin/master` / `fetch origin master`; ours has four hits.
+5. Their whole override tree arrived in ONE commit, `3fa2d5c` (2026-07-06, *"add
+   console-local implement-work-item workflow with Rust provisioning"*), and
+   `prompts/pr.md` has **not been touched since**. A July-6 fork, silently diverging on
+   every prompt fix thereafter.
+
+### The method lesson — this is the fifth instance of the thread's signature failure
+
+**Two candidate causes predicted the SAME observation, so the observation carried no
+information.** Their pinned plugin (0.45.18, 2026-07-20) and their forked prompt copy
+(2026-07-06) *both* predate `231e9a4`, so "the rendered prompt has no rebase clause" is
+equally consistent with either. Three separate investigations reasoned from that
+observation and all reached the pin.
+
+**The discriminating question is "which FILE did the run actually read?", and it was
+already journaled** — `_dispatcher_loop.py:143-146` says so in a comment: *"which file won
+is the first thing to read when a dispatch dies"*. Prefer a recorded fact about *which
+artifact was used* over any inference from the artifact's content.
+
+And note how it surfaced: by checking a claim that was **incidental** to the task — this
+file's own false "and this repo commits one". The false claim was load-bearing for nothing;
+checking it anyway is what unwound the second cause.
+
+### Open, and NOT filed — for the maintainer
+
+**Nothing anywhere detects that a repo-local `.fabro/` override has forked the prompts and
+drifted.** The orchestrator ships the prompts; a consumer may fork them wholesale for one
+legitimate toolchain reason; every later prompt fix then fails to reach them with no
+signal. `bd-ib-3j4u`'s plugin-currency gate would not catch it either — a repo-local
+override is current-by-construction from that gate's vantage. This is a real gap of this
+thread's own class, but it was **recorded as evidence on `bd-ib-91wj`, not filed as a
+row**, because that item's autonomy tier is unset and this thread does not self-issue one.
+
+**Also for the maintainer, and not ours to make:** the console's publish-refusal fix is a
+change in THEIR repo — sync their repo-local `prompts/` against the plugin's, or drop the
+prompt half of the override and keep only the toolchain pin they needed. Owning session:
+`console-happy-path-mvp-supervisor` (project `livespec-console-beads-fabro`).
 
 ## Operational facts for diagnosing a dispatch failure
 
@@ -228,10 +364,20 @@ sends a diagnostician to the wrong place first.
 **Their run is not evidence of a gap in our fix.** Corroborated from its own event
 log: the `pr` node ran three times and its rendered prompt contains no
 `rebase origin/master`, no `fetch origin master`, and no retry-once clause — step 2 is
-the bare push. That is **pre-`qq7f` prose**, consistent with their `1567e8f200dc` pin.
-Their `base_sha` (`3f6d3a2b…`) is a real `origin` commit, so this was also **not** the
-synthetic-snapshot-base mechanism (`bd-ib-pums` / `bd-ib-js4t57`) — an ordinary stale
-base, on code that predated the fix.
+the bare push. That is **pre-`qq7f` prose**. Their `base_sha` (`3f6d3a2b…`) is a real
+`origin` commit, so this was also **not** the synthetic-snapshot-base mechanism
+(`bd-ib-pums` / `bd-ib-js4t57`) — an ordinary stale base, on code that predated the fix.
+
+**CORRECTED 2026-07-28 — the attribution "consistent with their `1567e8f200dc` pin" was
+wrong, and the conclusion it supported ("a plugin refresh is the remedy") is wrong with
+it.** Their pr prose is stale because **they commit their own forked copy of it**, not
+because of their plugin pin. Full evidence chain in §"The `bd-ib-91wj` discharge" below.
+The observation quoted above could never have discriminated: their pinned plugin
+(0.45.18, 2026-07-20) and their forked `pr.md` (frozen 2026-07-06) BOTH predate `231e9a4`,
+so "no rebase clause in the rendered prompt" is equally consistent with either cause. The
+sentence still standing — that their run is not evidence of a gap in OUR fix — remains
+true, and is in fact more strongly true: our copy carries the fix and their dispatch never
+reads our copy.
 
 ## `bd-ib-p16s` — premise REFUTED; do not dispatch it as written
 
