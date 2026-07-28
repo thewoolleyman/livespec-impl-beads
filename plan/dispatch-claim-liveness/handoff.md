@@ -135,6 +135,120 @@
 >
 > ---
 >
+> # 📌 THE THREE STANDING RULES — the durable yield of the 2026-07-28 cross-track exchange
+>
+> These are what survived a day in which **three sessions independently reached confident
+> wrong answers on the same question.** They are stated as rules because each was paid for.
+>
+> ## RULE 1 — ASSERTING AN ABSENCE REQUIRES STATING THE SCOPE SEARCHED
+>
+> **"No call site", "no release", "no occurrence" are the claims that went wrong all day.**
+> Every instance was a confident generalisation from too narrow a search, and every one
+> produced a **CONFIDENT WRONG ANSWER rather than an obviously empty one** — which is
+> exactly why none of them self-announced.
+>
+> **When you assert an absence, STATE THE SCOPE YOU SEARCHED, and make it the WHOLE
+> WORKSPACE unless there is a reason it cannot be.**
+>
+> The tally, recorded honestly because the count is the argument:
+>
+> | who | the absence claimed | why the search could not have found it |
+> |---|---|---|
+> | console supervisor | host-wide scope | searched narrower than the claim |
+> | console supervisor | "one dead assertion" | there were **four** |
+> | console supervisor | "merged upstream but unreleased" | sampled builds that predated the commit |
+> | console supervisor | "no production call site" | grepped **one crate** |
+> | this thread's supervisor | "verified" (2 cached builds) | both predated the fix commit |
+> | `factory-hardening` | zero of 110 caches | grepped the REPO-shaped path against CACHE-shaped dirs |
+>
+> **The last one is the only one that was caught in the act, and it was caught by a smell,
+> not a method:** zero-out-of-110 was *"too clean to be true."* Keep that heuristic — on the
+> day's evidence it is the single thing that worked.
+>
+> ## RULE 2 — VERIFY THE ABSENCE OF THE *RIGHT* TOKEN. A COUNT IS NOT A BEHAVIOR TEST.
+>
+> > **⚠ READ THIS AS A METHOD CORRECTION, NOT A FACT CORRECTION. THE CONCLUSION NEVER
+> > MOVED.** `livespec-console-beads-fabro`'s repo-local `prompts/pr.md` genuinely lacks the
+> > `231e9a4` rebase-before-push fix — that was true when first written and is true now, and
+> > **it is settled: do not re-litigate it.** What changed is the *evidence* behind it,
+> > upgraded from a token count that **could have returned the wrong answer** to a token that
+> > **could not**. The lesson is "our test was weaker than our confidence", not "we were
+> > wrong about the console fork".
+>
+> **Worked example, recorded because it is more instructive than the abstract rule — and
+> because it is this thread's own error, offered as settled evidence when it was not.**
+>
+> This file's PR #1101 argued the point above while citing:
+>
+>     "our bundled copy carries 6 `rebase` references against the console copy's 2"
+>
+> **That count is NOT probative.** Both of their two hits are innocent:
+>
+>     line  1   "# PR stage — publish the work and arm rebase auto-merge"     <- a title
+>     line 44   "gh pr merge --rebase --auto --delete-branch"                 <- arming auto-merge
+>
+> Neither is rebase-before-push. **Had their file happened to say "rebase" six times in
+> auto-merge context, the test would have reported the fix PRESENT.** A count that can be
+> satisfied by unrelated text is not a test of behavior.
+>
+> **The absence that actually discriminates is `fetch` — ours 2, theirs 0** (re-verified
+> here: both of ours are `mise exec -- git fetch origin master --quiet`, at `pr.md:30` and
+> `:49`, which IS the refresh-before-push). `fetch` is the right token precisely because it
+> **cannot appear unless the behavior is there**.
+>
+> **So: pick the token that can only appear if the behavior is present, and SAY WHICH TOKEN
+> YOU CHOSE AND WHY.** The original count was directionally right and still not evidence —
+> which is the whole point, and why a directionally-right check is the most dangerous kind.
+>
+> **Why the weaker version was left standing in #1101 rather than force-pushed away.** A
+> deliberate call, and it is the house style: this file marks superseded wording rather than
+> deleting it, keeps its `⛔ CORRECTED` blocks, and leaves retracted recommendations visible
+> with their reasons. Erasing a weak claim would teach *"hide your mistakes"* in the same
+> document that teaches *"a handoff is a claim with a timestamp"* — those cannot both be the
+> rule. The error is the teaching artifact; without it Rule 2 is an abstraction a successor
+> nods at and then repeats.
+>
+> ## RULE 3 — AN INSTRUCTION CAN OUTLIVE THE CONDITION THAT MADE IT CORRECT
+>
+> **The danger is not writing something false. It is writing something TRUE that stops being
+> true while still reading as authoritative** — and sitting in the section a successor trusts
+> *instead of* checking.
+>
+> Two instances from one day, deliberately paired because the shape only becomes obvious
+> when you see it twice:
+>
+> | instance | true when written | falsified by | where it landed |
+> |---|---|---|---|
+> | console's *"expect the stale-base refusal, apply the known recovery"* | while their worker ran a July-22 plugin | their worker restarting | a **merged handoff** |
+> | our *"the refusal and `worktree_pack_absent` have ONE cause"* | on the evidence then available | `factory-hardening`'s repo-local-override finding, 5 min before the merge | this file's **do-not-re-derive list** |
+>
+> Both were written carefully. Both reached a merged document. Neither announced itself.
+> **A do-not-re-derive list is the highest-risk place in any handoff for exactly this
+> reason** — it is written to be trusted without checking, so a stale entry there is
+> maximally load-bearing. Date every such entry, and re-verify before quoting one.
+>
+> ## 📎 A FACT TO CARRY — the console track's state, NOT ours, and NOT to act on
+>
+> **There were THREE blockers on the console side, not two.** The third was a missing
+> `check-no-workflow-edits` recipe, since adopted in **their PR #474** and merged.
+>
+> **Their current position: the janitor half is addressed; the stale-base half is explicitly
+> NOT addressed and is blocking all their dispatch** until their committed `pr.md` is fixed.
+> Recorded so nobody re-derives it or offers them a plugin refresh as the remedy — **it
+> structurally cannot reach their repo-local prompts.** Do not act on this; it is theirs.
+>
+> **One more staleness for the tally, and it is ours about a peer.** This thread's note to
+> the console track was **~90 minutes stale on their state**: they had already acted on
+> `factory-hardening`'s finding and stopped the dispatch before any resume, so it warned
+> them about a condition they had already left. It was still net-positive — one datum was
+> new to them, that `231e9a4` also shipped `test_pr_stage_prompt_publish_freshness.py`,
+> which guards OUR prompt and has **no equivalent in their fork**, reframing their
+> keep-vs-delete-the-fork call materially toward deletion. **But the staleness was ours, and
+> it belongs in the tally honestly:** the re-query rule applies to a peer's state too, not
+> only to ledger rows.
+>
+> ---
+>
 > # ✅ COMPLETE AND ARCHIVABLE — 2026-07-28
 >
 > **This thread is finished and this file is ready to be archived.** Archival itself is
