@@ -108,9 +108,52 @@ source carried no override mechanism; and the refusal message still named
 `set-admission`, which cannot clear the block. The pre-dispatch refusal check was also
 run on the item itself (it does not trip its own heuristic).
 
-What landed: a new journaled drive valve **`set-workflow-scope-override:<id>:citation-only`**,
+What landed: a new drive valve **`set-workflow-scope-override:<id>:citation-only`**,
 the store mutation that records it, `is_host_only_item` honoring it, and a rewritten
 refusal message that names both the valve and the negation-declaration escape.
+
+**Correction — an earlier revision of this file called that valve "journaled". It is
+not, and the claim rested on bad evidence.** The `journal={"actor":"operator",
+"stage":"human-valve-…"}` object that `valve_success` returns is a field of the CLI's
+RESPONSE PAYLOAD, not a durable write. Verified at source: `commands/drive.py`
+contains zero journal writes (its only `append` calls build markdown strings for the
+renderer), and `_drive_valves.py` holds no `JournalFile` reference. So
+`bd-ib-imzx24`'s AC1 splits: *"through a sanctioned valve, never a hand-edited label"*
+is **satisfied**; *"that journals the decision"* is **not**.
+
+The gap is narrower than "unlogged" but real. The resulting STATE is visible — the
+label sits on the item — so what is missing is *attribution*: who decided this item's
+workflow-path mention was citation-only, and when. That is an operator assertion which
+overrides a gate protecting the factory branch boundary, so it is exactly the case an
+audit trail exists for. **Not reopened**: no drive valve journals durably, so this is a
+repo-wide property of the human-valve transport rather than a defect this item
+introduced. Contributed as evidence to `bd-ib-dohu2g` instead.
+
+Worth recording how this was caught, because the trap is reusable: the same mistake —
+reading the response payload's `journal` key as proof of a durable write — was already
+made, caught, and documented by `plan/valve-advertisement-mismatch/` in its own earlier
+draft. This thread made it independently, hours after reading past that file. **A field
+named `journal` in a response payload is not a journal. Check for the write.**
+
+### The verb-parity audit, run in both directions
+
+Having found one gap by accident, all eleven enforced action-ids were checked against
+the spec, and the spec's verbs against the implementation. The picture is now measured
+rather than assumed, and it is tight:
+
+- **Enforced but unspecified — exactly one:** `set-workflow-scope-override` (zero spec
+  hits; every sibling has 3–10 in `contracts.md`).
+- **Specified but unenforced — exactly one:** `driver-dispatch:<id>`. It has a
+  dedicated `contracts.md` section (~line 1368), sits in the per-lane table as a valid
+  `ready` verb (~line 1299), and is named as one of the two doors into `active` (~line
+  1313) — yet `drive --action "driver-dispatch:<id>"` returns *"Unsupported action
+  id"*, and the name appears nowhere in the repo outside `SPECIFICATION/` and plan
+  prose. Confirmed empirically, not by reading.
+- Everything else is in parity.
+
+Both were contributed to `bd-ib-dohu2g`; `driver-dispatch` appears untracked there, but
+that epic owns the call. One instance in each direction is a tight, falsifiable target
+for the bidirectional mechanical check that thread argues for.
 
 **Ordering is the safety property, and it is guarded.** `factory_safety` is checked
 FIRST, so the override can never admit an intrinsically host-only item. Demonstrated
