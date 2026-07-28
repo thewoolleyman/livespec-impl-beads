@@ -406,3 +406,30 @@ re-checking.
    established that the installed `c878ea43f8cd` does carry the fix — which is what made
    "the fix is live in the running factory" a claim rather than a hope. Reasoning about
    *mechanisms* transferred; snapshots of *state* did not. Weight a charter accordingly.
+5. **I ratified an unverified "live defect" claim about an hour after writing entry 3 about
+   exactly that failure.** Unlike 1–3, this one was not committed while authoring the
+   charter; it happened later, in the act of supervising. The worker's `AskUserQuestion`
+   asked whether this thread should adopt `bd-ib-eha3wh`, and the option text described it
+   as "a live cause of the exact outage". I chose "Adopt and dispatch it" without checking
+   the merged history. It was not live: `c6ae317` had fixed it on 2026-07-19, five days
+   before the item was even filed, and nothing short of the merged diff would have shown
+   that. The worker caught it after the dispatch; I did not catch it before. **A vetting
+   pass that RATIFIES the worker's framing is not a vetting pass.** A picker option's text
+   is the worker's claim, not evidence for it. The whole reason this charter tells the
+   supervisor to *answer* pickers rather than relay them is to bring an INDEPENDENT check to
+   the decision — so answering without that check is strictly worse than relaying would have
+   been, because it launders an unverified claim as vetted and puts the supervisor's
+   authority behind it. The remedy is the one already written three entries above: scan the
+   ledger and the merged history for the **defect class**, not for the ids you were handed.
+   One hour was not long enough for me to remember to use my own instrument. Cost: one
+   dispatch cycle, partly redeemed — the dispatch declined to "fix" a bounded value the
+   item's description wrongly named, and landed regression guards pinning the inverse.
+
+   **This makes the stale-row rate on this thread two in four, and that is a standing
+   instruction rather than two anecdotes.** `bd-ib-bwgko4` (repaired by `bd-ib-qq7f` /
+   PR #905) and `bd-ib-eha3wh` (repaired by `c6ae317`) both sat open asserting defects the
+   repository had already cured, and neither was detectable from the work-item, from the
+   source, or from `handoff.md` — each was visible ONLY in the merged diff. So before
+   adopting, dispatching, or ratifying anything here, read the merged history for its defect
+   class. The ledger records what someone believed when they filed it; only `git log` over
+   the touched paths records what is true now.
