@@ -7,6 +7,7 @@ from typing import Any, Protocol, cast
 
 from livespec_orchestrator_beads_fabro import store
 from livespec_orchestrator_beads_fabro.commands._config import resolve_store_config
+from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
 from livespec_orchestrator_beads_fabro.commands._drive_policy_valves import (
     CAP_ACTION_VERBS,
     move_item,
@@ -192,7 +193,7 @@ def _reject_item(
         if refusal is not None:
             return refusal
     store.update_work_item_status(path=config, item_id=item.id, status=target_status)
-    return valve_success(
+    result = valve_success(
         aid=aid,
         wid=item.id,
         stage=f"human-valve-reject-{reject_kind}",
@@ -200,6 +201,11 @@ def _reject_item(
         assignee=None,
         msg=f"Rejected {item.id}: acceptance -> {target_status}.",
     )
+    if reject_kind == "rework":
+        JournalFile(path=repo / "tmp" / "fabro-dispatch-journal.jsonl").append(
+            record=cast("dict[str, object]", result["journal"])
+        )
+    return result
 
 
 def _revert_merged_change(
