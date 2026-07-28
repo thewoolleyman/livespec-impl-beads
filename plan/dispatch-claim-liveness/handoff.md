@@ -1,11 +1,11 @@
 # Handoff — dispatch-claim-liveness
 
-> # ⛔ STOP — READ THIS BOX BEFORE ANYTHING ELSE (last written 2026-07-27)
+> # ⛔ STOP — READ THIS BOX BEFORE ANYTHING ELSE (last written 2026-07-28)
 >
 > **THIS THREAD IS FINISHED. THERE IS NO IN-FLIGHT WORK AND NOTHING TO PICK UP.**
 >
 > You were handed this file with "read it and follow it". **Following it correctly
-> means NOT restarting the work below.** Both assignments this thread carried are
+> means NOT restarting the work below.** Every assignment this thread carried is
 > COMPLETE and MERGED:
 >
 > - **Epic `bd-ib-waov` — DONE**, all three slices. S1 `bd-ib-ohdu5a` (PR #978), S2
@@ -15,6 +15,14 @@
 > - **The `/livespec:revise` pass — DONE.** Both pending proposals processed and
 >   ratified as **v051** (PR #1036 / `715d81a`). `SPECIFICATION/proposed_changes/` is
 >   empty.
+> - **2026-07-28 — the two factory-safe follow-ups this thread filed are also DONE**,
+>   dispatched SERIALLY on maintainer autonomy-tier sign-off and each verified by
+>   re-executing its red against the merged tree: `bd-ib-ktxb` (PR #1048 / `521d7f71`,
+>   the `reject:rework` durable journal record) and `bd-ib-3lmt` (PR #1050 / `599e3df`,
+>   the doc-only pre-commit fast path). See §"Session close-out addendum".
+> - **2026-07-28 — `bd-ib-ri1x` was ROUTED OUT of this tenant**, not left filed. It is
+>   now `livespec-j49m` in the core `livespec` tenant, with a ratifying spec amendment
+>   merged as core PR #1811 (`45ab15e5`). Do not go looking for it in this ledger.
 >
 > **Everything below this box is the RECORD of how that was done, plus filed items
 > this thread does NOT own.** It is reference material, not a task list. The slice
@@ -26,10 +34,13 @@
 > short list of filed-but-unowned items, and check with the maintainer before adopting
 > any of them — several are explicitly other threads' or fleet-level.
 >
-> **The only thing anyone INHERITS is an assumption, not a task:** the dispatch path
-> PAST setup is untested on `livespec-dev-tooling` v0.56.3 (setup itself is verified).
-> If the next factory dispatch fails, look at the janitor and pr stages first. See
-> §"The v0.54.19 pin hold".
+> **THE PIN ASSUMPTION IS NOW DISCHARGED — it is no longer inherited.** Earlier
+> revisions of this box said the dispatch path PAST setup was untested on
+> `livespec-dev-tooling` v0.56.3 and told you to suspect the janitor and pr stages
+> first. That is SUPERSEDED: on 2026-07-28 two full dispatches ran end-to-end on
+> sandbox image **v0.56.6** — through setup, agent work, janitor `just check`, the pr
+> node, auto-merge and the post-merge janitor — and BOTH merged green. The whole path
+> is now proven by execution, not presumed. See §"The v0.54.19 pin hold".
 >
 > **`bd-ib-w4h4` must stay `active`.** It is the deliberate live fixture, it is the
 > only `active` row, and it now costs no WIP slot — which IS the fixed behavior. Do
@@ -95,16 +106,35 @@ Items filed by this thread, none part of the epic. Statuses vary — read each l
   consumers OUTSIDE this repo sharing the fleet-wide installation. The bracketing
   technique (diff `GET /rate_limit` around one real production argv; the call is
   itself free) is written up on the item and eliminates a candidate in ~10s.
-- **`bd-ib-3lmt`** (P2, factory-safe, `backlog`) — `check-heading-coverage` is
-  enforced in CI but not at pre-commit, so a five-second local correction becomes a
-  push/CI/fix/re-push cycle; on this repo it can burn a dispatch's expensive tail
-  rather than its cheap head. **Fix the gate, not the bypass** — the CI check is
-  right and must not be relaxed; the local leg is what is incomplete.
-- **`bd-ib-ktxb`** (P2, factory-safe, `backlog`) — the shipped-code half of spec
-  v051's `rework-return-door-attribution` finding 2: `reject:<id>:rework` must write
-  a DURABLE journal record. Closes `## Scenario 51`, whose
-  `tests/heading-coverage.json` entry is `TODO` and must bind to an integration-tier
-  test when it lands.
+- **`bd-ib-3lmt`** (P2, factory-safe) — ✅ **DONE 2026-07-28, PR #1050 / `599e3df`,
+  item `closed`.** Dispatched through the factory on maintainer autonomy-tier sign-off.
+  The `check-pre-commit` doc-only fast path ran **3 of the aggregate's 72 targets**,
+  skipping 69 — all three it kept were Python/tooling checks, so every
+  spec-and-doc-integrity check was dropped on the change shape this repo makes most
+  often. Five doc-shaped checks are now in the doc-only list
+  (`check-heading-coverage`, `check-agents-ai-references-resolve`,
+  `check-claude-md-coverage`, `check-handoff-dispatch-routing`,
+  `check-plan-thread-anchor-declared`); the path went 3 → 8 targets and ~1.5s → 5.19s,
+  and `check-pre-push` delegates to the same recipe so push-time was fixed for free.
+  **Verified by re-executing the red against the merged tree**: an unregistered
+  `## Scenario 99` heading staged alone now makes `just check-pre-commit` FAIL with the
+  same `"level": "error"` diagnostic CI emits, where it previously passed. The stale
+  `li-bb5suo` / `li-4liaxt` comment was deleted, not left dangling.
+- **`bd-ib-ktxb`** (P2, factory-safe) — ✅ **DONE 2026-07-28, PR #1048 / `521d7f71`,
+  item `closed`.** Dispatched through the factory on maintainer autonomy-tier sign-off.
+  `reject:<id>:rework` now writes a DURABLE journal record. **Verified by re-executing
+  the red against the merged tree**: the real dispatch journal grew where it previously
+  gained nothing, and the record carries the actor
+  (`{"actor":"operator","stage":"human-valve-reject-rework","work_item_id":…}`), which
+  discharges the SECOND injected defect as well as the first. `human-valve` records went
+  **0 → 1** of 3,853. `## Scenario 51`'s `TODO` is bound to
+  `tests.integration.test_drive_rework_return_scenario51::…` — integration-tier as the
+  item required — and that test passes when run directly.
+  **Residual worth knowing:** the fix hardcodes the journal path literal rather than
+  calling `_dispatcher_paths.py:80`, the canonical resolver for exactly that path. It
+  follows existing precedent (3 of 4 call sites hardcode it) and the value is identical
+  today, so this is a latent divergence risk, not a defect — the same class as
+  `bd-ib-81l0`. UNFILED; surfaced to the maintainer 2026-07-28, not adopted.
 - **`bd-ib-bic7hb`** (P2, **host-only**, `ready`) — **was** the S3 blocker; **root
   cause is now SETTLED and half of it has shipped** (PR #1008, `5846ab7`). See §"THE
   S3 BLOCKER — SETTLED". **It stays OPEN deliberately** and its description now
@@ -248,11 +278,15 @@ Verified on the forge after a fetch, not from a working tree:
   lesson of §"The blocking precondition".)
 - Primary checkout clean on `master`; no worktrees left by this thread.
 
-**What remains is filed, not in flight.** `bd-ib-3lmt` (P2, the CI-only gate),
-`bd-ib-ktxb` (v051's shipped-code half), and the pre-existing unowned items
+**What remains is filed, not in flight.** The pre-existing unowned items
 `bd-ib-bic7hb`, `bd-ib-d6op2n`, `bd-ib-5ymv5p`, `bd-ib-hvuhxp`. **None of them is
 part of this epic**, none is blocked on this thread, and the filed-items list above
 says for each one who owns it and why it is where it is.
+
+**`bd-ib-3lmt` and `bd-ib-ktxb` are no longer on that list — both SHIPPED 2026-07-28**
+(PR #1050 / `599e3df` and PR #1048 / `521d7f71`), dispatched serially through the
+factory on maintainer autonomy-tier sign-off and each verified by re-executing its red
+against the merged tree. See their entries in the filed-items list above.
 
 **`bd-ib-ri1x` is no longer on that list — it was ROUTED to core and closed here on
 2026-07-28** (now `livespec-j49m`; core PR #1811 carries the spec amendment). See its
@@ -295,19 +329,45 @@ since the merge poll (982 calls across the WHOLE journal) spends **zero** core. 
 points the search away from this repo's dispatch loop and corroborates the item's
 fleet-level framing.
 
-**Two things this session deliberately did NOT do. Do not redo the reasoning; reopen
-only if you disagree with it.**
+**⚠ BOTH OF THE FOLLOWING WERE RESOLVED ON 2026-07-28 — read the resolution, not just
+the original reasoning.** The reasoning is retained because it was correct at the time
+and the escalation it describes is the pattern to repeat; only the outcome changed.
 
 1. **Did not dispatch the factory-safe items it filed** (`bd-ib-3lmt`, `bd-ib-ktxb`).
-   They sit `backlog` because they were filed with raw `bd create`, which bypasses the
+   They sat `backlog` because they were filed with raw `bd create`, which bypasses the
    intake dialogue. Reaching a dispatchable lane requires the six-gate Definition-of-
    Ready (`intake_dor.py`), one gate of which — `autonomy_tiered` — is a deliberate
    HUMAN sign-off before an unattended dispatch. Self-signing one's own filing through
-   that gate is precisely what it exists to prevent. **Route them through the intake
-   front-end, or have the maintainer tier them.**
+   that gate is precisely what it exists to prevent.
+   **✅ RESOLVED 2026-07-28: escalated to the maintainer, who signed off on the autonomy
+   tier for BOTH. Both then cleared all six gates through the real `apply_intake_dor`
+   primitive (NOT a hand-set label), were dispatched SERIALLY, and both merged.** Note
+   for anyone auditing: both items already carried an `intake:triaged` label despite
+   being raw-filed, so **that marker was not trustworthy here** — the gate was re-run
+   rather than believed.
 2. **Did not modify `check-pre-commit`** despite having the fix scoped and costed.
    It is a SHARED surface — every session's commits run it — and other sessions were
    actively committing throughout. That is a maintainer call, not a unilateral one.
+   **✅ RESOLVED 2026-07-28: the maintainer required TWO independent codex reviews as a
+   PRECONDITION of dispatch, and they changed the shipped fix.** The safety lens found
+   no regression (all candidates pass individually; none touches network/`gh`/ledger/
+   credential-wrapper; no Red-Green-Replay interaction, since the doc-only and Red/Green
+   branches are mutually exclusive on `py_staged`). The correctness lens found the item
+   itself was not implementation-ready. Three findings landed in the shipped result:
+   `check-comment-line-anchors` was **dropped** (its docstring proves it walks `.py`
+   files only, so on a zero-`.py` commit its result cannot change — it was the most
+   expensive candidate for zero signal); the acceptance's second clause was **rescoped**
+   (it was scoped to `SPECIFICATION/**.md`-or-`heading-coverage.json` while the branch
+   actually triggers on zero `.py` staged, and no check accepts a path argument — an
+   implementer told to satisfy it literally would have built `git diff --cached` gating
+   the recommendation calls unnecessary); and deleting the stale comment became a
+   **required acceptance clause** rather than a nicety.
+   **The reviews disagreed, and that was the point.** One ran
+   `check-comment-line-anchors` and it passed; the other called it dead weight. Both
+   were right inside their own lens — passing is not the same as signalling — and
+   neither was right about the decision, which was settled by reading the module
+   directly. **Do not arbitrate competing review summaries against each other; go to the
+   artifact.**
 
 ### ✅ THE S3 BLOCKER — SETTLED 2026-07-26, and the blocking half has SHIPPED
 
@@ -533,6 +593,49 @@ The standing assumption above is therefore NARROWED, not retired: v0.56.3 is
 `failure_mode: "worktree_pack_absent"` from that exact check in a fresh worktree on
 v0.56.2 — it passes only after `just bootstrap` materializes the gitignored pack.
 The fresh-clone gate bootstraps, which is why the gate is green.)
+
+#### ✅✅ ASSUMPTION FULLY DISCHARGED 2026-07-28 — the whole path is proven, on v0.56.6
+
+**Do not carry the standing assumption forward; it has been paid off by execution.**
+Two real dispatches ran END-TO-END and both merged green, on sandbox image
+`ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-agent-v0.56.6` — three bumps past
+the v0.56.3 the section above was written about:
+
+| item | run | outcome |
+|---|---|---|
+| `bd-ib-ktxb` | `01KYK27X1QTE` | PR #1048 / `521d7f71` — merged, post-merge janitor green |
+| `bd-ib-3lmt` | `01KYK3V3T04F` | PR #1050 / `599e3df` — merged, post-merge janitor green |
+
+That covers every stage the probe could not: setup (18 commands, 25s), the agent nodes,
+the janitor's `just check` aggregate, the pr node, auto-merge, and the post-merge
+janitor. The `just check` leg is the important one — it exercises a far larger surface
+of the dev-tooling pin than setup does, and it was the specific residual risk this
+section named. **Suspecting the janitor and pr stages first is now WRONG advice; they
+are proven.**
+
+**⚠ WHAT ACTUALLY BIT INSTEAD, and it is the thing to suspect now.** `bd-ib-ktxb`'s
+FIRST dispatch attempt died at 7 minutes without doing any work:
+
+```
+✗ Implement (Red-Green-Replay)
+Error: required Red commit for bd-ib-ktxb is blocked by pre-existing
+       external gate check-master-ci-green: latest master CI i...
+```
+
+Master CI was red — on a DOCS-ONLY commit, because `uv` timed out fetching
+`hypothesis-jsonschema==0.23.1` from PyPI after 5 retries. A markdown-only change cannot
+cause a PyPI timeout. Re-running master CI passed in 55s, and the re-dispatch went green.
+
+**So the current first suspect for a dispatch that dies early is `check-master-ci-green`
+fail-closing on a transient master-CI flake — which is exactly `bd-ib-wmqsn7` in
+`plan/factory-hardening/`, still BLOCKED on autonomy-tiering.** That filed item just
+cost a real dispatch cycle; it now has field evidence attached to it.
+
+**Two independent egress flakes inside one hour** (shellcheck from GitHub releases
+during a CI job; `hypothesis-jsonschema` from PyPI) suggest host network flakiness is a
+live background condition. The shellcheck one is the same fragility class
+`bd-ib-bic7hb`'s open half would remove by pre-baking — different failure (connection
+reset, not a 403), same cure.
 
 **A second, separate assignment is also open: a `/livespec:revise` pass over BOTH
 pending proposals — `reconcile-merged-dispatch-lock.md` and
