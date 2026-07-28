@@ -399,13 +399,38 @@ usual cleanliness check.
 `primary_checkout_commit_refuse_hook_installed` fails on a FRESH clone and passes on a
 bootstrapped one, because it asserts a gitignored worktree pack (see §"The v0.54.19 pin
 hold"). Same root cause inverted: a check reading filesystem state that git does not
-track, so its verdict depends on checkout age rather than repo content. **Two independent
-instances now — the class is worth a general rule.** Practical impact here is low (nobody
-commits on a primary checkout; every worktree is fresh), but it costs diagnosis time and
-invites the wrong fix. **Do NOT fix it by creating those `CLAUDE.md` files** — the
-directories were deliberately deleted. Remedy is either clearing the stale `__pycache__`
-on that machine (local cleanup, not a repo change) or narrowing the check to skip a
-directory containing no tracked files. Recorded on `livespec-r5df`; NOT separately filed.
+track, so its verdict depends on checkout age rather than repo content. Practical impact
+here is low (nobody commits on a primary checkout; every worktree is fresh), but it costs
+diagnosis time and invites the wrong fix. **Do NOT fix it by creating those `CLAUDE.md`
+files** — the directories were deliberately deleted. Remedy is either clearing the stale
+`__pycache__` on that machine (local cleanup, not a repo change) or narrowing the check
+to skip a directory containing no tracked files. Recorded on `livespec-r5df`; NOT
+separately filed.
+
+**⛔ CORRECTED — an earlier revision of this paragraph said "two independent instances
+now — the class is worth a general rule". That was an inference from two examples, and
+MEASUREMENT DISPROVED IT.** The class is real but **bounded at exactly those two**; a
+suite-wide rule is NOT warranted.
+
+The static reading looks alarming and is misleading: of the 71 modules in
+`livespec_dev_tooling.checks`, **17 walk the filesystem directly** (`rglob`/`iterdir`/
+`glob`) and **only one — `file_lloc` — consults git (`ls-files`) for its file set.** So
+17 checks appear exposed. Rather than read all 17, each was RUN in core's primary
+checkout AND in a fresh worktree of the SAME commit, and the results diffed (16 runnable
+there; `check-tool-backed-surfaces` is absent from core):
+
+```
+check-claude-md-coverage                             primary=FAIL   fresh=PASS
+check-primary-checkout-commit-refuse-hook-installed  primary=PASS   fresh=FAIL
+(the other 14: identical in both)
+```
+
+**Exactly 2 of 16 diverge, in OPPOSITE directions, and both were already known.** No
+third instance exists. So walking the filesystem is NOT by itself the defect — 14 of 16
+do it safely, because they key off content that cannot exist untracked. **Fix the two
+specific checks; do not generalize from two examples.** The lesson is this thread's own:
+an inference is not a measurement, and it was worth ten minutes to find out which one
+this was.
 
 #### Session close-out addendum — work done AFTER the close-out above
 
@@ -738,8 +763,20 @@ cause a PyPI timeout. Re-running master CI passed in 55s, and the re-dispatch we
 
 **So the current first suspect for a dispatch that dies early is `check-master-ci-green`
 fail-closing on a transient master-CI flake — which is exactly `bd-ib-wmqsn7` in
-`plan/factory-hardening/`, still BLOCKED on autonomy-tiering.** That filed item just
-cost a real dispatch cycle; it now has field evidence attached to it.
+`plan/factory-hardening/`.** That filed item just cost a real dispatch cycle, and the
+evidence is now attached to it.
+
+> **⚠ `bd-ib-wmqsn7` MOVED WHILE THIS FILE WAS BEING WRITTEN — re-read it, do not trust
+> the description above.** Earlier text here called it "still BLOCKED on
+> autonomy-tiering" and titled it "tolerate a transient/re-runnable master CI flake".
+> Both are now stale. As of `cd69f3e` (2026-07-28, the `factory-hardening` session) it is
+> **`backlog`, promoted to an EPIC, and re-scoped** to: *"a red master CI run hard-gates
+> every factory dispatch — move the master-health read to a vantage that can act on it
+> (host-side pre-dispatch precondition + `ghs_` out-of-vantage in-sandbox)."* That
+> session also CLOSED `bd-ib-bwgko4`, the other item named in the paragraph above.
+> **Our evidence survived the re-scope and was built on** (its notes grew from ~3.5 KB to
+> ~10.5 KB). This is the third time in one session that a record here went stale within
+> hours — treat every id in this file as a pointer, never as a status.
 
 **Two independent egress flakes inside one hour** (shellcheck from GitHub releases
 during a CI job; `hypothesis-jsonschema` from PyPI) suggest host network flakiness is a
