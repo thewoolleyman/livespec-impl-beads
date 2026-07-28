@@ -165,15 +165,26 @@ Items filed by this thread, none part of the epic. Statuses vary — read each l
   filed here because beads has no cross-tenant edge, so this prose IS the link and
   it must be routed by hand. **NO plan thread owns it** — do not assume a
   successor has picked it up, and do not adopt it into this epic.
-- **`bd-ib-5ymv5p`** (P2, factory-safe) — `move_item` leaves a STALE assignee.
-  It bit this thread twice on `bd-ib-pme57n`: after each failed setup the recovery
-  `move:bd-ib-pme57n:ready` left `assignee: fabro` on a `ready` row, which reads
-  exactly like a dispatch in progress. (The item is now `closed`, so that
-  particular symptom is gone; the defect is not.) Do not hand-patch a stale
-  assignee — fix it here.
-- **`bd-ib-hvuhxp`** (P2, factory-safe) — `CandidateSlice.priority` is dead API
-  surface; DELETE the field rather than wiring it through, because `WorkItem`
-  removed `priority` deliberately and `rank` is the sole ordering authority.
+- **`bd-ib-5ymv5p`** (P2, factory-safe) — ✅ **DONE. CLOSED `resolution:completed`,
+  PR #1023**, fixed on `master` by `a219f88` "fix: clear assignee on operator moves".
+  `move_item` now passes `clear_assignee=True` through
+  `store.update_work_item_status`. **Re-verified BY OBSERVATION 2026-07-28**: recovering
+  the stranded `bd-ib-ktxb` with `move:bd-ib-ktxb:ready` returned the row as `ready` with
+  `assignee: None`, where the defect would have left `assignee: fabro`. The historical
+  note is retained because it explains a confusing artifact in this file's own record —
+  it bit this thread twice on `bd-ib-pme57n`, where each recovery left `assignee: fabro`
+  on a `ready` row, reading exactly like a dispatch in progress.
+- **`bd-ib-hvuhxp`** (P2, factory-safe) — ✅ **DONE. CLOSED `resolution:completed`,
+  PR #1018.** `CandidateSlice.priority` was dead API surface and was DELETED rather than
+  wired through, because `WorkItem` removed `priority` deliberately and `rank` is the
+  sole ordering authority.
+
+> **⚠ Both of the two entries above were closed by ANOTHER session's factory dispatches
+> on 2026-07-27, while this file still listed them as open work.** They were caught on
+> 2026-07-28 only because the ledger was re-queried rather than trusted from this file.
+> That is this thread's own recurring lesson turned on itself: **a handoff is a claim
+> with a timestamp too.** Before acting on ANY item named here, re-read it from the
+> ledger — the statuses in this file are a snapshot, and the ledger is the authority.
 
 Shipped by this thread beyond the slices: **`bd-ib-81l0`** (PR #1000 `47c75ac`,
 S2's gate — `reconcile_plan` now threads `resolve_fabro_bin`) and
@@ -278,10 +289,15 @@ Verified on the forge after a fetch, not from a working tree:
   lesson of §"The blocking precondition".)
 - Primary checkout clean on `master`; no worktrees left by this thread.
 
-**What remains is filed, not in flight.** The pre-existing unowned items
-`bd-ib-bic7hb`, `bd-ib-d6op2n`, `bd-ib-5ymv5p`, `bd-ib-hvuhxp`. **None of them is
-part of this epic**, none is blocked on this thread, and the filed-items list above
-says for each one who owns it and why it is where it is.
+**What remains is filed, not in flight.** Exactly TWO pre-existing unowned items —
+`bd-ib-bic7hb` (`ready`, host-only) and `bd-ib-d6op2n` (`ready`, host-only). **Neither
+is part of this epic**, neither is blocked on this thread, and the filed-items list
+above says for each one who owns it and why it is where it is.
+
+**Re-verified against the ledger 2026-07-28, and the list SHRANK.** `bd-ib-5ymv5p` and
+`bd-ib-hvuhxp` were also on this list and are now CLOSED `resolution:completed` — fixed
+by another session's factory dispatches (PR #1023 and PR #1018) on 2026-07-27. Do not
+chase them.
 
 **`bd-ib-3lmt` and `bd-ib-ktxb` are no longer on that list — both SHIPPED 2026-07-28**
 (PR #1050 / `599e3df` and PR #1048 / `521d7f71`), dispatched serially through the
