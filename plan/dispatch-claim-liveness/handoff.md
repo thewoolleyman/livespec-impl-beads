@@ -939,7 +939,7 @@ or from reading the code — never from reading the item:
 |---|---|---|---|
 | `bd-ib-91wj` | P2 | **fully stale** | fixed by `14c3cae`; red→green reproduced |
 | `bd-ib-rxxx` | P1 | **fully stale** | fixed by `ff97ad8`, ~17h after it was filed |
-| `bd-ib-tyee` | P1 | **fully stale** | fixed by `74fe125`; `FileNotFoundError` now caught at `_dispatcher_io.py:96` |
+| `bd-ib-tyee` | P1 | **stale on OUTCOME, not on literal acceptance** | production half fixed by `74fe125` (exit-127 mapping); its test half is unmet AS WRITTEN — see the correction below |
 | `bd-ib-d6op2n` | P2 | **duplicate** | owning tenant filed `livespec-driver-claude-tun` 6 days earlier |
 | `bd-ib-d6ds` | P1 | partially stale | fleet table drifted — `livespec-overseer` HAS the recipe now, so 3 of 8 lack it, not 4 |
 | `bd-ib-xw2k` | P3 | partially stale | its "nothing passes `--journal`" premise is false |
@@ -1142,6 +1142,56 @@ these would have gone unnoticed if the third had not surfaced the pattern.
 names.** Cross-repo work in this family is the norm, not the exception — fabro lives in a
 fork, doctrine lives in core, sibling defects live in sibling tenants, and every one of
 those has a plausible same-named local path to grep instead.
+
+#### ⛔ 2026-07-28 — `bd-ib-tyee`'s "fully stale" verdict was OVERSTATED. Close it on OUTCOME, not acceptance.
+
+The staleness table above originally recorded `bd-ib-tyee` as fully stale on the strength
+of one commit. **That checked half its acceptance**, and the half it skipped changes what a
+closer should believe.
+
+- **(a) PRODUCTION — definitively done.** `ShellCommandRunner.run` catches
+  `FileNotFoundError` (`_dispatcher_io.py:96`) and `_failure_result` (`:191-194`) maps it
+  to exit **127**, with a docstring naming the `0jxs` fail-open invariant it restores. That
+  is clause (a) verbatim.
+- **(b) TESTS — outcome achieved, literal clause NOT met.** Clause (b) asks for the
+  dispatcher **integration** tests to be made hermetic *"by injecting a fake runner through
+  the EXISTING injectable runner seam, exercising ALL gh paths (success / non-zero 255 /
+  absent 127)"*. Measured: **no integration test references exit 127 or "executable not
+  found"** — the absent path is unexercised at integration tier (it IS covered at unit
+  tier) — and hermeticity was reached by a DIFFERENT technique, a stub `gh` planted on a
+  temp PATH (`tests/integration/test_dispatcher_post_merge_janitor_core_provisioning.py:323`).
+
+**Closing is still right, but for a different reason than "it was fixed".** The item states
+its own purpose — *"30+ dispatcher integration tests crash in-container … This BLOCKS the
+repo's baked-image CI cutover"* — and **that cutover has happened**: CI now runs inside
+`ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v0.57.0` (`container:` in `ci.yml`) and
+recent `.py` PRs pass green. The crash it exists to remove does not occur.
+
+**So: close as MOTIVATION DISCHARGED, not as acceptance met.** If clause (b) is wanted
+literally, it is a real residual and must be re-filed — nothing at integration tier
+exercises 127 today, and assuming otherwise is exactly the mistake this correction fixes.
+
+##### The session's throughline, stated once: CHECKING THAT A FIX LANDED IS NOT CHECKING THE ACCEPTANCE
+
+Four independent instances, all from this one session, all the same shape — a verdict
+reached from "is there a plausible fix commit?" instead of "does the stated acceptance
+hold?":
+
+| item | what the commit-check said | what the acceptance-check said |
+|---|---|---|
+| `bd-ib-98c.4` | code landed and is in the running binary → looked STALE | acceptance is an OBSERVATION; server has zero `OTEL_*`, so it is LIVE |
+| `bd-ib-tyee` | `74fe125` fixed it → "fully stale", close it | clause (a) met, clause (b) unmet as written |
+| `bd-ib-98c.2` | (never checked at all — a list-bookkeeping slip) | LIVE, and its redaction half is already satisfied structurally |
+| `bd-ib-91wj` | `14c3cae` fixed it | acceptance genuinely met — red→green measured, both paths share the argv |
+
+Only the last one survived the stricter test unchanged. **Three of four verdicts moved when
+the acceptance was read**, and two of those moves would have changed what a maintainer did
+with a P1.
+
+This is the strongest available argument for `bd-ib-js1f`'s fix shape **(C)** — require a
+recorded re-check against the item's STATED ACCEPTANCE before it may be tiered for
+unattended dispatch — and for that record being **per-item data, not a prose summary**,
+since a summary is precisely what let `bd-ib-98c.2` go unchecked while reading as verified.
 
 #### 2026-07-28 — a THIRD instance of the egress flake, contributed to `bd-ib-wmqsn7`
 
