@@ -1,5 +1,53 @@
 # Handoff — dispatch-claim-liveness
 
+> # ⏸ ONE LIVE OBLIGATION — READ THIS BEFORE THE ARCHIVABLE BOX BELOW (2026-07-28, session wrap-up)
+>
+> The thread is otherwise complete (see the box below). **Exactly ONE thing is live, and it
+> is a WAIT, not a task.**
+>
+> ## `bd-ib-91wj` IS ON HOLD. DO NOT ACT ON IT, DO NOT BUILD ON IT, DO NOT RE-SCOPE IT.
+>
+> Its **title and description were rewritten** late in the session into a *"session plugin
+> pinning"* framing, and a hold was issued **immediately afterwards** — arriving after the
+> ledger write had already committed. The row is therefore **PROVISIONAL**: its title leads
+> with `PROVISIONAL / ON HOLD`, and a note at the top of its description says so.
+>
+> **What you are waiting for:** `plan/factory-hardening/`'s worker is reproducing the
+> mechanism and reports it *"hinges on the ENTRY POINT, not on session pinning alone."*
+> They will send the result either way, including if it confirms the current framing
+> unchanged. **Their evidence will be better than anything in that row today.**
+>
+> **When their result arrives:**
+> 1. Finalize `bd-ib-91wj`'s description to match the confirmed mechanism — **rewrite in
+>    place**, never close-and-refile: it is the ONE record by explicit cross-track
+>    agreement, and a second row is exactly what that agreement exists to prevent.
+> 2. Drop the `PROVISIONAL / ON HOLD` prefix from the title once it is settled.
+> 3. Fold in the three-sessions sampling lesson (already written into its notes and into
+>    the standing rule below) — that lesson is what actually cost the time, not the
+>    underlying fact.
+>
+> **⛔ THINGS THAT ARE SETTLED — do not re-derive or re-litigate them:**
+> - **There is NO release gap.** `git tag --contains 14c3cae` → v0.46.23 … v0.47.1.
+>   Commit 23:19:21Z, tag commit 23:23:06Z, release published 23:23:18Z (≈3m45s).
+> - **Do NOT file a release/propagation gap**, and do NOT re-author the pack fix — it is
+>   `14c3cae`.
+> - The consumer's stale-base refusal and its `worktree_pack_absent` have **ONE** cause.
+> - The **"fourth strand flavor / refused-at-publish"** taxonomy entry is struck; it never
+>   appeared anywhere under `plan/` here, so there is nothing of ours to remove.
+> - **We are NOT carrying the consumer track's release request or dispatch hold.**
+>
+> **⛔ A SESSION-PINNING SECTION WAS DELIBERATELY NOT LANDED IN THIS FILE.** It was written,
+> committed to a branch, and that branch was deleted unmerged once the hold arrived. **Do
+> not resurrect it from git history.** If you find `docs/dispatch-claim-liveness-archivable`
+> in a reflog, that is why it is gone.
+>
+> **In flight at wrap-up:** PR **#1095** (`docs/dispatch-claim-liveness-hold-corrections`),
+> auto-merge armed — it corrects the `bd-ib-bwgko4` stand-down to closed/superseded and
+> adds the sampling standing rule. **Verify it merged**
+> (`gh pr view 1095 --json state`); if it did not, re-check why before anything else.
+>
+> ---
+>
 > # ✅ COMPLETE AND ARCHIVABLE — 2026-07-28
 >
 > **This thread is finished and this file is ready to be archived.** Archival itself is
