@@ -8,8 +8,28 @@ track (epic `bd-ib-rck`, CLOSED) and were filed as out-of-scope follow-ups.
 
 ## ▶ CURRENT STATE + NEXT ACTION (read this first)
 
-**Status, end of 2026-07-28: nothing is blocked, nothing is in flight, and the
-only remaining owned work is slice B, which is not this repo's code.**
+**Status, end of 2026-07-28: nothing is blocked, nothing is in flight, and no
+dispatchable in-repo work remains. What is left is THREE maintainer decisions —
+none of which this thread may take, because each is either cross-repo or a
+spec-change.**
+
+### The three open decisions, in one place
+
+Consolidated here because they accumulated across a day of separate passes and
+were scattered through the sections below. Detail lives where noted; this is the
+index, and it is the only part of this file a returning maintainer must read.
+
+| # | Decision | Why it is yours | Detail |
+|---|---|---|---|
+| 1 | **Rule on the slice B vantage question** — classify `check-master-ci-green` out-of-vantage under a `ghs_` dispatch credential. | Cross-repo (`livespec-dev-tooling`) and already routed to you on `livespec-dev-tooling-gam8` (2026-07-25). Slice A landing was its ordering precondition, so it is unblocked the moment you rule. | Immediately below — premise verified, plus a GitHub-Actions caveat and a narrower alternative. |
+| 2 | **Route `set-workflow-scope-override`'s missing spec coverage** through `/livespec:propose-change`. | A spec-change is human-gated; this thread deliberately filed nothing and touched no `SPECIFICATION/` file. | §"Residual found after the close" |
+| 3 | **Decide what happens to `driver-dispatch:<id>`** — fully specified, wholly unimplemented, and two `ready` items sit in its eligible set today. | Also a spec-vs-implementation reconciliation, and `bd-ib-dohu2g` (`plan/valve-advertisement-mismatch/`) owns the class. Evidence was contributed there; the call is not this thread's. | §"The verb-parity audit, run in both directions" |
+
+Decisions 2 and 3 are the two halves of one measured result: across all eleven
+enforced action-ids, exactly one enforced verb is unspecified and exactly one
+specified verb is unenforced. Neither blocks anything this thread owns.
+
+### Every ledger item this thread touched, and where it ended up
 
 | Item | Status now | Disposition |
 |---|---|---|
@@ -21,11 +41,13 @@ only remaining owned work is slice B, which is not this repo's code.**
 | `bd-ib-wmqsn7` | **`backlog`** | The epic. Slice A is done; **slice B remains** and is cross-repo. |
 | `bd-ib-bic7hb`, `bd-ib-w4h4` | — **NOT OURS** | Both tracked by `plan/dispatch-claim-liveness/`. |
 
-**Next action (maintainer), and it is a ruling, not a task:** slice B changes
-`check-master-ci-green` in **`livespec-dev-tooling`**, and it rests on the vantage
-policy question already routed to you on `livespec-dev-tooling-gam8` (2026-07-25).
-Slice A has now landed, which was the ordering precondition — so slice B is
-unblocked the moment you rule. Nothing in THIS repo is waiting on anything.
+### Decision 1 in full — the slice B vantage ruling
+
+It is a ruling, not a task. Slice B changes `check-master-ci-green` in
+**`livespec-dev-tooling`**, and it rests on the vantage policy question already
+routed to you on `livespec-dev-tooling-gam8` (2026-07-25). Slice A has now landed,
+which was the ordering precondition — so slice B is unblocked the moment you rule.
+Nothing in THIS repo is waiting on anything.
 
 **The premise of that ruling has now been VERIFIED end to end, and it carries one
 caveat that was not previously named.** Because four of six defect claims this thread
