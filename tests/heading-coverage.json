@@ -673,7 +673,7 @@
     "heading": "## Scenario 51 — The rework-return valve leaves a durable journal record",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "reason": "New scenario ratified with the rework-return-door-attribution proposal (finding 2). The behavior is specified but not yet shipped: the `reject:rework` valve emits its `journal` object into the drive CLI's response payload only, so there is no durable record to assert against yet. Per the test-pyramid tier requirement this scenario MUST bind to an integration-tier test or above, never a unit-tier test, because it describes user-observable operator behavior. The test id is populated when the implementation item filed against the orchestrator ledger lands the durable write."
+    "test": "tests.integration.test_drive_rework_return_scenario51::test_reject_rework_moves_acceptance_item_to_active_and_journals_actor",
+    "reason": "Integration-tier binding for Scenario 51: the public drive.run_action surface runs reject:<work-item-id>:rework against an acceptance item through the real store/client seam with FakeBeadsClient, asserts the response journal names the operator actor, the human-valve-reject-rework stage, and the work-item id, asserts the item lands in active, and snapshots repo-local JSONL files so the durable fabro dispatch journal write is required rather than only the transient CLI response payload."
   }
 ]
