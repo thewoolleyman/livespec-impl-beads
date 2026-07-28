@@ -8,20 +8,56 @@ and the lessons from both are folded in below.*
 
 ### State, as of end of 2026-07-28
 
-**There is no DISPATCHABLE work to pick up here, and no live obligation. Do not go hunting
-for either.** That is a *checked* conclusion, not an assumption — every remaining non-closed
-item in this thread's class was assessed and its reason for being out of scope is named in
-§"CURRENT STATE". The maintainer confirmed the same at end of day.
+**ALL FOUR maintainer decisions are ANSWERED. Nothing on this thread is waiting on the
+maintainer.** This supersedes every "three decisions remain pending" statement elsewhere in
+this file — where the older text survives below, the rulings here win.
 
-What remains is **three maintainer decisions**, indexed in the table below. None is yours to
-take: each is cross-repo or a spec-change. **They were re-verified unchanged on 2026-07-28
-and the maintainer instructed that they NOT be re-verified again unprompted.**
+#### ⛔ GOVERNING CONSTRAINT: the dispatch freeze
 
-**Four rows carry live substance but are NOT yours to start:** `bd-ib-lfm7` and
-`bd-ib-dd9l` (both P1, filed by this thread on 2026-07-28) are `backlog` and **UNTIERED** —
-an autonomy tier is a maintainer touchpoint, so **do not dispatch them without one**. Both
-have been de-risked on the ledger; read their notes before designing anything.
-`bd-ib-d6ds` (P1) and `bd-ib-91wj` are contributed-to, not owned.
+The account hit **99% of its weekly limit**, resetting **Jul 31 07:00 Europe/Berlin**.
+Maintainer ruling: **finish the image-pin item, then STOP DISPATCHING until reset.**
+
+- It gates **DISPATCH**, not decisions or filing. Everything else gets filed, recorded, or
+  routed.
+- `bd-ib-xpkg` (the image-pin override) is **the one authorized dispatch** — launched
+  2026-07-28, run `01KYNBE4XNVJ`.
+- **Do not start a second factory dispatch this week.** If you believe something must be
+  dispatched, ASK first.
+- Rationale worth internalising: *a dispatch that dies mid-run against the account ceiling
+  strands its claim in `active` — the exact defect this thread documents (`bd-ib-dd9l`).*
+
+#### The four rulings
+
+| # | Decision | Ruling | Where it landed |
+|---|---|---|---|
+| 1 | Budget | Finish the image-pin item, then stop dispatching until Jul 31 | Above |
+| 2 | Slice B of `bd-ib-wmqsn7` | **Earlier ruling RETRACTED.** Do NOT relocate the master-CI read host-side. Make the in-sandbox check **ADAPTIVE** and keep it where it is | Filed `bd-ib-2wni` (cross-repo); retraction recorded on `bd-ib-wmqsn7` and `livespec-dev-tooling-gam8` |
+| 3 | `driver-dispatch:<id>` | **IMPLEMENT it** — reconcile spec and impl by building the verb, not deleting the surface | Filed `bd-ib-y4mb`; **undispatched by ruling** |
+| 4 | `set-workflow-scope-override` spec gap | Route through `/livespec:propose-change` | `SPECIFICATION/proposed_changes/set-workflow-scope-override-spec-coverage.md` |
+
+**⚠ On ruling 2 — a phrase is now BANNED.** The retracted argument used a sandbox-vs-host
+"vantage" axis. That axis is **not spec-backed**: livespec core NFR defines exactly TWO
+vantages, LOCAL (in the target checkout) and CENTRAL (against the manifest). The framing came
+from `livespec-dev-tooling-gam8`'s ledger prose and this thread propagated it without checking
+it against the spec. **Do not reuse it in any record.**
+
+#### Filed-and-undispatched by ruling — do NOT start these
+
+All are `backlog` and deliberately NOT promoted to `ready`, so no `loop` drain can pick them
+up during the freeze. Promote after Jul 31.
+
+| row | P | what |
+|---|---|---|
+| `bd-ib-y4mb` | P1 | implement `driver-dispatch:<id>` |
+| `bd-ib-2wni` | P1 | adaptive `check-master-ci-green` — **cross-repo**, not dispatchable from this tenant |
+| `bd-ib-w8sj` | P1 | `pr.md`'s bounded push retry is INERT (trigger hard-codes `ci.yml`) |
+| `bd-ib-lfm7` | P1 | `check-no-workflow-edits` is vacuous post-merge |
+| `bd-ib-dd9l` | P1 | janitor-contract change strands merged items |
+| `bd-ib-zlhb` | P2 | a negated scope declaration causes the refusal it was written to prevent |
+
+All six are de-risked on the ledger — design questions answered, implementation seams
+located, admission-heuristic clean. **Read their notes before designing anything.**
+`bd-ib-d6ds` and `bd-ib-91wj` are contributed-to, not owned.
 
 ### The two lessons this block was built out of — both cost real time
 
@@ -650,6 +686,40 @@ Those are the two an author controls and the two that bite. Gate 7 is a `bd show
 title + description (**not** notes). The method and the per-line semantics of the prose
 escape are on `bd-ib-lfm7`; the tenant-wide census and its two current false positives are in
 §"The admission-heuristic census" above.
+
+## OUR WORKFLOW PROSE IS A FLEET SURFACE — sloppiness in it PROPAGATES
+
+Established 2026-07-28 and worth more than the bug that produced it.
+
+`console-happy-path-mvp` found a real defect in our `pr.md` while syncing it into their fork
+(now `bd-ib-w8sj`: the bounded push retry keys on a fully-qualified `ci.yml` path, while the
+rejection that actually stranded their run named `bump-pin-from-dispatch.yml` — a file touched
+by **127 commits in 30 days**, six on 2026-07-28 alone). The retry is therefore **inert** for
+the likelier trigger.
+
+**They deliberately did NOT fix it locally, and their reasoning is good.** They are building a
+fork-delta guard that asserts their fork differs from our resolved build ONLY by a declared
+allowlist. A local improvement would be a NEW delta — it would either red their own guard or
+force an allowlist entry that quietly licenses future drift, which is the exact mechanism that
+stranded them in the first place. So they take our text **verbatim, warts included**, and send
+the wart back upstream.
+
+**The consequence for us:** a consumer running a fork-delta guard inherits our defects
+faithfully and **by design**. Our workflow prose is no longer "our repo's prose" — it is a
+**fleet surface**. A sloppy sentence in `.claude-plugin/.fabro/workflows/**/prompts/*.md` does
+not stay local; it propagates to every consumer that is doing the right thing.
+
+Two practical consequences:
+
+1. **Treat prompt prose with the same care as product code**, because it now has the same
+   blast radius. In particular, a matching rule stated in prose ("the exact signature `<literal>`")
+   is a *specification of behaviour*, and a literal in it is a hard-coded constant that will
+   drift out of true exactly like one in code.
+2. **A paired prose test can pin a defect in place.** `bd-ib-w8sj`'s test is named
+   `test_pr_stage_retries_once_only_for_exact_workflows_permission_rejection` and asserts the
+   narrow `ci.yml`-qualified string is present — so a correct fix turns the regression guard
+   RED unless the guard is inverted in the same change. When writing a prose test, assert the
+   *property* (the trigger is path-agnostic) rather than the *literal*.
 
 ## Operational facts for diagnosing a dispatch failure
 
