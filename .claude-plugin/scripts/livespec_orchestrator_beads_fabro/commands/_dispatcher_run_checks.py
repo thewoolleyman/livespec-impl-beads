@@ -26,6 +26,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_close import 
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_gate import run_ledger_gate
 from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_selection import ready_items
+from livespec_orchestrator_beads_fabro.commands._dispatcher_master_ci_preflight import (
+    journal_master_ci_refusal,
+    master_ci_preflight_refusal,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_otel_wiring import parse_janitor
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
     journal_path,
@@ -241,6 +245,14 @@ def dispatch_preamble(
             refusal=source_refusal,
         )
         _ = write_stderr(text=source_refusal.detail)
+        return None, _EXIT_PRECONDITION_ERROR
+    master_ci_refusal = master_ci_preflight_refusal(repo=repo, runner=ShellCommandRunner())
+    if master_ci_refusal is not None:
+        journal_master_ci_refusal(
+            journal_path=journal_path(args=args, repo=repo),
+            refusal=master_ci_refusal,
+        )
+        _ = write_stderr(text=master_ci_refusal.detail)
         return None, _EXIT_PRECONDITION_ERROR
     return janitor, None
 
