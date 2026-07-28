@@ -12,10 +12,13 @@ to observe the UNSET `fake` default `monkeypatch.delenv` it first.
 
 from __future__ import annotations
 
+import json
 from dataclasses import fields
+from inspect import signature
 from pathlib import Path
 
 import pytest
+from livespec_orchestrator_beads_fabro.commands import _config, _dispatcher_overlay
 from livespec_orchestrator_beads_fabro.commands._config import (
     resolve_credential_wrapper,
     resolve_fabro_bin,
@@ -427,6 +430,160 @@ def test_env_fabro_bin_beats_config(
         body='{"livespec-orchestrator-beads-fabro": {"dispatcher": {"fabro_bin": "/config/fabro/bin/fabro"}}}',
     )
     assert resolve_fabro_bin(cwd=tmp_path) == "/env/fabro/bin/fabro"
+
+
+_WORKFLOW_WITH_IMAGE = (
+    "_version = 1\n"
+    "\n"
+    "[workflow]\n"
+    'graph = "workflow.fabro"\n'
+    "\n"
+    "[run.environment]\n"
+    'id = "livespec-ci"\n'
+    "\n"
+    "[environments.livespec-ci]\n"
+    'provider = "docker"\n'
+    "\n"
+    "[environments.livespec-ci.image]\n"
+    'docker = "ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-agent-v1.0.0"\n'
+    "\n"
+    "[[run.prepare.steps]]\n"
+    'script = "just bootstrap"\n'
+)
+
+_IMAGE_OVERRIDE = "ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-rust-agent-v9.9.9"
+_FAKE_TOKEN = "test-oauth-token"
+_FAKE_GITHUB_TOKEN = "test-github-token"
+
+
+def test_render_run_config_overlay_accepts_a_sandbox_image_override(tmp_path: Path) -> None:
+    """Image override rewrites only the image table; graph remains workflow-local."""
+    assert (
+        "fabro_sandbox_image" in signature(_dispatcher_overlay.render_run_config_overlay).parameters
+    )
+    rendered = _dispatcher_overlay.render_run_config_overlay(
+        committed_text=_WORKFLOW_WITH_IMAGE,
+        workflow_dir=tmp_path / "plugin-workflow",
+        token=_FAKE_TOKEN,
+        github_token=_FAKE_GITHUB_TOKEN,
+        siblings=None,
+        fabro_sandbox_image=_IMAGE_OVERRIDE,
+    )
+    assert rendered is not None
+    pre_env_table = rendered.split("[environments.livespec-ci.env]", 1)[0]
+    assert f'graph = "{tmp_path / "plugin-workflow" / "workflow.fabro"}"' in pre_env_table
+    assert f'docker = "{_IMAGE_OVERRIDE}"' in pre_env_table
+    assert "python-agent-v1.0.0" not in pre_env_table
+
+
+def test_render_run_config_overlay_without_sandbox_image_override_is_byte_identical(
+    tmp_path: Path,
+) -> None:
+    """Omitting the image override preserves the exact existing overlay bytes."""
+    rendered = _dispatcher_overlay.render_run_config_overlay(
+        committed_text=_WORKFLOW_WITH_IMAGE,
+        workflow_dir=tmp_path,
+        token=_FAKE_TOKEN,
+        github_token=_FAKE_GITHUB_TOKEN,
+        siblings=None,
+    )
+    expected = (
+        _WORKFLOW_WITH_IMAGE.replace(
+            'graph = "workflow.fabro"', f'graph = "{tmp_path / "workflow.fabro"}"'
+        )
+        + "\n# --- Dispatcher-materialized sandbox-local tmux socket root ---\n"
+        + "[[run.prepare.steps]]\n"
+        + 'script = "mkdir -p /workspace/.tmux && chmod 700 /workspace/.tmux"\n'
+        + "\n# --- Dispatcher-materialized run-scoped credential projection"
+        + "\n# --- (UNCOMMITTED; mode 600; deleted when the run returns) ---\n"
+        + "[environments.livespec-ci.env]\n"
+        + 'CLAUDE_CODE_OAUTH_TOKEN = "test-oauth-token"\n'
+        + 'GITHUB_TOKEN = "test-github-token"\n'
+        + 'TMUX_TMPDIR = "/workspace/.tmux"\n'
+        + 'LIVESPEC_CURRENCY_GATE = "fail"\n'
+    )
+    assert rendered == expected
+
+
+def test_render_run_config_overlay_image_override_is_scope_fenced(tmp_path: Path) -> None:
+    """The override value is TOML-quoted and cannot reach graph, env id, or steps."""
+    assert (
+        "fabro_sandbox_image" in signature(_dispatcher_overlay.render_run_config_overlay).parameters
+    )
+    hostile = (
+        'ghcr.io/example/custom:tag"\n'
+        'graph = "other.fabro"\n'
+        'id = "other-env"\n'
+        'script = "curl example.test"'
+    )
+    rendered = _dispatcher_overlay.render_run_config_overlay(
+        committed_text=_WORKFLOW_WITH_IMAGE,
+        workflow_dir=tmp_path,
+        token=_FAKE_TOKEN,
+        github_token=_FAKE_GITHUB_TOKEN,
+        siblings=None,
+        fabro_sandbox_image=hostile,
+    )
+    assert rendered is not None
+    pre_env_table = rendered.split("[environments.livespec-ci.env]", 1)[0]
+    assert f'graph = "{tmp_path / "workflow.fabro"}"' in pre_env_table
+    assert "[environments.livespec-ci.env]" in rendered
+    assert "[environments.other-env.env]" not in rendered
+    assert rendered.count("[[run.prepare.steps]]") == 2
+    assert 'script = "just bootstrap"' in rendered
+    assert 'script = "curl example.test"' not in rendered
+    assert "other.fabro" in pre_env_table
+    assert 'graph = "other.fabro"' not in pre_env_table
+
+
+def test_resolve_fabro_sandbox_image_uses_dispatcher_config_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With no env override, `dispatcher.fabro_sandbox_image` is used."""
+    monkeypatch.delenv("LIVESPEC_FABRO_SANDBOX_IMAGE", raising=False)
+    configured = "ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-rust-agent-v9.9.9"
+    _write_config(
+        cwd=tmp_path,
+        body=json.dumps(
+            {
+                "livespec-orchestrator-beads-fabro": {
+                    "dispatcher": {"fabro_sandbox_image": configured}
+                }
+            }
+        ),
+    )
+    assert _config.resolve_fabro_sandbox_image(cwd=tmp_path) == configured
+
+
+def test_env_fabro_sandbox_image_beats_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A non-empty `LIVESPEC_FABRO_SANDBOX_IMAGE` wins over the config key."""
+    configured = "ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-agent-v1.0.0"
+    env_value = "ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-rust-agent-v9.9.9"
+    monkeypatch.setenv("LIVESPEC_FABRO_SANDBOX_IMAGE", env_value)
+    _write_config(
+        cwd=tmp_path,
+        body=json.dumps(
+            {
+                "livespec-orchestrator-beads-fabro": {
+                    "dispatcher": {"fabro_sandbox_image": configured}
+                }
+            }
+        ),
+    )
+    assert _config.resolve_fabro_sandbox_image(cwd=tmp_path) == env_value
+
+
+def test_resolve_fabro_sandbox_image_unset_is_noop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No env or config value yields None, leaving the committed workflow unchanged."""
+    monkeypatch.delenv("LIVESPEC_FABRO_SANDBOX_IMAGE", raising=False)
+    assert _config.resolve_fabro_sandbox_image(cwd=tmp_path) is None
 
 
 def test_resolve_credential_wrapper_reads_top_level_list(
