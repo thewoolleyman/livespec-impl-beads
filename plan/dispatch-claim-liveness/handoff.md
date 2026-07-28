@@ -45,7 +45,46 @@
 > **`bd-ib-w4h4` must stay `active`.** It is the deliberate live fixture, it is the
 > only `active` row, and it now costs no WIP slot — which IS the fixed behavior. Do
 > not un-strand or close it until `bd-ib-rxxx` lands (still `backlog`, re-checked
-> 2026-07-27).
+> 2026-07-28).
+>
+> ---
+>
+> ## 📌 STANDING RULE — RE-QUERY THE LEDGER BEFORE ACTING ON ANY ID IN THIS FILE
+>
+> **Every work-item status, table row and ownership claim below is a SNAPSHOT with a
+> timestamp. The ledger is the authority; this file is not.** Before you act on any id
+> here — dispatch it, tier it, adopt it, cite it, or tell someone it is open — read it
+> from the ledger first:
+>
+> ```bash
+> /usr/local/bin/with-livespec-env.sh -- bd show <id>
+> ```
+>
+> **This is not defensive boilerplate. It is the single most expensive recurring mistake
+> this thread made**, and it went wrong FOUR separate times in one session on
+> 2026-07-28 alone:
+>
+> 1. Two of the four items this file listed as "pre-existing unowned" work
+>    (`bd-ib-5ymv5p`, `bd-ib-hvuhxp`) had ALREADY been closed by another session's
+>    dispatches. Caught only by re-querying.
+> 2. `bd-ib-wmqsn7` was promoted to an EPIC and re-scoped, and `bd-ib-bwgko4` was
+>    CLOSED, by an actively-running peer session — while this file described both as
+>    dormant and awaiting tiering.
+> 3. This file asserted evidence had been attached to an item BEFORE the write was
+>    actually made.
+> 4. A defect class was called "worth a general rule" on the strength of two examples;
+>    measurement showed it is bounded at exactly those two.
+>
+> **The trap is that this file is written carefully — and careful is not the same as
+> current.** A well-argued paragraph about an item someone else closed an hour ago reads
+> exactly like a well-argued paragraph about live work. Nothing in the prose signals the
+> difference; only the ledger does.
+>
+> The same rule applies to the ledger's own claims about the world: an item asserting
+> "PR #N produced no merge" is a claim too, and this thread has been burned by trusting
+> one. **Verify against the forge after a fetch, and establish outcomes from artifacts —
+> a merged PR, a ledger row, a journal record — never from an exit code or a green
+> summary.**
 
 ## What this thread is
 
@@ -147,10 +186,12 @@ Items filed by this thread, none part of the epic. Statuses vary — read each l
   charter this belongs to `plan/factory-hardening/` ("reliability hardening of the
   dark-factory dispatch path"), which already holds two items of the same class
   (`bd-ib-bwgko4`, `bd-ib-wmqsn7`). We took it because it was the sole blocker on
-  S3 and that thread is dormant with both its items BLOCKED on a maintainer
-  autonomy-tier assignment. The transfer is written into
+  S3 and that thread was dormant at the time. The transfer is written into
   `plan/factory-hardening/handoff.md`'s ledger table and into the item's own
   description, so it cannot be worked twice or dropped.
+  **⚠ THE DORMANCY PREMISE EXPIRED 2026-07-28** — see the stand-down note below.
+  `plan/factory-hardening/` is ACTIVELY RUNNING. Its two items are NOT waiting on us
+  and NOT waiting on a tiering request routed through us.
 - **`bd-ib-u46hcv`** (P2, **host-only**) — the upstream `livespec-dev-tooling`
   check defect that took the factory down. **CLOSED 2026-07-27T00:22:55Z, and its
   pin hold has been lifted** — the pin ran v0.54.19 → v0.56.2 later that morning
@@ -315,6 +356,41 @@ above says for each one who owns it and why it is where it is.
 `bd-ib-hvuhxp` were also on this list and are now CLOSED `resolution:completed` — fixed
 by another session's factory dispatches (PR #1023 and PR #1018) on 2026-07-27. Do not
 chase them.
+
+**TWO NEW ITEMS WERE FILED 2026-07-28. Both are UNTIERED by design** — the
+`autonomy_tiered` Definition-of-Ready gate is a human sign-off and must not be
+self-signed — so neither is dispatchable until a maintainer tiers it. **Neither is part
+of this epic.**
+
+- **`bd-ib-xw2k`** (P3, `backlog`) — the dispatch-journal path has TWO conventions.
+  `_dispatcher_paths.journal_path` honors a `--journal` override that six-plus dispatcher
+  call sites resolve through, while `bd-ib-ktxb`'s journal write
+  (`_drive_valves.py:205`) and both `_needs_attention_*` readers rebuild the literal by
+  hand and silently ignore it. **LOW SEVERITY and deliberately filed as such** — `drive`
+  exposes no `--journal` flag, so today the literal and the resolver produce an identical
+  path and nothing is broken. Filed anyway because the failure it sets up is an ABSENT
+  journal record, which is precisely the silent-failure class this epic exists to remove.
+  Do NOT re-open `bd-ib-ktxb` over it; that fix is correct and merely followed the
+  majority local precedent.
+- **`bd-ib-91wj`** (P2, `backlog`) — a janitor-created checkout lacks the worktree pack,
+  so `reconcile-merged` fails `primary_checkout_commit_refuse_hook_installed`
+  (`worktree_pack_absent`) on v0.56.x. **Measured by the `livespec-console-beads-fabro`
+  track and assigned to this tenant because the fix is orchestrator-side** — the janitor
+  creates the checkout, so the janitor bootstraps it. **SCOPE WAS NARROWED HERE against
+  our own journal**: the originating report said it "blocks every dispatch on this host",
+  but `bd-ib-ktxb` (00:55:55Z) and `bd-ib-3lmt` (01:24:01Z) both passed
+  `janitor-post-merge` and reached done/green on the same host, same day, under v0.56.x.
+  Every failing artifact comes from a `reconcile-merged` run and a
+  `janitor-reconcile-<id>` checkout. The item names the unresolved discriminator — does
+  `reconcile-merged` provision differently, or does the console repo's `dev-tooling/`
+  differ — as the FIRST thing an implementer must establish, rather than resolving it by
+  reasoning. Cross-referenced with `bd-ib-rxxx` in both directions but deliberately NOT
+  folded into it: `bd-ib-rxxx` is derived-coverage divergence, this is a missing
+  bootstrap.
+  **⛔ The console track's kept checkout at
+  `~/.worktrees/livespec-console-beads-fabro/janitor-reconcile-...-dm5f7q` is PRESERVED
+  EVIDENCE.** They are deliberately not working around the defect so it cannot hide. Do
+  not remove it, install a pack into it, or run anything that precleans it.
 
 **`bd-ib-3lmt` and `bd-ib-ktxb` are no longer on that list — both SHIPPED 2026-07-28**
 (PR #1050 / `599e3df` and PR #1048 / `521d7f71`), dispatched serially through the
@@ -783,17 +859,35 @@ fail-closing on a transient master-CI flake — which is exactly `bd-ib-wmqsn7` 
 `plan/factory-hardening/`.** That filed item just cost a real dispatch cycle, and the
 evidence is now attached to it.
 
-> **⚠ `bd-ib-wmqsn7` MOVED WHILE THIS FILE WAS BEING WRITTEN — re-read it, do not trust
-> the description above.** Earlier text here called it "still BLOCKED on
+> # ⛔ STAND DOWN — `bd-ib-wmqsn7` AND `bd-ib-bwgko4` ARE NOT OURS (2026-07-28)
+>
+> **Owned by `plan/factory-hardening/`, which is ACTIVELY RUNNING IN ITS OWN SESSION
+> with its own supervisor** (both confirmed live in tmux: `factory-hardening` and
+> `factory-hardening-supervisor`). **Do not tier them, do not dispatch them, do not
+> adopt them, and do not treat either as awaiting our action or awaiting a maintainer
+> tiering routed through us.** The maintainer was asked to tier them and the answer was
+> NEITHER — they have an active owner.
+>
+> Earlier revisions of this file said `bd-ib-wmqsn7` was "still BLOCKED on
 > autonomy-tiering" and titled it "tolerate a transient/re-runnable master CI flake".
-> Both are now stale. As of `cd69f3e` (2026-07-28, the `factory-hardening` session) it is
-> **`backlog`, promoted to an EPIC, and re-scoped** to: *"a red master CI run hard-gates
-> every factory dispatch — move the master-health read to a vantage that can act on it
-> (host-side pre-dispatch precondition + `ghs_` out-of-vantage in-sandbox)."* That
-> session also CLOSED `bd-ib-bwgko4`, the other item named in the paragraph above.
-> **Our evidence survived the re-scope and was built on** (its notes grew from ~3.5 KB to
-> ~10.5 KB). This is the third time in one session that a record here went stale within
-> hours — treat every id in this file as a pointer, never as a status.
+> Both are stale. As of `cd69f3e` that session promoted it to an **EPIC** and re-scoped
+> it to *"a red master CI run hard-gates every factory dispatch — move the master-health
+> read to a vantage that can act on it (host-side pre-dispatch precondition + `ghs_`
+> out-of-vantage in-sandbox)"*, and **CLOSED `bd-ib-bwgko4`**.
+>
+> **Our field evidence on `bd-ib-wmqsn7` STAYS — do not retract it.** It was a
+> contribution to their item, not an adoption of it, and it is load-bearing: the flake
+> class is BROADER than the "cpython from GitHub" their description names (ours was a
+> different package from a different host), which is the difference between a fix that
+> works and one that under-fixes; and `gh run rerun --failed` SUCCEEDED for us where the
+> item records it being refused, which corrects their recovery recipe. Their notes grew
+> from ~3.5 KB to ~10.5 KB, so it was read and built on.
+>
+> **The standing never-touch-another-session's-work clause now explicitly covers
+> everything `plan/factory-hardening/` is working on**, and separately the console
+> track's PRESERVED janitor checkout at
+> `~/.worktrees/livespec-console-beads-fabro/janitor-reconcile-...-dm5f7q` (kept
+> deliberately as evidence — see `bd-ib-91wj`).
 
 **Two independent egress flakes inside one hour** (shellcheck from GitHub releases
 during a CI job; `hypothesis-jsonschema` from PyPI) suggest host network flakiness is a
