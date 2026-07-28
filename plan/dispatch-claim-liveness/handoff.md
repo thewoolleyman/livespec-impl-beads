@@ -200,6 +200,26 @@
 > YOU CHOSE AND WHY.** The original count was directionally right and still not evidence —
 > which is the whole point, and why a directionally-right check is the most dangerous kind.
 >
+> ### ⭐ REFINEMENT — PREFER A PROVENANCE QUESTION TO ANY CONTENT PROBE
+>
+> **Found 2026-07-28 while auditing this same question, and it beats both token tests.**
+> Before grepping a file's *contents* for a fix, ask whether it **could possibly contain**
+> the fix. The console fork's `prompts/pr.md` has **exactly ONE commit in its entire
+> history** — `3fa2d5c`, 2026-07-06 — and `231e9a4` is dated **2026-07-24**. **A file whose
+> only commit predates a fix by eighteen days cannot contain it.**
+>
+> | probe | verdict |
+> |---|---|
+> | `rebase` count — ours 6, theirs 2 | **NOT probative** — both their hits are innocent; six mentions in auto-merge context would have reported the fix PRESENT |
+> | `fetch` count — ours 2, theirs 0 | **probative** — the token cannot appear unless the behavior is there |
+> | `git log -- <file>` — one commit, 2026-07-06 | **decisive** — provenance, not content |
+>
+> **All three returned the right answer. Only the last two could not have returned the
+> wrong one, and only the third has no wrong-answer failure mode at all** — it cannot be
+> satisfied by unrelated text, needs no judgement about which token is discriminating, and
+> is cheaper than reading the file. **When the question is "does this artifact carry a known
+> commit?", ask git about the artifact's history, not the artifact about its contents.**
+>
 > **Why the weaker version was left standing in #1101 rather than force-pushed away.** A
 > deliberate call, and it is the house style: this file marks superseded wording rather than
 > deleting it, keeps its `⛔ CORRECTED` blocks, and leaves retracted recommendations visible
@@ -1095,6 +1115,15 @@ that a maintainer can now decide both without re-deriving anything.
 | `bd-ib-91wj`'s reported defect is ALREADY FIXED on master | **`bd-ib-91wj` notes** |
 | The `--janitor` override surface is exercised, refining the above | **`bd-ib-91wj` notes** |
 | `bd-ib-xw2k`'s "nothing passes `--journal`" premise is FALSE | **`bd-ib-xw2k` notes** |
+| **A FOURTH, added later on 2026-07-28** — the seven "a plugin refresh is the remedy" sentences in `bd-ib-91wj`'s notes are scoped to the `worktree_pack_absent` half only | **`bd-ib-91wj` notes** |
+
+**Why the fourth was necessary, and it is worth knowing before you read that row.** Beads
+notes are **append-only**, so the seven stale sentences cannot be edited in place. Left
+alone, the row **contradicted itself**: seven of this thread's sentences said a plugin
+refresh was *the* remedy, while `factory-hardening`'s note on the same row said *"a plugin
+refresh cannot fix the second."* **A tierer reads the notes**, so a self-contradicting row is
+a live hazard, not an untidy one. The correction scopes all seven at once and points at
+theirs as correct; the janitor half is settled and must not be re-litigated.
 
 **`bd-ib-91wj` — do NOT tier this for dispatch as written; its acceptance is already
 satisfied.** `install-worktree-pack` entered `_DEFAULT_JANITOR` in commit **`14c3cae`**
