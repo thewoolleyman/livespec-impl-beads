@@ -76,6 +76,18 @@ your ruling was re-checked rather than left resting on its own plausibility:
 - A far narrower edge: an operator who exports a `ghs_` token into their own shell
   would also be classified out-of-vantage at pre-push.
 
+**Currency re-check after the pin moved, 2026-07-28.** The verification above was
+performed against `livespec-dev-tooling` **v0.56.6**, and the pin was bumped to
+**v0.58.0** (`e4d1c142`) later the same day, which would have silently invalidated it.
+Re-checked rather than assumed, and everything holds: `checks/master_ci_green.py` is
+**unchanged** between the two tags, so slice B remains entirely undone and the
+description of the check's behaviour above is still accurate;
+`fleet/fleet_conformance.py` is likewise unchanged in source (only its test file moved,
++18/-3), with `_APP_TOKEN_PREFIX = "ghs_"` still at line 148. The installed
+`.venv` copy of `master_ci_green.py` **hashes identical** to v0.58.0's, so the live
+smoke runs reported above were against current code, not a stale virtualenv. No claim
+in this section needed correcting.
+
 **The in-repo queue for this thread's class is exhausted, and that is a checked
 conclusion rather than an assumption.** Every remaining non-closed item in the
 dark-factory dispatch-path class was assessed: `bd-ib-js4t57` is outward-facing
