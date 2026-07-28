@@ -56,16 +56,30 @@ monotonic: every abandonment costs a slot that never comes back.
 
 Items filed by this thread, none part of the epic. Statuses vary — read each line.
 
-- **`bd-ib-ri1x`** (**P1**, host-only, `backlog`) — **the fleet-level finding, and
-  the most valuable thing this thread surfaced.** The family GitHub App
-  installation's single 5000/hr PRIMARY bucket is exhaustible and unmeasured; while
-  it is empty EVERY credentialed call fails identically (`gh pr create`, the merge
-  poll, the janitor), and `mise install` was merely the first consumer to reach it.
-  **Explicitly NOT owned by this repo or this epic** — the installation is shared
-  fleet-wide, so no single orchestrator can measure or fix it. Filed in this tenant
-  only because beads has no cross-tenant edge (`bd-ib-dvmh`: cross-repo slices mint
-  ids the target tenant cannot resolve), so the prose IS the link and it must be
-  routed by hand. It carries the observable signature and the recommendation to
+- **`bd-ib-ri1x`** (**P1**, host-only) — **the fleet-level finding, and the most
+  valuable thing this thread surfaced. ✅ ROUTED ONWARD 2026-07-28 and CLOSED here
+  — the routing obligation below is DISCHARGED; do not re-file it in this tenant.**
+  It now lives as **`livespec-j49m`** (P1, `backlog`) in the **core `livespec`**
+  tenant, with a spec amendment filed alongside it
+  (`SPECIFICATION/proposed_changes/github-app-request-budget.md`, core PR #1811).
+  `bd-ib-ri1x`'s close reason carries the full argument and points at
+  `livespec-j49m`; that item points back. No `resolution:` label was set, matching
+  the `livespec-console-beads-fabro-6ma` cross-tenant precedent — this was a
+  RELOCATION, not a fix. **Why core:** core's
+  `SPECIFICATION/non-functional-requirements.md` §"Constraints" already owns this
+  credential normatively (§"Canonical source" — "one canonical App private key
+  shared by all fleet members" — plus §"GitHub automation credential", §"GitHub App
+  permission set", §"Obligations per repo class") and is silent only on the request
+  BUDGET; `livespec-2ef0` is the precedent for a fleet-wide App finding anchored in
+  core; and the installation was measured on 2026-07-28
+  (`GET /installation/repositories`) to cover **exactly the 9 fleet members** — the
+  adopters are NOT on it — so this repo is one consumer of nine and structurally
+  cannot govern the other eight. The finding itself, retained because it is what a
+  successor will recognise in the field: the family GitHub App installation's single
+  5000/hr PRIMARY bucket is exhaustible and unmeasured; while it is empty EVERY
+  credentialed call fails identically (`gh pr create`, the merge poll, the janitor),
+  and `mise install` was merely the first consumer to reach it. It carries the
+  observable signature and the recommendation to
   **measure before mitigating** — nothing today can answer "what spent 5000
   requests", so any mitigation chosen now is a guess. **First measurements were
   taken 2026-07-27 and are recorded on the item: the two prime suspects are
@@ -234,12 +248,16 @@ Verified on the forge after a fetch, not from a working tree:
   lesson of §"The blocking precondition".)
 - Primary checkout clean on `master`; no worktrees left by this thread.
 
-**What remains is filed, not in flight.** The two new filings — `bd-ib-ri1x` (P1,
-fleet GitHub budget) and `bd-ib-3lmt` (P2, the CI-only gate) — plus `bd-ib-ktxb`
-(v051's shipped-code half) and the pre-existing unowned items `bd-ib-bic7hb`,
-`bd-ib-d6op2n`, `bd-ib-5ymv5p`, `bd-ib-hvuhxp`. **None of them is part of this
-epic**, none is blocked on this thread, and the filed-items list above says for each
-one who owns it and why it is where it is.
+**What remains is filed, not in flight.** `bd-ib-3lmt` (P2, the CI-only gate),
+`bd-ib-ktxb` (v051's shipped-code half), and the pre-existing unowned items
+`bd-ib-bic7hb`, `bd-ib-d6op2n`, `bd-ib-5ymv5p`, `bd-ib-hvuhxp`. **None of them is
+part of this epic**, none is blocked on this thread, and the filed-items list above
+says for each one who owns it and why it is where it is.
+
+**`bd-ib-ri1x` is no longer on that list — it was ROUTED to core and closed here on
+2026-07-28** (now `livespec-j49m`; core PR #1811 carries the spec amendment). See its
+entry in the filed-items list above. It is the one item from this thread that left
+the tenant entirely, so a successor looking for it in this ledger will not find it.
 
 **The one live obligation anyone inherits is the pin assumption**, not a task — and it
 is now **NARROWED**: the setup leg is VERIFIED on v0.56.3, so what remains untested is
