@@ -451,7 +451,64 @@ pass `--no-verify`.
   above. The maintainer's framing: "their thread's record is theirs to write,
   exactly as ours is ours" — the same principle as "never touch another
   session's worktrees or branches", one level up. (Context: a
-  `plan/factory-hardening/` branch also carried
-  `plan/dispatch-claim-liveness/handoff.md` while that thread had PR #1098
-  open performing the same discharge edit; the collision was caught by the
-  maintainer, not by the pushing session.)
+  `plan/factory-hardening/` branch also carried that thread's
+  `handoff.md` — now `plan/archive/dispatch-claim-liveness/handoff.md` — while
+  it had PR #1098 open performing the same discharge edit; the collision was
+  caught by the maintainer, not by the pushing session.)
+
+## Verification discipline (repo-additive)
+
+Three rules from a 2026-07-28 three-way exchange between the
+`dispatch-claim-liveness`, `console-happy-path-mvp` and `factory-hardening`
+tracks, in which **three sessions independently reached confident wrong answers
+on the same question in one day**. Each bad method produced a **confident wrong
+answer rather than an obviously empty one**, which is why none self-announced.
+Full account, with every measurement:
+`plan/archive/dispatch-claim-liveness/handoff.md` §"THE THREE STANDING RULES".
+
+Provenance, because a rule with a visible author is harder to dismiss:
+`console-happy-path-mvp-supervisor` authored Rule 1's form and Rule 3's example;
+`factory-hardening-supervisor` contributed Rule 2's sharper variant and caught
+the third near-miss.
+
+1. **Asserting an absence requires stating the scope searched.** "No call site",
+   "no release", "no occurrence" — say what population you searched, and make it
+   the whole workspace unless there is a reason it cannot be. If the check could
+   not have returned the other answer, it is not evidence.
+   *Worked example:* "no released build carries this fix" came from sampling two
+   plugin caches that were **created before the fix commit existed**, so their
+   lacking it was guaranteed and carried zero information. When the question is
+   "was this released", ask `git tag --contains <sha>`.
+
+2. **Verify the absence of the RIGHT token — a count is not a behavior test.**
+   Pick a token that *cannot appear unless the behavior is there*, and say which
+   token you chose and why.
+   *Worked example:* a fork's `pr.md` was judged to lack a rebase-before-push fix
+   because it contained 2 `rebase` mentions against our 6. **Both of its 2 were
+   innocent** — a title, and a `gh pr merge --rebase --auto` arm — so six
+   mentions in auto-merge context would have reported the fix PRESENT. The
+   discriminating token was `fetch`: ours 2, theirs 0. **The count was
+   directionally right and still not evidence.**
+   - *Corollary — prefer a PROVENANCE question to any content probe.* Before
+     grepping a file's contents for a fix, ask whether it *could* contain it:
+     that same fork's `pr.md` had exactly ONE commit in its history, 18 days
+     older than the fix. `git log -- <file>` has no wrong-answer failure mode.
+   - *Corollary — search for a literal COPIED from the artifact*, never one
+     reconstructed from memory. Four probes failed this way in one session
+     (missing backticks; a line break inside a code block; another repo's
+     invocation syntax; a `| head` that truncated the hits). **A verification
+     that can only fail silently is not a verification.**
+
+3. **An instruction can outlive the condition that made it correct.** The danger
+   is not writing something false — it is writing something **true that stops
+   being true while still reading as authoritative**, in the section a successor
+   trusts *instead of* checking. A "do not re-derive this" list is the
+   highest-risk place in any document for exactly that reason: date such entries
+   and re-verify before quoting one.
+   *Worked example:* "expect the stale-base refusal, apply the known recovery"
+   was true while a worker ran a week-old plugin and false the moment it
+   restarted — and it reached a merged handoff either way.
+
+**Run these on your own work, not only on other people's.** Every instance above
+was caught by a second signal disagreeing, never by the check announcing itself.
+Passing a check you never ran is luck, not method.
