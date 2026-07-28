@@ -17,7 +17,7 @@
 > | what | id | state | owner / note |
 > |---|---|---|---|
 > | journal-path has two conventions | `bd-ib-xw2k` | `backlog` P3 | **UNTIERED** |
-> | janitor checkout / worktree pack | `bd-ib-91wj` | `backlog` P2 | **UNTIERED** |
+> | plugin-version skew (**framing ON HOLD**, see its notes) | `bd-ib-91wj` | `backlog` P2 | **UNTIERED** |
 > | already-fixed items accumulate | `bd-ib-js1f` | `backlog` P2 | **UNTIERED** |
 > | `reconcile-merged` bypasses the currency gate | `bd-ib-3j4u` | `backlog` **P1** | **UNTIERED** |
 > | sandbox setup needs a live api.github.com fetch | `bd-ib-bic7hb` | `ready` P2 | host-only; BORROWED from `plan/factory-hardening/` and recorded there |
@@ -103,11 +103,19 @@
 >   divergence still never bites in a single run. Both findings are proven by execution
 >   and recorded on the items; see §"2026-07-28 addendum — the two untiered items were
 >   MEASURED".
-> - **⛔ 2026-07-28 — STAND DOWN on `bd-ib-wmqsn7` and `bd-ib-bwgko4`.** They belong to
+> - **⛔ 2026-07-28 — STAND DOWN on `bd-ib-wmqsn7`.** It belongs to
 >   `plan/factory-hardening/`, which is ACTIVELY RUNNING in its own session (it holds a
->   live dispatch in THIS tenant). Do not tier, dispatch, adopt or re-describe them. Our
+>   live dispatch in THIS tenant). Do not tier, dispatch, adopt or re-describe it. Our
 >   field evidence on `bd-ib-wmqsn7` STAYS — it was a contribution, not an adoption. Full
 >   terms in the stand-down box further down.
+> - **✅ CORRECTION — `bd-ib-bwgko4` was named in that stand-down and is CLOSED.** It was
+>   never live work to stand down FROM. It closed 2026-07-28 as SUPERSEDED: the same defect
+>   was independently re-filed as **`bd-ib-qq7f`** on 2026-07-23, dispatched, and merged
+>   2026-07-24 as **PR #905 / `231e9a48` "fix: refresh PR publish base before push"** —
+>   and `plan/factory-hardening/` confirmed the fix is live in the RUNNING factory, not
+>   merely on `master`. **No tiering decision is pending on it and there is nothing to
+>   stand down from.** (Verified here independently: `231e9a4` is dated 2026-07-24
+>   02:05:42Z and carries tags v0.46.4 onward.)
 >
 > **Everything below this box is the RECORD of how that was done, plus filed items
 > this thread does NOT own.** It is reference material, not a task list. The slice
@@ -169,6 +177,43 @@
 > about *how many* rows are in a state is a snapshot, per the standing rule above.
 >
 > ---
+>
+> ## 📌 STANDING RULE — A CONFIDENT VERIFICATION IS STILL A SAMPLE
+>
+> **State what population your check covers, and whether it COULD have returned the other
+> answer.** If it could not, it is not evidence — it is a confident wrong answer waiting to
+> be quoted.
+>
+> **THREE sessions made the same sampling error on the SAME question in one day,
+> independently**, each while believing it was verifying:
+>
+> | who | sample | why it could not have worked |
+> |---|---|---|
+> | the console track | 3 cached plugin builds | all predated the fix commit |
+> | this thread's supervisor | 2 cached builds, reported as "verified" | both predated the fix commit |
+> | `plan/factory-hardening/` | (nearly) all 110 caches | grepped the REPO-shaped path `.claude-plugin/scripts/…` instead of the CACHE-shaped `scripts/…`, returning zero |
+>
+> **The sampling error is what cost the time — not the underlying fact it was chasing.**
+> And note the shape, which is why none of the three self-announced: **each bad method
+> produced a CONFIDENT WRONG ANSWER rather than an obviously empty one.** The third was
+> caught only because zero-out-of-110 was *"too clean to be true"* — keep that heuristic;
+> it was the only thing that worked.
+>
+> **On the specific question they all got wrong — "was this released?" — the one-command
+> answer is `git tag --contains <sha>`.** An artifact created BEFORE the commit cannot
+> answer it. Measured here:
+>
+> ```
+> 14c3cae committed          2026-07-26T23:19:21Z
+> v0.46.23 tag commit        2026-07-26T23:23:06Z
+> v0.46.23 release published 2026-07-26T23:23:18Z
+> ```
+>
+> ≈**3m45s** from commit to tag. **Cite the three timestamps, never a delta** — an earlier
+> revision of this material said "24 seconds", derived by comparing the fix commit against
+> the RELEASE-BRANCH commit `e470f4d` (23:19:45Z), which is a *different git object* from
+> the commit the tag points at. Two clocks, silently combined, presented as a measurement.
+> Immaterial to the conclusion; fatal to the method.
 >
 > ## 📌 STANDING RULE — RE-QUERY THE LEDGER BEFORE ACTING ON ANY ID IN THIS FILE
 >
