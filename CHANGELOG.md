@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.47.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.47.0...v0.47.1) (2026-07-28)
+
+
+### Bug Fixes
+
+* honor workflow scope override ([26f2b1b](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/26f2b1bd51134b22b2e4c30d718b6de649c8d424))
+
 ## [0.47.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.25...v0.47.0) (2026-07-28)
 
 
