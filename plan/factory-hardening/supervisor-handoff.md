@@ -7,38 +7,25 @@
 Read `handoff.md` beside this file for the thread's substantive state. Where the two
 disagree, `handoff.md` wins on facts about the work; this file wins on how to supervise it.
 
-## Thread status — dormant, blocked on ONE maintainer decision
+## Thread status
 
-Ledger state verified against the tenant on 2026-07-28:
+**Do not read a status table here. `handoff.md` beside this file owns the thread's live
+state, and it is maintained by the supervised session as the work moves.**
 
-| Item | Status | What |
-|---|---|---|
-| `bd-ib-bwgko4` | `blocked` (needs autonomy tier) | pr node: rebase onto fresh `origin/master` before push — kills the stale-workflow push-gate race. |
-| `bd-ib-wmqsn7` | `blocked` (needs autonomy tier) | `check-master-ci-green`: discriminate a transient/re-runnable master-CI red from a genuine repo failure. |
-| `bd-ib-bic7hb` | `ready` — **NOT OURS** | Sandbox `mise install` 403s. Owned by `plan/dispatch-claim-liveness/` since 2026-07-26. Do not work it here. |
+This section previously carried a status table and a "first action" for a cold-open
+supervisor. Both were wrong within hours of being written, in ways worth naming because the
+failure was the charter's, not the worker's — see §"Corrections" entries 1–3. In summary:
+the gate holding the two items was **acceptance** (`blocked-reason:needs-human`), not the
+autonomy tier; the valve this section recommended (`set-admission:<id>:auto`) **cannot clear
+that gate at all** (`resolve-blocked:<id>:ready|backlog` is the one that can); one of the two
+items had **already been fixed four days earlier** under a different id; and the other is
+**not in-repo** and therefore not factory-dispatchable from this tenant.
 
-Both owned items pass the intake Definition-of-Ready on every axis except one: no explicit
-autonomy tier (`autonomy_tiered = False`). That is a deliberate human sign-off gate, and it
-is the whole reason this thread is dormant rather than running.
-
-**The tier taxonomy is effectively binary** (`SPECIFICATION/contracts.md`, the
-Definition-of-Ready bullet "An autonomy tier is assigned"): a **spec-change** is
-human-gated — effective `admission_policy: manual`, and it routes to
-`/livespec:propose-change` / `/livespec:revise` rather than to the factory — and
-**everything else is factory-dispatchable** (`auto`). Neither owned item touches
-`SPECIFICATION/`; `bd-ib-bwgko4` edits factory workflow prose
-(`.claude-plugin/.fabro/workflows/implement-work-item/prompts/pr.md`) and `bd-ib-wmqsn7`
-edits a check and/or `ci.yml`. So the recommendation to put in front of the maintainer is
-`auto` for both — but the maintainer assigns the tier, not you.
-
-The policy edit itself is a `drive` action; its action-id form is
-`set-admission:<id>:auto|manual` (`commands/drive.py`). Directing the supervised session to
-run it is the supervisor's job; running it yourself is not.
-
-**First action for a cold-open supervisor:** verify the two items are still `blocked` on
-the tier (they may have been tiered since this file was written), then put the tier
-decision to the maintainer as ONE `AskUserQuestion` call covering both items — see
-§"AskUserQuestion presentation rules". Do not dispatch anything before the tier lands.
+A charter should tell a successor how to supervise, not snapshot a ledger that moves faster
+than the document. **First action for a cold-open supervisor:** read `handoff.md`, then
+survey the tenant yourself with `bd list --limit 0 --json` — including `acceptance` and
+`blocked` — and scan for the thread's **defect class**, not merely for the ids this thread
+already knows about.
 
 ## HALT-first preconditions
 
@@ -373,3 +360,49 @@ Seeded from the fleet's other charters (`plan/dispatch-claim-liveness/`,
 - **This file is the one artifact the supervisor may write**, and only through the target
   repo's reviewed worktree → PR → merge path. That exception does not widen to anything else
   in the plan tree.
+
+### Recorded by this thread's first supervisor, 2026-07-28
+
+All three are failures of the SAME discipline this charter spends a page preaching —
+"verify on the forge; a filed item is a claim with a timestamp" — committed while writing
+the document that preaches it. A charter is not exempt from its own rules, and a successor
+should assume the parts of this file that look most authoritative are the parts most worth
+re-checking.
+
+1. **The charter shipped a remedy that could not work, and its runnability disguised that.**
+   §"Thread status" told a successor the gate was the autonomy tier and the fix was
+   `set-admission:<id>:auto`. I verified that action-id **exists** — I grepped it out of
+   `commands/drive.py` — and stopped there. I never traced what it does. `set_policy` in
+   `_drive_policy_valves.py` writes the policy field and returns `"status unchanged"`, and
+   `admission_policy` is consulted only at `pending-approval`
+   (`_drive_valve_predicates.can_approve_item`). The items were `blocked`, so the command
+   would have been a no-op the successor might have run twice before doubting the charter.
+   The valve that actually clears a `needs-human` block — and the only one that clears
+   `blocked_reason` — is `resolve-blocked:<id>:ready|backlog`. **The skill's demand that
+   every precondition emit a RUNNABLE command is a floor, not a proof.** A command in a
+   charter is read as verified; grepping a string out of a source file establishes that the
+   identifier exists, not that it does what you claim. Trace the callee.
+2. **I asserted "both items are in-repo and therefore factory-safe" on inherited authority.**
+   I lifted it from `handoff.md` and repeated it as the charter's own finding, which
+   laundered an unverified claim into a more authoritative document. `check-master-ci-green`
+   is `livespec_dev_tooling/checks/master_ci_green.py`, consumed from the sibling library
+   `livespec-dev-tooling` at pin `v0.56.6` — cross-repo work plus a release and a pin bump,
+   not dispatchable from this tenant at all. **The seeded correction "a filed item is a claim
+   with a timestamp" applies to the plan thread's own handoff**, and a supervisor
+   re-publishing one of its claims owns it thereafter.
+3. **I checked the two items' fields and never asked whether the defects were still live.**
+   I ran `bd list --limit 0 --json`, read both records, and reported them as the thread's
+   work. `bd-ib-bwgko4`'s fix had shipped four days earlier: independently re-filed as
+   `bd-ib-qq7f` on 2026-07-23, dispatched, merged 2026-07-24 as PR #905, closed
+   `resolution:completed` on 2026-07-25. Nothing cross-referenced the two, so the item sat
+   `blocked` asserting a repaired defect and the charter dutifully copied the assertion.
+   `AGENTS.md` already mandates the scan that would have caught it — query the ledger for the
+   **defect class**, not for the ids you were handed. Reading a record tells you what it
+   claims; only the class scan tells you whether it is still true.
+4. **What the charter got right is worth keeping for calibration.** The §"This thread's
+   specific honesty hazard" warning that a dispatch runs the *pinned* workflow prose rather
+   than the branch under test was load-bearing: the worker checked it instead of assuming,
+   scanned every `implement-work-item/prompts/pr.md` under `~/.claude/plugins`, and
+   established that the installed `c878ea43f8cd` does carry the fix — which is what made
+   "the fix is live in the running factory" a claim rather than a hope. Reasoning about
+   *mechanisms* transferred; snapshots of *state* did not. Weight a charter accordingly.
