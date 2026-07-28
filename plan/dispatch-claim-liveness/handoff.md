@@ -23,6 +23,19 @@
 > - **2026-07-28 — `bd-ib-ri1x` was ROUTED OUT of this tenant**, not left filed. It is
 >   now `livespec-j49m` in the core `livespec` tenant, with a ratifying spec amendment
 >   merged as core PR #1811 (`45ab15e5`). Do not go looking for it in this ledger.
+> - **2026-07-28 — FOUR items were filed and left UNTIERED ON PURPOSE.** None is
+>   dispatchable until a maintainer signs the `autonomy_tiered` gate; an agent must not
+>   self-sign it. In this tenant: **`bd-ib-xw2k`** (P3, journal-path has two conventions —
+>   latent, nothing broken today) and **`bd-ib-91wj`** (P2, janitor checkout lacks the
+>   worktree pack — **its open question is SETTLED, read its notes first**). Elsewhere,
+>   prose-linked because beads has no cross-tenant edge: **`bd-gj-pch`**
+>   (`livespec-orchestrator-git-jsonl`) and **`livespec-r5df`** (core `livespec`), the
+>   per-repo and fleet-level halves of the doc-only pre-commit gap.
+> - **⛔ 2026-07-28 — STAND DOWN on `bd-ib-wmqsn7` and `bd-ib-bwgko4`.** They belong to
+>   `plan/factory-hardening/`, which is ACTIVELY RUNNING in its own session (it holds a
+>   live dispatch in THIS tenant). Do not tier, dispatch, adopt or re-describe them. Our
+>   field evidence on `bd-ib-wmqsn7` STAYS — it was a contribution, not an adoption. Full
+>   terms in the stand-down box further down.
 >
 > **Everything below this box is the RECORD of how that was done, plus filed items
 > this thread does NOT own.** It is reference material, not a task list. The slice
@@ -389,12 +402,27 @@ of this epic.**
   but `bd-ib-ktxb` (00:55:55Z) and `bd-ib-3lmt` (01:24:01Z) both passed
   `janitor-post-merge` and reached done/green on the same host, same day, under v0.56.x.
   Every failing artifact comes from a `reconcile-merged` run and a
-  `janitor-reconcile-<id>` checkout. The item names the unresolved discriminator — does
-  `reconcile-merged` provision differently, or does the console repo's `dev-tooling/`
-  differ — as the FIRST thing an implementer must establish, rather than resolving it by
-  reasoning. Cross-referenced with `bd-ib-rxxx` in both directions but deliberately NOT
-  folded into it: `bd-ib-rxxx` is derived-coverage divergence, this is a missing
-  bootstrap.
+  `janitor-reconcile-<id>` checkout. Cross-referenced with `bd-ib-rxxx` in both directions
+  but deliberately NOT folded into it: `bd-ib-rxxx` is derived-coverage divergence, this
+  is a missing bootstrap.
+  **✅ ITS OPEN QUESTION IS NOW SETTLED — read the item's NOTES before touching it.** The
+  item originally named two candidates and told the implementer to establish which one
+  first. **Both were refuted by source inspection 2026-07-28, and the real mechanism is
+  neither: it is PLUGIN-REVISION SKEW BETWEEN SESSIONS.** The janitor argv is baked into
+  the plugin's `_DEFAULT_JANITOR`, and it changed — revision `1567e8f200dc` (which the
+  console session's dispatch ran) is `("mise","exec","--","just","check")`, while
+  `c878ea43f8cd` (installed for this project) is
+  `(…,"check-no-workflow-edits","install-worktree-pack","check")`. `install-worktree-pack`
+  runs immediately before `check` in the newer revision, which is exactly why THIS
+  tenant's two dispatches passed while their reconcile failed — same host, same day,
+  different plugin revision. Neither repo sets a `janitor` config key, so both take the
+  default. Two consequences are written up on the item: a plugin refresh may suffice for
+  their symptom (code landed in a working tree does nothing for a session pinned to an
+  older cached revision), and the janitor ARGV is the wrong durable home for the fix
+  because `janitor_argv_with_default` is per-repo overridable — the robust placement is
+  `_provision_janitor_checkout`'s `steps` tuple, with `cwd=plan.janitor_checkout` (the
+  check asserts hooks in the PRIMARY and the pack in the WORKTREE; the existing
+  `janitor-checkout-bootstrap` step satisfies only the first).
   **⛔ The console track's kept checkout at
   `~/.worktrees/livespec-console-beads-fabro/janitor-reconcile-...-dm5f7q` is PRESERVED
   EVIDENCE.** They are deliberately not working around the defect so it cannot hide. Do
