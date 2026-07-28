@@ -1121,6 +1121,54 @@ that a maintainer can now decide both without re-deriving anything.
 | **A SEVENTH** — the `gh run rerun --failed` refusal is **deterministic**, resolving an inconsistency that item recorded as variance | **`bd-ib-wmqsn7` notes** (a CONTRIBUTION — the stand-down holds) |
 | **AN EIGHTH** — `bd-ib-xw2k` re-verified; premise holds, **one line reference drifted** | **`bd-ib-xw2k` notes** |
 | **A NINTH** — `bd-ib-js1f`'s measured population splits into **two mechanisms with different remedies** | **`bd-ib-js1f` notes** |
+| **A TENTH** — `bd-gj-pch` re-verified **in the git-jsonl tenant**; defect unchanged and its safety precondition **survived a pin bump** | **`bd-gj-pch` notes** (OTHER tenant) |
+
+#### ✅ THE TWO CROSS-TENANT ITEMS WERE RE-QUERIED IN THEIR OWNING TENANTS — 2026-07-28
+
+**This is the rule this thread learned the hard way from `bd-ib-d6op2n`** — which was filed
+here for a defect the owning tenant had already filed six days earlier, because nobody
+queried the owning tenant's ledger. Both prose-linked items were therefore read from their
+OWN tenants, not from this file:
+
+| item | tenant | state |
+|---|---|---|
+| `bd-gj-pch` | `livespec-orchestrator-git-jsonl` | `backlog` P2, **UNTIERED** |
+| `livespec-r5df` | core `livespec` | `backlog` P2, **UNTIERED** |
+
+**Neither has been picked up, duplicated, or closed by its owner.** Run `bd` from the target
+repo's root — it resolves the tenant from that directory's `.beads/config.yaml`. (Incidental
+confirmation that it worked: the write's auto-backup warning named the
+`livespec-orchestrator-git-jsonl` SQL user, i.e. the intended tenant — see `bd-ib-rxf` for
+why that warning is harmless and already filed.)
+
+**`bd-gj-pch` was re-MEASURED, not merely re-read, and the reason matters.** That repo bumped
+its `livespec-dev-tooling` pin to **v1.0.0** at 18:19Z (`78dfc8c`), *after* the item was
+filed at 02:35Z — exactly the kind of change that silently invalidates a measurement.
+Re-measured at the new pin:
+
+- **Defect unchanged.** `check-pre-commit-doc-only` (`justfile:934`) still runs exactly
+  **three** targets, all tooling checks; zero of the five doc-integrity checks run on a
+  doc-only commit. All five remain wired in the full aggregate, so it is still "they exist
+  and are unwired."
+- **The stale rationale comment survives** at `justfile:928-933`, still naming the dead
+  `li-bb5suo` / `li-4liaxt` ids. This repo deleted its byte-identical copy in PR #1050.
+- **The safety precondition HELD across the bump** — all five checks were RUN individually
+  against that repo's current tree and **all five PASS**. So wiring them would still not
+  instantly block its commits, and the comment's claim that they "would force every doc-only
+  commit to fail" is false at v1.0.0 as it was before.
+
+**⚠ A THIRD BADLY-SCOPED PROBE, caught the same way as the other two.** The first attempt to
+test whether those five checks were in git-jsonl's aggregate grepped for `just <check-name>`
+and returned **0 of 5** — which would have inverted the item's entire premise into "these
+checks don't exist there." **The probe was wrong, not the repo:** that `justfile` lists
+aggregate members as **bare indented names**. It was caught only because zero-of-five was
+*too clean to be true* against a prior measurement that said otherwise.
+
+**That heuristic has now caught three bad probes in one session** — the `--journal`
+under-count, this one, and a notes-verification token that missed on backticks. **Not one of
+the three announced itself; every one was caught by a second check disagreeing.** Prefer the
+bare distinctive token over a guessed invocation syntax, and treat any suspiciously total
+answer as a probe fault until proven otherwise.
 
 #### ✅ ALL FOUR in-tenant untiered items were verified against the tree — 2026-07-28
 
