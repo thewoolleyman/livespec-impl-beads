@@ -42,10 +42,18 @@
 > node, auto-merge and the post-merge janitor — and BOTH merged green. The whole path
 > is now proven by execution, not presumed. See §"The v0.54.19 pin hold".
 >
-> **`bd-ib-w4h4` must stay `active`.** It is the deliberate live fixture, it is the
-> only `active` row, and it now costs no WIP slot — which IS the fixed behavior. Do
-> not un-strand or close it until `bd-ib-rxxx` lands (still `backlog`, re-checked
-> 2026-07-28).
+> **`bd-ib-w4h4` must stay `active`.** It is the deliberate live fixture and it costs
+> no WIP slot — which IS the fixed behavior. Do not un-strand or close it until
+> `bd-ib-rxxx` lands (still `backlog`, re-checked 2026-07-28).
+>
+> **⚠ It is NOT "the only `active` row" — earlier revisions said so and that is now
+> false.** Other sessions dispatch into this shared tenant, so the `active` set moves
+> under you. Verified 2026-07-28 with a peer dispatch in flight: **3 raw `active` rows,
+> `claimed_active_count()` = 2.** `bd-ib-eha3wh` and `bd-ib-wefw` each held a LIVE
+> dispatch lock and counted; `bd-ib-w4h4` held no lock and was correctly excluded. That
+> is the S3 fix discriminating live claims from a dead one under real concurrent load —
+> the strongest field evidence for it so far, and a reminder that any statement here
+> about *how many* rows are in a state is a snapshot, per the standing rule above.
 >
 > ---
 >
