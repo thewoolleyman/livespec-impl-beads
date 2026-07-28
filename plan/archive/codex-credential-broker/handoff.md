@@ -145,6 +145,41 @@ log:
   `workflow.toml` would NOT fix this** (that block only feeds the preflight check +
   the `gh`/`GITHUB_TOKEN` env). Fixing the push path would need a fabro fork rebuild.
 
+  > **CORRECTION 2026-07-28 — the bullet above is WRONG AS WRITTEN. It is left in
+  > place, unedited, because this is an archived thread and a reader needs to see
+  > both the original claim and its correction.**
+  >
+  > The hardcoding is real but applies to **ONE credential arm only**, not to the
+  > push path unconditionally. Verified in `/data/projects/fabro`,
+  > `lib/crates/fabro-github/src/lib.rs`, `resolve_clone_credentials`:
+  >
+  > ```rust
+  > let token = match ctx.creds {
+  >     GitHubCredentials::Pat(token) => token.clone(),                        // 1044
+  >     GitHubCredentials::Installation(token) => token.valid_token()?.to_string(), // 1045
+  >     GitHubCredentials::App(_) => {                                         // 1046
+  >         ... resolve_bearer_token(..., json!({ "contents": "write" }))       // 1054
+  >     }
+  > };
+  > ```
+  >
+  > The `Pat` and `Installation` arms pass their token through **unchanged** — no
+  > permissions payload is constructed and nothing is narrowed. Only the `App(_)`
+  > arm mints a scoped installation token with the hardcoded
+  > `{"contents":"write"}`.
+  >
+  > **Why the original conclusion still held for THIS incident.** The factory's
+  > fabro server runs on the GitHub App integration, so dispatches take the
+  > `App(_)` arm — which is why the observed symptom and the "a fork rebuild would
+  > be needed" reasoning were correct in context. What was wrong was stating the
+  > mechanism *unqualified*, which sends anyone diagnosing a **PAT-path** or
+  > **Installation-path** failure looking for a narrowing that does not happen on
+  > those arms.
+  >
+  > Correction raised by `console-happy-path-mvp-supervisor` (project
+  > `livespec-console-beads-fabro`) via `dispatch-claim-liveness-supervisor`, and
+  > re-verified at source by `factory-hardening` before being recorded here.
+
 **Recovery taken (2026-07-15):** `fabro rm -f 01KXK9CG3MZW` (abandoned the blocked
 run; container torn down) → `bd update bd-ib-fcipkv --status ready` → re-dispatched
 W2 host-direct with the **Claude default adapter** (W1's proven form) in a window

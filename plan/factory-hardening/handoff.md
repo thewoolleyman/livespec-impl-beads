@@ -97,6 +97,99 @@ policy choice; `bd-ib-bic7hb` and `bd-ib-w4h4` belong to
 `plan/dispatch-claim-liveness/`; `bd-ib-elvxv2` is a family docs chore, not this
 class. Nothing factory-safe, unowned, and dispatchable remains here.
 
+## Which plugin build a dispatch actually runs — the mechanism, established 2026-07-28
+
+Prompted by `console-happy-path-mvp-supervisor` (project
+`livespec-console-beads-fabro`), whose worker session had been running July-22 plugin
+code since July 21 and diagnosing the resulting symptoms as two separate product
+defects. Recorded here because the question "which build is this dispatch actually
+running?" had no written answer anywhere, and the wrong guess costs a night.
+
+**It is not session-pinned in our code, and it does not re-resolve per invocation
+either. It resolves from the ENTRY POINT.** `_dispatcher_paths.plugin_root()`:
+
+```python
+env_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+if env_root: return Path(env_root)
+return Path(__file__).resolve().parents[3]     # relative to the executing .py
+```
+
+- **Invoked through the installed plugin** — the Claude Code harness exports
+  `CLAUDE_PLUGIN_ROOT` pointing at the version that session resolved at start. *This
+  is where session pinning bites*, and it is harness behaviour, not ours.
+- **Invoked as a file path** (`… /dispatcher.py`, from a repo checkout or a cache
+  directory) — resolves relative to that file. No session involvement at all.
+
+That resolves the apparent contradiction of a live `dispatcher.py` running from a
+CURRENT release against another repo: it is a cache-path invocation, not a
+session-frozen one.
+
+**Our own dispatches today ran current code — verified, not assumed.**
+`CLAUDE_PLUGIN_ROOT` is **unset** in this session, and every dispatch was launched as
+`.claude-plugin/scripts/bin/dispatcher.py` from the repo checkout. Reproducing the
+resolution: `plugin_root()` → `/data/projects/livespec-orchestrator-beads-fabro/.claude-plugin`,
+and that code file contains `master_ci_preflight_refusal`. **So slice A was in force
+for every dispatch this thread ran.** Independently, `workflow_toml()` prefers a
+*repo-local* `.claude-plugin/.fabro/workflows/…/workflow.toml` over `plugin_root()`,
+and this repo commits one — so the pr-stage prose was current for a second,
+independent reason.
+
+### Nothing to file — the gate the phenomenon calls for already ships
+
+`_dispatcher_staleness_gate.py` (`apply_dispatcher_staleness_gate`) is called from
+`prepare()`, and **both** the single-item `dispatch` path
+(`_dispatcher_run_commands.py:73`) and the `loop` path
+(`_dispatcher_loop_command.py:268`) call `prepare()`. It compares the executing build
+against `refs/heads/release` HEAD and refuses when the build **provably** predates the
+latest release; a git-checkout root is exempt (otherwise development deadlocks), and
+an unprovable identity warns-and-proceeds — the `bd-ib-n7ce4n` deadlock lesson,
+deliberately preserved.
+
+**Why it did not protect the peer, and why no in-repo change could have.** Their
+pinned build `1567e8f200dc` is from July 22; the staleness gate shipped 2026-07-24.
+Verified directly: `_dispatcher_staleness_gate.py` is **absent** from that cache
+directory. *Stale code cannot run the guard against its own staleness.* Any session
+pinned below the gate's introduction is unreachable by anything we ship — that is a
+bootstrap property, not a design gap. For every build from 2026-07-24 onward the gate
+is present and covers both dispatch paths.
+
+So the phenomenon is real and worth knowing, but it is part harness behaviour (when
+Claude Code re-resolves a plugin version) and part already-mitigated in-repo. **No
+item was filed.**
+
+## Operational facts for diagnosing a dispatch failure
+
+Contributed by `console-happy-path-mvp-supervisor` from their 2026-07-28 recovery of a
+stale-base publish refusal (work-item `livespec-console-beads-fabro-dm5f7q`, fabro run
+`01KYJZT0FY9QQGPR35GFVZGNHR`). None of these were written down anywhere; each one
+sends a diagnostician to the wrong place first.
+
+1. **`fabro steer` is REFUSED while a question is pending** — *"Run is blocked on a
+   question; use the interview-answer endpoint"*. The working order is
+   **answer-interview THEN steer**.
+2. **The credential wrapper's scrubbed PATH does not contain `fabro`.** Use the
+   absolute path (`~/.fabro/bin/fabro`).
+3. **`base_sha` is NOT in the dispatch journal.** It lives in fabro's run event log,
+   in the `run.started` event properties: `fabro events <run-id>`. Its absence from
+   the journal is exactly what sends a diagnostician to the wrong artifact first.
+4. **A stale-base publish refusal can be recovered WITHOUT discarding the work.**
+   They answered interview option `[1] Retry the fix`, then steered the agent to run
+   `git fetch && git rebase origin/master` in-sandbox before the push — preserving
+   four completed commits with `just check` green, and producing merged PR #466. This
+   matters because the only recovery previously recorded for this defect
+   (`bd-ib-fcipkv`, 2026-07-15) **discarded** the work via re-dispatch. It is also
+   field confirmation that the shipped fix's shape — rebase-before-push,
+   `bd-ib-qq7f` / PR #905 — works end to end: they were hand-performing what the
+   current `pr.md` does automatically.
+
+**Their run is not evidence of a gap in our fix.** Corroborated from its own event
+log: the `pr` node ran three times and its rendered prompt contains no
+`rebase origin/master`, no `fetch origin master`, and no retry-once clause — step 2 is
+the bare push. That is **pre-`qq7f` prose**, consistent with their `1567e8f200dc` pin.
+Their `base_sha` (`3f6d3a2b…`) is a real `origin` commit, so this was also **not** the
+synthetic-snapshot-base mechanism (`bd-ib-pums` / `bd-ib-js4t57`) — an ordinary stale
+base, on code that predated the fix.
+
 ## `bd-ib-p16s` — premise REFUTED; do not dispatch it as written
 
 It was sitting in `ready` and would have been picked up next. Its own description
