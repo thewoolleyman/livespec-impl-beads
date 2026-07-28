@@ -151,6 +151,37 @@ rather than assumed, and it is tight:
   prose. Confirmed empirically, not by reading.
 - Everything else is in parity.
 
+**`driver-dispatch` has a CURRENT operational consequence, not just a parity one.**
+Reading its contract section rather than inferring from the table: it is *"a journaled
+dispatch door for work that the factory will not sandbox … valid ONLY on `ready` items
+whose `factory_safety` is non-null … journals the actor and a driver-session reference
+and moves `ready → active`"*. A complete specification — eligibility set, journaling,
+transition, and a load-bearing scope constraint — with nothing behind it.
+
+Measured against the tenant today, three items carry a non-null `factory_safety` and
+**two are sitting in `ready` right now** — precisely that eligible set:
+`bd-ib-bic7hb` (`mutates-host-machinery`) and `bd-ib-js4t57` (`fork-upstream`), with
+`bd-ib-6vu` in `backlog`. Per §"Door rules", `active` is entered only by a journaled
+dispatch — factory or driver — or a rework return from `acceptance`; and the factory
+dispatch *refuses exactly this set* (that is the host-only refusal). So for these items
+the only spec-blessed forward door is the one that does not exist.
+
+**Stated without overclaiming: the WORK is not blocked** — host-only work is done
+attended, and evidently is. What is missing is the LEDGER path: such an item cannot
+legitimately reach `active`, so the attended work happens off the journaled doors and
+the item's state cannot reflect that it is in progress. That is the same shape
+`bd-ib-dohu2g` already records for `pending-approval` — a ratified door with no working
+implementation, leaving a class of items with no legitimate way forward. Two instances
+of one pattern is a stronger case for that epic than either alone.
+
+Why it likely went unnoticed, offered as a scoping hint: the eligible set is tiny
+(three rows in an ~80-row tenant) and host-only work is the class least likely to be
+driven through the ledger anyway, so the missing door costs nothing visible until
+someone reaches for it. That is the *opposite* of the `set-workflow-scope-override`
+gap, which is invisible because the verb works and only the spec is silent. A
+bidirectional check catches both; a human sweep looking at whichever surface is in
+front of it catches neither.
+
 Both were contributed to `bd-ib-dohu2g`; `driver-dispatch` appears untracked there, but
 that epic owns the call. One instance in each direction is a tight, falsifiable target
 for the bidirectional mechanical check that thread argues for.
