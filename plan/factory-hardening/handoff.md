@@ -1,10 +1,39 @@
 # Handoff — factory-hardening
 
-## ⛔ START HERE — read before doing anything
+## ✅ THIS THREAD IS ARCHIVABLE — read this before anything else
 
-*Consolidated at end of day 2026-07-28. This block previously carried its original text
-plus two stacked amendments that partly contradicted it; the history is preserved in git
-and the lessons from both are folded in below.*
+**Declared 2026-07-28 at session end. There is no live work and nothing is pending from the
+maintainer.** Do not go looking for work in this thread; the correct next action is about
+ARCHIVING it, not continuing it.
+
+**Why it qualifies, checked against the charter's mechanical test** (`supervisor-handoff.md`
+§"A thread with no live work is NOT a resting state"): no live worker task, no armed watcher,
+no open question.
+
+1. **All four maintainer decisions are answered AND landed** — not merely answered. See the
+   ruling table below.
+2. **The one authorized dispatch completed green** — `bd-ib-xpkg`, PR #1124, merge
+   `168d4493`, reconciled to `done`. The week's dispatch budget is spent.
+3. **Everything else is filed-and-undispatched BY RULING** — six rows, listed below, all
+   deliberately left in `backlog` so no `loop` drain starts one during the freeze. Waiting for
+   the Jul 31 reset is a *timing constraint already ruled on*, not a pending decision.
+
+**⚠ THE ARCHIVE MOVE WAS NOT PERFORMED.** `plan/factory-hardening/` has NOT been moved to
+`plan/archive/`. That was left to the maintainer deliberately: they have framed archival as
+their call before, and their closing instruction was to *say* the thread is archivable and
+why. **If you are a fresh session: surface this to the maintainer and ask whether to perform
+the move — do not silently continue the thread, and do not archive it unasked.**
+
+**If something HAS changed** (a new finding routed in, a ruling revisited), then the thread is
+live again and the state below applies. Re-verify before acting on anything here — every claim
+in this file is a claim with a timestamp, and this thread has repeatedly found its own
+recorded claims stale.
+
+---
+
+*The block below was consolidated at end of day 2026-07-28; it previously carried its original
+text plus two stacked amendments that partly contradicted it. History is preserved in git and
+the lessons from both are folded in.*
 
 ### State, as of end of 2026-07-28
 
