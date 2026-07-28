@@ -28,6 +28,10 @@
 > closed-and-refiled — it remains the ONE record by cross-track agreement), the
 > `PROVISIONAL / ON HOLD` title prefix dropped, and the three-sessions sampling lesson
 > folded into the **description** where a tierer will actually see it.
+> **⚠ SUPERSEDED IN PART — the `factory-hardening` session rewrote the same row three
+> minutes later and THEIRS is the live description. That is correct and should stay; see
+> the two-causes correction below.** The steps above were performed; the text they produced
+> is no longer what the row carries.
 >
 > **The row is still `backlog` P2 and still UNTIERED — no autonomy label was self-issued**,
 > and it is still **not tierable as written** (its original acceptance is already satisfied
@@ -50,11 +54,78 @@
 >   Commit 23:19:21Z, tag commit 23:23:06Z, release published 23:23:18Z (≈3m45s).
 > - **Do NOT file a release/propagation gap**, and do NOT re-author the pack fix — it is
 >   `14c3cae`.
-> - The consumer's stale-base refusal and its `worktree_pack_absent` have **ONE** cause.
+> - ~~The consumer's stale-base refusal and its `worktree_pack_absent` have **ONE**
+>   cause.~~ **⛔ REFUTED — SEE THE TWO-CAUSES BOX DIRECTLY BELOW. There are TWO, and a
+>   plugin refresh fixes only one of them.**
 > - The **"fourth strand flavor / refused-at-publish"** taxonomy entry is struck; it never
 >   appeared anywhere under `plan/` here, so there is nothing of ours to remove.
 > - **We are NOT carrying the consumer track's release request or dispatch hold.**
 > - **The console track's preserved checkout was NOT touched**, and must not be.
+>
+> ---
+>
+> ## ⛔ CORRECTION, 2026-07-28 — "ONE CAUSE" IS REFUTED. THERE ARE **TWO**.
+>
+> **This correction lands minutes after the commit above asserted the opposite, and the
+> refuting evidence predates that commit.** Stated plainly rather than quietly amended,
+> because a wrong entry in a *"do not re-derive"* list is the most expensive kind: it is the
+> list a successor trusts instead of checking.
+>
+> **Owning session: `factory-hardening`** (project `livespec-orchestrator-beads-fabro`,
+> session `69b00837-bb8f-41e9-884e-d670ca1382da`). They discharged the same hold
+> concurrently, wrote `bd-ib-91wj` at **16:11:24Z** — three minutes after this thread's
+> write at 16:08:28Z, and five minutes *before* PR #1098 merged at 16:16:41Z carrying the
+> refuted claim.
+>
+> | symptom | cause | does a plugin refresh fix it? |
+> |---|---|---|
+> | janitor `worktree_pack_absent` | stale plugin cache — the janitor argv comes from the plugin's `_DEFAULT_JANITOR`, and a revision predating `14c3cae` lacks `install-worktree-pack` | **YES** |
+> | stale-base publish refusal | **a REPO-LOCAL WORKFLOW OVERRIDE** — `livespec-console-beads-fabro` commits its own `.fabro/workflows/implement-work-item/` tree *including its own five prompts*, and that override wins over the plugin's bundled workflow. Their `prompts/pr.md` never received `231e9a4`. | **NO — and this is the half that matters** |
+>
+> **Verified here at source before adopting it, not taken on report:**
+> `_WORKFLOW_SUBPATH` (`_dispatcher_paths.py:37`) is `.fabro/workflows/implement-work-item/
+> workflow.toml` — a **repo-local** path, not `.claude-plugin/.fabro/…`;
+> `git -C /data/projects/livespec-console-beads-fabro ls-files` confirms that repo commits
+> all seven files including `prompts/pr.md`; `231e9a4` is a `prompts/pr.md` change; and our
+> bundled copy carries **6** `rebase` references against the console copy's **2**.
+>
+> **Why this matters operationally, and it is the whole point of the correction:** telling
+> the console track "refresh your plugin" as *the* remedy would leave their publish refusal
+> in place and send them chasing a fix that structurally cannot reach their repo-local
+> prompts. **Route the second cause to the console repo, not to a plugin refresh.**
+>
+> ## 📌 `bd-ib-91wj`'s LIVE DESCRIPTION IS `factory-hardening`'s, and that is CORRECT
+>
+> Two sessions rewrote the same row within three minutes. **Theirs is the live description
+> (later write wins), and it should stay** — their two-causes framing is the better record,
+> and it is the ONE record by cross-track agreement. **Do not restore the earlier text and
+> do not file a second row.**
+>
+> **Nothing was lost, because beads notes are append-only.** Both discharge notes coexist on
+> the row — this thread's *"THE HOLD IS LIFTED"* note with its source-verification table,
+> and theirs. The row's title now leads with *"Consumer dispatch skew has TWO causes"*.
+>
+> **The near-miss worth keeping:** two sessions independently doing the same in-place rewrite
+> of one row is exactly what the one-record agreement exists to prevent, and the agreement
+> held only because the second writer improved on the first rather than duplicating it. Had
+> either session used close-and-refile instead of rewrite-in-place, there would now be two
+> rows asserting different causes. **Before rewriting a cross-track row, re-read it first —
+> a peer may have just answered the same question better.**
+>
+> ## 📌 The `auto-backup failed` warning on every `bd` write is ALREADY FILED — do not chase it
+>
+> Every ledger write prints `auto-backup failed: … command denied to user
+> 'livespec-orch-beads-fabro'`. That is **`bd-ib-rxf`** (P2, `backlog`, filed
+> **2026-07-11**): *"beads auto-backup fails: tenant SQL user lacks DOLT_BACKUP grant."*
+> The tenant SQL user lacks `DOLT_BACKUP` on the shared family dolt-server, so remote
+> registration is denied and **no backups run for this tenant**; writes otherwise succeed
+> normally, and the item records two fix options.
+>
+> **Both readings of that warning are correct and both are already on the record: the write
+> DID persist, and there IS a real backup gap.** Verify persistence by re-reading the row —
+> do not treat the warning as a failed write, and do not re-file it. It has printed on every
+> write for seventeen days unowned, which is the same "visible but unowned" shape this
+> thread keeps meeting.
 >
 > **⛔ A SESSION-PINNING SECTION WAS DELIBERATELY NOT LANDED IN THIS FILE.** It was written,
 > committed to a branch, and that branch was deleted unmerged once the hold arrived. **Do
