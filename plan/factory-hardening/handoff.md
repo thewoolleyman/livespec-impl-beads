@@ -122,6 +122,44 @@ becomes 1 failed. The valve was also exercised live: an unknown id returns
 refused. Its test fixture uses this thread's own scope-fence line verbatim as the
 citation-only case.
 
+### Residual found after the close: the new verb has NO specification coverage
+
+Found by post-merge verification, recorded rather than reopened. `grep -rn
+"workflow-scope-override" SPECIFICATION/*.md` returns **zero hits** — the verb is
+absent from §"Per-lane valid operator verb sets" and from every action-id
+enumeration. That is anomalous, not conventional: `set-admission` has 6 hits in
+`contracts.md`, `set-acceptance` 10, and each of the three cap verbs 3.
+
+It matters because that vocabulary is not internal bookkeeping. `contracts.md` says
+it is "OWNED here and consumed by console adopters", and
+`livespec-console-beads-fabro` defers per-item verb suppression to it explicitly — so
+a console cannot offer or suppress this verb while the enforcer accepts it in every
+lane. An operator's only route to discovering it is the refusal message that names it.
+
+**Not `bd-ib-imzx24`'s fault and not reopened.** Its acceptance never asked for a spec
+update and the dispatched agent delivered exactly what was specified. The fix is a
+spec-change, which is human-gated and routes to `/livespec:propose-change` — so it is
+**surfaced to the maintainer, not filed as a factory item**, and no `SPECIFICATION/`
+file was touched here.
+
+**Contributed as evidence to `bd-ib-dohu2g`** (the `plan/valve-advertisement-mismatch/`
+epic, whose class this is) — evidence only; that thread's work was not adopted,
+re-scoped, or duplicated. The useful part for them is that **the direction is
+inverted**: their closed instance (`bd-ib-h57nx4`, PR #1012) was *advertised but not
+enforceable*; this one is *enforceable but neither advertised nor specified*. A check
+written only in their direction would pass cleanly on today's tree and still miss
+this, so the mechanical check they argue for **must be bidirectional**.
+
+**And nothing mechanical would have caught it** — a repo-wide search finds no check
+asserting drive-verb/spec parity. The verb shipped through a full Red→Green→Replay
+dispatch with paired tests across five test files, a review node, and a green
+post-merge janitor, and no gate anywhere observed that it had no spec coverage. That
+is a same-day datapoint for that epic's own thesis: careful sweeps have already failed
+on this class four times, so the fix has to be mechanical.
+
+**Carry-forward for acceptance writing:** an item that adds a first-class OPERATOR
+VERB should carry a spec-coverage criterion, precisely because nothing enforces it.
+
 ## Slice A shipped — what actually landed, and how it was verified
 
 `bd-ib-wefw`, dispatched through the factory (fabro run `01KYKEKWAY1D`, ~44 min,
