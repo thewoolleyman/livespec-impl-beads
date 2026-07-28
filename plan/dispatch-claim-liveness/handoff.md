@@ -1116,6 +1116,29 @@ that a maintainer can now decide both without re-deriving anything.
 | The `--janitor` override surface is exercised, refining the above | **`bd-ib-91wj` notes** |
 | `bd-ib-xw2k`'s "nothing passes `--journal`" premise is FALSE | **`bd-ib-xw2k` notes** |
 | **A FOURTH, added later on 2026-07-28** — the seven "a plugin refresh is the remedy" sentences in `bd-ib-91wj`'s notes are scoped to the `worktree_pack_absent` half only | **`bd-ib-91wj` notes** |
+| **A FIFTH** — `bd-ib-3j4u` re-verified end-to-end against the tree at `ba80a19`; **every claim HOLDS, nothing needed correcting** | **`bd-ib-3j4u` notes** |
+
+**The fifth is a CONFIRMATION, and it is recorded for exactly that reason.** `bd-ib-3j4u` is
+**P1** and is now cited as "the mechanical fix for this class" from three places — this file,
+`bd-ib-91wj`'s description, and `bd-ib-91wj`'s notes — so everything citing it assumes its
+specifics still hold. They were checked rather than assumed, and they do: the gate's single
+call site, both `prepare()` callers, `_reconcile_preflight` at `:102`, its import of
+`janitor_core_ref` alone, the `JournalFile` already built at `:73`, the **nine** subcommands
+with the other six named correctly, the 2026-07-24 landing date, and the fail-open design.
+
+**Two details make the fix smaller than it reads.** `reconcile-merged` already constructs
+the `JournalFile` the gate needs *before* `_reconcile_preflight` runs, so "a call, not a
+plumbing change" is accurate; and the acceptance clause *"the refusal is journaled"* is
+**already satisfied by the gate itself** — it appends `dispatcher-staleness-refused`
+(`blocking: true`) and, on the fail-open path, `dispatcher-staleness-warning`
+(`blocking: false`). **The implementer does not need to add journaling; they need to not
+break it.**
+
+**Worth saying plainly, because this file is dense with `⛔ CORRECTED` blocks:** a reader
+could reasonably start wondering whether anything here survives scrutiny. This item did, in
+full. **The re-query rule produces confirmations as well as corrections, and a confirmation
+is only worth anything if it was capable of failing** — this one checked eight specific
+claims, any of which could have moved.
 
 **Why the fourth was necessary, and it is worth knowing before you read that row.** Beads
 notes are **append-only**, so the seven stale sentences cannot be edited in place. Left
