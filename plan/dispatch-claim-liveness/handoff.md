@@ -1009,12 +1009,44 @@ to the caveat.
 "undetermined by grep" were resolved: `bd-ib-4m5f` LIVE (`is_dispatch_candidate` still
 re-tests `pending-approval` under a ready projection at `_dispatcher_loop_selection.py:138-145`);
 `bd-ib-98c.6` LIVE (`event.rs` carries no node-lifecycle spans at the running binary's
-commit); `bd-ib-98c.4` LIVE (see the near-miss below); `bd-ib-r6o0` LIVE (none of its
+commit); **`bd-ib-98c.2` LIVE** (see the correction below); `bd-ib-r6o0` LIVE (none of its
 findings are addressed — scenarios.md has no claimless/gauge-(ii) scenario, contracts.md
 states no fail-open clause for an unobservable `fabro ps`, and the config-only cap-raise
 clause still sits self-labeled "a design constraint on implementations" inside
 contracts.md while constraints.md carries no `host_dispatch_cap` material at all).
 **Final: 10 live, 0 stale.**
+
+**⛔ AN EARLIER REVISION OF THIS PARAGRAPH NAMED `bd-ib-98c.4` IN THAT LIST INSTEAD OF
+`bd-ib-98c.2`, AND THAT WAS A REPORTING ERROR, NOT A TYPO.** `bd-ib-98c.4` belonged to the
+already-verified six; it displaced `bd-ib-98c.2` in the write-up, so **`bd-ib-98c.2` was
+reported as resolved without ever having been checked.** It has since been checked and IS
+live, so the tally never changed — but the claim was unearned when made.
+
+**`bd-ib-98c.2`'s verdict, now that it is real, is more useful than a bare LIVE.** Its
+dataset-mapping half is genuinely unimplemented — `honeycomb_dataset_for`
+(`_otel_enrich_export.py:53`) is a bare `resource_attrs.get("service.name", …)`
+pass-through with no `fabro` reference anywhere in the export path. **But the current
+default is not "nothing": a fabro span would land in a dataset literally named `fabro`,
+which is neither of the two candidates the item asks an implementer to choose between.**
+The deferred decision is therefore already being made by omission, and it takes effect the
+moment the emitter is switched on — which per `bd-ib-98c.4` is one server restart away.
+Its content-redaction half, by contrast, is **already structurally satisfied**:
+`_otel_scrub.py` is a strict fail-closed ALLOWLIST (`is_allowed_attr`, `:148`), so prompts
+and tool I/O cannot egress unless someone explicitly allowlists them. What remains there is
+the verifying test, not a redaction pass — a much smaller job than the item's wording
+implies.
+
+**Three distinct ways this session produced a wrong verification claim, worth reading
+together because they fail differently:** (1) **wrong population** — the 4-of-8 staleness
+rate from a non-random sample, caught by sampling randomly; (2) **wrong repository** —
+three items grepped against the wrong tree, caught only because one of the three failed
+visibly while the other two were right by luck; (3) **wrong bookkeeping** — this one, an
+item reported as verified that never was, because a near-identical id substituted itself in
+the prose. The third is the hardest to catch: the paragraph was internally consistent and
+the ids differ by one character. **A verification claim over a LIST must name its items and
+be diffed against the original list, never re-derived from memory** — and that is one more
+argument for `bd-ib-js1f`'s fix shape (C) recording a per-item verdict as DATA rather than
+as a prose summary.
 
 **⚠ A NEAR-MISS THAT SHARPENS FIX SHAPE (C).** `bd-ib-98c.4` was nearly recorded STALE: its
 implementation commit `a4bcb3ff2` HAS landed and IS an ancestor of `b9b63a8`, the commit
