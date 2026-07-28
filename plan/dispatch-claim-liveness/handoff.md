@@ -297,6 +297,59 @@ the tenant entirely, so a successor looking for it in this ledger will not find 
 is now **NARROWED**: the setup leg is VERIFIED on v0.56.3, so what remains untested is
 the dispatch path PAST setup. See §"The v0.54.19 pin hold" → §"SETUP IS NOW VERIFIED".
 
+#### 2026-07-28 addendum — three LEDGER-ONLY writes, invisible to a code reader
+
+These left no commit in this repo. Recorded here because nothing else would surface them.
+
+| what | where it lives |
+|---|---|
+| Field evidence for the master-CI flake that killed a dispatch | **`bd-ib-wmqsn7` notes** (this tenant) |
+| The same doc-only pre-commit defect, found in a SIBLING | **`bd-gj-pch`** (`livespec-orchestrator-git-jsonl` tenant) |
+| The FLEET-level version of it | **`livespec-r5df`** (core `livespec` tenant) |
+
+**`bd-ib-wmqsn7` now genuinely carries the evidence.** An earlier revision of this file
+claimed it did BEFORE the write had been made — that claim was premature and is now
+true. Attached: `bd-ib-ktxb` attempt 1 dying at 7 minutes with no agent work, the PyPI
+`hypothesis-jsonschema` timeout that reddened master, and three things the item's
+original description did not have — (a) the flake class is BROADER than the "cpython
+from GitHub" it names, since this one was a different package from a different host, so
+a fix that retries only the cpython fetch under-fixes; (b) `gh run rerun --failed`
+WORKED here, where the item records it being refused on the first occurrence, so the
+recovery recipe is `--failed` first then full re-run; (c) the reddening commit was
+DOCS-ONLY and could not have broken anything. Its `blocked` / needs-human status was NOT
+touched.
+
+**The doc-only gap is fleet-wide, and this repo was simply the first to look.** Surveyed
+2026-07-28 by reading every member's own justfile. The five doc-integrity checks are
+`check-heading-coverage`, `check-agents-ai-references-resolve`,
+`check-claude-md-coverage`, `check-handoff-dispatch-routing`,
+`check-plan-thread-anchor-declared`:
+
+| repo | doc-only fast path | aggregate | of the 5, actually run |
+|---|---|---|---|
+| `livespec` (core) | 7 targets | 73 | **2** |
+| `livespec-orchestrator-beads-fabro` | 8 targets | 72 | **5** — fixed today, PR #1050 |
+| `livespec-orchestrator-git-jsonl` | 3 targets | 65 | **0** |
+| `livespec-dev-tooling` | no-op `exit 0` | 64 | **0** |
+| `livespec-overseer` | no-op `exit 0` | 62 | **0** |
+| `livespec-runtime` | no-op `exit 0` | 62 | **0** |
+| `console`, `driver-claude`, `driver-codex` | none — full gate | — | all (no gap) |
+
+**Every repo in the top six already HAS all five in its own aggregate**, so this is not
+"the checks don't exist there yet" — they exist and are unwired. Two distinct stale
+rationales are involved: git-jsonl carries the byte-identical dead
+`li-bb5suo`/`li-4liaxt` comment this repo just deleted, while dev-tooling, overseer and
+runtime each say "no repo-metadata checks wired yet" — also false.
+
+Both filings verify the safety precondition the pre-dispatch review established, rather
+than assuming it ports: all five were RUN in git-jsonl and all five PASS, so wiring them
+would not instantly block that repo's commits. Neither item sets an autonomy tier — an
+agent must not self-sign another tenant's work through a human gate.
+
+`livespec-r5df` argues the durable fix is a `check-fleet-conformance` rule rather than
+six hand-fixes, since nothing keeps these recipes aligned and that is exactly how the
+six-way divergence arose.
+
 #### Session close-out addendum — work done AFTER the close-out above
 
 All of it merged; none of it changed the "no in-flight work" status. Recorded because
