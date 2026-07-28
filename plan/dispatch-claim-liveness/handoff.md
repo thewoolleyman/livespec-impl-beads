@@ -1,5 +1,47 @@
 # Handoff — dispatch-claim-liveness
 
+## 🧭 START HERE — 30 seconds, then stop reading unless you need a specific answer
+
+**THIS THREAD IS COMPLETE. THERE IS NOTHING TO PICK UP AND NOTHING IN FLIGHT.** If you were
+handed this file with "read it and follow it", following it correctly means **not restarting
+the work below**. That is the whole answer; everything else here is reference.
+
+**Archival is the maintainer's call and has NOT been done.** Do not archive.
+
+**If you are about to act on ANY work-item id in this file, read exactly two things first** —
+the two sections whose headings end
+`RE-QUERY THE LEDGER BEFORE ACTING ON ANY ID IN THIS FILE`
+and
+`A CONFIDENT VERIFICATION IS STILL A SAMPLE`.
+Every id, status and count below is a **snapshot**; the ledger is the authority. This
+thread's single most expensive recurring mistake was trusting this file over the ledger.
+(Each pointer above is kept on its own unbroken line **on purpose**: a reference split across
+a line break is invisible to a grep, which is the failure this file records under RULE 2.)
+
+**Nothing here is dispatchable.** The four in-tenant items it left are deliberately
+**UNTIERED** — a human signs `autonomy_tiered`, and an agent must not self-issue it.
+
+| if you need… | go to |
+|---|---|
+| what the thread shipped, and proof | §"COMPLETE AND ARCHIVABLE" → the slice table |
+| what survived, and who owns it | §"COMPLETE AND ARCHIVABLE" → the survivors table |
+| the transferable lessons | §"THE THREE STANDING RULES" |
+| why `bd-ib-91wj` reads oddly | §"`bd-ib-91wj` IS NO LONGER ON HOLD" + §"CORRECTION — ONE CAUSE IS REFUTED" |
+| why `bd-ib-w4h4` is still `active` | §"COMPLETE AND ARCHIVABLE" — it is a deliberate fixture costing **zero** WIP slots |
+| the `auto-backup failed` warning | §"…ALREADY FILED" — it is `bd-ib-rxf`; do not chase it |
+
+> **⚠ WHY THIS SECTION EXISTS, recorded because it is this file's own failure mode.** On
+> 2026-07-28 the leading box grew to **530 lines**, and the section literally titled
+> *"⛔ STOP — READ THIS BOX BEFORE ANYTHING ELSE"* ended up at **line 322** — a reader had to
+> pass 320 lines to reach the thing telling them to read it first. The file grew **+529 lines
+> in one session (+17%)**, all of it correct and none of it navigable. **A handoff nobody can
+> get through fails exactly like a stale one: the reader acts without the part that mattered.**
+> Content was **added, never deleted** — the house style is to mark superseded material, not
+> erase it — so if you are appending here, append to a SECTION below and leave this index
+> short.
+
+---
+
 > # ✅ THE LAST OBLIGATION IS DISCHARGED — ZERO LIVE ITEMS (2026-07-28)
 >
 > **The thread now has NOTHING live at all.** The previous revision of this box carried one
