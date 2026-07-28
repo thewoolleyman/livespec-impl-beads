@@ -343,7 +343,8 @@ def test_loop_refuses_declared_workflow_edit_before_launch(
     err = capsys.readouterr().err
     assert "attended host session" in err.lower()
     assert "interactive" not in err.lower()
-    assert "set-admission" in err
+    assert "set-workflow-scope-override:<id>:citation-only" in err
+    assert "ships no files under .github/workflows/" in err
     assert item.id in err
     journal_text = (repo / "tmp" / "fabro-dispatch-journal.jsonl").read_text(encoding="utf-8")
     outcome_record = next(

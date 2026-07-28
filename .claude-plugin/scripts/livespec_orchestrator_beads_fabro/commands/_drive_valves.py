@@ -14,6 +14,7 @@ from livespec_orchestrator_beads_fabro.commands._drive_policy_valves import (
     resolve_blocked_item,
     set_cap,
     set_policy,
+    set_workflow_scope_override,
 )
 from livespec_orchestrator_beads_fabro.commands._drive_valve_predicates import can_approve_item
 from livespec_orchestrator_beads_fabro.commands._drive_valve_result import (
@@ -43,6 +44,7 @@ VALUE_ALLOWLISTS = {
     "resolve-blocked": frozenset({"ready", "backlog"}),
     "set-admission": frozenset({"auto", "manual"}),
     "set-acceptance": frozenset({"ai-only", "human-only", "ai-then-human"}),
+    "set-workflow-scope-override": frozenset({"citation-only"}),
 }
 
 
@@ -74,6 +76,8 @@ def run_human_valve_action(
         result = _accept_item(config=config, item=item, action_id=action_id)
     elif action in {"set-admission", "set-acceptance"}:
         result = set_policy(config=config, item=item, aid=action_id, action=action, value=value)
+    elif action == "set-workflow-scope-override":
+        result = set_workflow_scope_override(config=config, item=item, aid=action_id, value=value)
     elif action in CAP_ACTION_VERBS:
         result = set_cap(config=config, item=item, aid=action_id, action=action, value=value)
     elif action == "move":
@@ -94,6 +98,7 @@ def is_human_valve_action(*, action_id: str) -> bool:
             "resolve-blocked:",
             "set-admission:",
             "set-acceptance:",
+            "set-workflow-scope-override:",
             "set-merge-on-review-cap:",
             "set-review-fix-cap:",
             "set-acceptance-rework-cap:",

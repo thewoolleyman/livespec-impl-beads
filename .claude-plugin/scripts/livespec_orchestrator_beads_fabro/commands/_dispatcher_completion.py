@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import asdict, replace
 from pathlib import Path
 
@@ -60,7 +61,9 @@ _LEDGER_WRITE_ERRORS = (
 )
 
 
-def host_only_refusal(*, item: WorkItem, journal: JournalFile) -> DispatchOutcome | None:
+def host_only_refusal(
+    *, item: WorkItem, journal: JournalFile, raw_labels: Sequence[str] = ()
+) -> DispatchOutcome | None:
     """Refuse to sandbox a host-only self-machinery item (uvd hang-guard).
 
     Returns the `host-only-refused` outcome (routed BEFORE any fabro
@@ -71,7 +74,7 @@ def host_only_refusal(*, item: WorkItem, journal: JournalFile) -> DispatchOutcom
     orchestrator host-routes the item; the detail carries the actionable
     host-route instruction. Nothing is closed — the item stays open.
     """
-    if not is_host_only_item(item=item):
+    if not is_host_only_item(item=item, raw_labels=raw_labels):
         return None
     outcome = DispatchOutcome(
         work_item_id=item.id,

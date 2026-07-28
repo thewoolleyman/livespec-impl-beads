@@ -14,7 +14,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from livespec_orchestrator_beads_fabro._beads_client import reset_fake_singleton
+from livespec_orchestrator_beads_fabro._beads_client import fake_singleton, reset_fake_singleton
 from livespec_orchestrator_beads_fabro.commands.drive import run_action
 from livespec_orchestrator_beads_fabro.store import (
     append_work_item,
@@ -126,3 +126,28 @@ def test_set_acceptance_edits_policy_without_touching_status(tmp_path: Path) -> 
     stored = _stored()["bd-ib-123"]
     assert stored.acceptance_policy == "human-only"
     assert stored.status == "acceptance"
+
+
+def test_set_workflow_scope_override_records_label_without_touching_status(
+    tmp_path: Path,
+) -> None:
+    repo = _repo(tmp_path=tmp_path)
+    append_work_item(path=_config(), item=_item(status="ready", admission_policy="auto"))
+
+    result = run_action(
+        repo=repo,
+        action_id="set-workflow-scope-override:bd-ib-123:citation-only",
+    )
+
+    assert result["status"] == "green"
+    assert result["target_status"] == "ready"
+    assert result["journal"] == {
+        "actor": "operator",
+        "stage": "human-valve-set-workflow-scope-override",
+        "work_item_id": "bd-ib-123",
+    }
+    stored = _stored()["bd-ib-123"]
+    assert stored.status == "ready"
+    assert stored.admission_policy == "auto"
+    record = fake_singleton().show_issue(issue_id="bd-ib-123")
+    assert "workflow-scope-override:citation-only" in record["labels"]

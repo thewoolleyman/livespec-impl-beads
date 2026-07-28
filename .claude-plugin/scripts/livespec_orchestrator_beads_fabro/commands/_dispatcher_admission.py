@@ -17,6 +17,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_claim_reclaim import
     claimed_active_count,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_completion import host_only_refusal
+from livespec_orchestrator_beads_fabro.commands._dispatcher_credentials import read_dispatch_labels
 from livespec_orchestrator_beads_fabro.commands._dispatcher_decision_journal import (
     auto_disposition_journal_record,
 )
@@ -25,6 +26,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_dispatch_lock import
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
+from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_outcomes import (
+    failed_dispatch_outcome,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import store_config
 from livespec_orchestrator_beads_fabro.commands._dispatcher_valves import (
     admission_held_detail,
@@ -83,14 +87,11 @@ def admit_and_select(
     surfaces are journaled here; the launched items flow on to `_dispatch_one`.
 
     """
-    admittable: list[WorkItem] = []
-    refused: list[DispatchOutcome] = []
-    for item in candidates:
-        host_refusal = host_only_refusal(item=item, journal=journal)
-        if host_refusal is not None:
-            refused.append(host_refusal)
-        else:
-            admittable.append(item)
+    admittable, refused = _filter_host_only_candidates(
+        repo=repo,
+        candidates=candidates,
+        journal=journal,
+    )
     active_count = claimed_active_count(repo=repo, items=items, journal=journal)
     if enforce_cap:
         free_slots = max(0, resolve_wip_cap(cwd=repo) - active_count)
@@ -132,6 +133,34 @@ def admit_and_select(
         _ = write_stderr(text=f"SURFACE: {admission_held_detail(item_id=item.id, reason=reason)}\n")
         refused.append(held)
     return Admission(admitted=admitted, refused=refused)
+
+
+def _filter_host_only_candidates(
+    *,
+    repo: Path,
+    candidates: list[WorkItem],
+    journal: JournalFile,
+) -> tuple[list[WorkItem], list[DispatchOutcome]]:
+    admittable: list[WorkItem] = []
+    refused: list[DispatchOutcome] = []
+    for item in candidates:
+        raw_labels = read_dispatch_labels(repo=repo, item=item)
+        if isinstance(raw_labels, str):
+            refused.append(
+                failed_dispatch_outcome(
+                    journal=journal,
+                    work_item_id=item.id,
+                    stage="ledger-labels",
+                    detail=raw_labels,
+                )
+            )
+            continue
+        host_refusal = host_only_refusal(item=item, journal=journal, raw_labels=raw_labels)
+        if host_refusal is not None:
+            refused.append(host_refusal)
+        else:
+            admittable.append(item)
+    return admittable, refused
 
 
 def _auto_approve_governing_settings(*, item: WorkItem) -> tuple[str, ...]:
