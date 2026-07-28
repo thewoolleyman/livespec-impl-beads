@@ -790,6 +790,46 @@ against the live ledger and a COPY of the real journal; the real journal was con
 byte-identical before and after by two independent size checks, so this verification
 wrote nothing.
 
+**✅ RE-RUN AGAIN 2026-07-28 at 18:4xZ against `482816d` — and this time BOTH halves of the
+charter were demonstrated, not just the count.** Re-run because the day added a dev-tooling
+pin bump to v0.58.0, several merges, and a peer session's dispatches; the invariant was
+measured rather than carried forward.
+
+```
+total non-closed items loaded : 383
+raw `active` row count        : 1
+  - bd-ib-w4h4   assignee='fabro'   live_lock=no
+claimed_active_count()        : 0
+
+VERDICT: 1 raw active row costs 0 WIP slots
+```
+
+**The surfacing half fired too, which the earlier run did not show.** The journal COPY grew
+by exactly one line (3997 → 3998, +158 bytes) and that line is:
+
+```
+stage: dispatch-claim-abandoned | item: bd-ib-w4h4 | reason: terminal-outcome-non-green
+```
+
+**That is the pair the charter insisted on** — reclaimed capacity AND a surfaced failure,
+since either alone re-hides the defect. Both were observed in a single execution against the
+live ledger.
+
+**Write-safety, stated precisely because `claimed_active_count` IS a writer.** It appends an
+abandonment record when it finds a dead claim (`_dispatcher_claim_reclaim.py:41`), so
+pointing it at the real journal would have mutated it. It was pointed at a copy, and the real
+journal was confirmed unchanged by **byte count, line count, and full SHA-256** before and
+after:
+
+```
+before/after: bytes=3609358  lines=3997
+              sha256=0c7cee88e4b39c2fe5740239455d2cd3aff4fe30406a1c80032ab7e3fc303ee8
+```
+
+**A scale datum worth carrying to `bd-ib-js1f`:** the ledger holds **383 non-closed items**.
+Any staleness sweep that item proposes is a 383-item sweep, not a handful — relevant to
+costing it, and to the finding recorded there that the accumulation window is hours.
+
 Nothing is in flight from this thread. Repo clean on `master`, no orphaned worktrees.
 
 **`bd-ib-w4h4` remains deliberately stranded, and that is still correct.** It is the
