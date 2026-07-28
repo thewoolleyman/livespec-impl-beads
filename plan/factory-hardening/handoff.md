@@ -19,8 +19,9 @@ Maintainer ruling: **finish the image-pin item, then STOP DISPATCHING until rese
 
 - It gates **DISPATCH**, not decisions or filing. Everything else gets filed, recorded, or
   routed.
-- `bd-ib-xpkg` (the image-pin override) is **the one authorized dispatch** — launched
-  2026-07-28, run `01KYNBE4XNVJ`.
+- `bd-ib-xpkg` (the image-pin override) was **the one authorized dispatch** and is now
+  **COMPLETE** — run `01KYNBE4XNVJ`, PR #1124, merge `168d4493`, reconciled to `done`. See
+  §"`bd-ib-xpkg` SHIPPED". **The dispatch budget for this week is now spent.**
 - **Do not start a second factory dispatch this week.** If you believe something must be
   dispatched, ASK first.
 - Rationale worth internalising: *a dispatch that dies mid-run against the account ceiling
@@ -686,6 +687,61 @@ Those are the two an author controls and the two that bite. Gate 7 is a `bd show
 title + description (**not** notes). The method and the per-line semantics of the prose
 escape are on `bd-ib-lfm7`; the tenant-wide census and its two current false positives are in
 §"The admission-heuristic census" above.
+
+## ✅ `bd-ib-xpkg` SHIPPED — the narrow sandbox-image-pin override, and a near-strand recovered
+
+**Closed 2026-07-28. PR #1124, merge `168d4493`, post-merge janitor green, item reconciled to
+`done`.** This was the ONE dispatch authorized under the budget freeze, and it is complete.
+
+**What landed** (243 additions, **0 deletions** — purely additive):
+
+- `resolve_fabro_sandbox_image(*, cwd)` in `_config.py` — `LIVESPEC_FABRO_SANDBOX_IMAGE` env >
+  `.livespec.jsonc` `dispatcher.fabro_sandbox_image` > `None`. Deliberately the **`fabro_bin`
+  precedent**, so the seam matches the established per-repo-setting shape.
+- `_rewrite_fabro_sandbox_image` in `_dispatcher_overlay.py`, whose docstring states the scope
+  fence outright: *"Rewrite only `[environments.<id>.image] docker` when configured."* Single
+  section, single key, single `replace(..., 1)`. `None` → returns the text unchanged;
+  a missing committed image table → returns `None` rather than inventing one.
+- Paired tests in both mirrors.
+
+**The scope fence held.** The maintainer's design note — "do not let it become *consumers may
+override arbitrary workflow keys*" — is satisfied by construction: one section, one key, no
+generalised mechanism.
+
+**What it buys:** a consumer needing a different sandbox image no longer has to fork the whole
+workflow directory. `livespec-console-beads-fabro` can now delete its fork and inherit plugin
+prompts plus upstream fixes — which removes the cause behind `bd-ib-d6ds`, `bd-ib-lfm7`,
+`bd-ib-dd9l` and the frozen `pr.md` on `bd-ib-91wj`.
+
+### ⚠ A NEAR-STRAND, RECOVERED — and it is field evidence for `bd-ib-lza6`'s valve
+
+**The dispatcher HOST process died mid-run** (its foreground tool call errored out), while the
+fabro run — which lives server-side — **continued and succeeded** (33m58s), publishing PR
+#1124 with auto-merge armed.
+
+The result was the exact signature this thread documents: **`fabro ps` empty, item still
+`active`, `updated_at` frozen at its `ledger-admit` timestamp, and only three journal records
+(`ledger-admit`, `sizing-warn`, `dispatch-id`) with no outcome.** Read carelessly that looks
+like lost work.
+
+**It was not.** The work was complete and merged; only the post-run DISPOSITION was missing —
+because the process that performs it was gone. `dispatcher.py reconcile-merged --item
+bd-ib-xpkg` completed it cleanly: *"green at done PR#1124 merged, post-merge janitor green"*.
+
+Three things worth carrying:
+
+1. **"Run gone + item `active`" does NOT imply lost work.** Check the forge for a PR from the
+   run's branch before concluding anything. The fabro run and the dispatcher host process have
+   independent lifetimes, and only the latter writes the disposition.
+2. **`reconcile-merged` did exactly its job** — this is live field evidence for the valve
+   `bd-ib-lza6` shipped, recovering a real strand into a journaled `done` rather than a
+   hand-close that would have violated the door rules.
+3. **The sizing heuristic fired on this thread's own item** — *"description is 6731 chars
+   (> 1500): heavy items have exceeded one unattended ACP turn"*. It is warn-only and the
+   dispatch succeeded, but the warning was correct in spirit: a richly-evidenced description is
+   good for a human reader and a real cost to an unattended agent. Consider putting the
+   evidence in NOTES and keeping the description tight — notes are not read by the dispatcher's
+   sizing check, nor by the admission heuristic.
 
 ## OUR WORKFLOW PROSE IS A FLEET SURFACE — sloppiness in it PROPAGATES
 
