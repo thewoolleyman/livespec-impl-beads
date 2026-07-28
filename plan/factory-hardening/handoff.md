@@ -498,6 +498,39 @@ maintainer touchpoint and this thread does not self-issue one**, so neither was 
 in-suite git fixtures (no dispatch, no network, no forge, no other repo's state), including
 a demonstrated-failure criterion on each.
 
+### ⚠ BOTH ROWS HAVE BEEN DE-RISKED ON THE LEDGER — read their notes before designing
+
+A follow-up research pass answered the hard questions on both rows and recorded the results
+**as notes on the rows themselves**, not here. **Do not re-derive any of this** — read
+`bd list`/`bd show` on each first. Summarised only so a reader knows the analysis exists:
+
+- **`bd-ib-lfm7` — the design caution's TWO CONDITIONS ARE ESTABLISHED, so removal is a
+  proven non-weakening.** (1) The pre-merge lane genuinely covers it: `workflow.fabro`'s
+  in-sandbox `janitor` node runs the same guard on the feature branch where the range is
+  non-empty, and a non-zero exit blocks the PR — armed by the *same* commit `3fe97cc` that
+  added the post-merge invocation. (2) No post-merge case can fire legitimately: a refusal
+  there cannot prevent an already-merged edit, and the `pull-primary` stage
+  (`git pull --ff-only origin <default>`) runs immediately before provisioning, so
+  `origin/master` provably contains `merge_sha` by the time the guard runs.
+- **`bd-ib-dd9l` — the implementation seam already exists.** `_merged_degraded`
+  (`_dispatcher_engine_janitor.py:220-241`) is the right shape (`status="green"`, distinct
+  stage, non-blaming detail with a remediation sentence) but has **one call site, inside the
+  PROVISIONING loop only** — so a janitor-RUN failure never gets that treatment, which is
+  the gap. Its existing remediation advice would be *wrong* for a contract failure. And the
+  discriminator is the **stderr signature**, not the exit code: an unknown recipe exits `1`
+  and so does a failing `just check` (measured).
+- **`bd-ib-d6ds`** carries a note on what fix (A) concretely means now: do NOT implement it
+  as a like-for-like dispatcher call in the janitor — that would be equally vacuous. Remove
+  the janitor invocation first (`lfm7`), then site any dispatcher-provided guard at the
+  **pre-merge boundary**. If that lands, re-check whether `d6ds` still has its original
+  substance.
+
+**Two claims were RETRACTED during this pass and are recorded on the rows so they are not
+resurrected:** that the vacuous guard is "actively harmful and reachable by default" via a
+stale `origin/master` (refuted — `worktree add` needs the object locally, and `pull-primary`
+closes the window), and a "zero `git fetch` calls" argument that was a **search artifact**
+— the code says `pull`, not `fetch`.
+
 ## Operational facts for diagnosing a dispatch failure
 
 Contributed by `console-happy-path-mvp-supervisor` from their 2026-07-28 recovery of a
