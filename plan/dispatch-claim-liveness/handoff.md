@@ -1005,6 +1005,61 @@ thread turned an inference from a small biased sample into a general claim — t
 Ten minutes of random sampling halved the scope of a proposed fix. Prefer the measurement
 to the caveat.
 
+**✅ SAMPLE COMPLETED — 10 of 10 determined, and the result HOLDS.** The four items left
+"undetermined by grep" were resolved: `bd-ib-4m5f` LIVE (`is_dispatch_candidate` still
+re-tests `pending-approval` under a ready projection at `_dispatcher_loop_selection.py:138-145`);
+`bd-ib-98c.6` LIVE (`event.rs` carries no node-lifecycle spans at the running binary's
+commit); `bd-ib-98c.4` LIVE (see the near-miss below); `bd-ib-r6o0` LIVE (none of its
+findings are addressed — scenarios.md has no claimless/gauge-(ii) scenario, contracts.md
+states no fail-open clause for an unobservable `fabro ps`, and the config-only cap-raise
+clause still sits self-labeled "a design constraint on implementations" inside
+contracts.md while constraints.md carries no `host_dispatch_cap` material at all).
+**Final: 10 live, 0 stale.**
+
+**⚠ A NEAR-MISS THAT SHARPENS FIX SHAPE (C).** `bd-ib-98c.4` was nearly recorded STALE: its
+implementation commit `a4bcb3ff2` HAS landed and IS an ancestor of `b9b63a8`, the commit
+the host fabro binary runs. On a "did the code land?" test it is done. **It is not done** —
+its acceptance is an OBSERVATION ("one dispatch → ≥1 span") and the running fabro server
+carries **zero `OTEL_*` env vars**, so the forwarding path is inert by its own commit
+message's admission ("with no OTLP env on the server nothing is forwarded"). Two
+consequences, both recorded on `bd-ib-js1f`: a staleness re-check must test the
+**acceptance**, not search for a plausible fix commit — otherwise it produces false STALE
+verdicts on every observation-shaped item, which is the whole O-track; and it must look in
+the **right repository**, since the first pass grepped this repo's dispatcher for work that
+lives in the fabro fork. That second error is structurally identical to looking for an
+item's owner in the wrong tenant, which is how `bd-ib-d6op2n`'s duplicate hid for two days.
+
+#### ⛔ 2026-07-28 — WHY `bd-ib-91wj` REACHED PRODUCTION DESPITE EXISTING MACHINERY. Filed as `bd-ib-3j4u`.
+
+This is the loose end the `bd-ib-91wj` work left, and it turns out to be a separate defect.
+
+**The repo already HAS a gate for exactly that failure.**
+`apply_dispatcher_staleness_gate` refuses a run whose plugin build provably predates the
+latest release, with the remedy `claude plugin update …`. It landed **`33bf8d5` on
+2026-07-24 — four days BEFORE the console session's failure**, and that session's build
+(`1567e8f200dc`, release 0.45.18) is exactly the condition it refuses on. So why did it not
+fire?
+
+**Because it has exactly ONE call site, and `reconcile-merged` is not on that path.**
+`prepare()` (`_dispatcher_loop_selection.py:73`) applies the gate, and `prepare()` is
+reached only from `_dispatcher_loop_command.py:268` (`loop`) and
+`_dispatcher_run_commands.py:73` (`dispatch`). **`reconcile-merged` has its own preflight**
+— `_reconcile_preflight` (`_dispatcher_reconcile_merged.py:102`) — which never applies it,
+and imports only `janitor_core_ref` from that module. Of the dispatcher's nine
+subcommands, two get a currency verdict.
+
+**`reconcile-merged` is the worst one to leave ungated**, because the janitor argv is baked
+into the PLUGIN (`_DEFAULT_JANITOR`) and no repo overrides it — so a stale build runs a
+stale janitor, in a venue that mutates the ledger and can strand a claim. Every failing
+artifact in `bd-ib-91wj` comes from a `reconcile-merged` run. The session was on a build
+the gate would have refused, on the one path that never asks.
+
+Filed as **`bd-ib-3j4u`** (P2, `backlog`, UNTIERED). The fix site is `_reconcile_preflight`
+and the journal seam is already there, so it is a call rather than plumbing. **Preserve the
+gate's fail-open design** (`bd-ib-n7ce4n`: an unestablishable verdict must warn and proceed,
+never block) — a `reconcile-merged` that cannot run is worse than one on an old plugin,
+because it IS the recovery path for a stranded claim.
+
 #### 2026-07-28 — a THIRD instance of the egress flake, contributed to `bd-ib-wmqsn7`
 
 PR #1073 (docs-only) was reddened by `× Failed to download grimp==3.14 … Request failed
