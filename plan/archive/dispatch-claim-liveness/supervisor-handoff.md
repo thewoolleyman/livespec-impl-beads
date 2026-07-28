@@ -197,6 +197,43 @@ whose timer ticks every second, so "unchanged across three 20s polls" separates 
 idle without depending on TUI wording. A word-list matcher fails silently the first time
 the spinner verb changes — this thread burned three watcher revisions learning that.
 
+## ⛔ THE THIRD STALL — everything has legitimately stopped
+
+The two sections above police stalls where SOMETHING IS STILL MOVING: standing down on
+another track's lane, and ending a turn with the worker mid-flight. **Neither covers the
+stall where the work has genuinely run out.** That one reads as diligence — a clean status
+report on completed work — which is exactly why nothing catches it. This supervisor
+committed it THREE TIMES after writing the two rules above.
+
+Identified and first fixed by `factory-hardening-supervisor` (their PR #1120); adopted here
+because the `supervise-plan` skill does not yet carry it, so every charter must close the
+gap itself.
+
+**THE MECHANICAL TEST. Never end a turn with ALL THREE of:**
+
+1. no live worker task, AND
+2. no armed watcher, AND
+3. no open maintainer question.
+
+There are exactly TWO exits, and "I will do it next turn" is neither:
+
+- **ARCHIVE** — the thread is genuinely finished, so finish it: land the archival, or
+- **ASK, IN THE SAME TURN YOU DISCOVER THE EXHAUSTION** — one `AskUserQuestion` carrying a
+  recommendation. Not prose. Not "let me know". A prose sentence in a pane is not a
+  question; it is a status line the maintainer has to notice unprompted.
+
+**DISTRUST THE SENTENCE "nothing needs you right now."** It is the single report that stops
+the only party who could notice the stall from looking. This supervisor wrote variants of it
+— "archival is yours", "nothing needs you", "I'll report when it lands" — while ending turns
+with no watcher and no question, and each time the thread stopped until the maintainer
+noticed. If you are about to write it, that is the trigger to run the three-part test, not a
+sign you have earned the right to stop.
+
+**A disclosure is not an exit either.** This supervisor ended a turn on an honest report of
+its own error — pasting into another session's open picker — with no watcher, no question,
+and an unresolved cross-track issue outstanding. Confessing a mistake feels like completing
+something. It completes nothing, and it is a stall with better prose.
+
 ## AskUserQuestion presentation rules
 
 Every maintainer-facing action is an `AskUserQuestion` call carrying a recommendation —
