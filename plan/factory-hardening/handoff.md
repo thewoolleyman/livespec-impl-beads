@@ -27,6 +27,33 @@ policy question already routed to you on `livespec-dev-tooling-gam8` (2026-07-25
 Slice A has now landed, which was the ordering precondition — so slice B is
 unblocked the moment you rule. Nothing in THIS repo is waiting on anything.
 
+**The premise of that ruling has now been VERIFIED end to end, and it carries one
+caveat that was not previously named.** Because four of six defect claims this thread
+handled today did not survive contact with the evidence, the recommendation awaiting
+your ruling was re-checked rather than left resting on its own plausibility:
+
+- **It fires in the sandbox.** `holds_app_class_credential()` reads `GH_TOKEN` then
+  `GITHUB_TOKEN` and returns True on the `ghs_` prefix. This repo's
+  `render_run_config_overlay` projects exactly that — "a GITHUB_TOKEN freshly minted
+  from the App installation-token provider … projected under GITHUB_TOKEN, not
+  GH_TOKEN". Not merely inferred from docstrings on both sides: the same predicate
+  already governs the admin lane in production via `1e85cd1`, which resolved a
+  repo-wide factory outage.
+- **It does NOT fire for an operator.** The predicate reads only those two env vars —
+  never `gh auth token`, the keyring, or `hosts.yml`. A user-class credential
+  (`gho_`/`ghp_`), or a keyring credential with neither var set, yields False, so
+  pre-push enforcement is untouched. The "every red still refuses at the operator's
+  pre-push" claim holds.
+- **CAVEAT — it would also fire in GitHub Actions**, where the ambient `GITHUB_TOKEN`
+  is likewise `ghs_`. Harmless *today* only because `check-master-ci-green` is
+  deliberately excluded from the CI matrix. Slice B makes that exclusion load-bearing
+  in a NEW way: it would become the only thing stopping a CI run from silently
+  self-classifying out of a gate. If you prefer no new coupling, the narrower form is
+  to gate the classification on `ghs_` **and** the absence of `GITHUB_ACTIONS=true`.
+  Either way the coupling belongs in the check's own docstring.
+- A far narrower edge: an operator who exports a `ghs_` token into their own shell
+  would also be classified out-of-vantage at pre-push.
+
 **The in-repo queue for this thread's class is exhausted, and that is a checked
 conclusion rather than an assumption.** Every remaining non-closed item in the
 dark-factory dispatch-path class was assessed: `bd-ib-js4t57` is outward-facing
@@ -137,6 +164,34 @@ contain the preflight — verified by grepping every cached
 refresh. Net: slice A was in effect immediately on the host-direct path, and reaches
 the plugin path on refresh. **It has since run in production** — the `bd-ib-imzx24`
 dispatch proceeded past `dispatch_preamble` against a green master.
+
+**It guards BOTH entry points, and there is no per-item hole.** `dispatch_preamble`
+is called by `_dispatcher_run_commands.py` (the `dispatch` path) and by
+`_dispatcher_loop_command._start_loop` (the `loop` path), so slice A covers the
+unattended drain as well as a hand-picked dispatch. A concern that the `loop` path
+might check once and then dispatch many items over a long window was investigated and
+is **wrong about the loop's structure**: `run_loop_command` runs exactly ONE wave — it
+calls `_start_loop`, picks `candidates(...)[: budget]`, dispatches that wave
+concurrently, and returns. There is no outer wave loop, so the preflight is accurate
+for every item at the moment the wave starts. Recorded because the concern is a
+natural one to re-derive, and because nearly filing a non-existent gap in our own code
+would have been this session's fifth unverified defect claim.
+
+**Live exercise beyond this repo.** The merged preflight was pointed read-only at
+three sibling checkouts: `livespec-dev-tooling` (master CI `in_progress`) → PROCEED,
+which exercises the **pending** branch live rather than only in unit tests; and
+`livespec-runtime` and `livespec` (completed/success) → PROCEED, which additionally
+proves the `ci-green` job lookup resolves there. **The `ci-green` job name is a
+fleet-wide convention, not a this-repo quirk** — confirmed present in both siblings'
+latest master runs. `_CI_GREEN_JOB` is still a hardcoded name, so renaming that job in
+this repo would fail-close every dispatch; that is the safe direction, but it would
+present as a mysterious factory outage, so change the two together if it ever changes.
+
+**Not yet observed live: an actual refusal.** Slice A has been seen to PROCEED in
+production and against three sibling repos, and its refusal branches are covered by
+unit tests plus the injected-defect demonstration above — but no red master has
+occurred since it merged (the whole fleet was green when checked), so no live refusal
+has been witnessed. Do not manufacture one; the next natural red will supply it.
 
 **Which red does this still refuse?** Any failure in `check-python`,
 `check-doctor-static`, `check-metadata`, `e2e-cli`, or `acceptance` — the five
