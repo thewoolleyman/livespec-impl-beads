@@ -282,12 +282,25 @@ exclude_also = [
 #
 # IMPORTANT — why every role key is spelled out here:
 # Every role key MUST be DECLARED. An undeclared key that a wired check
-# consumes is a hard ERROR naming the key and the two sanctioned outs —
-# declare its real value, or declare it explicitly empty (`[]` for list keys,
-# `""` for the scalar `dataclasses_tree` / `neutral_hook_body_path`) with a
-# comment giving the reason. Declared-empty is the sanctioned, VISIBLE
-# opt-out: the gating check no-ops and says so in a structured `info` event.
-# Omission is NOT a silent baseline and NOT a way to opt out.
+# consumes is a hard ERROR naming the key and its legal spellings. Omission is
+# NOT a silent baseline and NOT a way to opt out.
+#
+# HOW A ROLE THIS REPO LACKS IS DECLARED (livespec-dev-tooling-8o8e.1). The five
+# UNION keys — `pure_trees`, `target_dirs`, `source_tree_prefixes`,
+# `dataclasses_tree`, `neutral_hook_body_path` — are the ones whose value IS a
+# check's scan universe, so an empty value made that check scan NOTHING and exit
+# 0. `[]` / `""` there meant two incompatible things at once: "the concept does
+# not apply to this repo" and "it applies and is switched off". Each of the five
+# now carries a real value or exactly ONE blessed variant (`not_applicable`,
+# `superseded_by`, `unarmed_until`, `convention_not_adopted`), with its reason in
+# the PARSED VALUE rather than in a comment no checker can read. A bare `[]` /
+# `""` on those five parses to `LegacyAmbiguousEmpty` and WARNs today, and
+# becomes a hard `ConfigParseError` once the fleet has migrated.
+#
+# Every OTHER role key keeps a bare `[]` as a LEGITIMATE spelling. Those are
+# exemption / severity predicates whose consuming checks derive the universe
+# from `resolve_check_universe()`, so an empty value makes them STRICTER rather
+# than blinder.
 #
 # HISTORY, retained because it explains the SHAPE of this block: under the
 # PRE-v0.54.12 regime `load_config` had two modes — with NO
@@ -340,7 +353,18 @@ supervisor_entry_files = [
     ".claude/hooks/livespec_footgun_guard.py",
     ".claude-plugin/hooks/codex_yolo_reapply.py",
 ]
-pure_trees = []
+# UNARMED, and deliberately NOT `not_applicable` — the concept applies here and
+# is currently undischarged. This repo's own ratified
+# SPECIFICATION/constraints.md requires "property-based test coverage on pure
+# modules", and `check-pbt-coverage-pure-modules` is WIRED into the `check`
+# aggregate — yet with this key empty it scans ZERO files and exits 0. It went
+# empty in 8858c90 only because the value it replaced was a copy-paste of
+# livespec-core's `parse/`+`validate/` paths, which do not exist here; no
+# deferral was ever recorded. Declaring `not_applicable` would put a lie into
+# parsed data, and `convention_not_adopted` would sanction this repo opting out
+# of its OWN ratified constraint. Carving and declaring the real subtree is
+# tracked as bd-ib-6qb2mc; when that lands, this key takes the real value.
+pure_trees = { unarmed_until = "bd-ib-6qb2mc" }
 covered_trees = [
     ".claude-plugin/scripts/livespec_orchestrator_beads_fabro",
     ".claude-plugin/scripts/bin",
@@ -357,10 +381,11 @@ source_tree_prefixes = [
 ]
 tests_tree_prefix = "tests/"
 target_dirs = [".claude-plugin/scripts", ".claude-plugin/hooks", ".claude/hooks", "dev-tooling", "tests"]
-# No generated dataclasses schema tree is installed in this orchestrator plugin.
-dataclasses_tree = ""
-# No neutral hook body is installed in this orchestrator plugin.
-neutral_hook_body_path = ""
+# NOT APPLICABLE — unlike `pure_trees` above, these two concepts genuinely do
+# not exist for this plugin, and no ratified constraint asks for them. Reasons
+# lifted from each key's own prior comment into the parsed value.
+dataclasses_tree = { not_applicable = "no generated dataclasses schema tree is installed in this orchestrator plugin" }
+neutral_hook_body_path = { not_applicable = "no neutral hook body is installed in this orchestrator plugin" }
 
 # Path-prefix allowlist for the `no_direct_destructive_cli` check: files whose
 # repo-root-relative POSIX path starts with one of these entries are exempt
