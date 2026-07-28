@@ -260,6 +260,23 @@ host-only:stranded-dispatch:bd-ib-w4h4 [high] Reconcile merged active work-item
 Reclaimed capacity AND a surfaced failure with an actionable handoff — the pair the
 charter insisted on, since either alone re-hides the defect.
 
+**✅ RE-VERIFIED 2026-07-28 against the CURRENT tree — the headline fix still holds.**
+The original proof was taken on 2026-07-26; a great deal has landed since (six
+dev-tooling pin bumps to v0.56.6, two factory dispatches, and several merges), so the
+epic's central invariant was re-run rather than assumed:
+
+```
+live ledger:
+  raw `active` row count : 1
+    - bd-ib-w4h4  assignee=fabro
+  claimed_active_count() : 0
+```
+
+A raw `active` row that costs ZERO WIP capacity — which IS the fixed behavior. Run
+against the live ledger and a COPY of the real journal; the real journal was confirmed
+byte-identical before and after by two independent size checks, so this verification
+wrote nothing.
+
 Nothing is in flight from this thread. Repo clean on `master`, no orphaned worktrees.
 
 **`bd-ib-w4h4` remains deliberately stranded, and that is still correct.** It is the
@@ -809,12 +826,35 @@ reading a green dispatcher summary:
   a dead-pid lock is RECLAIMED and re-stamped with the new caller's pid, while a
   lock whose holder is LIVE is still REFUSED rather than clobbered.
 
-**The two live leaked locks need no hand removal.** `tmp/fabro-dispatch-bd-ib-fe574e.lock`
+**The live leaked locks need no hand removal.** `tmp/fabro-dispatch-bd-ib-fe574e.lock`
 (pid 930374) and `…-bd-ib-fjj7f7.lock` (pid 580668) are still on disk with dead
 pids. Verified 2026-07-26 by running the merged `write_dispatch_lock` against
 COPIES of both real payloads: each is reclaimed automatically, so `bd-ib-fe574e`
 and `bd-ib-fjj7f7` are dispatchable again. Leave the originals alone — they are
 now inert, and they are this regression's field evidence.
+
+**RE-CHECKED 2026-07-28 — the count and the consequence both moved:**
+
+- **There are now THREE, not two.** A new one appeared:
+  `tmp/fabro-dispatch-bd-ib-hvuhxp.lock` (pid 2421000, dead). So dispatches still
+  LEAK locks; what `bd-ib-l2vglr` fixed is that a leaked lock is now harmless, not
+  that leaking stopped. That was the deliberate design — the S1 brief forbade
+  cleanup — so this is the intended steady state, not a new defect.
+- **The "dispatchable again" consequence is MOOT for both named items.**
+  `bd-ib-fe574e` and `bd-ib-fjj7f7` are both CLOSED now, so nothing waits on their
+  reclamation.
+- **The reclamation path was demonstrated IN PRODUCTION today, not just against
+  copies.** `bd-ib-ktxb`'s attempt 1 died mid-flight at the Implement node, which is
+  exactly the shape that leaks a lock — and after attempt 2 ran green, **no
+  `…-bd-ib-ktxb.lock` remains on disk at all.** That is consistent with attempt 2
+  reclaiming attempt 1's stale lock via `write_dispatch_lock`'s `FileExistsError`
+  path, which is precisely the mechanism `bd-ib-l2vglr` shipped. (Stated as
+  consistent-with rather than proven: no artifact records the reclaim directly.)
+
+**Normal completion DOES clean up.** Both of today's green dispatches
+(`bd-ib-ktxb`, `bd-ib-3lmt`) left no lock behind, so the three on disk are all from
+runs that died without unwinding their `ExitStack` — which is what makes them field
+evidence rather than clutter.
 
 **Own this honestly:** the regression traced to THIS THREAD's own brief on
 `bd-ib-ohdu5a`, which told the implementer "DO NOT add cleanup for leaked lock
