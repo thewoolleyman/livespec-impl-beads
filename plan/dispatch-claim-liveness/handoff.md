@@ -82,14 +82,16 @@
 >   implements against it.** Full evidence is on its notes and in §"`bd-ib-rxxx`
 >   ROOT-CAUSED". This does NOT license un-stranding `bd-ib-w4h4` — that is still a
 >   maintainer call.
-> - **⛔ 2026-07-28 — THE HEADLINE FINDING OF THAT SESSION: this ledger accumulates items
->   describing ALREADY-FIXED behavior, and a stale item is DISPATCHABLE.** Of eight items
->   checked against the merged tree, **four were fully stale — three of them P1**. This
->   very file asked the maintainer to tier `bd-ib-91wj` for dispatch when its defect had
->   been fixed two days earlier. Filed as **`bd-ib-js1f`** (P2, untiered). **Before acting
->   on ANY item named in this file, verify the defect still exists in the merged tree** —
->   the standing re-query rule above is necessary but not sufficient, because the ledger
->   can be current and the ITEM still stale.
+> - **⛔ 2026-07-28 — ITEMS DESCRIBING ALREADY-FIXED BEHAVIOR ACCUMULATE IN RECENTLY-WORKED
+>   AREAS, AND A STALE ITEM IS DISPATCHABLE.** In the janitor/dispatch area this session
+>   worked, **four of eight items were fully stale — three of them P1**; this very file
+>   asked the maintainer to tier `bd-ib-91wj` for dispatch when its defect had been fixed
+>   two days earlier. **But a seeded RANDOM sample of ten other items found ZERO stale**,
+>   so the effect is concentrated where fixes have recently landed, NOT diffuse across the
+>   backlog. Filed as **`bd-ib-js1f`** (P2, untiered), retitled to match the corrected
+>   claim. **Before acting on ANY item named in this file, verify the defect still exists
+>   in the merged tree** — the standing re-query rule above is necessary but not
+>   sufficient, because the ledger can be current and the ITEM still stale.
 > - **⛔ 2026-07-28, COMPLETED — `bd-ib-rxxx`'s DEFECT WAS FIXED ON 2026-07-20, the day it
 >   was filed. RECOMMEND CLOSING IT.** The mechanism is the runner's effective **UID**, not
 >   the `.coverage` arm and not checkout provenance: the only live-pid test probes pid 1,
@@ -960,6 +962,48 @@ the silent-failure shape `bd-ib-waov` was opened for.
 `bd-ib-js1f` records three fix shapes without choosing one, and notes that a mechanical
 "is this fixed?" detector is not buildable — deciding it means reading the merged tree
 against the item's claim, which is judgment, not a predicate.
+
+##### ⛔ SELF-CORRECTION, same day — A RANDOM SAMPLE FOUND *ZERO* STALE. The finding is NARROWER.
+
+The caveat above was correct, and **caveats do not stop a number from being quoted** — the
+4-of-8 figure had already reached a merged PR and this file before anyone tested it. It
+has now been tested and it does not generalize.
+
+A seeded random sample (`random.seed(20260728)`, n=10) drawn from the **70** non-closed
+items NOT already examined, sharing no members with the original eight, each verdict read
+off the merged tree:
+
+| verdict | n | examples |
+|---|---|---|
+| **confirmed LIVE** | 6 | `bd-ib-2q0` (LLOC is exactly 246 vs a 200 ceiling), `bd-ib-9p4i` (`write_stdout(text=token)` at `mint_app_token.py:52`), `bd-ib-lzau` (`mkdir` at `_dispatcher_janitor_lock.py:38`), `bd-ib-j9x`, `bd-ib-efjsb4`, `bd-ib-98c.4` |
+| undetermined by grep | 4 | `bd-ib-4m5f`, `bd-ib-r6o0`, `bd-ib-98c.2`, `bd-ib-98c.6` |
+| **STALE** | **0** | — |
+
+**The revised claim, which is more actionable rather than weaker:**
+
+> **Staleness is real, it is CONCENTRATED in areas of recent activity, and it is NOT
+> diffuse across the backlog.**
+
+The original eight came entirely from the janitor / dispatch-path area that had just been
+worked hard — **which is exactly where fixes land without closing the item that reported
+them.** A sweep therefore does not mean "audit 80 items"; it means "when a subsystem has
+just been worked hard, re-check the open items naming it". Small job, obvious trigger.
+`bd-ib-js1f` has been retitled and corrected accordingly, and its fix shape (A), a
+periodic full-backlog sweep, is now poorly justified and should be dropped; **(C) — require
+a recorded re-check that the defect still reproduces before an item may be TIERED for
+unattended dispatch — is the best-value option**, because it targets the concrete harm at
+the one moment that matters and depends on no sweep happening at all.
+
+**What survives untouched:** all four originally-found stale items are still genuinely
+stale, each verified against the merged tree; and the near-miss is unchanged and remains
+the strongest argument — a stale item being dispatchable costs a full cycle regardless of
+base rate, and the base rate is highest exactly where the factory is most active.
+
+**The method lesson, which is the reusable part:** this is the SECOND time in one day this
+thread turned an inference from a small biased sample into a general claim — the first was
+"filesystem-walking checks are worth a general rule", disproved by measuring 16 of them.
+Ten minutes of random sampling halved the scope of a proposed fix. Prefer the measurement
+to the caveat.
 
 #### 2026-07-28 — a THIRD instance of the egress flake, contributed to `bd-ib-wmqsn7`
 
