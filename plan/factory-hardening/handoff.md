@@ -579,6 +579,78 @@ the predicate against its title+description. `bd-ib-lfm7`'s notes carry the one-
 and the per-line semantics of the negation escape (a global scope-fence sentence clears only
 its own line).
 
+## The complete pre-dispatch refusal surface — traced from source 2026-07-28
+
+Assembled while checking whether this thread's own rows could actually dispatch. **Every
+gate a work-item must clear before a fabro sandbox is provisioned, in execution order.**
+Written down because there was no single place that listed them, and "why did my dispatch
+not run?" otherwise means re-reading four modules.
+
+**The load-bearing structural fact: every gate below fires BEFORE the ledger's
+`ready → active` write.** Verified: `_filter_host_only_candidates` runs first
+(`_dispatcher_admission.py:90`), only its `admittable` output reaches `plan_admissions`
+(`:100`), and only `plan.admitted` gets the status write. **So none of these refusals can
+strand an item at `active`** — it stays `ready` (or `pending-approval`) and the dispatch exits
+non-zero. The strand class (`bd-ib-dd9l`) is strictly a POST-merge phenomenon; do not conflate
+the two.
+
+### Stage 1 — repo-level, `dispatch_preamble` (`_dispatcher_run_checks.py:219-257`)
+
+Runs before the receiver is armed, before the store is prepared, and before anything is
+admitted — so a failure here has **zero side effects**.
+
+| # | gate | exit |
+|---|---|---|
+| 1 | malformed `--janitor` JSON argv | usage error |
+| 2 | fabro engine binary unresolvable | precondition |
+| 3 | `source_checkout_preflight_refusal` — refuses dispatching from a source checkout | precondition |
+| 4 | `master_ci_preflight_refusal` — **slice A**; refuses while master CI is red or unprovable | precondition |
+
+### Stage 2 — run-level, `prepare()` (`_dispatcher_loop_selection.py:64-79`)
+
+| # | gate | note |
+|---|---|---|
+| 5 | `--repo` missing, or the resolved `workflow.toml` absent | — |
+| 6 | `apply_dispatcher_staleness_gate` | refuses a plugin build that **provably** predates the latest release; a git-checkout root is exempt, an unprovable identity warns-and-proceeds (the `bd-ib-n7ce4n` deadlock lesson). Runs on `dispatch`/`loop` **only** — not on `reconcile-merged`, which is `bd-ib-3j4u`. |
+
+### Stage 3 — candidate selection, `candidates()`
+
+| # | gate |
+|---|---|
+| 7 | `ready_items` — the item must be `ready` **and** every `depends_on` entry must be resolved (an OPEN ref excludes it silently, at no urgency) |
+
+### Stage 4 — per-item, before ANY ledger write (`_dispatcher_admission.py:138-163`)
+
+| # | gate | outcome stage |
+|---|---|---|
+| 8 | dispatch-label read failure | `ledger-labels` (failed) |
+| 9 | `is_host_only_item` — non-null `factory_safety`, **or** the workflow-edit prose heuristic without the `citation-only` override | `host-only-refused` (failed; item stays `ready`) |
+
+### Stage 5 — admission valve, `plan_admissions` (`_dispatcher_valves.py:159+`)
+
+| # | condition | outcome |
+|---|---|---|
+| 10 | `pending-approval` + effective `admission_policy != auto` | HELD `manual-admission` |
+| 11 | `resolve_assignee` returns `None` | HELD `unresolvable-assignee` |
+| 12 | no free WIP slot (`dispatcher.wip_cap` minus claimed active) | DEFERRED — **not** a failure; waits at `ready` |
+
+Only after all twelve does the item transition `ready → active` and a sandbox get
+provisioned.
+
+### Not a gate, despite appearances
+
+`warn_item_sizing` is **warn-only** — *"Never blocking: the dispatch proceeds regardless"*
+(`_dispatcher_completion.py:223-230`). A sizing WARN in the journal is not why a dispatch
+did not run.
+
+### Practical use — check gates 7 and 9 before tiering anything
+
+Those are the two an author controls and the two that bite. Gate 7 is a `bd show` away; gate
+9 is one command against `_dispatcher_host_only._text_declares_workflow_edit` over the row's
+title + description (**not** notes). The method and the per-line semantics of the prose
+escape are on `bd-ib-lfm7`; the tenant-wide census and its two current false positives are in
+§"The admission-heuristic census" above.
+
 ## Operational facts for diagnosing a dispatch failure
 
 Contributed by `console-happy-path-mvp-supervisor` from their 2026-07-28 recovery of a
