@@ -23,6 +23,12 @@
 > - **2026-07-28 — `bd-ib-ri1x` was ROUTED OUT of this tenant**, not left filed. It is
 >   now `livespec-j49m` in the core `livespec` tenant, with a ratifying spec amendment
 >   merged as core PR #1811 (`45ab15e5`). Do not go looking for it in this ledger.
+> - **2026-07-28 — `bd-ib-d6op2n` was CLOSED as a DUPLICATE**, discharging the last of
+>   this thread's hand-routing obligations. The owning tenant had already filed the same
+>   defect as `livespec-driver-claude-tun` six days earlier, and theirs is the better
+>   record. Do not re-file it here. Evidence was contributed to their item first; the
+>   filed-items entry below explains what, and why the previous wording of that entry was
+>   the thing that hid the duplicate for two days.
 > - **2026-07-28 — FOUR items were filed and left UNTIERED ON PURPOSE.** None is
 >   dispatchable until a maintainer signs the `autonomy_tiered` gate; an agent must not
 >   self-sign it. In this tenant: **`bd-ib-xw2k`** (P3, journal-path has two conventions)
@@ -103,6 +109,14 @@
 >    actually made.
 > 4. A defect class was called "worth a general rule" on the strength of two examples;
 >    measurement showed it is bounded at exactly those two.
+> 5. **A NEW CLASS, found 2026-07-28: the rule was being applied to THIS tenant only.**
+>    `bd-ib-d6op2n` was filed here, and described here for two days as unowned work
+>    needing hand-routing, while the owning tenant had already filed the same defect six
+>    days EARLIER (`livespec-driver-claude-tun`). Nobody had queried the owning tenant's
+>    ledger — the entry even said "NO plan thread owns it", which is true and irrelevant,
+>    because ownership lives in a ledger, not in a plan thread. **For any cross-tenant
+>    prose-linked item, re-query the OWNING tenant — and do it BEFORE filing, not just
+>    before acting.** The cost here was a duplicate record of another repo's own bug.
 >
 > **The trap is that this file is written carefully — and careful is not the same as
 > current.** A well-argued paragraph about an item someone else closed an hour ago reads
@@ -230,11 +244,38 @@ Items filed by this thread, none part of the epic. Statuses vary — read each l
   the next dispatch is the test — see §"The v0.54.19 pin hold". (Earlier revisions
   of this line said no plan thread owned it and that the pin-hold half was ours.
   Both were true when written and are now superseded.)
-- **`bd-ib-d6op2n`** (P2, **host-only**) — the `livespec-driver-claude`
-  core-resolution misfire; can misfire our own revise pass. Owned by that repo;
-  filed here because beads has no cross-tenant edge, so this prose IS the link and
-  it must be routed by hand. **NO plan thread owns it** — do not assume a
-  successor has picked it up, and do not adopt it into this epic.
+- **`bd-ib-d6op2n`** (P2, host-only) — the `livespec-driver-claude` core-resolution
+  misfire. ✅ **ROUTING OBLIGATION DISCHARGED 2026-07-28, and it turned out to be a
+  DUPLICATE. CLOSED here; do not re-file it in this tenant.** The defect is real and
+  still unfixed, but the owning tenant had already filed it as
+  **`livespec-driver-claude-tun`** on **2026-07-20 — six days BEFORE** we filed ours, and
+  theirs is the better item (it carries a measured fleet-exposure table across six repos
+  that ours lacked). Closed as a RELOCATION matching the `bd-ib-ri1x` → `livespec-j49m`
+  precedent: close reason points at the target, and **no `resolution:` label** is set,
+  because nothing was resolved here.
+  **⛔ THE PREVIOUS TEXT OF THIS ENTRY WAS THE TRAP, AND IT IS WORTH READING WHY.** It
+  said "**NO plan thread owns it** — do not assume a successor has picked it up." That
+  was accurate about *plan threads* and completely missed the point: the check that
+  mattered was the owning **tenant's ledger**, which nobody had queried. The standing
+  re-query rule at the top of this file was being applied only to THIS tenant.
+  **Generalize it: for any cross-tenant prose-linked item, re-query the OWNING tenant
+  before acting — including before filing, because the duplicate this thread created
+  cost the owning repo a second record of its own bug.**
+  **Contributed to `livespec-driver-claude-tun` before closing, so nothing was lost:**
+  re-verified against the INSTALLED driver build `f320cca4011e` that all eight bindings
+  still ship the directory test and none the file test; and the misresolution was
+  executed VERBATIM with no operator judgement — the snippet resolves `<core-root>` to
+  this repo's `.claude-plugin`, **the not-found guard PASSES (exit 0)**, and both
+  `prose/revise.md` and `scripts/bin/revise.py` are absent there. Their 2026-07-20 repro
+  had recovered because the operator followed the stated rule instead of the snippet;
+  this is the same failure with nobody in the loop.
+  **A sequencing finding neither item had, recorded on both:** this defect **MASKS**
+  `livespec-driver-claude-6lc` (core-root resolution picks `entries[0]`, an arbitrary
+  build). The step-2 directory false-match short-circuits before step 3 ever runs, so
+  `-6lc` is invisible in exactly the repos where `-tun` fires. **Fixing `-tun` alone will
+  EXPOSE `-6lc`** in those repos, surfacing as a confusing "stale build" error. On this
+  host the `livespec@livespec` key already spans **three distinct builds**, so that is
+  not hypothetical.
 - **`bd-ib-5ymv5p`** (P2, factory-safe) — ✅ **DONE. CLOSED `resolution:completed`,
   PR #1023**, fixed on `master` by `a219f88` "fix: clear assignee on operator moves".
   `move_item` now passes `clear_assignee=True` through
@@ -376,10 +417,13 @@ Verified on the forge after a fetch, not from a working tree:
   lesson of §"The blocking precondition".)
 - Primary checkout clean on `master`; no worktrees left by this thread.
 
-**What remains is filed, not in flight.** Exactly TWO pre-existing unowned items —
-`bd-ib-bic7hb` (`ready`, host-only) and `bd-ib-d6op2n` (`ready`, host-only). **Neither
-is part of this epic**, neither is blocked on this thread, and the filed-items list
-above says for each one who owns it and why it is where it is.
+**What remains is filed, not in flight.** This list said TWO pre-existing unowned items —
+`bd-ib-bic7hb` and `bd-ib-d6op2n`, both `ready` and host-only. **It is now ONE.**
+`bd-ib-d6op2n` was CLOSED 2026-07-28 as a duplicate of `livespec-driver-claude-tun`,
+which the owning tenant had filed six days earlier; see its entry in the filed-items list
+above for what was contributed there before closing. **`bd-ib-bic7hb` is the only one
+left**, it is not part of this epic, it is not blocked on this thread, and the
+filed-items list says who owns it and why it is where it is.
 
 **Re-verified against the ledger 2026-07-28, and the list SHRANK.** `bd-ib-5ymv5p` and
 `bd-ib-hvuhxp` were also on this list and are now CLOSED `resolution:completed` — fixed
