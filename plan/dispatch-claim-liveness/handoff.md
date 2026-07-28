@@ -82,6 +82,14 @@
 >   implements against it.** Full evidence is on its notes and in §"`bd-ib-rxxx`
 >   ROOT-CAUSED". This does NOT license un-stranding `bd-ib-w4h4` — that is still a
 >   maintainer call.
+> - **⛔ 2026-07-28, COMPLETED — `bd-ib-rxxx`'s DEFECT WAS FIXED ON 2026-07-20, the day it
+>   was filed. RECOMMEND CLOSING IT.** The mechanism is the runner's effective **UID**, not
+>   the `.coverage` arm and not checkout provenance: the only live-pid test probes pid 1,
+>   which root can signal and an unprivileged uid cannot, so CI's root container covered a
+>   line the host janitor at uid 1000 did not. `ff97ad8` fixed exactly that the same
+>   evening, and the `check-python` matrix's new `uid: root`/`uid: nonroot` dimension now
+>   guards it. **So `bd-ib-w4h4`'s stated precondition is MET IN SUBSTANCE** — which still
+>   does NOT license un-stranding it; that is the maintainer's call.
 >
 > **⚠ It is NOT "the only `active` row" — earlier revisions said so and that is now
 > false.** Other sessions dispatch into this shared tenant, so the `active` set moves
@@ -846,6 +854,58 @@ doubly moot: it was already moot because the PR merged, and nothing about
 that does not fail, and an implementer would spend the whole budget in the wrong module.
 Not done here: retitling is a ledger write on someone else's framing. The full evidence,
 the recommended rescope, and three honest limits are on the item's notes.
+
+##### ✅ COMPLETED the same day — the mechanism is the RUNNER'S UID, and it was FIXED on 2026-07-20
+
+The section above left an honest limit — *"whether CI passed PR #836 by taking the other
+arm was not established"*. It has now been settled, and **it corrects the section above:
+the `.coverage` arm was never the cause of the shortfall.** The cause is the effective
+UID of the process running the tests.
+
+`claim_janitor_lock` consults liveness through a short-circuit `or`
+(`_dispatcher_janitor_lock.py:75`):
+
+```python
+if lock is None or lock.pid == os.getpid() or _pid_is_alive(pid=lock.pid):
+```
+
+So reaching `_pid_is_alive`'s direct `return True` needs a pid that is NOT ours and that
+`os.kill(pid, 0)` can signal WITHOUT raising. The only live-pid test probes **pid 1** —
+and `os.kill(1, 0)` raises `PermissionError` for an unprivileged uid but **succeeds for
+root**. Measured with one test and one codebase, root reproduced at the syscall boundary
+by monkeypatching `os.kill` so no privileged run was needed:
+
+```
+non-root       : missing ... 109, 133
+simulated root : missing ... 109, 134
+```
+
+**Byte-identical except which line of `_pid_is_alive` goes uncovered.** CI ran PR #836 in
+the baked `container:` as ROOT (the workflow's own comment says so), covering line 133 →
+100% → merged green. The post-merge janitor ran on the host as `ubuntu` (uid 1000) →
+line 133 never executed → 99.99% → red → claim stranded. Same commit, opposite verdicts.
+
+**⛔ AND IT WAS ALREADY FIXED — the same day the item was filed.** `ff97ad8`
+(2026-07-20 22:46:11 +0200), *"fix: restore the janitor gate for non-root runners and
+cover the reclaim mutex"*, added `test_dispatcher_janitor_lock_nonroot.py`, whose
+docstring states this mechanism independently and in the same terms ("CI's root container
+masked it"; the pid-1 `PermissionError`; the `lock.pid == os.getpid()` short-circuit). It
+also closed a second hole nobody had noticed — the `fcntl.flock` reclaim mutex had no
+coverage at all. **The fix is CI-guarded now**: the `check-python` matrix gained a `uid`
+dimension, and both `check-coverage (root)` and `check-coverage (nonroot)` pass on recent
+`.py`-changing PRs (#1050, #1048). So the item has sat open since 2026-07-20 describing
+behavior that stopped existing ~17 hours after it was filed. **Recommend CLOSING it**;
+that is its owner's call, not taken here.
+
+**What survives, and it is genuinely separate:** the `check-coverage` arm-switching on a
+gitignored `.coverage` file is real, is untouched by `ff97ad8`, and remains the third
+member of the gitignored-state divergence family. It deserves its OWN item rather than
+keeping this one open under a title that names neither defect.
+
+**`bd-ib-w4h4`'s stated precondition is therefore MET IN SUBSTANCE** — the defect that
+stranded it is fixed and guarded, though the item tracking it is still open. **This still
+does NOT license un-stranding it.** That remains a maintainer call, and it costs no WIP
+slot where it sits.
 
 ### ✅ THE S3 BLOCKER — SETTLED 2026-07-26, and the blocking half has SHIPPED
 
