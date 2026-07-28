@@ -25,12 +25,20 @@
 >   merged as core PR #1811 (`45ab15e5`). Do not go looking for it in this ledger.
 > - **2026-07-28 — FOUR items were filed and left UNTIERED ON PURPOSE.** None is
 >   dispatchable until a maintainer signs the `autonomy_tiered` gate; an agent must not
->   self-sign it. In this tenant: **`bd-ib-xw2k`** (P3, journal-path has two conventions —
->   latent, nothing broken today) and **`bd-ib-91wj`** (P2, janitor checkout lacks the
->   worktree pack — **its open question is SETTLED, read its notes first**). Elsewhere,
+>   self-sign it. In this tenant: **`bd-ib-xw2k`** (P3, journal-path has two conventions)
+>   and **`bd-ib-91wj`** (P2, janitor checkout lacks the worktree pack). Elsewhere,
 >   prose-linked because beads has no cross-tenant edge: **`bd-gj-pch`**
 >   (`livespec-orchestrator-git-jsonl`) and **`livespec-r5df`** (core `livespec`), the
 >   per-repo and fleet-level halves of the doc-only pre-commit gap.
+> - **⚠ BOTH IN-TENANT UNTIERED ITEMS WERE MEASURED LATER ON 2026-07-28, AND BOTH
+>   PREMISES MOVED. READ THEIR NOTES BEFORE TIERING EITHER.** `bd-ib-91wj`'s reported
+>   defect is **ALREADY FIXED on master** by `14c3cae` — it is a re-report from a session
+>   running a week-old cached plugin, so **do not tier it for dispatch**; the remedy for
+>   the reporting side is a plugin refresh. `bd-ib-xw2k`'s "nothing passes `--journal`
+>   today" premise is **FALSE** — three committed scripts pass one — though the
+>   divergence still never bites in a single run. Both findings are proven by execution
+>   and recorded on the items; see §"2026-07-28 addendum — the two untiered items were
+>   MEASURED".
 > - **⛔ 2026-07-28 — STAND DOWN on `bd-ib-wmqsn7` and `bd-ib-bwgko4`.** They belong to
 >   `plan/factory-hardening/`, which is ACTIVELY RUNNING in its own session (it holds a
 >   live dispatch in THIS tenant). Do not tier, dispatch, adopt or re-describe them. Our
@@ -632,6 +640,77 @@ and the escalation it describes is the pattern to repeat; only the outcome chang
    neither was right about the decision, which was settled by reading the module
    directly. **Do not arbitrate competing review summaries against each other; go to the
    artifact.**
+
+#### 2026-07-28 addendum — the two untiered items were MEASURED; both premises moved
+
+Three more LEDGER-ONLY writes, invisible to a code reader. No item was closed, retitled,
+re-scoped or tiered — an agent must not sign the `autonomy_tiered` gate. What changed is
+that a maintainer can now decide both without re-deriving anything.
+
+| what | where it lives |
+|---|---|
+| `bd-ib-91wj`'s reported defect is ALREADY FIXED on master | **`bd-ib-91wj` notes** |
+| The `--janitor` override surface is exercised, refining the above | **`bd-ib-91wj` notes** |
+| `bd-ib-xw2k`'s "nothing passes `--journal`" premise is FALSE | **`bd-ib-xw2k` notes** |
+
+**`bd-ib-91wj` — do NOT tier this for dispatch as written; its acceptance is already
+satisfied.** `install-worktree-pack` entered `_DEFAULT_JANITOR` in commit **`14c3cae`**
+(2026-07-26 22:57 UTC), and that commit's own body names the IDENTICAL failure this item
+reports — the `bd-ib-hvuhxp` reconcile, PR #1018, `worktree_pack_absent`, claim stranded
+`active`. So the item is a **re-report of an already-fixed defect**, which is exactly what
+the plugin-revision-skew mechanism predicts.
+
+Proven by execution, red → green, in a throwaway worktree of master (since removed):
+`primary_checkout_commit_refuse_hook_installed` fails with
+`"failure_mode": "worktree_pack_absent"` at exit 4, `just install-worktree-pack`
+materializes all four pack files, and the same check then exits 0. Both the dispatch and
+`reconcile-merged` paths share the argv — `reconcile_plan` and `_dispatcher_loop` both
+call `build_plan`, which resolves through `janitor_argv_with_default`.
+
+**The skew is now measured, not inferred.** Of ~75 cached plugin revisions on this host,
+**only 5 carry the pack step**. The revision the console session dispatched on,
+`1567e8f200dc`, is release **0.45.18 dated 2026-07-20** — a week older than the fix
+(`git merge-base --is-ancestor 14c3cae 1567e8f200dc` is false). **A plugin refresh is the
+whole remedy for their symptom**, and it needs no code change.
+
+**A self-correction recorded on the item, because the distinction matters.** The first
+note claimed the per-repo-override fragility has "zero exposure", from reading all 9
+fleet members' `.livespec.jsonc` and finding no `janitor` key. True — but it measured the
+*config key* only. `orchestrator-image/acceptance-live-golden-master.sh:602` passes
+`--janitor "[\"true\"]"` as a **CLI flag**, so the override path is live code. Harmless
+there (a `true` janitor runs no `check` at all), but it means the durable-placement
+hardening — move the pack install into `_provision_janitor_checkout`'s `steps` tuple with
+`cwd=plan.janitor_checkout` — is better motivated than "latent" suggested.
+
+**`bd-ib-xw2k` — its stated premise is false, in the item's favour.** The description
+argues the divergence is harmless because `drive` exposes no `--journal` flag. That half
+is true, but the override is passed on the OTHER side of the pair: **three committed
+scripts pass a non-default journal path to `dispatcher.py loop` today** —
+`tier2-dispatch-proof.sh`, `real-work-dispatch.sh` and `acceptance-live-golden-master.sh`,
+each with its own `/tmp/livespec-*.jsonl`. Exact inventory: **7 call sites resolve**
+through `journal_path` (the description estimated "six-plus"), **3 hardcode the literal**
+(`_drive_valves.py:205`, `_needs_attention_work_items.py:44`,
+`_needs_attention_stranded_dispatch.py:22`).
+
+**The mechanism is CROSS-CLI, which constrains the fix.** `--journal` is declared only on
+the dispatcher (`dispatcher.py:332`, `:354`); `drive` and `needs-attention` are separate
+CLIs with no such argument, so the three sites are not ignoring an override they were
+handed — there is no `args.journal` to thread. The failure it sets up is that a
+`--journal` run's records are invisible to S2's stranded-dispatch lane: an ABSENT record,
+the epic's own silent-failure class. **Honest limit that keeps it low severity:** none of
+the three callers invokes `drive` or `needs-attention` in the same run, so the two
+conventions are each live but never meet today. Recommended fix on the item is a shared
+no-argument default resolver — one definition instead of four, no behavior change, and a
+prerequisite for ever honoring an override in those CLIs.
+
+**⚠ THE PIN HAS MOVED AGAIN — twice — SINCE THE ASSUMPTION WAS DISCHARGED.** The two
+end-to-end dispatches that paid off the standing assumption ran on **v0.56.6**. Since
+then: `cc95594` → v0.56.7, and `127cb4a` → **v0.57.0** (2026-07-28 06:27:15Z), with the
+sandbox image pin now `python-agent-v0.57.0`. The dispatch journal's last record is
+**04:59:58Z**, before that bump, so **nothing has dispatched on either new pin.** This is
+recorded as fact, NOT as a re-imposed hold — the maintainer released that hold
+deliberately and it must not be re-imposed. Read "assumption fully discharged" as scoped
+to v0.56.6, which is what it was measured on.
 
 ### ✅ THE S3 BLOCKER — SETTLED 2026-07-26, and the blocking half has SHIPPED
 
