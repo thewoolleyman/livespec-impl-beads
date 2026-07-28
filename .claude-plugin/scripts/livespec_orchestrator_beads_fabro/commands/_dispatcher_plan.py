@@ -72,6 +72,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_argv import (
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_goal import render_goal
 from livespec_orchestrator_beads_fabro.commands._dispatcher_host_only import (
+    WORKFLOW_SCOPE_OVERRIDE_LABEL,
     host_only_refusal_detail,
     is_host_only_item,
 )
@@ -122,6 +123,7 @@ __all__: list[str] = [
     "NON_CONVERGED_MARKER",
     "SANDBOX_OTEL_ENDPOINT_ENV_VAR",
     "SIBLING_CLONES_ROOT_ENV_VAR",
+    "WORKFLOW_SCOPE_OVERRIDE_LABEL",
     "CodexFreshnessVerdict",
     "DispatchPlan",
     "FleetMembers",

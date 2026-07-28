@@ -9,15 +9,18 @@ the structured WorkItem field.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
 __all__: list[str] = [
+    "WORKFLOW_SCOPE_OVERRIDE_LABEL",
     "host_only_refusal_detail",
     "is_host_only_item",
 ]
 
 _WORKFLOW_PREFIX = ".github/workflows/"
+WORKFLOW_SCOPE_OVERRIDE_LABEL = "workflow-scope-override:citation-only"
 _EDIT_VERB = (
     r"edit(?:s|ing)?|modif(?:y|ies|ying)|update(?:s|d|ing)?|"
     r"rewrite(?:s|ing)?|touch(?:es|ing)?|chang(?:e|es|ing)"
@@ -38,9 +41,13 @@ _NEGATED_WORKFLOW_SCOPE = re.compile(
 )
 
 
-def is_host_only_item(*, item: WorkItem) -> bool:
+def is_host_only_item(*, item: WorkItem, raw_labels: Sequence[str] = ()) -> bool:
     """Return True when a work-item is intrinsically unsafe for the factory."""
-    return item.factory_safety is not None or _declares_workflow_edit(item=item)
+    if item.factory_safety is not None:
+        return True
+    if WORKFLOW_SCOPE_OVERRIDE_LABEL in raw_labels:
+        return False
+    return _declares_workflow_edit(item=item)
 
 
 def host_only_refusal_detail(*, item_id: str) -> str:
@@ -51,9 +58,10 @@ def host_only_refusal_detail(*, item_id: str) -> str:
         "withheld sandbox capability. It MUST NOT be dispatched to a fabro "
         "sandbox. host-route it through an attended host session instead; the item "
         "remains open for that route. If the workflow path is citation-only, "
-        "use the existing drive valve surfaces (`set-admission:<id>:manual` "
-        "and `approve:<id>` after the scope is corrected or split) before "
-        "retrying factory dispatch."
+        "set the recorded override with "
+        "`set-workflow-scope-override:<id>:citation-only`, or add an inline "
+        "negation declaration stating that the item ships no files under "
+        ".github/workflows/, before retrying factory dispatch."
     )
 
 

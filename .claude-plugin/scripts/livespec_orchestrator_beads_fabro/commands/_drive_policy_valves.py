@@ -30,6 +30,7 @@ __all__: list[str] = [
     "resolve_blocked_item",
     "set_cap",
     "set_policy",
+    "set_workflow_scope_override",
 ]
 
 # Targets an operator may move a selected item to for hands-on queue control.
@@ -110,6 +111,24 @@ def set_policy(
             f"Updated {item.id}: {action.removeprefix('set-')} policy -> {value}; "
             "status unchanged."
         ),
+    )
+
+
+def set_workflow_scope_override(
+    *, config: StoreConfig, item: WorkItem, aid: str, value: str
+) -> dict[str, Any]:
+    store.update_work_item_workflow_scope_override(
+        path=config,
+        item_id=item.id,
+        value=value,
+    )
+    return valve_success(
+        aid=aid,
+        wid=item.id,
+        stage="human-valve-set-workflow-scope-override",
+        status=item.status,
+        assignee=item.assignee,
+        msg=(f"Recorded {item.id}: workflow scope override -> {value}; " "status unchanged."),
     )
 
 

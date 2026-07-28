@@ -197,6 +197,29 @@ def test_is_host_only_item_true_for_declared_workflow_edit_in_reason() -> None:
     assert is_host_only_item(item=item) is True
 
 
+def test_workflow_scope_override_admits_citation_but_not_factory_safety() -> None:
+    item = _item(
+        description=(
+            "SCOPE FENCE. Do not touch `.github/workflows/` -- nothing here needs it; "
+            "the actual scope is dispatcher Python."
+        )
+    )
+    raw_labels = ("workflow-scope-override:citation-only",)
+
+    assert is_host_only_item(item=item, raw_labels=raw_labels) is False
+    assert (
+        is_host_only_item(
+            item=_item(
+                description=item.description,
+                factory_safety="mutates-host-machinery",
+            ),
+            raw_labels=raw_labels,
+        )
+        is True
+    )
+    assert is_host_only_item(item=_item(reason="Update `.github/workflows/ci.yml`.")) is True
+
+
 def test_is_host_only_item_false_for_cite_only_workflow_mention() -> None:
     item = _item(
         description=(
@@ -216,6 +239,8 @@ def test_host_only_refusal_detail_is_actionable() -> None:
     # not retry the sandbox.
     assert "host" in detail.lower()
     assert "sub-agent" in detail or "host-route" in detail
+    assert "set-workflow-scope-override:<id>:citation-only" in detail
+    assert "ships no files under .github/workflows/" in detail
 
 
 # ---------------------------------------------------------------------------

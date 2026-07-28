@@ -72,6 +72,7 @@ def test_auto_approve_path_journals_governing_setting(
     journal = _MemoryJournal()
     monkeypatch.setattr(_dispatcher_admission, "store_config", lambda **_: tmp_path)
     monkeypatch.setattr(_dispatcher_admission, "update_work_item_status", lambda **_: None)
+    monkeypatch.setattr(_dispatcher_admission, "read_dispatch_labels", lambda **_: ())
 
     _dispatcher_admission.admit_and_select(
         repo=tmp_path,
@@ -95,6 +96,7 @@ def test_global_auto_approve_path_journals_governing_setting(
     journal = _MemoryJournal()
     monkeypatch.setattr(_dispatcher_admission, "store_config", lambda **_: tmp_path)
     monkeypatch.setattr(_dispatcher_admission, "update_work_item_status", lambda **_: None)
+    monkeypatch.setattr(_dispatcher_admission, "read_dispatch_labels", lambda **_: ())
 
     _dispatcher_admission.admit_and_select(
         repo=tmp_path,
@@ -109,6 +111,36 @@ def test_global_auto_approve_path_journals_governing_setting(
         disposition="auto-approve",
         governing_settings=("auto_approve_ready",),
     )
+
+
+def test_admission_refuses_when_workflow_scope_labels_cannot_be_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    journal = _MemoryJournal()
+    monkeypatch.setattr(
+        _dispatcher_admission,
+        "read_dispatch_labels",
+        lambda **_: "ledger label read failed for bd-ib-123",
+    )
+    monkeypatch.setattr(_dispatcher_admission, "store_config", lambda **_: tmp_path)
+
+    admission = _dispatcher_admission.admit_and_select(
+        repo=tmp_path,
+        items=[],
+        candidates=[_item(id="bd-ib-123", status="ready")],
+        journal=journal,
+        enforce_cap=False,
+    )
+
+    assert admission.admitted == []
+    assert [outcome.stage for outcome in admission.refused] == ["ledger-labels"]
+    assert [record["stage"] for record in journal.records] == ["outcome"]
+    outcome = journal.records[0]["outcome"]
+    assert isinstance(outcome, dict)
+    assert outcome["work_item_id"] == "bd-ib-123"
+    assert outcome["status"] == "failed"
+    assert outcome["stage"] == "ledger-labels"
+    assert outcome["detail"] == "ledger label read failed for bd-ib-123"
 
 
 def test_ai_auto_accept_path_journals_governing_setting(

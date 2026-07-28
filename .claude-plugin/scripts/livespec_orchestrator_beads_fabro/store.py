@@ -29,6 +29,7 @@ from livespec_orchestrator_beads_fabro._store_mutations import (
     update_work_item_policy,
     update_work_item_rank,
     update_work_item_status,
+    update_work_item_workflow_scope_override,
 )
 from livespec_orchestrator_beads_fabro._store_native_priorities import (
     read_work_item_native_priorities,
@@ -65,6 +66,7 @@ __all__: list[str] = [
     "update_work_item_policy",
     "update_work_item_rank",
     "update_work_item_status",
+    "update_work_item_workflow_scope_override",
 ]
 
 # Label prefixes that carry livespec-side enum/flag fields with no native
