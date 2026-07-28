@@ -1,33 +1,63 @@
 # Handoff — factory-hardening
 
-## ✅ THIS THREAD IS ARCHIVABLE — read this before anything else
+## ✅ ARCHIVED — this thread is CLOSED. Do not continue it.
 
-**Declared 2026-07-28 at session end. There is no live work and nothing is pending from the
-maintainer.** Do not go looking for work in this thread; the correct next action is about
-ARCHIVING it, not continuing it.
+**Archived 2026-07-29 on maintainer decision.** The directory moved from
+`plan/factory-hardening/` to `plan/archive/factory-hardening/` in the same commit that
+rewrote this block; nothing below it was edited.
 
-**Why it qualifies, checked against the charter's mechanical test** (`supervisor-handoff.md`
+**This file is now a reference document, not a work surface. Nothing in it is a task.** If
+you were handed it with "read it and follow it", following it correctly means reading the
+result and stopping — not restarting the work.
+
+**Why it qualified, checked against the charter's mechanical test** (`supervisor-handoff.md`
 §"A thread with no live work is NOT a resting state"): no live worker task, no armed watcher,
 no open question.
 
-1. **All four maintainer decisions are answered AND landed** — not merely answered. See the
+1. **All four maintainer decisions were answered AND landed** — not merely answered. See the
    ruling table below.
 2. **The one authorized dispatch completed green** — `bd-ib-xpkg`, PR #1124, merge
-   `168d4493`, reconciled to `done`. The week's dispatch budget is spent.
+   `168d4493`, reconciled to `done`. The week's dispatch budget was spent.
 3. **Everything else is filed-and-undispatched BY RULING** — six rows, listed below, all
    deliberately left in `backlog` so no `loop` drain starts one during the freeze. Waiting for
-   the Jul 31 reset is a *timing constraint already ruled on*, not a pending decision.
+   the Jul 31 reset was a *timing constraint already ruled on*, not a pending decision.
 
-**⚠ THE ARCHIVE MOVE WAS NOT PERFORMED.** `plan/factory-hardening/` has NOT been moved to
-`plan/archive/`. That was left to the maintainer deliberately: they have framed archival as
-their call before, and their closing instruction was to *say* the thread is archivable and
-why. **If you are a fresh session: surface this to the maintainer and ask whether to perform
-the move — do not silently continue the thread, and do not archive it unasked.**
+### Re-verified immediately before the move, 2026-07-29
 
-**If something HAS changed** (a new finding routed in, a ruling revisited), then the thread is
-live again and the state below applies. Re-verify before acting on anything here — every claim
-in this file is a claim with a timestamp, and this thread has repeatedly found its own
-recorded claims stale.
+Every claim in this file is a claim *with a timestamp*, and this thread repeatedly found its
+own recorded claims stale — so the three points above were re-checked rather than trusted:
+
+- All six frozen rows are still `backlog`, at the timestamps recorded below; `bd-ib-xpkg` is
+  confirmed `closed` (2026-07-28T22:34:43Z).
+- **Zero rows in the tenant were updated on or after 2026-07-29** — the ledger had not moved
+  at all since this file was last written.
+- A regex for rows *naming this thread* — the §"lesson 1" check — over title + description of
+  all 91 non-closed rows returned only rows already accounted for here. **No un-relayed
+  obligation.** Scope, stated so it can be judged: `bd list --limit 0 --json` carries no
+  `notes` field, so notes were NOT searched.
+- `master` was clean and level with `origin/master` at `b7aee69`, this thread's own closing
+  commit.
+
+### What outlives the thread
+
+**Archival closes the THREAD, not the rows.** The six frozen rows below remain `backlog` by
+ruling, and the dispatch freeze lifts **Jul 31 07:00 Europe/Berlin**. Whoever promotes one
+owns re-verifying it first — read §"The stale-row pattern" before trusting any row here.
+
+**One row was orphaned by a neighbouring archival, and it is still NOT ours.** `bd-ib-bic7hb`
+(P2, `ready`, host-only) was borrowed by `plan/dispatch-claim-liveness/`, which was archived
+at `0fdba60`; this thread's §"Never in scope" clause means the present archival did not hand
+it back. An ownership note recording that was written **to the row itself** on 2026-07-29 —
+no status change, no tier, no adoption. Do not adopt it here.
+
+> **Why this block was rewritten instead of left standing.** It previously read *"THE ARCHIVE
+> MOVE WAS NOT PERFORMED … ask the maintainer whether to perform the move"*, which became
+> false the moment the move happened. The sibling thread shows what leaving it costs:
+> `plan/archive/dispatch-claim-liveness/handoff.md` still opens with *"Archival is the
+> maintainer's call and has NOT been done. Do not archive."* — from inside `plan/archive/`.
+> That is `AGENTS.md` §"Verification discipline" rule 3 in the wild: an instruction that was
+> true when written, still reading as authoritative after its condition expired, sitting in
+> the exact spot a successor trusts *instead of* checking.
 
 ---
 
