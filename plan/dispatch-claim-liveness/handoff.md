@@ -350,6 +350,47 @@ agent must not self-sign another tenant's work through a human gate.
 six hand-fixes, since nothing keeps these recipes aligned and that is exactly how the
 six-way divergence arose.
 
+**The safety precondition is now measured for ALL SIX repos, not two.** Each of the five
+checks was RUN individually against each repo's current tree: **every check passes in
+every repo**, so wiring them is safe everywhere — no repo would suffer an instant false
+refusal. Recorded on `livespec-r5df`'s notes.
+
+**Scope is BOUNDED — do not go hunting for more stale rationales.** The fleet was swept
+for comments asserting a temporary state pending a work-item ("until X lands", "not
+wired yet", "temporarily", "intentionally absent") across every member's `justfile`,
+`pyproject.toml`, `.livespec.jsonc`, `lefthook.yml` and CI workflows. **Exactly ONE
+instance of the "until those land" form remains fleet-wide** — git-jsonl's, already
+filed. Every other "intentionally absent" hit is CI `needs:` wiring, a PERMANENT design
+statement rather than a resolved condition. A broader sweep for the dead `li-` id scheme
+returns many hits, but they are almost all legitimate PROVENANCE citations ("epic
+li-cvaudit") explaining why a rule exists — **those are correct and must not be treated
+as stale.** The defect is a comment asserting a condition that has since resolved, not a
+reference to an old id.
+
+**⚠ A SEPARATE small defect found while measuring, worth knowing because it produces a
+FALSE RED on any long-lived checkout.** `check-claude-md-coverage` FAILS in core
+`livespec`'s primary checkout, reporting four directories missing a required
+`CLAUDE.md` — and **the same check PASSES in a fresh worktree of the same commit,
+because none of those directories exists in the repo at all.** They were deleted from
+git months ago (`4916bfa2` 2026-06-24 "retire orphaned implementation-gaps subsystem";
+`b930d9bd` 2026-06-11 "extract the Claude Code Driver bindings"), and what remains on
+disk is a stale `__pycache__/` inside each. `git status --porcelain
+--untracked-files=all` reports **zero** untracked entries, because a directory holding
+no tracked files and only ignored content is invisible to git — so the cruft evades the
+usual cleanliness check.
+
+**This is the MIRROR IMAGE of a failure mode already recorded in this file.**
+`primary_checkout_commit_refuse_hook_installed` fails on a FRESH clone and passes on a
+bootstrapped one, because it asserts a gitignored worktree pack (see §"The v0.54.19 pin
+hold"). Same root cause inverted: a check reading filesystem state that git does not
+track, so its verdict depends on checkout age rather than repo content. **Two independent
+instances now — the class is worth a general rule.** Practical impact here is low (nobody
+commits on a primary checkout; every worktree is fresh), but it costs diagnosis time and
+invites the wrong fix. **Do NOT fix it by creating those `CLAUDE.md` files** — the
+directories were deliberately deleted. Remedy is either clearing the stale `__pycache__`
+on that machine (local cleanup, not a repo change) or narrowing the check to skip a
+directory containing no tracked files. Recorded on `livespec-r5df`; NOT separately filed.
+
 #### Session close-out addendum — work done AFTER the close-out above
 
 All of it merged; none of it changed the "no in-flight work" status. Recorded because
