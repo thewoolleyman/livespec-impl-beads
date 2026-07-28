@@ -1162,6 +1162,62 @@ that a maintainer can now decide both without re-deriving anything.
 | **AN EIGHTH** — `bd-ib-xw2k` re-verified; premise holds, **one line reference drifted** | **`bd-ib-xw2k` notes** |
 | **A NINTH** — `bd-ib-js1f`'s measured population splits into **two mechanisms with different remedies** | **`bd-ib-js1f` notes** |
 | **A TENTH** — `bd-gj-pch` re-verified **in the git-jsonl tenant**; defect unchanged and its safety precondition **survived a pin bump** | **`bd-gj-pch` notes** (OTHER tenant) |
+| **AN ELEVENTH** — `bd-ib-rxxx`'s fix is **guarded two ways**; the evidence a close decision needs | **`bd-ib-rxxx` notes** |
+
+#### `bd-ib-rxxx` — the fix is GUARDED, which is the piece a close decision was missing
+
+Its notes already carried the root cause and named `ff97ad8`. **What nothing recorded was
+whether anything stops the defect returning** — and that, not the root cause, is what a close
+decision turns on. Verified against `07918aa`; **no close, retitle or status change was made
+— both are the owner's call.**
+
+1. **A dedicated non-root test shipped WITH the fix.** `ff97ad8` changed
+   `_dispatcher_janitor_lock.py` by one line — deleting the `lock.pid == os.getpid()`
+   short-circuit that hid the uid dependence — and added
+   `test_dispatcher_janitor_lock_nonroot.py` (**115 new lines**), which asserts the liveness
+   probe is actually consulted. The commit's own comments state the mechanism: the only
+   live-pid test probed **pid 1**, and `os.kill(1, 0)` raises `PermissionError` for an
+   unprivileged uid, so the `return True` branch never executed off-root.
+2. **CI runs the coverage check under BOTH uids.** `.github/workflows/ci.yml:158-160` carries
+   a `uid: root / nonroot` matrix dimension, and `check-coverage` is in its target list
+   (`:165`). **Observed executing, not merely configured** — PR #1108 ran
+   `check-coverage (root)` and `check-coverage (nonroot)` as separate required checks.
+
+**The title still names the wrong check.** It reads *"supervisor_discipline passes on master,
+fails in a fresh janitor checkout"*; `supervisor_discipline` never failed. **Anyone reading
+only the title will chase the wrong check** — which is why the notes say retitle before
+implementing.
+
+**Bearing on `bd-ib-w4h4`:** its precondition is met in substance — fixed and guarded. **That
+still does not license un-stranding it**; that is a maintainer call, and the row costs **zero
+WIP slots** (re-measured today), so nothing forces the decision.
+
+#### ⚠ RULE 2 SUB-PATTERN — FOUR bad probes this session, and THREE shared one mechanism
+
+Recorded because it is the most repeated failure of the session and it is **ours, not
+inherited**. Every one was a search that returned a confident wrong answer:
+
+| # | probe | why it missed |
+|---|---|---|
+| 1 | `grep --include="*.sh" -- "--journal" \| head` | `head` truncated it after the `plan/` prose hits — reported **1** script where there are **3** |
+| 2 | checking a ledger note for `--failed` | the note writes it as `` `--failed` `` with backticks |
+| 3 | `grep "just <check-name>"` in git-jsonl's justfile | that justfile lists aggregate members as **bare indented names** |
+| 4 | checking a ledger note for `uid: root` | the note has `uid:` and `- root` on **separate lines** in a code block |
+
+**Three of the four (#2, #3, #4) share one mechanism: searching for a RECONSTRUCTION of the
+text instead of a distinctive literal copied FROM it.** The token was composed from memory or
+from an assumed syntax, and memory does not preserve backticks, line breaks, or another
+repo's conventions.
+
+**The rule:** when verifying that a write landed, or that a pattern exists, **copy a
+distinctive literal out of the artifact and search for that** — not a phrase you believe is
+in it. And prefer the shortest unambiguous token (`ci.yml:158-160`, `- nonroot`) over a
+longer natural-language one, because every extra character is another chance for the
+reconstruction to diverge.
+
+**Not one of the four announced itself.** Each was caught only by a second signal disagreeing
+— twice by "too clean to be true", twice by a write reporting success while the probe said
+the content was absent. **A verification that can only fail silently is not a verification.**
 
 #### ✅ THE TWO CROSS-TENANT ITEMS WERE RE-QUERIED IN THEIR OWNING TENANTS — 2026-07-28
 
