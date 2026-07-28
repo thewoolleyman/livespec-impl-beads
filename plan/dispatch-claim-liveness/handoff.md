@@ -1,30 +1,49 @@
 # Handoff — dispatch-claim-liveness
 
-> # ⏸ ONE LIVE OBLIGATION — READ THIS BEFORE THE ARCHIVABLE BOX BELOW (2026-07-28, session wrap-up)
+> # ✅ THE LAST OBLIGATION IS DISCHARGED — ZERO LIVE ITEMS (2026-07-28)
 >
-> The thread is otherwise complete (see the box below). **Exactly ONE thing is live, and it
-> is a WAIT, not a task.**
+> **The thread now has NOTHING live at all.** The previous revision of this box carried one
+> obligation — a WAIT on `bd-ib-91wj` — and it is closed out. Both of that box's tasks are
+> done and verified:
 >
-> ## `bd-ib-91wj` IS ON HOLD. DO NOT ACT ON IT, DO NOT BUILD ON IT, DO NOT RE-SCOPE IT.
+> | what it asked | outcome |
+> |---|---|
+> | Verify PR **#1095** merged | ✅ **MERGED** `3de49c1`, 2026-07-28T15:55:18Z |
+> | Finalize `bd-ib-91wj` when factory-hardening's result arrives | ✅ **DONE** — result arrived, framing CORRECTED, row rewritten in place |
 >
-> Its **title and description were rewritten** late in the session into a *"session plugin
-> pinning"* framing, and a hold was issued **immediately afterwards** — arriving after the
-> ledger write had already committed. The row is therefore **PROVISIONAL**: its title leads
-> with `PROVISIONAL / ON HOLD`, and a note at the top of its description says so.
+> ## `bd-ib-91wj` IS NO LONGER ON HOLD — and the answer CHANGED the framing
 >
-> **What you are waiting for:** `plan/factory-hardening/`'s worker is reproducing the
-> mechanism and reports it *"hinges on the ENTRY POINT, not on session pinning alone."*
-> They will send the result either way, including if it confirms the current framing
-> unchanged. **Their evidence will be better than anything in that row today.**
+> `plan/factory-hardening/`'s result landed in **`cae25b0`**
+> (`plan/factory-hardening/handoff.md` §"Which plugin build a dispatch actually runs"). It
+> did **not** confirm the session-pinning framing — it corrected it:
 >
-> **When their result arrives:**
-> 1. Finalize `bd-ib-91wj`'s description to match the confirmed mechanism — **rewrite in
->    place**, never close-and-refile: it is the ONE record by explicit cross-track
->    agreement, and a second row is exactly what that agreement exists to prevent.
-> 2. Drop the `PROVISIONAL / ON HOLD` prefix from the title once it is settled.
-> 3. Fold in the three-sessions sampling lesson (already written into its notes and into
->    the standing rule below) — that lesson is what actually cost the time, not the
->    underlying fact.
+> **Which plugin build a dispatch runs is ENTRY-POINT-resolved.** `plugin_root()` returns
+> `CLAUDE_PLUGIN_ROOT` when the harness set it, else resolves relative to the executing
+> `.py`. **Session pinning is what that means for the plugin-invoked entry point ONLY, and
+> it is harness behaviour, not ours.** A file-path invocation — repo checkout or cache dir —
+> involves no session at all. That is why a live `dispatcher.py` can run CURRENT code
+> against another repo, which a pure-pinning model cannot explain.
+>
+> All three instructed steps were performed: description finalized **in place** (never
+> closed-and-refiled — it remains the ONE record by cross-track agreement), the
+> `PROVISIONAL / ON HOLD` title prefix dropped, and the three-sessions sampling lesson
+> folded into the **description** where a tierer will actually see it.
+>
+> **The row is still `backlog` P2 and still UNTIERED — no autonomy label was self-issued**,
+> and it is still **not tierable as written** (its original acceptance is already satisfied
+> on `master` by `14c3cae`). The mechanical fix for its class is **`bd-ib-3j4u`**.
+>
+> **⚠ A TIMING FACT WORTH KEEPING, because it is this file's own lesson turned on itself.**
+> `cae25b0` committed at **08:51:16-07:00**; this thread's wrap-up commit `d4da1dd`, which
+> recorded the hold as still pending, committed at **09:00:49-07:00** — **nine minutes
+> later**. The answer was already on `master` while the handoff was being written to say it
+> was awaited. Careful is not current, in the act of warning that careful is not current.
+>
+> **Every claim was re-verified at source before adoption, not taken on report** — the
+> resolver body, the gate's single call site, both `prepare()` callers, `reconcile-merged`'s
+> bypass, and the gate's absence from the peer's cached build. Two apparent contradictions
+> were reconciled rather than papered over (a "one call site" vs "two call sites" reading,
+> and an author-date vs commit-date discrepancy). The evidence table is on the row's notes.
 >
 > **⛔ THINGS THAT ARE SETTLED — do not re-derive or re-litigate them:**
 > - **There is NO release gap.** `git tag --contains 14c3cae` → v0.46.23 … v0.47.1.
@@ -35,16 +54,13 @@
 > - The **"fourth strand flavor / refused-at-publish"** taxonomy entry is struck; it never
 >   appeared anywhere under `plan/` here, so there is nothing of ours to remove.
 > - **We are NOT carrying the consumer track's release request or dispatch hold.**
+> - **The console track's preserved checkout was NOT touched**, and must not be.
 >
 > **⛔ A SESSION-PINNING SECTION WAS DELIBERATELY NOT LANDED IN THIS FILE.** It was written,
 > committed to a branch, and that branch was deleted unmerged once the hold arrived. **Do
-> not resurrect it from git history.** If you find `docs/dispatch-claim-liveness-archivable`
-> in a reflog, that is why it is gone.
->
-> **In flight at wrap-up:** PR **#1095** (`docs/dispatch-claim-liveness-hold-corrections`),
-> auto-merge armed — it corrects the `bd-ib-bwgko4` stand-down to closed/superseded and
-> adds the sampling standing rule. **Verify it merged**
-> (`gh pr view 1095 --json state`); if it did not, re-check why before anything else.
+> not resurrect it from git history** — and note it is now doubly obsolete, since the
+> framing it argued has since been superseded. If you find
+> `docs/dispatch-claim-liveness-archivable` in a reflog, that is why it is gone.
 >
 > ---
 >
@@ -65,7 +81,7 @@
 > | what | id | state | owner / note |
 > |---|---|---|---|
 > | journal-path has two conventions | `bd-ib-xw2k` | `backlog` P3 | **UNTIERED** |
-> | plugin-version skew (**framing ON HOLD**, see its notes) | `bd-ib-91wj` | `backlog` P2 | **UNTIERED** |
+> | plugin build is entry-point-resolved (**framing FINALIZED 2026-07-28**) | `bd-ib-91wj` | `backlog` P2 | **UNTIERED**; not tierable as written — fixed on master by `14c3cae` |
 > | already-fixed items accumulate | `bd-ib-js1f` | `backlog` P2 | **UNTIERED** |
 > | `reconcile-merged` bypasses the currency gate | `bd-ib-3j4u` | `backlog` **P1** | **UNTIERED** |
 > | sandbox setup needs a live api.github.com fetch | `bd-ib-bic7hb` | `ready` P2 | host-only; BORROWED from `plan/factory-hardening/` and recorded there |
@@ -639,7 +655,12 @@ of this epic.**
   **✅ ITS OPEN QUESTION IS NOW SETTLED — read the item's NOTES before touching it.** The
   item originally named two candidates and told the implementer to establish which one
   first. **Both were refuted by source inspection 2026-07-28, and the real mechanism is
-  neither: it is PLUGIN-REVISION SKEW BETWEEN SESSIONS.** The janitor argv is baked into
+  neither: it is PLUGIN-REVISION SKEW BETWEEN SESSIONS.**
+  **⚠ THAT SENTENCE IS ITSELF SUPERSEDED — see the discharge box at the top of this file.**
+  The skew is real and everything below this line still holds, but "between SESSIONS" names
+  the wrong axis: which build runs is **entry-point-resolved**, and a session pin applies to
+  the plugin-invoked entry point only. Kept rather than deleted because the janitor-argv
+  evidence below is what established the skew in the first place. The janitor argv is baked into
   the plugin's `_DEFAULT_JANITOR`, and it changed — revision `1567e8f200dc` (which the
   console session's dispatch ran) is `("mise","exec","--","just","check")`, while
   `c878ea43f8cd` (installed for this project) is
