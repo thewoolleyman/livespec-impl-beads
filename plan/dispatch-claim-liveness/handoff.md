@@ -82,6 +82,14 @@
 >   implements against it.** Full evidence is on its notes and in §"`bd-ib-rxxx`
 >   ROOT-CAUSED". This does NOT license un-stranding `bd-ib-w4h4` — that is still a
 >   maintainer call.
+> - **⛔ 2026-07-28 — THE HEADLINE FINDING OF THAT SESSION: this ledger accumulates items
+>   describing ALREADY-FIXED behavior, and a stale item is DISPATCHABLE.** Of eight items
+>   checked against the merged tree, **four were fully stale — three of them P1**. This
+>   very file asked the maintainer to tier `bd-ib-91wj` for dispatch when its defect had
+>   been fixed two days earlier. Filed as **`bd-ib-js1f`** (P2, untiered). **Before acting
+>   on ANY item named in this file, verify the defect still exists in the merged tree** —
+>   the standing re-query rule above is necessary but not sufficient, because the ledger
+>   can be current and the ITEM still stale.
 > - **⛔ 2026-07-28, COMPLETED — `bd-ib-rxxx`'s DEFECT WAS FIXED ON 2026-07-20, the day it
 >   was filed. RECOMMEND CLOSING IT.** The mechanism is the runner's effective **UID**, not
 >   the `.coverage` arm and not checkout provenance: the only live-pid test probes pid 1,
@@ -899,13 +907,74 @@ that is its owner's call, not taken here.
 
 **What survives, and it is genuinely separate:** the `check-coverage` arm-switching on a
 gitignored `.coverage` file is real, is untouched by `ff97ad8`, and remains the third
-member of the gitignored-state divergence family. It deserves its OWN item rather than
-keeping this one open under a title that names neither defect.
+member of the gitignored-state divergence family.
+
+**⛔ CORRECTION — an earlier revision of this paragraph said it "deserves its OWN item".
+DO NOT FILE ONE: it is ALREADY FILED as `bd-ib-d6v1`** (P1, `backlog`, 2026-07-20) —
+*"just check-coverage reuses a STALE .coverage with no freshness check"*. It quotes the
+same recipe and names both failure directions. Following the withdrawn recommendation
+would have duplicated a P1. Corroboration was contributed there instead: the recipe is
+unchanged on master, and the two arms return **different exit codes for an identical
+shortfall** (reuse arm 2, suite arm 1) — which is a useful diagnostic handle and a trap,
+since a `check-coverage` exit 2 does NOT by itself imply stale data.
 
 **`bd-ib-w4h4`'s stated precondition is therefore MET IN SUBSTANCE** — the defect that
 stranded it is fixed and guarded, though the item tracking it is still open. **This still
 does NOT license un-stranding it.** That remains a maintainer call, and it costs no WIP
 slot where it sits.
+
+#### ⚠ 2026-07-28 — THE REAL PATTERN: this ledger accumulates ALREADY-FIXED items. Filed as `bd-ib-js1f`.
+
+Four separate times in one session, an item this thread was about to act on turned out to
+describe work already done. That stopped being a coincidence, so it was measured, and the
+measurement is now a filed item — **`bd-ib-js1f`** (P2, `backlog`, **UNTIERED**; an agent
+must not self-sign the `autonomy_tiered` gate, least of all on this subject).
+
+Eight non-closed items were checked against the merged tree, each verdict from execution
+or from reading the code — never from reading the item:
+
+| item | P | verdict | evidence |
+|---|---|---|---|
+| `bd-ib-91wj` | P2 | **fully stale** | fixed by `14c3cae`; red→green reproduced |
+| `bd-ib-rxxx` | P1 | **fully stale** | fixed by `ff97ad8`, ~17h after it was filed |
+| `bd-ib-tyee` | P1 | **fully stale** | fixed by `74fe125`; `FileNotFoundError` now caught at `_dispatcher_io.py:96` |
+| `bd-ib-d6op2n` | P2 | **duplicate** | owning tenant filed `livespec-driver-claude-tun` 6 days earlier |
+| `bd-ib-d6ds` | P1 | partially stale | fleet table drifted — `livespec-overseer` HAS the recipe now, so 3 of 8 lack it, not 4 |
+| `bd-ib-xw2k` | P3 | partially stale | its "nothing passes `--journal`" premise is false |
+| `bd-ib-d6v1` | P1 | accurate | recipe unchanged on master |
+| `bd-ib-6t4` | P1 | accurate | no `fabro validate` in `justfile` or CI |
+
+**4 of 8 fully stale, three of them P1.** ⚠ **The sample was NOT random** — these were
+chosen because they sat in the janitor/dispatch area this session was already in and were
+cheap to verify. Treat it as "common enough to hit four times in one session", NOT as a
+population rate.
+
+**Why it is this epic's business rather than tidiness.** `next` ranks non-closed items and
+the dispatch path admits from that ranking, so **a stale item is dispatchable** — an agent
+would burn a full cycle finding nothing, or "fix" it a second way. And this is a near-miss,
+not a hypothesis: **THIS FILE asked the maintainer to sign an autonomy tier for
+`bd-ib-91wj`, whose defect had been fixed two days earlier.** Only checking the merged tree
+caught it before the sign-off. A backlog that looks like work and partly is not is exactly
+the silent-failure shape `bd-ib-waov` was opened for.
+
+`bd-ib-js1f` records three fix shapes without choosing one, and notes that a mechanical
+"is this fixed?" detector is not buildable — deciding it means reading the merged tree
+against the item's claim, which is judgment, not a predicate.
+
+#### 2026-07-28 — a THIRD instance of the egress flake, contributed to `bd-ib-wmqsn7`
+
+PR #1073 (docs-only) was reddened by `× Failed to download grimp==3.14 … Request failed
+after 5 retries … operation timed out` from PyPI. `gh run rerun --failed` cleared it and
+the PR merged.
+
+That is a **third distinct artifact** for that item's flake class — cpython/GitHub as
+filed, `hypothesis-jsonschema`/PyPI on 2026-07-28, now `grimp`/PyPI — and the newest is a
+**transitive** dependency (nothing here names `grimp`; it arrives via `import-linter`). So
+a mitigation scoped to declared dependencies would under-fix just as one scoped to the
+cpython fetch would: the exposure is the whole resolution closure. Note also that `uv`'s
+own retry did not save it — the log says five retries — so more retries at that layer is
+not obviously the fix; a job-level re-run is what worked. **Contribution only; the
+stand-down on `plan/factory-hardening/`'s items is unchanged.**
 
 ### ✅ THE S3 BLOCKER — SETTLED 2026-07-26, and the blocking half has SHIPPED
 
