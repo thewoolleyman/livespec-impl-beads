@@ -435,3 +435,23 @@ pass `--no-verify`.
   which is making this change." Naming it also resolved the block — that
   session's own transcript showed it had already merged the branch and had no
   intent to revise.)
+- **Verify every changed path belongs to YOUR thread before you push**
+  (maintainer-declared 2026-07-28). Run
+  `mise exec -- git diff --name-only origin/master...<your-branch>` as a
+  standing pre-push step — every time, not only when you suspect a problem —
+  and confirm each path is one the thread you are working owns. Several
+  sessions commit to `master` concurrently here, and each
+  `plan/<topic>/handoff.md` is owned by its own thread, so "I only meant to
+  edit ours" is not evidence. **If you believe your version of another
+  thread's file says something theirs does not, do NOT resolve it by editing
+  their file.** Drop it from your branch
+  (`mise exec -- git checkout origin/master -- <path>`, then
+  `--amend`), keep your own thread's edits, and report the difference to the
+  maintainer to route to that thread — naming the owning session per the rule
+  above. The maintainer's framing: "their thread's record is theirs to write,
+  exactly as ours is ours" — the same principle as "never touch another
+  session's worktrees or branches", one level up. (Context: a
+  `plan/factory-hardening/` branch also carried
+  `plan/dispatch-claim-liveness/handoff.md` while that thread had PR #1098
+  open performing the same discharge edit; the collision was caught by the
+  maintainer, not by the pushing session.)
