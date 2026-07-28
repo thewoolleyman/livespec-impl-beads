@@ -8,20 +8,94 @@ track (epic `bd-ib-rck`, CLOSED) and were filed as out-of-scope follow-ups.
 
 ## ▶ CURRENT STATE + NEXT ACTION (read this first)
 
-**Status, 2026-07-28: both items are out of `blocked`. One is CLOSED as already
-shipped; the other is re-scoped to an epic and awaits grooming.** Nothing is
-dispatched and nothing is in flight.
+**Status, end of 2026-07-28: nothing is blocked, nothing is in flight, and the
+only remaining owned work is slice B, which is not this repo's code.**
 
 | Item | Status now | Disposition |
 |---|---|---|
 | `bd-ib-bwgko4` | **CLOSED** | Superseded — its fix shipped 2026-07-24 as `bd-ib-qq7f` / PR #905. |
-| `bd-ib-wmqsn7` | **`backlog`** | Re-scoped: it is an EPIC spanning two repos. Needs `groom`. |
+| `bd-ib-wefw` | **CLOSED** | Slice A. Built and shipped through the factory: PR #1064, merge `2ae4b2b`. |
+| `bd-ib-eha3wh` | **CLOSED** | Adopted, dispatched: PR #1063, merge `b510433`. Read the caveat below. |
+| `bd-ib-wmqsn7` | **`backlog`** | The epic. Slice A is done; **slice B remains** and is cross-repo. |
 | `bd-ib-bic7hb` | `ready` — **NOT OURS** | Owned by `plan/dispatch-claim-liveness/` since 2026-07-26. |
 
-**Next action (maintainer):** run
-`/livespec-orchestrator-beads-fabro:groom bd-ib-wmqsn7` and cut it into the two
-ordered slices proposed in §"`bd-ib-wmqsn7` — re-scoped" below. Slice A is
-in-repo and factory-dispatchable; slice B is not this repo's code.
+**Next action (maintainer), and it is a ruling, not a task:** slice B changes
+`check-master-ci-green` in **`livespec-dev-tooling`**, and it rests on the vantage
+policy question already routed to you on `livespec-dev-tooling-gam8` (2026-07-25).
+Slice A has now landed, which was the ordering precondition — so slice B is
+unblocked the moment you rule. Nothing in THIS repo is waiting on anything.
+
+## Slice A shipped — what actually landed, and how it was verified
+
+`bd-ib-wefw`, dispatched through the factory (fabro run `01KYKEKWAY1D`, ~44 min,
+$0.72 API-equivalent), merged as PR #1064 / `2ae4b2b`:
+
+- `_dispatcher_master_ci_preflight.py` (new, 256 lines)
+- `_dispatcher_run_checks.py` (+12) — wired into `dispatch_preamble` immediately
+  after the source-checkout refusal, journalling before it writes stderr and
+  returning `_EXIT_PRECONDITION_ERROR`
+- `test_dispatcher_master_ci_preflight.py` (new, 337 lines, 20 tests)
+
+Full Red→Green trailers present; the Red captured 19 failing tests.
+
+**It reads the `ci-green` job's conclusion, not the run's rolled-up conclusion** —
+the correction forced by live evidence during the dispatch (see below). Pending
+run → proceed; red `ci-green` → refuse; `ci-green` missing, pending, unrecognized,
+or unfetchable → refuse as *unprovable*; `gh` absent or uncredentialed → proceed;
+credentialed call failing → refuse. There is no env var, flag, or lever anywhere
+in the module.
+
+**The verifier was demonstrated to fail, not assumed to.** In a throwaway
+worktree the exact defect was injected — classify from `run["conclusion"]`
+instead of the `ci-green` job — and the suite went from 20 passed to **14 failed**,
+including `test_run_rollup_failure_proceeds_when_ci_green_succeeded` and
+`test_lever_env_cannot_make_red_master_pass`. The worktree was then discarded.
+A live smoke run of the merged `master_ci_preflight_refusal()` against real repo
+state returns PROCEED on a green master.
+
+**Which red does this still refuse?** Any failure in `check-python`,
+`check-doctor-static`, `check-metadata`, `e2e-cli`, or `acceptance` — the five
+jobs `ci-green` declares in its `needs`. It refuses strictly more than the naive
+design in two places: an unrecognized `ci-green` conclusion refuses (the
+in-sandbox gate treats that as non-blocking), and a missing `ci-green` job
+refuses rather than proceeding.
+
+## Caveat on `bd-ib-eha3wh` — it was already fixed before it was filed
+
+Adopted and dispatched in good faith on the item's own claim of a "latent factory
+outage". **That claim was false, and this file previously repeated it.** Commit
+`c6ae317` (2026-07-19, *"fix(ci): feed jq its large JSON payloads on stdin, not
+argv"*) had already moved both genuinely-unbounded payloads to stdin — five days
+before the item was filed on 2026-07-24.
+
+The item's description was also **wrong about one of its two named sites**:
+`--argjson run "$run_span"` is a single *bounded* span, not a growth site, and the
+script carries a comment saying exactly that. The dispatched agent found the fix
+present, correctly declined to "fix" the bounded site, and landed static
+regression guards — including `test_bounded_run_span_stays_on_argv`, which pins
+the *inverse* assertion and protects against a future agent acting on the bad
+advice. It used `chore: cover`, not `fix:`.
+
+Honest scope: acceptance criteria 2 (an oversized-payload regression exercise)
+and 3 (byte-equivalent output) were **not** delivered; three static text
+assertions over the script source were. They can genuinely fail — reverting
+`run_json` to `--argjson` reddens one — but they are weaker than asked. Closing
+is still right. Do not read PR #1063 as "a live E2BIG bug was fixed."
+
+## The stale-row pattern — read this before trusting any row on this thread
+
+**Two of the four items handled on 2026-07-28 asserted defects the repo had
+already cured**, and neither was caught by reading the item, the code, or the
+plan file — only by reading the *merged diff*:
+
+- `bd-ib-bwgko4` — fixed by `bd-ib-qq7f` / PR #905 (2026-07-24), row untouched
+  since 2026-07-15.
+- `bd-ib-eha3wh` — fixed by `c6ae317` (2026-07-19), filed 2026-07-24 anyway.
+
+The fix landed, nobody reconciled the open row, and the ledger kept asserting a
+live defect. `bd-ib-eha3wh`'s description names **three other drifted fleet copies
+of the same script** — diff each against `c6ae317` before filing or dispatching
+any of them.
 
 ## Correction: the gate that was actually holding both items
 
@@ -89,7 +163,7 @@ variant was never naturally exercised. `bd-ib-bwgko4` adds nothing beyond that.
 
 ## `bd-ib-wmqsn7` — re-scoped, now an epic in `backlog`
 
-Retitled away from its original wording, which was itself the problem. Four
+Retitled away from its original wording, which was itself the problem. Six
 findings, each of which changes what this item is.
 
 ### 1. Its own framing is forbidden
@@ -145,24 +219,21 @@ operator can see and act on it.
 
 The description's "and/or" hid the wrong seam. The real cut:
 
-- **Slice A — this repo. Factory-safe, dispatchable now, ADDS a gate.**
-  A host-side pre-dispatch precondition in the Dispatcher: refuse to dispatch
-  while master CI's latest run is red, naming the run id and the
-  `gh run rerun --failed <id>` remedy in the refusal text. Grepping the
-  Dispatcher confirms no such precondition exists today. This alone converts the
-  measured cost — 7 wasted minutes, a stranded `active` claim with
-  `assignee: fabro`, and an operator round-trip to diagnose — into an instant,
-  legible refusal. Autonomously verifiable by unit tests over the refusal's
-  classification logic, so it clears the acceptance gate that blocked the parent.
-- **Slice B — `livespec-dev-tooling`. NOT dispatchable from this tenant.**
+- **Slice A — this repo. ✅ SHIPPED 2026-07-28 as `bd-ib-wefw` / PR #1064.**
+  A host-side pre-dispatch precondition in the Dispatcher, refusing before
+  admission and before any sandbox is provisioned. Details in §"Slice A shipped"
+  at the top of this file.
+- **Slice B — `livespec-dev-tooling`. NOT dispatchable from this tenant. OPEN.**
   Apply the existing `holds_app_class_credential()` vantage classification to
-  `master_ci_green`, then cut a release and bump this repo's pin.
+  `master_ci_green`, then cut a release and bump this repo's pin. Gated on the
+  maintainer's vantage ruling, already routed on `livespec-dev-tooling-gam8`.
 
-**Ordering is load-bearing: A must land before B.** B alone removes the
-sandbox-side read with nothing replacing it, which *would* be a weakening.
-A-then-B keeps enforcement continuous and merely relocates it to the vantage
-that can act on it. This mirrors the ci-gate-discipline corollary that
-enforcement must not precede the rollout it assumes, applied in reverse.
+**Ordering was load-bearing, and it has been satisfied: A landed first.** B alone
+would have removed the sandbox-side read with nothing replacing it, which *would*
+have been a weakening. With A merged, enforcement is continuous — B now merely
+relocates the read to the vantage that can act on it. This mirrors the
+ci-gate-discipline corollary that enforcement must not precede the rollout it
+assumes, applied in reverse.
 
 **Honest residual, to be ruled on knowingly rather than papered over:** after
 A+B, a master that goes red *during* a long dispatch is no longer caught mid-run
@@ -171,34 +242,40 @@ protection at merge, and the silent-red-master pattern the gate exists to
 prevent is still prevented at the dispatch boundary — but the "don't build on a
 broken world" property narrows. That is a real if small loss.
 
-### 5. The `ci.yml`-retry option under-fixes
+### 5. The `ci.yml`-retry option is DEAD — it is already implemented and already insufficient
 
-Three reasons, worth stating before grooming reaches for it as the easy option:
+Do not re-propose it at grooming. It is not merely weak; it has been tried.
 
-1. **`uv` already retries.** The 2026-07-28 failure text reads *"Request failed
-   after 5 retries"* — the download was retried five times and still timed out.
-   A naive outer retry adds little.
-2. **The flake class is broader than the description's "cpython from GitHub".**
-   The 2026-07-28 occurrence was `hypothesis-jsonschema` from
-   `files.pythonhosted.org` — a different package from a different host. A retry
-   scoped to the cpython fetch would not have caught it.
-3. **It addresses only network reddening.** A red master fail-closes dispatches
-   whatever reddened it. `bd-ib-eha3wh` (`backlog`, this tenant) records a
-   non-network path to the identical symptom: `export-ci-telemetry.sh` can fail
-   `E2BIG` on unbounded `jq` argv, reddening master and hard-gating dispatches.
-   Slice A is indifferent to the cause; a network retry is not.
+1. **`UV_HTTP_RETRIES: "5"` is already set** at workflow scope in
+   `.github/workflows/ci.yml` (line ~34), and the comment above it names *this
+   exact failure mode* as its reason for existing. It ran, it retried five times,
+   the job still failed — *"Request failed after 5 retries"*.
+2. **The flake class spans packages and hosts.** Three distinct instances inside
+   24 hours: `cpython` from GitHub (2026-07-15), `hypothesis-jsonschema` from
+   `files.pythonhosted.org` (2026-07-28 ~02Z), `colorama` from the same CDN
+   (2026-07-28 04:00Z). Anything scoped to a package or host under-fixes by
+   construction.
+3. **It addresses only network reddening.** A red master hard-gates dispatches
+   whatever reddened it. Observed the same night: an `export-telemetry` job dying
+   on a Honeycomb OTLP stream cancel reddened the run with zero network relevance
+   to `uv`. Slice A is indifferent to the cause; a network retry is not.
+4. **Both reddening commits on 2026-07-28 were single markdown files under
+   `plan/`.** A change with no executable content stalled the whole factory,
+   twice. That is the argument for slice A in one line: the reddening commit's
+   content is irrelevant to whether the factory stalls, so the remedy cannot live
+   in what the commit changed.
 
-## Adjacent in-repo work in this thread's class
+### 6. The run-rollup trap, found live and folded into slice A
 
-Surfaced during the 2026-07-28 verification, not adopted — recorded so the next
-session does not have to rediscover it. `bd-ib-eha3wh` (`backlog`, P2) is
-in-repo, factory-safe, and produces the *same factory outage symptom* as
-`bd-ib-wmqsn7` by a different cause: `.github/scripts/export-ci-telemetry.sh`
-passes monotonically-growing JSON accumulators as `jq` argv arguments, so a
-large-enough CI run fails `E2BIG`, reddens master's latest run, and
-`check-master-ci-green` then hard-gates every dispatch. A verified ~10-line fix
-precedent exists (livespec-driver-codex PR #249 moves both unbounded values onto
-stdin). It is unblocked and needs no grooming.
+`ci-green` is the **only** context branch protection requires, and it declares
+`needs: [check-python, check-doctor-static, check-metadata, e2e-cli, acceptance]`
+— `export-telemetry` is **not** among them. So a telemetry job that cannot block
+a merge still sets the **run's** rolled-up `conclusion` to `failure`. A gate
+reading the run rollup therefore converts a non-required job's flake into a
+factory-wide dispatch outage while every required check passed. This was observed
+live on 2026-07-28 and is why slice A reads the `ci-green` job's conclusion. It
+is not a tolerance; it is reading the correct signal instead of a strictly
+broader one.
 
 ## Why `bd-ib-bic7hb` is not owned by this thread
 
