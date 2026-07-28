@@ -72,6 +72,16 @@
 > **`bd-ib-w4h4` must stay `active`.** It is the deliberate live fixture and it costs
 > no WIP slot — which IS the fixed behavior. Do not un-strand or close it until
 > `bd-ib-rxxx` lands (still `backlog`, re-checked 2026-07-28).
+> - **2026-07-28 — `bd-ib-rxxx` IS NOW ROOT-CAUSED, and it names the WRONG CHECK.** The
+>   janitor red that stranded `bd-ib-w4h4` was **`check-coverage`**, not
+>   `supervisor_discipline` — proven from the journal's own tail and by re-running the
+>   real check at the exact commit and dev-tooling version with the interpreter pinned,
+>   where BOTH of the item's competing theories are refuted. The true mechanism is a
+>   `check-coverage` recipe that branches on a gitignored `.coverage` file to decide
+>   which command to run. **The item needs retitling by its owner before anyone
+>   implements against it.** Full evidence is on its notes and in §"`bd-ib-rxxx`
+>   ROOT-CAUSED". This does NOT license un-stranding `bd-ib-w4h4` — that is still a
+>   maintainer call.
 >
 > **⚠ It is NOT "the only `active` row" — earlier revisions said so and that is now
 > false.** Other sessions dispatch into this shared tenant, so the `active` set moves
@@ -607,11 +617,21 @@ check-primary-checkout-commit-refuse-hook-installed  primary=PASS   fresh=FAIL
 ```
 
 **Exactly 2 of 16 diverge, in OPPOSITE directions, and both were already known.** No
-third instance exists. So walking the filesystem is NOT by itself the defect — 14 of 16
-do it safely, because they key off content that cannot exist untracked. **Fix the two
-specific checks; do not generalize from two examples.** The lesson is this thread's own:
+third instance exists **within this population**. So walking the filesystem is NOT by
+itself the defect — 14 of 16 do it safely, because they key off content that cannot exist
+untracked. **Fix the two specific checks; do not generalize from two examples.** The
+lesson is this thread's own:
 an inference is not a measurement, and it was worth ten minutes to find out which one
 this was.
+
+**⚠ THE COUNT IS NOW THREE, not two — see §"`bd-ib-rxxx` ROOT-CAUSED" below.** The
+measurement above swept the 71 modules in `livespec_dev_tooling.checks` and is sound
+within that population. `check-coverage` is a **justfile recipe**, not a checks module,
+so it was never in the sample — and it diverges harder than either of these two: it
+branches on a gitignored `.coverage` file to decide **which command to run**, so the same
+coverage shortfall reports as exit 2 in one venue and exit 1 in another. The method here
+was right; only its population was too narrow. **Do not read "bounded at exactly two" as
+covering the justfile.**
 
 #### Session close-out addendum — work done AFTER the close-out above
 
@@ -755,6 +775,77 @@ sandbox image pin now `python-agent-v0.57.0`. The dispatch journal's last record
 recorded as fact, NOT as a re-imposed hold — the maintainer released that hold
 deliberately and it must not be re-imposed. Read "assumption fully discharged" as scoped
 to v0.56.6, which is what it was measured on.
+
+#### 2026-07-28 — `bd-ib-rxxx` ROOT-CAUSED. It names the wrong check. (ledger-only write)
+
+This one matters to us directly: `bd-ib-rxxx` is the item gating `bd-ib-w4h4`, our live
+fixture. Its own correction note asked for a re-diagnosis with the interpreter pinned,
+and nobody had run it. It has now been run, and the answer is not either candidate.
+
+**The janitor red was `check-coverage`, not `supervisor_discipline`.** The failure detail
+the item quotes is the **tail** of the janitor's `just check` output, and the
+`supervisor_discipline` lines in it are `"level": "warning"`. The aggregate ran straight
+past them — the same detail string continues through `tests_mirror_pairing`, `ruff`,
+`pyright` and only then prints `error: Recipe check-coverage failed with exit code 2`,
+then `error: Recipe check failed with exit code 1`. All three of `bd-ib-w4h4`'s
+janitor-post-merge records carry that identical tail. **The warning was the most
+conspicuous line in the output, not the cause** — its own text even says it does not
+hard-fail at Phase 0.
+
+**Both of the item's competing theories are refuted by execution.** A fresh detached
+worktree of `ba9fdaf` (the exact commit the janitor checked out) with
+`livespec-dev-tooling 0.50.7` (the exact version it ran), interpreter pinned to that
+worktree's own `.venv/bin/python` and the loaded version confirmed via
+`importlib.metadata` — so the interpreter confound the item warned about does not apply:
+
+```
+dev-tooling : 0.50.7
+$ python -m livespec_dev_tooling.checks.supervisor_discipline
+EXIT CODE = 0        records by level: {'warning': 8}
+```
+
+Checkout-dependence of `supervisor_discipline`: refuted. The v0.50.7 → v0.50.8 version
+theory: refuted, because v0.50.7 *itself* passes.
+
+**The real failure reproduces, and it is one line.** `just check-coverage` in that same
+probe worktree fails at **99.99%** — 1 miss and 1 partial branch out of 25064/3076. The
+missing line is `_dispatcher_janitor_lock.py:133`, **in the very file `bd-ib-w4h4`'s own
+PR #836 modified**.
+
+**⚠ THE ITEM'S THESIS IS RIGHT; IT IS ATTACHED TO THE WRONG CHECK — and this is a third
+member of a family this file already documents.** `check-coverage` branches on a
+**gitignored** file:
+
+```bash
+if [[ -f .coverage ]]; then  uv run coverage report --fail-under=100   # exit 2
+else                         uv run pytest -n 4 --cov ...              # exit 1
+```
+
+**The exit codes prove the two runs took different arms.** The janitor's journal records
+`exit code 2` — the `coverage report` arm. The fresh-checkout reproduction exits **1** —
+the `pytest` arm. Same commit, same dev-tooling, different command, decided purely by
+whether an untracked `.coverage` file was present.
+
+That is the same class as the two divergent checks recorded above
+(`primary_checkout_commit_refuse_hook_installed` needs a gitignored worktree pack;
+`check-claude-md-coverage` reads stale `__pycache__`) — **so the "bounded at exactly
+two" measurement in that section is now superseded: there are three, and this third one
+is the worst of them, because it silently changes WHICH COMMAND RUNS rather than merely
+flipping a verdict.** The earlier measurement was sound — it swept
+`livespec_dev_tooling.checks` modules, and `check-coverage` is a justfile recipe, outside
+that population. Correcting the count, not the method.
+
+**What this does NOT license.** `bd-ib-w4h4` still must NOT be un-stranded or closed by
+an agent — it is the deliberate live fixture, it costs no WIP slot, and that is a
+maintainer call. What has changed is that the reason it was parked is now understood
+rather than mysterious, and the item's "BLOCKS re-dispatching `bd-ib-w4h4`" clause is
+doubly moot: it was already moot because the PR merged, and nothing about
+`supervisor_discipline` was ever blocking it.
+
+**`bd-ib-rxxx` needs retitling and rescoping by its owner** — its title names a check
+that does not fail, and an implementer would spend the whole budget in the wrong module.
+Not done here: retitling is a ledger write on someone else's framing. The full evidence,
+the recommended rescope, and three honest limits are on the item's notes.
 
 ### ✅ THE S3 BLOCKER — SETTLED 2026-07-26, and the blocking half has SHIPPED
 
