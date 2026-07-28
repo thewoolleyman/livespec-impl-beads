@@ -1219,18 +1219,18 @@ check-pre-commit:
     echo ":: pre-push: skipping same-repo live TUI picker gate; run just check-codex-skill-picker explicitly for live Codex picker acceptance"
     just skip="check-codex-skill-picker" check
 
-# When zero `.py` files are staged, `check-pre-commit` delegates here.
-# Pre-push delegates here via `check-pre-push` for zero-py changesets.
-# check-claude-md-coverage and check-heading-coverage are intentionally
-# absent here: backlog work-items li-bb5suo (CLAUDE.md backfill) and
-# li-4liaxt (heading-coverage backfill) close the gap; until those land
-# they would force every doc-only commit to fail the pre-commit gate.
-# They remain wired in the full `just check` aggregate (and surface in
-# pre-push) as the load-bearing canonical contract.
+# When zero `.py` files are staged, `check-pre-commit` delegates to this
+# conservative doc-only subset. Pre-push delegates here via `check-pre-push`
+# when the push contains zero `.py` changes.
 check-pre-commit-doc-only:
     #!/usr/bin/env bash
     set -uo pipefail
     targets=(
+        check-heading-coverage
+        check-agents-ai-references-resolve
+        check-claude-md-coverage
+        check-handoff-dispatch-routing
+        check-plan-thread-anchor-declared
         check-vendor-manifest
         check-no-direct-tool-invocation
         check-check-tools
