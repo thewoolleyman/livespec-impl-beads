@@ -1,5 +1,55 @@
 # Handoff — dispatch-claim-liveness
 
+> # ✅ COMPLETE AND ARCHIVABLE — 2026-07-28
+>
+> **This thread is finished and this file is ready to be archived.** Archival itself is
+> the maintainer's call and was NOT performed by an agent; this section exists so the
+> decision can be made from a file that is honest about its own state.
+>
+> **Nothing is lost by archiving, because every surviving obligation now lives on a LEDGER
+> ROW rather than in this document.** That was the last piece of work: an archived handoff
+> is where obligations go to die, and losing one would have been this thread's own
+> signature failure committed as its final act.
+>
+> **What survives, and where — re-queried against the ledger 2026-07-28, not copied from
+> any summary:**
+>
+> | what | id | state | owner / note |
+> |---|---|---|---|
+> | journal-path has two conventions | `bd-ib-xw2k` | `backlog` P3 | **UNTIERED** |
+> | janitor checkout / worktree pack | `bd-ib-91wj` | `backlog` P2 | **UNTIERED** |
+> | already-fixed items accumulate | `bd-ib-js1f` | `backlog` P2 | **UNTIERED** |
+> | `reconcile-merged` bypasses the currency gate | `bd-ib-3j4u` | `backlog` **P1** | **UNTIERED** |
+> | sandbox setup needs a live api.github.com fetch | `bd-ib-bic7hb` | `ready` P2 | host-only; BORROWED from `plan/factory-hardening/` and recorded there |
+> | the deliberate S3 fixture | `bd-ib-w4h4` | `active` P1 | held ON PURPOSE; now cross-linked to `bd-ib-rxxx` on BOTH rows |
+> | red master CI hard-gates dispatch | `bd-ib-wmqsn7` | `backlog` P2 | **`plan/factory-hardening/`'s — NOT ours** |
+>
+> **All four in-tenant items carry NO autonomy-tier label** (verified: no
+> `factory-safety:` / `autonomy` label on any of them). None is dispatchable until a
+> **human** signs the `autonomy_tiered` gate. **An agent must not self-issue it** — and
+> `bd-ib-js1f`, which is about items that describe already-fixed behavior, is the last one
+> anybody should self-sign.
+>
+> Two more untiered items sit in OTHER tenants, prose-linked because beads has no
+> cross-tenant edge: **`bd-gj-pch`** (`livespec-orchestrator-git-jsonl`) and
+> **`livespec-r5df`** (core `livespec`).
+>
+> **⛔ ONE CORRECTION TO THE HAND-OFF LIST I WAS GIVEN: `bd-ib-bwgko4` is CLOSED.** It was
+> named as a surviving `plan/factory-hardening/` item; the ledger says otherwise, and the
+> ledger wins. It is not a survivor and nobody should go looking for it.
+>
+> **The `bd-ib-w4h4` obligation is now discharged into the ledger, in both directions.**
+> `bd-ib-rxxx`'s description carries a closing instruction — when it lands, un-strand
+> `bd-ib-w4h4` — and `bd-ib-w4h4`'s description carries the reciprocal, so a reader
+> arriving from either side finds the other. Both state the fact that makes the delay safe:
+> **`bd-ib-w4h4` costs NOTHING where it sits.** S3 shipped, so `claimed_active_count()`
+> excludes a row holding no live dispatch lock — verified under real concurrent load at raw
+> `active` 3 / claimed 2. It is a stranded row consuming no WIP slot, which is the epic's
+> fix demonstrating itself. **Do not un-strand it early, and do not read it as a live
+> leak.**
+>
+> ---
+>
 > # ⛔ STOP — READ THIS BOX BEFORE ANYTHING ELSE (last written 2026-07-28)
 >
 > **THIS THREAD IS FINISHED. THERE IS NO IN-FLIGHT WORK AND NOTHING TO PICK UP.**
@@ -1200,6 +1250,73 @@ This is the strongest available argument for `bd-ib-js1f`'s fix shape **(C)** �
 recorded re-check against the item's STATED ACCEPTANCE before it may be tiered for
 unattended dispatch — and for that record being **per-item data, not a prose summary**,
 since a summary is precisely what let `bd-ib-98c.2` go unchecked while reading as verified.
+
+#### ⛔ 2026-07-28 — "the pack fix is MERGED BUT UNRELEASED" was tested and is FALSE
+
+A cross-track hypothesis arrived late in the session: that `14c3cae` is on `master` but no
+RELEASED plugin build carries it, so a consumer's `claude plugin update` would not help and
+`bd-ib-91wj` should be re-scoped from "author a fix" to a release/propagation gap. It was
+tested against `origin/release` before being acted on, **and it does not survive**:
+
+```
+14c3cae merged to master    2026-07-26 22:57:06Z
+e470f4d "release 0.46.23"   2026-07-26 23:19:45Z   <- FIRST release carrying it (+22 min)
+ac1e737 "release 0.46.24"   2026-07-27 00:36:28Z
+c878ea4 "release 0.46.25"   2026-07-27 19:05:36Z
+4b1339f "release 0.47.0"    2026-07-28 04:56:52Z
+c53fd50 "release 0.47.1"    2026-07-28 08:07:32Z
+```
+
+`git merge-base --is-ancestor 14c3cae origin/release` → true. At least five releases carry
+it, the earliest more than a day BEFORE the reported failure. **So there is no release gap,
+`bd-ib-91wj` was NOT re-scoped, and the remedy stands as recorded: a plugin refresh.**
+
+**Where the contrary reading came from, because the error is one this file already
+documents.** Two plugin caches were sampled (`6e94b35ec7f3`, `afeefcb40b65`); neither
+carries the pack step, and both statements are true. But both builds **predate `14c3cae`**
+— they are older releases, not evidence that no release carries it. Sampling two builds
+from a ~75-build cache and generalising is the **"wrong population"** error, the same one
+that produced this session's 4-of-8 staleness rate.
+
+**TWO POINTS FROM THAT ANALYSIS WERE ADOPTED WHOLESALE, because they are sharper than what
+this thread had written**, and both are now on `bd-ib-91wj`:
+
+1. **The two green dispatches are NOT evidence the defect is narrow.** They are evidence
+   that **checkout-run and cache-run consumers diverge** — this repo dispatches from the
+   orchestrator checkout and gets current code; a consumer runs the flattened plugin cache
+   and gets whatever it last installed. That supersedes the "open question" previously
+   recorded there.
+2. **A consumer can sit on a stale plugin cache indefinitely with NO SIGNAL, and when it
+   finally breaks the failure surfaces as a CHECK NAME (`worktree_pack_absent`) pointing at
+   the VENUE rather than the VERSION.** That is why two capable sessions both diagnosed the
+   venue first — and it is exactly `bd-ib-3j4u`: the gate that would emit the
+   version-shaped signal exists and does not run on the `reconcile-merged` path.
+
+**Not ours to carry:** the consumer track is requesting a release, holding its dispatches,
+and taking no local janitor override. Do not adopt or chase that.
+
+#### 2026-07-28 — cross-track corrections ran in BOTH directions, and one of them was wrong
+
+Three exchanges with the peer track today, worth recording together because the same move
+produced every good outcome and the failures were symmetrical:
+
+| direction | claim | outcome |
+|---|---|---|
+| us → them | `bd-ib-wmqsn7` flake class is broader than "cpython from GitHub" | ACCEPTED; their recovery recipe corrected |
+| them → us | "`bd-ib-91wj` reported every dispatch on this host is blocked" | REFUTED by our journal; scope narrowed |
+| them → us | "`14c3cae` is merged but unreleased" | **REFUTED by `origin/release`; item NOT re-scoped** |
+
+**The move that worked every time was the same: treat the other track's claim as a
+HYPOTHESIS TO TEST, not a fact to absorb or a challenge to rebut.** Absorbing the last one
+would have re-scoped a P2 onto a false premise; rebutting the second without checking would
+have left a real consumer blocked.
+
+**The failure shape is also symmetrical, and it is a scope widening.** The peer widened
+"every post-merge janitor leg in this repo" into "every dispatch on this host", and a
+hold-all-dispatches decision was taken on the widened version. This thread widened
+"4 of 8 items in one hot area are stale" toward a general ledger claim, and published it
+before sampling randomly. **Neither widening was caught by reading; both were caught by
+measuring.**
 
 #### 2026-07-28 — a THIRD instance of the egress flake, contributed to `bd-ib-wmqsn7`
 
