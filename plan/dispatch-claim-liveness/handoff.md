@@ -1060,6 +1060,57 @@ gate's fail-open design** (`bd-ib-n7ce4n`: an unestablishable verdict must warn 
 never block) — a `reconcile-merged` that cannot run is worse than one on an old plugin,
 because it IS the recovery path for a stranded claim.
 
+**Raised to P1 on further evidence, and the reason matters.** `bd-ib-n7ce4n`'s close reason
+says: *"**THE INTERIM MANUAL REFRESH-AND-VERIFY RULE IS RETIRED — the gate performs it
+mechanically.**"* So the HUMAN control was deliberately withdrawn because the MECHANICAL one
+was believed to cover it. Confirmed at the doctrine level too: core `livespec`'s
+`.ai/dispatcher-drain-operations.md` carries no plugin refresh-and-verify rule (its only
+"refresh" material is about the repo working tree). **On the `reconcile-merged` path neither
+control exists, and the human one was traded away for a mechanism that never reached it.**
+`bd-ib-n7ce4n`'s own problem statement — *"the window is silent — old behavior runs,
+pipelines report green"* — is precisely the `bd-ib-91wj` mechanism.
+
+**A control matrix is on the item, and it exists to STOP over-reach.** `reconcile-merged`
+applies exactly ONE of six preflight controls (the live-dispatch-lock refusal). **Do not
+read that as "wire in the other five."** The admission mutex guards a `ready → active`
+race that `reconcile-merged` never runs; the master-CI preflight exists to stop a dispatch
+committing on a red master, and wiring it in would let a transient flake
+(`bd-ib-wmqsn7`) block the recovery path for a stranded claim — the opposite of what is
+wanted. Only the plugin-currency gate is different in kind, because on this path the
+plugin version IS the behavior. Scope is confined to this repo:
+`livespec-orchestrator-git-jsonl` has neither module.
+
+**Reproduction caveat that will otherwise cost an hour:** the gate is EXEMPT on a
+git-checkout plugin root by design (`ad715ea`, "allow unreleased dispatcher plugin
+builds"), and with `CLAUDE_PLUGIN_ROOT` unset `plugin_root()` resolves to
+`<repo>/.claude-plugin`, which IS a checkout. **This gap cannot be reproduced from a repo
+checkout** — it bites only the cache-installed mode, which is exactly where stale builds
+accumulate.
+
+#### ⚠ 2026-07-28 — A RECURRING METHOD ERROR: verifying an item in the WRONG REPOSITORY
+
+Three independent instances in one session. Recording it because, unlike the staleness
+overreach above, this is measured at three and the failure shape is identical each time:
+**the item names an artifact without naming its repo, this repo has a same-named directory
+or concern, so the grep answers confidently and from the wrong tree.**
+
+| item | what was grepped | where the artifact actually lives |
+|---|---|---|
+| `bd-ib-d6op2n` | this tenant's ledger, for an owner | `livespec-driver-claude`'s tenant — filed there 6 days EARLIER |
+| `bd-ib-98c.4` | this repo's dispatcher, for OTLP wiring | the fabro fork, `/data/projects/fabro` on `factory-integration` |
+| `bd-ib-efjsb4` | this repo's `.ai/` + `SPECIFICATION/` | core `livespec`'s `.ai/dispatcher-drain-operations.md` |
+
+**The uncomfortable part: two of the three produced the RIGHT ANSWER BY LUCK.** `98c.4` and
+`efjsb4` are both genuinely live, so the wrong-tree grep happened to agree with the truth.
+Only `bd-ib-d6op2n` visibly failed — and it cost a duplicate P2 filed against another
+repo's own bug. **A method that is right by coincidence is not verification**, and two of
+these would have gone unnoticed if the third had not surfaced the pattern.
+
+**The check is cheap: before verifying an item, establish WHICH REPO owns the artifact it
+names.** Cross-repo work in this family is the norm, not the exception — fabro lives in a
+fork, doctrine lives in core, sibling defects live in sibling tenants, and every one of
+those has a plausible same-named local path to grep instead.
+
 #### 2026-07-28 — a THIRD instance of the egress flake, contributed to `bd-ib-wmqsn7`
 
 PR #1073 (docs-only) was reddened by `× Failed to download grimp==3.14 … Request failed
