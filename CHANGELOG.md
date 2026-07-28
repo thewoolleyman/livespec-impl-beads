@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.47.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.25...v0.47.0) (2026-07-28)
+
+
+### Features
+
+* add master ci dispatch preflight ([2ae4b2b](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/2ae4b2be85293bfdc76a390304363bc7cd795b7f))
+
+
+### Bug Fixes
+
+* journal reject rework valve ([521d7f7](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/521d7f71bb50ae5be08eedc627911c6021e3f209))
+
 ## [0.46.25](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.46.24...v0.46.25) (2026-07-27)
 
 
