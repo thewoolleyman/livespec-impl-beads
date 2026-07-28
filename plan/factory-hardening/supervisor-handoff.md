@@ -258,6 +258,43 @@ timer ticks every second, so "unchanged across three 20s polls" separates busy f
 without depending on TUI wording. The only safe string test is `Enter to select`, because
 that is the picker's own footer.
 
+## A thread with no live work is NOT a resting state — archive it or ask
+
+The two sections above police stalls where something is still moving: standing down on a
+lane another track owns, and ending a turn while the worker is mid-flight. **Neither covers
+the stall this thread actually hit**, and neither does the `supervise-plan` skill they came
+from. This section exists because that gap is fleet-wide.
+
+**The third stall: the worker goes idle, its queue is genuinely exhausted, the plan is not
+archived, and the supervisor writes a status report and stops.** Every individual judgement
+is defensible — the work really is done, the remaining decisions really are the maintainer's,
+the report really is accurate — and the thread is dead anyway. It looks *more* responsible
+than the mid-flight stall, which is what makes it harder to catch.
+
+**The test, and it is mechanical. Never end a turn in this state:**
+
+> no live worker task **AND** no armed watcher **AND** no open `AskUserQuestion`
+
+That triple is the definition of stalled. If you are about to end a turn, check it. If all
+three hold, you have exactly two legitimate exits and "report and wait" is not one of them:
+
+1. **Nothing is pending from the maintainer → ARCHIVE THE THREAD.** Completion is an action,
+   not a condition you announce. A finished-but-unarchived plan thread is unfinished work that
+   looks finished, and it will be re-read as live by the next session that lists `plan/`.
+2. **Maintainer decisions ARE pending → surface ALL of them in ONE `AskUserQuestion`, in the
+   SAME turn you discover the exhaustion.** Not the next turn, not after one more verification
+   pass. Discovering that the queue is empty is itself the trigger to ask.
+
+**"Nothing needs you right now" is the exact sentence to distrust.** If genuinely nothing
+needs the maintainer, archive. If something does, ask. The sentence is only ever true in the
+moment between those two actions, and writing it as a turn-ending report converts a decision
+point into a silence that no watcher covers — the maintainer is the only one who can notice,
+and telling them nothing is needed is precisely what stops them looking.
+
+A pending maintainer decision does not become less blocking because you have re-verified it
+is unchanged. Re-verifying an unanswered question is not progress on it; it is the loop a
+stalled supervisor runs to feel busy. Ask once, then stop re-checking until answered.
+
 ## AskUserQuestion presentation rules
 
 Every maintainer-facing action is an `AskUserQuestion` call carrying a recommendation — never
