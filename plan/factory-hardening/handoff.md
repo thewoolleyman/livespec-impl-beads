@@ -84,18 +84,48 @@ is still right. Do not read PR #1063 as "a live E2BIG bug was fixed."
 
 ## The stale-row pattern — read this before trusting any row on this thread
 
-**Two of the four items handled on 2026-07-28 asserted defects the repo had
-already cured**, and neither was caught by reading the item, the code, or the
-plan file — only by reading the *merged diff*:
+**Three of the five defect claims handled on 2026-07-28 described defects that
+had already been cured**, and none was catchable from the item, the source, or
+this file — only from the *merged diff*:
 
 - `bd-ib-bwgko4` — fixed by `bd-ib-qq7f` / PR #905 (2026-07-24), row untouched
   since 2026-07-15.
 - `bd-ib-eha3wh` — fixed by `c6ae317` (2026-07-19), filed 2026-07-24 anyway.
+- **The "three other drifted fleet copies" claim** — see below. This one is the
+  sharpest of the three, because it was not inherited from an old row: it was
+  generated fresh *during this session*, by this session, out of the description
+  of a row already known to be stale.
 
-The fix landed, nobody reconciled the open row, and the ledger kept asserting a
-live defect. `bd-ib-eha3wh`'s description names **three other drifted fleet copies
-of the same script** — diff each against `c6ae317` before filing or dispatching
-any of them.
+### The fleet copies are NOT drifted — surveyed, all safe. Do not file an item.
+
+An earlier revision of this file instructed the reader to "diff each against
+`c6ae317` before filing or dispatching any of them", and a systemic follow-up item
+was recommended to the maintainer on that basis. **The survey has now been done and
+the recommendation is withdrawn.** `git fetch` in every fleet clone, then read
+`origin/master:.github/scripts/export-ci-telemetry.sh` from each:
+
+**There are EIGHT copies, not four, and ALL EIGHT are safe.** Six route both
+unbounded payloads on stdin; `livespec` and `livespec-overseer` use a later variant
+that writes both to temp files and reads them with `--slurpfile`, keeping even the
+bounded `run_span` off argv. Enumerating every `--arg`/`--argjson` variable in each
+copy: no value that grows with job or step count reaches argv anywhere in the fleet.
+Both shapes are correct — this is benign divergence, not drift. Do not "harmonize"
+them, and do not file the systemic item.
+
+**The method warning is worth more than the result.** The survey's first pass
+reported `livespec` and `livespec-overseer` as DEFECTIVE. False positive: both carry
+a *comment* quoting the forbidden form verbatim in order to forbid it, and the
+matcher read the prohibition as the declaration. That is the **third** time in one
+session a text-matching check confused a citation with a declaration — the
+Dispatcher's workflow-edit admission heuristic did it to `bd-ib-wefw`'s scope fence
+(`bd-ib-imzx24`), and then this survey did it twice. Strip comments before matching.
+
+**And note what this cost.** The recommendation to file was written in the same
+paragraph that named the hazard — "filing creates a row asserting a defect in repos
+I have not read" — and was made anyway, one turn after the charter recorded
+correction 5 about exactly this. Naming a hazard is not the same as clearing it. The
+check that settled all eight copies took about two minutes; it should have preceded
+the recommendation, not followed it.
 
 ## Correction: the gate that was actually holding both items
 
