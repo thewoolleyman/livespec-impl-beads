@@ -29,15 +29,23 @@
 >   record. Do not re-file it here. Evidence was contributed to their item first; the
 >   filed-items entry below explains what, and why the previous wording of that entry was
 >   the thing that hid the duplicate for two days.
-> - **2026-07-28 — FOUR items were filed and left UNTIERED ON PURPOSE.** None is
+> - **2026-07-28 — SIX items were filed and left UNTIERED ON PURPOSE.** None is
 >   dispatchable until a maintainer signs the `autonomy_tiered` gate; an agent must not
->   self-sign it. In this tenant: **`bd-ib-xw2k`** (P3, journal-path has two conventions)
->   and **`bd-ib-91wj`** (P2, janitor checkout lacks the worktree pack). Elsewhere,
->   prose-linked because beads has no cross-tenant edge: **`bd-gj-pch`**
->   (`livespec-orchestrator-git-jsonl`) and **`livespec-r5df`** (core `livespec`), the
->   per-repo and fleet-level halves of the doc-only pre-commit gap.
-> - **⚠ BOTH IN-TENANT UNTIERED ITEMS WERE MEASURED LATER ON 2026-07-28, AND BOTH
->   PREMISES MOVED. READ THEIR NOTES BEFORE TIERING EITHER.** `bd-ib-91wj`'s reported
+>   self-sign it. **In this tenant, FOUR:** **`bd-ib-xw2k`** (P3, journal-path has two
+>   conventions), **`bd-ib-91wj`** (P2, janitor checkout lacks the worktree pack),
+>   **`bd-ib-js1f`** (P2, items describing already-fixed behavior accumulate in
+>   recently-worked areas) and **`bd-ib-3j4u`** (**P1**, `reconcile-merged` bypasses the
+>   plugin-currency staleness gate). Elsewhere, prose-linked because beads has no
+>   cross-tenant edge: **`bd-gj-pch`** (`livespec-orchestrator-git-jsonl`) and
+>   **`livespec-r5df`** (core `livespec`), the per-repo and fleet-level halves of the
+>   doc-only pre-commit gap.
+>   **⚠ THIS BULLET SAID "FOUR" AND "BOTH IN-TENANT" UNTIL 2026-07-28, WHILE TWO MORE HAD
+>   ALREADY BEEN FILED.** Corrected here. It is a small thing and it is precisely the
+>   defect `bd-ib-js1f` describes, occurring in the most-read paragraph of this file: a
+>   count written once, still reading as current, quietly wrong. **If you add a filed item
+>   anywhere below, fix this count in the same change.**
+> - **⚠ THE TWO ORIGINAL IN-TENANT UNTIERED ITEMS WERE MEASURED LATER ON 2026-07-28, AND
+>   BOTH PREMISES MOVED. READ THEIR NOTES BEFORE TIERING EITHER.** `bd-ib-91wj`'s reported
 >   defect is **ALREADY FIXED on master** by `14c3cae` — it is a re-report from a session
 >   running a week-old cached plugin, so **do not tier it for dispatch**; the remedy for
 >   the reporting side is a plugin refresh. `bd-ib-xw2k`'s "nothing passes `--journal`
