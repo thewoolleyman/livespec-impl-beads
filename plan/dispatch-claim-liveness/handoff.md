@@ -1206,6 +1206,24 @@ that a maintainer can now decide both without re-deriving anything.
 | **A TENTH** — `bd-gj-pch` re-verified **in the git-jsonl tenant**; defect unchanged and its safety precondition **survived a pin bump** | **`bd-gj-pch` notes** (OTHER tenant) |
 | **AN ELEVENTH** — `bd-ib-rxxx`'s fix is **guarded two ways**; the evidence a close decision needs | **`bd-ib-rxxx` notes** |
 
+**✅ ALL OF THE ABOVE RE-READ FROM THE LEDGER AT SESSION END — every note PRESENT, and
+NOTHING WAS TIERED.** Proved from artifacts rather than asserted from memory, because this
+session had five probe/reference failures and a safety claim repeated often is exactly the
+kind that stops being checked:
+
+```
+bd-ib-91wj  backlog P2 tier=NONE     bd-ib-xw2k   backlog P3 tier=NONE
+bd-ib-3j4u  backlog P1 tier=NONE     bd-ib-js1f   backlog P2 tier=NONE
+bd-ib-wmqsn7 backlog P2 tier=NONE    bd-ib-rxxx   backlog P1 tier=NONE
+bd-ib-w4h4  active  P1 tier=NONE     bd-ib-bic7hb ready   P2 tier=[factory-safety:mutates-host-machinery]
+```
+
+**`bd-ib-bic7hb`'s label is PRE-EXISTING — it was read off the item before any write here**,
+and is a `factory-safety` lane marker, not an autonomy tier. **No `autonomy_tiered` gate was
+signed anywhere**; that is a human's to sign. Every status above also matches the survivors
+table unchanged. The eighth note lives in the **git-jsonl** tenant (`bd-gj-pch`) and was
+verified there, from that repo's root.
+
 #### `bd-ib-rxxx` — the fix is GUARDED, which is the piece a close decision was missing
 
 Its notes already carried the root cause and named `ff97ad8`. **What nothing recorded was
