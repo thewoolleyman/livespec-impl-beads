@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.48.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.47.1...v0.48.0) (2026-07-28)
+
+
+### Features
+
+* add sandbox image override coverage ([168d449](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/168d449317bd2ef6f4c46ac1aa680bab493713ed))
+
 ## [0.47.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.47.0...v0.47.1) (2026-07-28)
 
 
