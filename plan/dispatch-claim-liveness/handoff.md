@@ -347,7 +347,9 @@
 >   BOTH PREMISES MOVED. READ THEIR NOTES BEFORE TIERING EITHER.** `bd-ib-91wj`'s reported
 >   defect is **ALREADY FIXED on master** by `14c3cae` — it is a re-report from a session
 >   running a week-old cached plugin, so **do not tier it for dispatch**; the remedy for
->   the reporting side is a plugin refresh. `bd-ib-xw2k`'s "nothing passes `--journal`
+>   the reporting side is a plugin refresh **for the `worktree_pack_absent` half ONLY —
+>   their publish refusal has a second cause a refresh cannot reach, see the two-causes
+>   correction above**. `bd-ib-xw2k`'s "nothing passes `--journal`
 >   today" premise is **FALSE** — three committed scripts pass one — though the
 >   divergence still never bites in a single run. Both findings are proven by execution
 >   and recorded on the items; see §"2026-07-28 addendum — the two untiered items were
@@ -855,7 +857,9 @@ of this epic.**
   different plugin revision. Neither repo sets a `janitor` config key, so both take the
   default. Two consequences are written up on the item: a plugin refresh may suffice for
   their symptom (code landed in a working tree does nothing for a session pinned to an
-  older cached revision), and the janitor ARGV is the wrong durable home for the fix
+  older cached revision) — **⛔ it does NOT: it resolves the `worktree_pack_absent` half
+  only, and their publish refusal has a second cause a refresh cannot reach; see the
+  two-causes correction in the stop box** — and the janitor ARGV is the wrong durable home for the fix
   because `janitor_argv_with_default` is per-repo overridable — the robust placement is
   `_provision_janitor_checkout`'s `steps` tuple, with `cwd=plan.janitor_checkout` (the
   check asserts hooks in the PRIMARY and the pack in the WORKTREE; the existing
@@ -1109,8 +1113,19 @@ call `build_plan`, which resolves through `janitor_argv_with_default`.
 **The skew is now measured, not inferred.** Of ~75 cached plugin revisions on this host,
 **only 5 carry the pack step**. The revision the console session dispatched on,
 `1567e8f200dc`, is release **0.45.18 dated 2026-07-20** — a week older than the fix
-(`git merge-base --is-ancestor 14c3cae 1567e8f200dc` is false). **A plugin refresh is the
-whole remedy for their symptom**, and it needs no code change.
+(`git merge-base --is-ancestor 14c3cae 1567e8f200dc` is false). ~~**A plugin refresh is the
+whole remedy for their symptom**, and it needs no code change.~~
+
+> **⛔ SCOPE CORRECTION, 2026-07-28 — "the WHOLE remedy" is wrong; the rest of this
+> paragraph stands.** A plugin refresh IS the whole remedy for `worktree_pack_absent`, which
+> is what this section measures, and every measurement above is unaffected. It is **NOT** the
+> whole remedy for the console track's *symptom*, because their symptom spans two causes: the
+> other is their repo-local `.fabro/workflows/implement-work-item/prompts/pr.md`, which
+> overrides the plugin's bundled copy and never received `231e9a4`. **A refresh structurally
+> cannot reach a file their repo commits.** See the two-causes correction in the stop box.
+> **This is a SCOPE error, not a fact error** — the claim was true of the half it was
+> measuring and false of the whole it was stated about, which is exactly RULE 1's shape
+> applied to a remedy instead of an absence.
 
 **A self-correction recorded on the item, because the distinction matters.** The first
 note claimed the per-repo-override fragility has "zero exposure", from reading all 9
