@@ -1119,6 +1119,58 @@ that a maintainer can now decide both without re-deriving anything.
 | **A FIFTH** — `bd-ib-3j4u` re-verified end-to-end against the tree at `ba80a19`; **every claim HOLDS, nothing needed correcting** | **`bd-ib-3j4u` notes** |
 | **A SIXTH** — live CI field evidence: the same `shellcheck` fetch failed in **CI**, by a mechanism the shipped half cannot cover | **`bd-ib-bic7hb` notes** |
 | **A SEVENTH** — the `gh run rerun --failed` refusal is **deterministic**, resolving an inconsistency that item recorded as variance | **`bd-ib-wmqsn7` notes** (a CONTRIBUTION — the stand-down holds) |
+| **AN EIGHTH** — `bd-ib-xw2k` re-verified; premise holds, **one line reference drifted** | **`bd-ib-xw2k` notes** |
+| **A NINTH** — `bd-ib-js1f`'s measured population splits into **two mechanisms with different remedies** | **`bd-ib-js1f` notes** |
+
+#### ✅ ALL FOUR in-tenant untiered items were verified against the tree — 2026-07-28
+
+Done so a maintainer can tier any of them without re-deriving anything, and so nobody signs
+a gate for an item whose premise has moved. **None was tiered, re-scoped, retitled or
+dispatched — an agent must not sign `autonomy_tiered`.**
+
+| item | P | verdict against `fd3b1cf` |
+|---|---|---|
+| `bd-ib-3j4u` | P1 | **fully accurate** — all 8 structural claims hold |
+| `bd-ib-xw2k` | P3 | premise holds; **`_drive_valves.py:205` → `:210`** (navigate by the literal, not the line) |
+| `bd-ib-91wj` | P2 | superseded framing corrected; now known **stale on arrival** |
+| `bd-ib-js1f` | P2 | claim stands; **refined — see below** |
+
+**`bd-ib-xw2k`'s "three committed scripts pass `--journal`" is CONFIRMED exactly** —
+`acceptance-live-golden-master.sh:603`, `real-work-dispatch.sh:529`,
+`tier2-dispatch-proof.sh:252`. A first pass here read it as *one*, because the grep was piped
+through `head` and the `plan/` prose hits consumed the window. **A truncated search reports
+an absence it never established** — RULE 1, committed while checking someone else's version
+of RULE 1. The correct probe is `git grep -n -- "--journal" -- . ':!plan/'`.
+
+#### ⚠ `bd-ib-js1f` COUNTS TWO MECHANISMS AS ONE, and a sweep fixes only one of them
+
+Its core claim stands — staleness is real, concentrated in hot areas, and a stale item is
+dispatchable. But the measured population splits:
+
+| item | filed | fix landed | delta | mechanism |
+|---|---|---|---|---|
+| `bd-ib-91wj` | 07-28 04:24Z | `14c3cae` 07-26 23:19Z | **−29.1h** | **STALE ON ARRIVAL** |
+| `bd-ib-rxxx` | 07-20 15:38Z | `ff97ad8` 07-20 20:59Z | +5.3h | accumulated |
+| `bd-ib-tyee` | 07-19 04:27Z | `74fe125` 07-19 05:01Z | +0.6h | accumulated |
+
+**Author and committer dates were both checked and agree on the sign in every row**, so the
+split does not depend on which clock is read.
+
+1. **`bd-ib-91wj` was stale before it was filed** — filed 29 hours *after* its fix, because
+   the reporting session ran a week-old cached plugin. **That is a filing-time defect, and a
+   sweep cannot prevent it; only a plugin-currency gate can — which is `bd-ib-3j4u`.**
+   Anyone costing "the sweep" should know it addresses three of the four measured cases, not
+   four.
+2. **The accumulation window is HOURS, not days** — +0.6h and +5.3h. `bd-ib-tyee` was filed
+   **34 minutes** before its fix landed. **A daily sweep would have missed both.** Not an
+   argument against a sweep; an argument against assuming a comfortable cadence.
+3. **A delta in that item's own table is wrong** — it records `bd-ib-rxxx` as "~17h after
+   filing"; measured, it is **~5.3h**. Classification unaffected, figure off ~3×. Cite the
+   two timestamps, never the computed delta.
+
+**Recency of FILING does not predict staleness** — `bd-ib-3j4u` and `bd-ib-xw2k` were both
+filed 2026-07-28 and both are current. The discriminator is whether a fix landed against the
+behavior, which is what that item already says.
 
 #### The CI flake that reddened PR #1108, and why it is worth more than a re-run
 
