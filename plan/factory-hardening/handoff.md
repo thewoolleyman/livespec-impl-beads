@@ -2,39 +2,39 @@
 
 ## ⛔ START HERE — read before doing anything
 
-**This thread has no DISPATCHABLE work to pick up. Do not go hunting for some.** As of
-2026-07-28 the in-repo queue for its class is exhausted — that is a *checked*
-conclusion (every remaining non-closed item was assessed and its reason for being
-out of scope is named in §"CURRENT STATE"), not an assumption. Everything that
-remains is one of **three maintainer decisions**, indexed in the table below.
-None of them is yours to take: each is either cross-repo or a spec-change.
+*Consolidated at end of day 2026-07-28. This block previously carried its original text
+plus two stacked amendments that partly contradicted it; the history is preserved in git
+and the lessons from both are folded in below.*
 
-> **⚠ AMENDED 2026-07-28, later the same day — and read the amendment before trusting the
-> paragraph above.** When this block was first written it said "no work to pick up", full
-> stop. That was **too broad**: a *non-dispatch* obligation was outstanding and the block
-> missed it. `bd-ib-91wj` was on hold pending THIS thread's plugin-resolution mechanism
-> result; the result had been published to this file minutes earlier and never relayed to
-> the item. **It has now been delivered — `bd-ib-91wj` is rewritten in place and the hold
-> is lifted** (§"The `bd-ib-91wj` discharge"). Doing so also **refuted that item's central
-> claim** and **corrected a false claim in this very file**, so the pass was not ceremony.
->
-> **The durable lesson: "the dispatch queue is empty" is not "there are no obligations."**
-> Before concluding this thread is idle, grep the whole tenant for rows that NAME it —
-> `bd list --limit 0 --json`, then match on `factory-hardening` — not just rows in its
-> defect class. That check takes seconds and is what this block was missing.
->
-> **⚠ AMENDED AGAIN, same day — a SECOND wave landed after the above.** The maintainer
-> routed three findings from the `console-happy-path-mvp` worker about the janitor's
-> consumer contract. Outcome: one was already filed (`bd-ib-d6ds` — contributed to, and its
-> P1 **title corrected** after re-measuring the population at **12 repos, not 8**), and two
-> became new P1 rows — **`bd-ib-lfm7`** (the workflow guard is *vacuous* in the post-merge
-> venue) and **`bd-ib-dd9l`** (a janitor-contract change strands merged items; the
-> `--janitor` escape exists but is raw-surface-only and unsignposted). Full record in
-> §"The janitor consumer-contract wave". **Both new rows are `backlog` and UNTIERED — do
-> not dispatch them without a maintainer-assigned autonomy tier.**
->
-> **As of the end of that wave the maintainer stated the thread has no live obligations,**
-> and instructed that the three standing decisions **not** be re-verified again unprompted.
+### State, as of end of 2026-07-28
+
+**There is no DISPATCHABLE work to pick up here, and no live obligation. Do not go hunting
+for either.** That is a *checked* conclusion, not an assumption — every remaining non-closed
+item in this thread's class was assessed and its reason for being out of scope is named in
+§"CURRENT STATE". The maintainer confirmed the same at end of day.
+
+What remains is **three maintainer decisions**, indexed in the table below. None is yours to
+take: each is cross-repo or a spec-change. **They were re-verified unchanged on 2026-07-28
+and the maintainer instructed that they NOT be re-verified again unprompted.**
+
+**Four rows carry live substance but are NOT yours to start:** `bd-ib-lfm7` and
+`bd-ib-dd9l` (both P1, filed by this thread on 2026-07-28) are `backlog` and **UNTIERED** —
+an autonomy tier is a maintainer touchpoint, so **do not dispatch them without one**. Both
+have been de-risked on the ledger; read their notes before designing anything.
+`bd-ib-d6ds` (P1) and `bd-ib-91wj` are contributed-to, not owned.
+
+### The two lessons this block was built out of — both cost real time
+
+1. **"The dispatch queue is empty" is NOT "there are no obligations."** The first version of
+   this block said "no work to pick up", full stop, while a *non-dispatch* obligation was
+   outstanding: `bd-ib-91wj` sat on hold pending this thread's own mechanism result, which
+   had been published to this file minutes earlier and never relayed. **Before concluding
+   this thread is idle, grep the whole tenant for rows that NAME it** — not just rows in its
+   defect class. Seconds to run; it is step 3 below.
+2. **Check the incidental claims, not only the load-bearing ones.** Discharging that
+   obligation refuted `bd-ib-91wj`'s central "one cause" claim *and* corrected a false claim
+   in this very file — and the thread found the second cause only by checking a sentence
+   that was load-bearing for nothing.
 
 **What a fresh session should actually do, in order:**
 
@@ -55,13 +55,21 @@ None of them is yours to take: each is either cross-repo or a spec-change.
    this tenant. Slice A is already merged, which was its ordering precondition.
    Read §"Decision 1 in full" for the verified premise and the named caveat
    before writing any code.
-3. **Grep the tenant for rows that name this thread**, not just rows in its defect
+3. **Grep the tenant for rows that NAME this thread**, not just rows in its defect
    class — `bd list --limit 0 --json`, match on `factory-hardening`. This is the
-   step the first draft of this block lacked; see the amendment above.
+   step the first version of this block lacked, and lesson 1 above is why it exists.
 4. **If nothing has changed:** say so plainly and hold. Reporting "still waiting
    on three maintainer decisions, here they are" is the correct output. Do not
    manufacture work, do not re-audit what is already recorded below, and do not
    file anything against another thread's class.
+
+**Before ANY push, run the path-ownership check** —
+`mise exec -- git diff --name-only origin/master...<your-branch>` — and confirm every path
+belongs to THIS thread. Several sessions commit to `master` concurrently and each
+`plan/<topic>/handoff.md` is owned by its own thread. This is now a standing rule in
+`AGENTS.md` §"Working with the maintainer"; it was added after a branch from this thread
+carried `plan/dispatch-claim-liveness/handoff.md` while that thread had its own PR open
+doing the same edit.
 
 **Do not re-derive these — they are settled and recorded below:** the plugin-build
 resolution mechanism; why no plugin-currency item was filed (the gate already
