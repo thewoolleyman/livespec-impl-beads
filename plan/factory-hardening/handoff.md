@@ -16,14 +16,84 @@ only remaining owned work is slice B, which is not this repo's code.**
 | `bd-ib-bwgko4` | **CLOSED** | Superseded — its fix shipped 2026-07-24 as `bd-ib-qq7f` / PR #905. |
 | `bd-ib-wefw` | **CLOSED** | Slice A. Built and shipped through the factory: PR #1064, merge `2ae4b2b`. |
 | `bd-ib-eha3wh` | **CLOSED** | Adopted, dispatched: PR #1063, merge `b510433`. Read the caveat below. |
+| `bd-ib-imzx24` | **CLOSED** | Adopted, dispatched: PR #1076, merge `26f2b1b`. Admission-heuristic override. |
+| `bd-ib-p16s` | **`backlog`** | **Premise REFUTED** — retitled and withdrawn from `ready`. See below. |
 | `bd-ib-wmqsn7` | **`backlog`** | The epic. Slice A is done; **slice B remains** and is cross-repo. |
-| `bd-ib-bic7hb` | `ready` — **NOT OURS** | Owned by `plan/dispatch-claim-liveness/` since 2026-07-26. |
+| `bd-ib-bic7hb`, `bd-ib-w4h4` | — **NOT OURS** | Both tracked by `plan/dispatch-claim-liveness/`. |
 
 **Next action (maintainer), and it is a ruling, not a task:** slice B changes
 `check-master-ci-green` in **`livespec-dev-tooling`**, and it rests on the vantage
 policy question already routed to you on `livespec-dev-tooling-gam8` (2026-07-25).
 Slice A has now landed, which was the ordering precondition — so slice B is
 unblocked the moment you rule. Nothing in THIS repo is waiting on anything.
+
+**The in-repo queue for this thread's class is exhausted, and that is a checked
+conclusion rather than an assumption.** Every remaining non-closed item in the
+dark-factory dispatch-path class was assessed: `bd-ib-js4t57` is outward-facing
+upstream fabro (fork-track, explicitly not factory-safe); `bd-ib-blk3` declares
+"host-only (sysctl/policy work; never factory-dispatched)" and needs a maintainer
+policy choice; `bd-ib-bic7hb` and `bd-ib-w4h4` belong to
+`plan/dispatch-claim-liveness/`; `bd-ib-elvxv2` is a family docs chore, not this
+class. Nothing factory-safe, unowned, and dispatchable remains here.
+
+## `bd-ib-p16s` — premise REFUTED; do not dispatch it as written
+
+It was sitting in `ready` and would have been picked up next. Its own description
+required diagnosis from run `01KYA2MP5JYV` "before coding", and nobody had done it.
+The run's evidence survives (`~/.fabro/storage/scratch/20260724-01KYA2MP…` and
+`fabro events`), so it was done.
+
+**The pr stage did not skip the arm — it armed auto-merge AND verified it.** From
+the run's `prompt.completed` event: *"Auto-merge arming returned successfully. I'm
+querying the PR state now to confirm `autoMergeRequest` is present… Auto-merge is
+armed with rebase merge. Current `mergeStateStatus` is `BLOCKED`, so it is waiting
+on GitHub-side requirements/checks."*
+
+Forge corroboration, not just the transcript: PR #927 carries
+`autoMergeRequest.enabledAt = 2026-07-24T14:03:18Z`, `enabledBy: app/livespec-pr-bot`,
+`mergeMethod: REBASE` — twelve seconds before the pr stage completed — **and the PR
+merged** at 15:11:49Z. It was never a PR that "could never merge".
+
+So both fix shapes the item proposes target a non-problem. The only real residual is
+that the dispatcher's merge-poll cannot distinguish "armed but blocked on red CI,
+will merge when they go green" from "starved", and times out on the former. That is a
+different defect, and it overlaps `bd-ib-lza6` (`acceptance`), which already shipped
+the `reconcile-merged` valve — **read `lza6` before re-scoping, and do not design a
+second reconciliation path beside the one that shipped.**
+
+Two method warnings from doing this diagnosis, both recorded on the item:
+`tool_time_ms=0` on the pr stage looked damning until a known-good run showed the
+same (fabro does not count the ACP agent's internal tool calls); and reading the
+agent reply through a truncating slice briefly made it look like the agent stopped
+mid-step, when the full 1904-character reply shows it finished. **A stage reporting
+`status="succeeded"` is not evidence about what the agent DID — read the reply.**
+
+## `bd-ib-imzx24` shipped — the admission heuristic now has a working remedy
+
+Adopted by this thread (parent epic `bd-ib-cvgjop` is CLOSED and its thread archived,
+so no live thread owned it) and dispatched: PR #1076, merge `26f2b1b`, released in
+0.47.1. It fixes the defect that bit this thread's own `bd-ib-wefw` earlier the same
+day.
+
+Before adopting, the defect was confirmed still live three independent ways — merged
+history showed the module's last change *was* the commit that shipped the gate; the
+source carried no override mechanism; and the refusal message still named
+`set-admission`, which cannot clear the block. The pre-dispatch refusal check was also
+run on the item itself (it does not trip its own heuristic).
+
+What landed: a new journaled drive valve **`set-workflow-scope-override:<id>:citation-only`**,
+the store mutation that records it, `is_host_only_item` honoring it, and a rewritten
+refusal message that names both the valve and the negation-declaration escape.
+
+**Ordering is the safety property, and it is guarded.** `factory_safety` is checked
+FIRST, so the override can never admit an intrinsically host-only item. Demonstrated
+rather than assumed: injecting the inverse order (override checked before
+`factory_safety`) in a throwaway worktree turns
+`test_workflow_scope_override_admits_citation_but_not_factory_safety` red — 10 passed
+becomes 1 failed. The valve was also exercised live: an unknown id returns
+"work-item not found" (so it parses and routes), and an out-of-allowlist value is
+refused. Its test fixture uses this thread's own scope-fence line verbatim as the
+citation-only case.
 
 ## Slice A shipped — what actually landed, and how it was verified
 
@@ -52,6 +122,21 @@ including `test_run_rollup_failure_proceeds_when_ci_green_succeeded` and
 `test_lever_env_cannot_make_red_master_pass`. The worktree was then discarded.
 A live smoke run of the merged `master_ci_preflight_refusal()` against real repo
 state returns PROCEED on a green master.
+
+**Which copy is in effect — the pin mechanic, applied to our own work.** This is
+the charter's §"honesty hazard" turned on slice A itself, and the answer has two
+halves, so state it precisely rather than as "the fix is live". The Dispatcher
+resolves its modules from wherever `plugin_root()` points: the repo checkout when
+`dispatcher.py` is run host-direct (how dispatches actually run here, and the path
+the smoke test exercised), or the installed plugin cache under `CLAUDE_PLUGIN_ROOT`
+when invoked through the plugin. At the time slice A merged, the installed cache was
+`c878ea43f8cd` = release **0.46.25**, thirty-four commits behind, and it did **not**
+contain the preflight — verified by grepping every cached
+`_dispatcher_run_checks.py`. Master and the marketplace clone were both already at
+0.47.0 with the preflight present, so the cache self-heals on the next plugin
+refresh. Net: slice A was in effect immediately on the host-direct path, and reaches
+the plugin path on refresh. **It has since run in production** — the `bd-ib-imzx24`
+dispatch proceeded past `dispatch_preamble` against a green master.
 
 **Which red does this still refuse?** Any failure in `check-python`,
 `check-doctor-static`, `check-metadata`, `e2e-cli`, or `acceptance` — the five
@@ -84,17 +169,19 @@ is still right. Do not read PR #1063 as "a live E2BIG bug was fixed."
 
 ## The stale-row pattern — read this before trusting any row on this thread
 
-**Three of the five defect claims handled on 2026-07-28 described defects that
-had already been cured**, and none was catchable from the item, the source, or
-this file — only from the *merged diff*:
+**Four of the six defect claims handled on 2026-07-28 did not survive contact with
+the evidence**, and none was catchable from the item, the source, or this file —
+only from the *merged diff* or the failing run's own event log:
 
 - `bd-ib-bwgko4` — fixed by `bd-ib-qq7f` / PR #905 (2026-07-24), row untouched
   since 2026-07-15.
 - `bd-ib-eha3wh` — fixed by `c6ae317` (2026-07-19), filed 2026-07-24 anyway.
-- **The "three other drifted fleet copies" claim** — see below. This one is the
-  sharpest of the three, because it was not inherited from an old row: it was
-  generated fresh *during this session*, by this session, out of the description
-  of a row already known to be stale.
+- **The "three other drifted fleet copies" claim** — see below. Not inherited from
+  an old row: generated fresh *during this session*, by this session, out of the
+  description of a row already known to be stale.
+- **`bd-ib-p16s`** — asserted the pr stage failed to arm auto-merge on PR #927. It
+  armed it, verified it, and the PR merged. Refuted from the run's own event log
+  plus the forge; see its section above. This one was sitting in `ready`.
 
 ### The fleet copies are NOT drifted — surveyed, all safe. Do not file an item.
 
