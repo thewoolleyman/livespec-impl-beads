@@ -71,6 +71,7 @@ from livespec_orchestrator_beads_fabro.types import StoreConfig
 __all__: list[str] = [
     "resolve_credential_wrapper",
     "resolve_fabro_bin",
+    "resolve_fabro_sandbox_image",
     "resolve_store_config",
 ]
 
@@ -88,6 +89,7 @@ _DEFAULT_TENANT = "livespec-orch-beads-fabro"
 _ENV_BD_PATH = "LIVESPEC_BD_PATH"
 _ENV_FAKE = "LIVESPEC_BEADS_FAKE"
 _ENV_FABRO_BIN = "LIVESPEC_FABRO_BIN"
+_ENV_FABRO_SANDBOX_IMAGE = "LIVESPEC_FABRO_SANDBOX_IMAGE"
 
 _TRUTHY = frozenset({"1", "true", "yes", "on"})
 
@@ -144,6 +146,24 @@ def resolve_fabro_bin(*, cwd: Path) -> str:
     if configured != "":
         return configured
     return _default_fabro_bin()
+
+
+def resolve_fabro_sandbox_image(*, cwd: Path) -> str | None:
+    """Resolve the optional Fabro sandbox image override (env > config > unset).
+
+    A non-empty `LIVESPEC_FABRO_SANDBOX_IMAGE` env value wins outright; else
+    the `.livespec.jsonc` `dispatcher.fabro_sandbox_image` key, when non-empty;
+    else None. None is an explicit no-op: the committed workflow image table
+    remains byte-for-byte as shipped.
+    """
+    env_value = os.environ.get(_ENV_FABRO_SANDBOX_IMAGE)
+    if env_value is not None and env_value != "":
+        return env_value
+    block = _read_dispatcher_block(cwd=cwd)
+    configured = _str_or(value=block.get("fabro_sandbox_image"), default="")
+    if configured != "":
+        return configured
+    return None
 
 
 def resolve_credential_wrapper(*, cwd: Path) -> list[str]:

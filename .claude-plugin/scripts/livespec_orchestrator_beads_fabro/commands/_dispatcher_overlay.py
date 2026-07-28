@@ -167,6 +167,7 @@ def render_run_config_overlay(  # noqa: PLR0913 — kw-only pure overlay builder
     siblings: SiblingClones | None,
     otel_env: dict[str, str] | None = None,
     codex_auth_snapshot: str | None = None,
+    fabro_sandbox_image: str | None = None,
 ) -> str | None:
     """Render the dispatch-time run-config overlay.
 
@@ -184,6 +185,13 @@ def render_run_config_overlay(  # noqa: PLR0913 — kw-only pure overlay builder
     if needle not in committed_text:
         return None
     rewritten = committed_text.replace(needle, f'graph = "{resolved_graph}"', 1)
+    rewritten = _rewrite_fabro_sandbox_image(
+        text=rewritten,
+        environment_id=environment_id,
+        fabro_sandbox_image=fabro_sandbox_image,
+    )
+    if rewritten is None:
+        return None
     token_literal = json.dumps(token)
     github_token_literal = json.dumps(github_token)
     sibling_steps = "" if siblings is None else _sibling_clone_steps_block(siblings=siblings)
@@ -216,6 +224,25 @@ def render_run_config_overlay(  # noqa: PLR0913 — kw-only pure overlay builder
         + otel_env_lines
         + codex_env_lines
     )
+
+
+def _rewrite_fabro_sandbox_image(
+    *,
+    text: str,
+    environment_id: str,
+    fabro_sandbox_image: str | None,
+) -> str | None:
+    """Rewrite only `[environments.<id>.image] docker` when configured."""
+    if fabro_sandbox_image is None:
+        return text
+    section = f"environments.{environment_id}.image"
+    committed_image = _toml_section_string(text=text, section=section, key="docker")
+    if committed_image is None:
+        return None
+    needle = f'docker = "{committed_image}"'
+    if needle not in text:
+        return None
+    return text.replace(needle, f"docker = {json.dumps(fabro_sandbox_image)}", 1)
 
 
 def _tmux_tmpdir_prepare_steps_block() -> str:

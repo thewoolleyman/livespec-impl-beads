@@ -182,6 +182,43 @@ def test_render_run_config_overlay_projects_otel_env(tmp_path: Path) -> None:
         assert flag not in rendered
 
 
+def test_render_run_config_overlay_image_override_requires_image_table(tmp_path: Path) -> None:
+    """An image override refuses a workflow with no docker image target."""
+    assert (
+        render_run_config_overlay(
+            committed_text=_COMMITTED_WORKFLOW_TOML,
+            workflow_dir=tmp_path,
+            token=_FAKE_TOKEN,
+            github_token=_FAKE_GITHUB_TOKEN,
+            siblings=None,
+            fabro_sandbox_image="ghcr.io/example/custom:tag",
+        )
+        is None
+    )
+
+
+def test_render_run_config_overlay_image_override_rejects_noncanonical_docker_line(
+    tmp_path: Path,
+) -> None:
+    """The image parser may read it, but rewrite only targets canonical bytes."""
+    committed = (
+        _COMMITTED_WORKFLOW_TOML
+        + "\n[environments.livespec-ci.image]\n"
+        + 'docker =  "ghcr.io/example/original:tag"\n'
+    )
+    assert (
+        render_run_config_overlay(
+            committed_text=committed,
+            workflow_dir=tmp_path,
+            token=_FAKE_TOKEN,
+            github_token=_FAKE_GITHUB_TOKEN,
+            siblings=None,
+            fabro_sandbox_image="ghcr.io/example/custom:tag",
+        )
+        is None
+    )
+
+
 def test_render_run_config_overlay_otel_env_is_optional(tmp_path: Path) -> None:
     """Omitting `otel_env` preserves the pre-29f.3 token-only overlay shape."""
     rendered = render_run_config_overlay(
