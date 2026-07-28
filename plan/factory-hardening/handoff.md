@@ -22,6 +22,19 @@ None of them is yours to take: each is either cross-repo or a spec-change.
 > Before concluding this thread is idle, grep the whole tenant for rows that NAME it —
 > `bd list --limit 0 --json`, then match on `factory-hardening` — not just rows in its
 > defect class. That check takes seconds and is what this block was missing.
+>
+> **⚠ AMENDED AGAIN, same day — a SECOND wave landed after the above.** The maintainer
+> routed three findings from the `console-happy-path-mvp` worker about the janitor's
+> consumer contract. Outcome: one was already filed (`bd-ib-d6ds` — contributed to, and its
+> P1 **title corrected** after re-measuring the population at **12 repos, not 8**), and two
+> became new P1 rows — **`bd-ib-lfm7`** (the workflow guard is *vacuous* in the post-merge
+> venue) and **`bd-ib-dd9l`** (a janitor-contract change strands merged items; the
+> `--janitor` escape exists but is raw-surface-only and unsignposted). Full record in
+> §"The janitor consumer-contract wave". **Both new rows are `backlog` and UNTIERED — do
+> not dispatch them without a maintainer-assigned autonomy tier.**
+>
+> **As of the end of that wave the maintainer stated the thread has no live obligations,**
+> and instructed that the three standing decisions **not** be re-verified again unprompted.
 
 **What a fresh session should actually do, in order:**
 
@@ -53,9 +66,24 @@ None of them is yours to take: each is either cross-repo or a spec-change.
 **Do not re-derive these — they are settled and recorded below:** the plugin-build
 resolution mechanism; why no plugin-currency item was filed (the gate already
 ships); the fleet copies of `export-ci-telemetry.sh` (all eight safe); the
-verb-parity audit (one gap in each direction); `bd-ib-p16s`'s refutation; and the
+verb-parity audit (one gap in each direction); `bd-ib-p16s`'s refutation; the
 `bd-ib-91wj` discharge (two causes, not one — the console's publish refusal is
-their repo-local prompt fork, NOT their plugin pin).
+their repo-local prompt fork, NOT their plugin pin); the 12-repo janitor-recipe
+census; the post-merge vacuity of `check-no-workflow-edits`; and that
+`reconcile-merged` DOES accept `--janitor` (so the strand defect is reachability,
+not absence).
+
+**Two method rules this thread paid for twice each — apply them before designing
+anything:**
+
+- **Search the ledger with a regex over title + description + notes of every
+  non-closed row, not a keyword guess.** A first-pass search missed `bd-ib-d6ds`
+  entirely; the right search found it already filed at P1 with the fix option this
+  thread was about to re-propose already rejected on it.
+- **When two candidate causes predict the SAME observation, stop reasoning from
+  that observation** and go find a recorded fact about *which artifact was used*.
+  That is what separated the console's prompt fork from their plugin pin, and the
+  answer was already in their dispatch journal.
 
 **Never in scope for this thread:** `bd-ib-bic7hb` and `bd-ib-w4h4` belong to
 `plan/dispatch-claim-liveness/`; `bd-ib-dohu2g` belongs to
@@ -332,9 +360,143 @@ thread's own class, but it was **recorded as evidence on `bd-ib-91wj`, not filed
 row**, because that item's autonomy tier is unset and this thread does not self-issue one.
 
 **Also for the maintainer, and not ours to make:** the console's publish-refusal fix is a
-change in THEIR repo — sync their repo-local `prompts/` against the plugin's, or drop the
-prompt half of the override and keep only the toolchain pin they needed. Owning session:
+change in THEIR repo. **Superseded by the measured recommendation in §"The janitor
+consumer-contract wave" below — the naive form of this sentence was wrong.** Owning session:
 `console-happy-path-mvp-supervisor` (project `livespec-console-beads-fabro`).
+
+## The janitor consumer-contract wave — three routed findings, 2026-07-28 (second pass)
+
+Routed by the maintainer from the `console-happy-path-mvp` worker after the `bd-ib-91wj`
+discharge landed. Recorded here because two of the three became new P1 rows and the third
+corrected a P1 title, and none of it is derivable from the code alone.
+
+### Prior art first — and it paid, again
+
+The instruction was to establish prior art BEFORE designing, scanning `acceptance` and
+`blocked` too. **Finding 1 was already filed**: `bd-ib-d6ds` (P1, 2026-07-25) owns the
+missing-recipe defect in full — live proof, three fix options, and an explicit rejection of
+the probe-and-skip option as *"trades a false-red for a real gap"*. It was contributed to,
+not duplicated. **That is now the second time in one day that the first search missed a row
+which the right search found** (the first was this thread's own class exhaustion check). The
+search that worked both times was a **regex over title+description+notes of every non-closed
+row**, not a keyword guess.
+
+`bd-ib-lza6` and `bd-ib-ug4z` were read in full before scoping Finding 3, exactly as
+`AGENTS.md` demands for `acceptance`-parked rows — and it changed the scoping (see below).
+
+### Finding 1 → contributed to `bd-ib-d6ds`; its TITLE was corrected on maintainer instruction
+
+The census was re-measured because the routed table was a **5-repo sample**. The real
+population is **12**: `.livespec-fleet-manifest.jsonc` carries 9 fleet members **plus 3
+adopters**, and every adopter declares `orchestrator-plugin` — they are dispatch consumers
+by declaration, and none had ever been counted.
+
+Measured 2026-07-28 ~16:25Z with **`just --summary`** (not a column-0 grep, which gives
+false negatives on included/aliased recipes), after confirming every repo's `justfile` and
+`*.just` were byte-identical to its own `origin/<default-branch>`:
+
+| | repos |
+|---|---|
+| **HAS** (6) | `livespec-dev-tooling`, `livespec-driver-claude`, `livespec-driver-codex`, `livespec-orchestrator-beads-fabro`, `livespec-overseer`, `livespec-console-beads-fabro` |
+| **LACKS** (4) | **`livespec` (core)**, `livespec-runtime`, `livespec-orchestrator-git-jsonl`, **`openbrain`** (adopter) |
+| **NO JUSTFILE AT ALL** (2) | `resume`, `homelab` (both adopters) |
+
+`install-worktree-pack` is universal across the 9 fleet repos — so the routed claim that it
+is "a non-issue" is true *within the fleet* and false across the real population
+(`openbrain` lacks it; two adopters have no justfile).
+
+**⚠ The census MOVES.** `livespec-console-beads-fabro` changed state *between two
+measurements inside one investigation* — `ad4d023` landed at 16:20:15Z. Never quote this
+table without its timestamp.
+
+**Title corrected** (maintainer-instructed) from *"…that only 4 of 8 fleet repos have"* to a
+title carrying the re-measured count and the date. The original title is preserved verbatim
+in the row's notes with the reason, and a note tells both referencing threads the row was
+corrected — not swapped or re-filed. Rationale worth keeping: *a P1 title is the most-read
+and least-verified surface in the ledger*, so a false count there outweighs the near-zero
+coordination cost of a rename (references are by ID, which is stable).
+
+**Portability, contributed to the row:** fix option (C) — "consumers adopt the recipe" — is
+under-specified. OUR recipe body shells `.claude-plugin/scripts/bin/workflow_guard.py`, a
+path **only this repo carries**, so a consumer copying our form gets a worse failure than
+having no recipe. The portable body is `livespec-dev-tooling`'s shell form, which is what
+the console actually adopted.
+
+### Finding 2 → NEW: `bd-ib-lfm7` (P1) — the guard is VACUOUS post-merge
+
+`_DEFAULT_JANITOR` invokes `check-no-workflow-edits` in the post-merge janitor venue, where
+it is **structurally incapable of failing**. `_dispatcher_workflow_guard.py:42-43` diffs
+`origin/master...HEAD`; three-dot is `merge-base(origin/master, HEAD)...HEAD`, and the
+janitor checkout is pinned to `merged.merge_sha` — an ancestor of `origin/master` — so the
+range is **empty by construction**.
+
+Reproduced independently on this repo rather than taken on report: `5f8465f` changed **five**
+`.github/workflows/` files; `git diff --name-only origin/master...5f8465f -- .github/workflows`
+is EMPTY; `git merge-base origin/master 5f8465f` returns `5f8465f` itself.
+
+**Both recipe bodies are affected** — ours and `livespec-dev-tooling`'s (`"$base"...HEAD`
+where `base` IS `HEAD` post-merge). **So it is a VENUE defect, not an implementation bug:**
+the guard is branch-scoped and the janitor venue has no branch.
+
+The row carries the maintainer's design caution intact: **do not simply delete the vacuous
+invocation** on the reasoning that nothing remains to guard post-merge — that must be
+established (pre-merge lane genuinely covers it; no post-merge case could legitimately
+fire), not assumed. Otherwise make it discriminate, and **prefer refuse-when-unprovable**,
+the same shape as slice A.
+
+### Finding 3 → NEW: `bd-ib-dd9l` (P1) — NARROWED from the routed claim
+
+Routed as "a janitor-contract change permanently strands merged items and **there is no
+recovery route**". The pin is real (`_dispatcher_engine_janitor.py:171`), and a contract
+change genuinely can never be satisfied retroactively by an older merge. **But the
+"no recovery route" half is false:** `reconcile-merged` accepts `--janitor`, traced through
+the source rather than assumed — `dispatcher.py:331` → `parse_janitor` at
+`_dispatcher_reconcile_merged.py:115` → preflight `:71` → `reconcile_plan(... janitor=)`
+`:74` → `build_plan` `:148`.
+
+So the defect is **REACHABILITY, not absence**: the escape lives only on the raw
+`dispatcher.py` surface (never `drive`), nothing signposts it, and the failure text names a
+missing recipe rather than a moved contract — which is precisely why it reads as a product
+defect. **The two new rows interlock:** `lfm7`'s vacuity result is what makes the
+`--janitor` override *provably* safe in this venue, since dropping a check that cannot fire
+forfeits zero coverage.
+
+**Scoped as a hole IN the valve `bd-ib-lza6` shipped, not a second reconciliation path** —
+`AGENTS.md` names that exact trap, and reading `lza6` first is what avoided it.
+
+### The console recommendation — the naive form was WRONG, and checking is what caught it
+
+The earlier sentence in this file ("sync their prompts, or drop the prompt half and keep the
+toolchain pin") was offered before their tree had been measured. Measuring it changed the
+recommendation twice:
+
+1. Their `workflow.fabro` carries a **real policy divergence** — an *advisory, ship-on-cap*
+   review gate where the plugin's is *blocking by default*. "Delete the fork" would have
+   silently flipped their review policy. So: keep **both** `workflow.toml` and
+   `workflow.fabro`.
+2. Their prompts carry **no console- or Rust-specific content whatsoever** — zero
+   `rust|cargo|clippy` matches across all five, and the divergence is one-directional drift
+   (`implement.md`: **1** line theirs vs **127** the plugin has gained). Their `pr.md`'s six
+   "only-theirs" lines are renumbered step headers; `review-fix.md`'s twenty-four are an
+   older revision of the same generic upstream prose.
+
+So the recommendation narrowed to **sync `prompts/pr.md` alone first**: its additions are the
+fetch+rebase step and a bounded push retry, both **workflow-agnostic**, hence safe against
+their *older* `workflow.fabro` — whereas `review.md`/`review-fix.md` assume a blocking gate
+they do not run. Handed to the maintainer for relay (cross-session messaging is theirs), with
+three limits stated: nothing was run in their repo, syncing the other four prompts is NOT
+verified safe, and fabro's `@` prefix was not verified to accept an absolute path — so
+**copy the file, never repoint**, and never delete `prompts/` while `workflow.fabro` still
+references `@prompts/`.
+
+### Status of the two new rows
+
+Both are `backlog`, P1, **untiered**. Both are factory-safe in-repo Python+tests and are
+good dispatch candidates the moment a tier is assigned — but **an autonomy tier is a
+maintainer touchpoint and this thread does not self-issue one**, so neither was promoted to
+`ready` or dispatched. Their acceptances were written to be autonomously verifiable from
+in-suite git fixtures (no dispatch, no network, no forge, no other repo's state), including
+a demonstrated-failure criterion on each.
 
 ## Operational facts for diagnosing a dispatch failure
 
