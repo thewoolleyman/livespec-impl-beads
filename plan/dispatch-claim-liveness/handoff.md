@@ -1117,6 +1117,66 @@ that a maintainer can now decide both without re-deriving anything.
 | `bd-ib-xw2k`'s "nothing passes `--journal`" premise is FALSE | **`bd-ib-xw2k` notes** |
 | **A FOURTH, added later on 2026-07-28** — the seven "a plugin refresh is the remedy" sentences in `bd-ib-91wj`'s notes are scoped to the `worktree_pack_absent` half only | **`bd-ib-91wj` notes** |
 | **A FIFTH** — `bd-ib-3j4u` re-verified end-to-end against the tree at `ba80a19`; **every claim HOLDS, nothing needed correcting** | **`bd-ib-3j4u` notes** |
+| **A SIXTH** — live CI field evidence: the same `shellcheck` fetch failed in **CI**, by a mechanism the shipped half cannot cover | **`bd-ib-bic7hb` notes** |
+| **A SEVENTH** — the `gh run rerun --failed` refusal is **deterministic**, resolving an inconsistency that item recorded as variance | **`bd-ib-wmqsn7` notes** (a CONTRIBUTION — the stand-down holds) |
+
+#### The CI flake that reddened PR #1108, and why it is worth more than a re-run
+
+**A docs-only PR went red on `check-check-coverage-incremental`** — and the failing step was
+not the coverage check at all. It was `mise trust + install`, dead in 21 seconds:
+
+```
+mise ERROR Failed to install aqua:koalaman/shellcheck@0.11.0:
+  HTTP status server error (500 Internal Server Error) for url
+  (https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz)
+```
+
+**This is `bd-ib-bic7hb`'s exact tool, and it differs from every data point that item holds
+in two ways that matter:**
+
+| | that item's prior evidence | PR #1108 |
+|---|---|---|
+| venue | the fabro **sandbox** (dispatch setup) | **GitHub Actions CI** |
+| host / URL | `api.github.com` … `/releases/tags/…` | `github.com` … `/releases/download/…tar.xz` |
+| status | **403** (credential / budget) | **500** (upstream fault) |
+| stage | metadata resolution | asset download |
+
+**PR #1008's shipped fix — anonymous `mise install` — cannot cover this.** Anonymity answers
+the 403 on the metadata call and has no bearing on a 5xx from the asset CDN. **The
+UNSHIPPED clause — pre-bake the aqua-backed tools so setup makes no network call at all — is
+the only one of the two that would have prevented it**, which is the strongest argument yet
+for finishing that item.
+
+**Why the tool is a single point of failure in all three venues, by design.**
+`.mise.toml:11-26` pins `shellcheck = "0.11.0"` because the baked image does not ship it.
+That reasoning is sound and the pin should stay — but note what it traded: it bought
+**version determinism** and, in the same move, made every venue depend on a live third-party
+release-asset fetch at setup time. **Determinism of version is not availability.** Pre-baking
+completes that decision rather than reversing it.
+
+#### 📌 OPERATIONAL FACT — `gh run rerun --failed` refuses while a run is IN PROGRESS, and lies about why
+
+```
+$ gh run rerun <id> --failed
+run <id> cannot be rerun; its workflow file may be broken
+```
+
+**The workflow file is fine.** The run was still in progress (74 completed, 8 running, 10
+queued). **The identical command, re-issued the moment the run reached `completed`, was
+ACCEPTED** — the job restarted, went green, and the PR merged. Same command, same run id,
+same flag; only the state differed.
+
+**This resolves an inconsistency `bd-ib-wmqsn7` had recorded as unexplained variance**
+(`--failed` refused on one occurrence, accepted on later ones) and replaces its
+"try `--failed`, fall back to a full re-run" recipe for this cause with a deterministic one:
+**wait for `completed`, then `--failed`.** Do not read the workflow-file message literally —
+it sends a diagnostician to a file that is not the problem.
+
+**⚠ SCOPE, so nobody inflates that item's instance count:** PR #1108's red was on a
+**pull-request** run, not a master run, so it hard-gated **no** dispatch. It is evidence
+about the flake CLASS and the RECOVERY RECIPE — both of which `bd-ib-wmqsn7` owns and
+reasons about — and is **not** another instance of the master-CI stall that item is actually
+about.
 
 **The fifth is a CONFIRMATION, and it is recorded for exactly that reason.** `bd-ib-3j4u` is
 **P1** and is now cited as "the mechanical fix for this class" from three places — this file,
