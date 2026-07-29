@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.48.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.48.0...v0.48.1) (2026-07-29)
+
+
+### Reverts
+
+* pin livespec-dev-tooling back to v1.0.3 to restore green master ([cf1b7a8](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/cf1b7a8efc3f308b96158d7ba5af96d0cf3dd405))
+
 ## [0.48.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.47.1...v0.48.0) (2026-07-28)
 
 
