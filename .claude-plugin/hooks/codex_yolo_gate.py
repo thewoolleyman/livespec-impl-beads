@@ -100,7 +100,28 @@ def derive_fleet_listed(*, manifest_source: str, owner: str | None, repo: str | 
     """Derive the local marker value from the core fleet manifest contract."""
     if parse_manifest is None or owner is None or repo is None:
         return False
-    manifest = parse_manifest(source=manifest_source)
+    parsed = parse_manifest(source=manifest_source)
+    # CONSUMER WIRING LANDS BEFORE THE PIN THAT NEEDS IT, so this tolerates
+    # BOTH shapes of `parse_manifest` (livespec `.ai/ci-gate-discipline.md`
+    # step 3: dependencies and consumer wiring before the change that assumes
+    # them). Up to livespec-dev-tooling v1.0.3 it returns `Manifest | None`;
+    # from v1.0.4 it returns `Result[Manifest, ManifestParseError]`, naming
+    # WHICH of eight malformation causes it hit instead of collapsing them
+    # into one `None`.
+    #
+    # Duck-typed on `value_or` rather than importing `returns`: this module
+    # degrades to a no-op when dev-tooling is absent (see the guarded import
+    # above), so it must not acquire a hard dependency on the railway library
+    # in order to unwrap the railway library's container.
+    #
+    # THE BUG THIS REPLACES, because it is a booby trap worth naming: the old
+    # code tested `manifest is None` directly. Against a `Result` that is
+    # permanently False — so the guard did not FAIL, it silently STOPPED BEING
+    # A GUARD, and control flowed into `manifest.owner` on a `Success`,
+    # raising an uncaught `AttributeError` (the caller's `try` catches only
+    # `OSError`). The refresh path then crashed instead of returning 0,
+    # leaving the access-gating marker STALE rather than failing closed.
+    manifest = parsed.value_or(None) if hasattr(parsed, "value_or") else parsed
     if manifest is None or owner != manifest.owner:
         return False
     listed = set(manifest.member_names())
