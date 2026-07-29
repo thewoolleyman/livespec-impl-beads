@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.48.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.48.1...v0.48.2) (2026-07-29)
+
+
+### Bug Fixes
+
+* **hooks:** wire codex_yolo_gate for BOTH parse_manifest shapes before the pin re-lands ([8af024c](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/8af024cff8ba4e94aad5796884f798f5a3295050))
+
 ## [0.48.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.48.0...v0.48.1) (2026-07-29)
 
 
