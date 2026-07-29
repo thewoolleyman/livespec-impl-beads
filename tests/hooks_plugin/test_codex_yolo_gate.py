@@ -216,6 +216,96 @@ def test_derive_fleet_listed_fails_closed_when_parser_is_unavailable(
     )
 
 
+def test_derive_fleet_listed_accepts_both_parse_manifest_shapes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The gate must work against BOTH livespec-dev-tooling parse_manifest shapes.
+
+    Consumer wiring lands BEFORE the pin that needs it (livespec
+    `.ai/ci-gate-discipline.md` step 3), so this gate has to be correct on the
+    currently-pinned v1.0.3 (`Manifest | None`) AND on v1.0.4+
+    (`Result[Manifest, ManifestParseError]`) before that pin re-lands. The
+    behavioral tests above already exercise the LEGACY shape through the real
+    pinned parser; this pins the RAILWAY shape, so neither can regress
+    unnoticed while the pin moves.
+
+    THE DEFECT THIS GUARDS is a booby trap rather than an ordinary bug: the
+    previous code compared `manifest is None`, which against a `Result` is
+    permanently False. The guard did not fail — it stopped being a guard, and
+    control reached `manifest.owner` on a `Success`, raising an uncaught
+    `AttributeError`. The consequence direction is the bad one: the refresh
+    path crashed instead of returning 0, leaving `codex_full_access.fleet_listed`
+    STALE rather than failing closed, on a marker that gates access.
+
+    The fakes are minimal stand-ins rather than real `returns` containers on
+    purpose: this module degrades to a no-op when dev-tooling is absent, so its
+    tests must not acquire a hard dependency on the railway library merely to
+    check that the library's container is unwrapped.
+    """
+
+    class _FakeSuccess:
+        def __init__(self, inner: object) -> None:
+            self._inner = inner
+
+        def value_or(self, _default: object) -> object:
+            return self._inner
+
+    class _FakeFailure:
+        def value_or(self, default: object) -> object:
+            return default
+
+    real = hook.parse_manifest
+    assert real is not None, "dev-tooling must be importable for this guard to mean anything"
+    legacy = real(source=_manifest_source())
+    # Whatever the pinned parser hands back, reduce it to the bare Manifest so
+    # the two fakes below are exercised against real manifest data.
+    inner = legacy.value_or(None) if hasattr(legacy, "value_or") else legacy
+    assert inner is not None
+
+    # RAILWAY shape, success track.
+    monkeypatch.setattr(hook, "parse_manifest", lambda *, source: _FakeSuccess(inner))  # noqa: ARG005
+    assert (
+        hook.derive_fleet_listed(
+            manifest_source=_manifest_source(),
+            owner="thewoolleyman",
+            repo="livespec-orchestrator-beads-fabro",
+        )
+        is True
+    )
+
+    # RAILWAY shape, failure track — MUST fail CLOSED, because the marker it
+    # feeds means full access.
+    monkeypatch.setattr(hook, "parse_manifest", lambda *, source: _FakeFailure())  # noqa: ARG005
+    assert (
+        hook.derive_fleet_listed(
+            manifest_source=_manifest_source(),
+            owner="thewoolleyman",
+            repo="livespec-orchestrator-beads-fabro",
+        )
+        is False
+    )
+
+    # LEGACY shape, both tracks — a bare Manifest, and a bare None.
+    monkeypatch.setattr(hook, "parse_manifest", lambda *, source: inner)  # noqa: ARG005
+    assert (
+        hook.derive_fleet_listed(
+            manifest_source=_manifest_source(),
+            owner="thewoolleyman",
+            repo="livespec-orchestrator-beads-fabro",
+        )
+        is True
+    )
+    monkeypatch.setattr(hook, "parse_manifest", lambda *, source: None)  # noqa: ARG005
+    assert (
+        hook.derive_fleet_listed(
+            manifest_source=_manifest_source(),
+            owner="thewoolleyman",
+            repo="livespec-orchestrator-beads-fabro",
+        )
+        is False
+    )
+
+
 def test_with_marker_inserts_and_replaces_top_level_block() -> None:
     inserted = hook.with_marker(
         config_text='{\n  "template": "livespec",\n  "implementation": {"plugin": "x"}\n}\n',
