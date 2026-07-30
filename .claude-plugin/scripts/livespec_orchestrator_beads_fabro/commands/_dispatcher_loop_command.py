@@ -6,15 +6,9 @@ import argparse
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_admission import (
     admit_and_select,
-)
-from livespec_orchestrator_beads_fabro.commands._dispatcher_admission_mutex import (
-    AdmissionMutexRefusal,
-    claim_dispatch_admission_mutex,
-    release_dispatch_admission_mutex,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_command_common import (
     EXIT_FAILURE,
@@ -27,7 +21,6 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_cost_gate import (
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import (
     JournalFile,
-    ShellCommandRunner,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_close import (
     emit_outcomes,
@@ -43,9 +36,6 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
     journal_path,
     spans_path,
     store_config,
-)
-from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings import (
-    resolve_host_dispatch_cap,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_post_verdict import (
     reflector_oob_after_verdict,
@@ -102,8 +92,6 @@ def run_loop_command(*, args: argparse.Namespace) -> int:
         journal=journal,
         janitor=janitor,
     )
-    if isinstance(outcomes, int):
-        return outcomes
     if not outcomes:
         emit_outcomes(outcomes=[], as_json=args.as_json)
         return 0
@@ -149,39 +137,15 @@ def _dispatch_loop_wave(
     selected_candidates: list[WorkItem],
     journal: JournalFile,
     janitor: tuple[str, ...] | None,
-) -> list[DispatchOutcome] | int:
-    # The host-level dispatch admission cap (spec v047, contracts.md) runs
-    # BEFORE the admission valve mutates the Ledger or any Fabro sandbox work
-    # starts — the bd-ib-sd8o deliverable (b) counting demotion of the interim
-    # binary mutex. The gauge gets the RESOLVED engine binary from the
-    # dispatch preamble — a bare name does not resolve inside the credential
-    # wrapper and blinds the run gauge (bd-ib-3zek).
-    fabro_bin = cast("str", args.fabro_bin)
-    guard = claim_dispatch_admission_mutex(
+) -> list[DispatchOutcome]:
+    return _admit_and_dispatch_loop_wave(
+        args=args,
         repo=repo,
-        fabro_bin=fabro_bin,
-        runner=ShellCommandRunner(),
-        cap=resolve_host_dispatch_cap(cwd=repo),
+        items=items,
+        selected_candidates=selected_candidates,
+        journal=journal,
+        janitor=janitor,
     )
-    if isinstance(guard, AdmissionMutexRefusal):
-        _journal_mutex_refusal(journal=journal, refusal=guard)
-        _ = write_stderr(text=guard.detail)
-        return EXIT_PRECONDITION_ERROR
-    if guard.ps_unobservable is not None:
-        _warn_cap_ps_unobservable(
-            journal=journal, detail=guard.ps_unobservable, fabro_bin=fabro_bin
-        )
-    try:
-        return _admit_and_dispatch_loop_wave(
-            args=args,
-            repo=repo,
-            items=items,
-            selected_candidates=selected_candidates,
-            journal=journal,
-            janitor=janitor,
-        )
-    finally:
-        release_dispatch_admission_mutex(claim=guard)
 
 
 def _admit_and_dispatch_loop_wave(
@@ -229,35 +193,6 @@ def _admit_and_dispatch_loop_wave(
     # Held / host-only-refused items ride in the outcomes (so the verdict and
     # the post-verdict alarm see them); capacity-deferred items do not.
     return admission.refused + dispatched
-
-
-def _journal_mutex_refusal(*, journal: JournalFile, refusal: AdmissionMutexRefusal) -> None:
-    journal.append(
-        record={
-            "stage": "dispatch-admission-mutex",
-            "guard": "host_dispatch_cap counting cap (bd-ib-sd8o deliverable (b))",
-            "run_id": refusal.run_id,
-            "refused": True,
-        }
-    )
-
-
-def _warn_cap_ps_unobservable(*, journal: JournalFile, detail: str, fabro_bin: str) -> None:
-    _ = write_stderr(
-        text=(
-            "WARNING: dispatch admission cap could not observe Fabro runs "
-            f"({detail}); admission proceeds on the capacity-slot gauge alone "
-            f"(fail-open). Verify {fabro_bin!r} is invocable on this host.\n"
-        )
-    )
-    journal.append(
-        record={
-            "stage": "dispatch-admission-cap-ps-unobservable",
-            "fabro_bin": fabro_bin,
-            "detail": detail,
-            "fail_open": True,
-        }
-    )
 
 
 def _start_loop(*, args: argparse.Namespace, repo: Path) -> _LoopStart | int:

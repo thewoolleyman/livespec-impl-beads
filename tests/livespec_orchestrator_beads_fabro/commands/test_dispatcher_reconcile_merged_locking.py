@@ -9,7 +9,6 @@ from pathlib import Path
 
 import pytest
 from livespec_orchestrator_beads_fabro.commands import (
-    _dispatcher_admission_mutex,
     _dispatcher_completion,
     _dispatcher_dispatch_lock,
 )
@@ -152,21 +151,7 @@ def test_dispatch_lock_rejects_reused_live_pid(tmp_path: Path) -> None:
         pid=os.getpid(),
         started_at=lock_started_at,
     )
-    admission_path = _dispatcher_admission_mutex.admission_mutex_slot_path(repo=repo, slot=0)
-    admission_path.parent.mkdir(parents=True, exist_ok=True)
-    _ = admission_path.write_text(
-        json.dumps({"pid": os.getpid(), "started_at_epoch": lock_started_at}),
-        encoding="utf-8",
-    )
 
-    admission_result = _dispatcher_admission_mutex.claim_dispatch_admission_mutex(
-        repo=repo,
-        fabro_bin="/abs/fabro",
-        runner=_Runner(queue=[_ok(stdout=json.dumps({"runs": []}))]),
-        cap=1,
-    )
-
-    assert isinstance(admission_result, _dispatcher_admission_mutex.AdmissionMutexClaim)
     assert _dispatcher_dispatch_lock.live_dispatch_lock(repo=repo, work_item_id=item_id) is None
 
 

@@ -4,15 +4,9 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import cast
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_admission import (
     admit_and_select,
-)
-from livespec_orchestrator_beads_fabro.commands._dispatcher_admission_mutex import (
-    AdmissionMutexRefusal,
-    claim_dispatch_admission_mutex,
-    release_dispatch_admission_mutex,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_command_common import (
     EXIT_FAILURE,
@@ -25,7 +19,6 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_cost_gate import (
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import (
     JournalFile,
-    ShellCommandRunner,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_close import (
     emit_outcomes,
@@ -41,9 +34,6 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
     journal_path,
     spans_path,
     store_config,
-)
-from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings import (
-    resolve_host_dispatch_cap,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_post_verdict import (
     reflector_oob_after_verdict,
@@ -91,8 +81,6 @@ def run_dispatch_command(*, args: argparse.Namespace) -> int:
         journal=journal,
         janitor=janitor,
     )
-    if isinstance(outcome, int):
-        return outcome
     emit_outcomes(outcomes=[outcome], as_json=args.as_json)
     # Verdict computed BEFORE the fail-open reflection + notification
     # stages; immutable by both (loop-reflection-gate best-practices §6 /
@@ -151,74 +139,21 @@ def _admit_and_dispatch_target(
     target: WorkItem,
     journal: JournalFile,
     janitor: tuple[str, ...] | None,
-) -> DispatchOutcome | int:
-    # The host-level dispatch admission cap (spec v047, contracts.md) runs
-    # BEFORE the admission valve mutates the Ledger or any Fabro sandbox work
-    # starts — the bd-ib-sd8o deliverable (b) counting demotion of the interim
-    # binary mutex. The gauge gets the RESOLVED engine binary from the
-    # dispatch preamble — a bare name does not resolve inside the credential
-    # wrapper and blinds the run gauge (bd-ib-3zek).
-    fabro_bin = cast("str", args.fabro_bin)
-    guard = claim_dispatch_admission_mutex(
+) -> DispatchOutcome:
+    # The admission valve runs BEFORE the Fabro launch: a host-only item is
+    # routed away, a manual / unresolvable-assignee item is held + surfaced,
+    # and an admission-eligible item is admitted (ready -> active, assignee
+    # set) and dispatched. A targeted dispatch is an operator override, so it
+    # does NOT enforce the per-repo WIP cap (the queue-draining `loop` does).
+    admission = admit_and_select(
         repo=repo,
-        fabro_bin=fabro_bin,
-        runner=ShellCommandRunner(),
-        cap=resolve_host_dispatch_cap(cwd=repo),
+        items=items,
+        candidates=[target],
+        journal=journal,
+        enforce_cap=False,
     )
-    if isinstance(guard, AdmissionMutexRefusal):
-        _journal_mutex_refusal(journal=journal, refusal=guard)
-        _ = write_stderr(text=guard.detail)
-        return EXIT_PRECONDITION_ERROR
-    if guard.ps_unobservable is not None:
-        _warn_cap_ps_unobservable(
-            journal=journal, detail=guard.ps_unobservable, fabro_bin=fabro_bin
-        )
-    try:
-        # The admission valve runs BEFORE the Fabro launch: a host-only item is
-        # routed away, a manual / unresolvable-assignee item is held + surfaced,
-        # and an admission-eligible item is admitted (ready -> active, assignee
-        # set) and dispatched. A targeted dispatch is an operator override, so it
-        # does NOT enforce the per-repo WIP cap (the queue-draining `loop` does).
-        admission = admit_and_select(
-            repo=repo,
-            items=items,
-            candidates=[target],
-            journal=journal,
-            enforce_cap=False,
-        )
-        dispatched = [
-            dispatch_one(args=args, repo=repo, item=item, journal=journal, janitor=janitor)
-            for item in admission.admitted
-        ]
-        return (admission.refused + dispatched)[0]
-    finally:
-        release_dispatch_admission_mutex(claim=guard)
-
-
-def _journal_mutex_refusal(*, journal: JournalFile, refusal: AdmissionMutexRefusal) -> None:
-    journal.append(
-        record={
-            "stage": "dispatch-admission-mutex",
-            "guard": "host_dispatch_cap counting cap (bd-ib-sd8o deliverable (b))",
-            "run_id": refusal.run_id,
-            "refused": True,
-        }
-    )
-
-
-def _warn_cap_ps_unobservable(*, journal: JournalFile, detail: str, fabro_bin: str) -> None:
-    _ = write_stderr(
-        text=(
-            "WARNING: dispatch admission cap could not observe Fabro runs "
-            f"({detail}); admission proceeds on the capacity-slot gauge alone "
-            f"(fail-open). Verify {fabro_bin!r} is invocable on this host.\n"
-        )
-    )
-    journal.append(
-        record={
-            "stage": "dispatch-admission-cap-ps-unobservable",
-            "fabro_bin": fabro_bin,
-            "detail": detail,
-            "fail_open": True,
-        }
-    )
+    dispatched = [
+        dispatch_one(args=args, repo=repo, item=item, journal=journal, janitor=janitor)
+        for item in admission.admitted
+    ]
+    return (admission.refused + dispatched)[0]
