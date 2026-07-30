@@ -68,8 +68,10 @@ As measured on 2026-07-30:
    the attended cutover.
 7. Never rewrite `SPECIFICATION/history/**`, archived handoffs, or changelog
    history merely to replace an old version string.
-8. Never edit work owned by `fix-bd`. Rebase after its relevant merges and
-   measure the remaining scope.
+8. Never reimplement or restate behavior owned by `fix-bd`. Rebase after its
+   relevant merges and measure the remaining scope. The narrow O6
+   current-version fact exception recorded below permits only a reviewed,
+   non-duplicative edit; it does not release that behavioral ownership fence.
 
 ## Definition of done
 
@@ -109,7 +111,7 @@ linked from the ledger:
 
 | Owner | Scope |
 |---|---|
-| `fix-bd` tmux session | removal of mise references to Beads and guarded-path fallback changes |
+| Merged `fix-bd` lane | completed removal of mise references to Beads and guarded-path fallback changes; no live tmux session remained at the 2026-07-30 execution-valve recheck |
 | `beads-v1-1-2-upgrade` worker | compatibility qualification, version pins, guard/image integration, migration rehearsal, current documentation, and evidence |
 | `beads-v1-1-2-upgrade-supervisor` | adversarial review of this plan and later execution evidence |
 | Maintainer in the attended window | production writer quiescence, direct host copy, tenant migration authorization, and rollback decision |
@@ -118,7 +120,7 @@ Before every implementation PR, fetch and rebase, then run
 `git diff --name-only origin/master...<branch>` in every affected repository.
 Any path already owned by another lane stays out of this thread.
 
-## Reconciled `fix-bd` scope and unresolved path seam
+## Reconciled `fix-bd` scope and narrow PR #1161 path exception
 
 The following forge state was fetched and independently verified on
 2026-07-30. Each merge is an ancestor of the named repository's fetched
@@ -133,22 +135,30 @@ merge.
 | This repository, PR [#1163](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/pull/1163) | `0c215084610839a80b9311ec151fdef6939299b5` | Integrates `livespec-dev-tooling` `v1.8.1`. |
 | This repository, PR [#1166](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/pull/1166) | `74deb3a7976dafd108fcadece138fbeb3ef5d6ce` | Integrates `livespec` `v0.21.0`. |
 
-That guarded-entrypoint and no-mise content is complete for this thread. It
-MUST NOT be reimplemented, restated as new behavior, or used to justify
-touching the `fix-bd` lane's paths.
+That guarded-entrypoint and no-mise content is complete for this thread. Its
+**behavioral ownership remains binding**: this upgrade MUST NOT reimplement or
+restate the guarded-entrypoint, no-mise, or private-delegate contracts as new
+behavior.
 
-There is one unresolved implementation boundary. PR #1161 changed
-`.mise.toml`, `AGENTS.md`, the current `SPECIFICATION/constraints.md`,
-`SPECIFICATION/contracts.md`, and `SPECIFICATION/scenarios.md`,
-`tests/heading-coverage.json`, and its frozen history snapshot. The literal
-path-exclusion rule above therefore conflicts with this handoff's later
-requirement to update version-specific statements in some of those same
-current specification paths. Until a later reviewed decision resolves that
-conflict, the strict interpretation governs: every PR #1161 path is
-**no-touch**, including the current specification files. The “Current contract
-updates” outcome below remains required, but it does not authorize an edit to
-those paths. Do not resolve the conflict opportunistically inside an
-implementation slice.
+A fresh fetch and session check on 2026-07-30 found primary and
+`origin/master` at `91fdcd77fe0bc6805744b59489d447c02eebe420`.
+`tmux list-windows -a` showed the distinct
+`beads-v1-1-2-upgrade` worker and
+`beads-v1-1-2-upgrade-supervisor` windows in this repository and no window
+whose name contained the exact `fix-bd` token. The former literal path embargo
+is therefore not permanent, but its replacement is deliberately narrow.
+
+O6 MAY surgically update a current, version-specific v1.0.5-to-v1.1.2 fact in
+a current specification path changed by PR #1161 when that edit is necessary
+for this upgrade. The exact diff must receive review specifically proving that
+it does not duplicate or restate PR #1161's behavioral contracts. Frozen
+history remains no-touch. `.mise.toml` and `AGENTS.md` also remain no-touch
+unless a separate reviewed change first demonstrates a requirement; this plan
+presumes none. Every current-spec heading change must update
+`tests/heading-coverage.json` in lockstep.
+
+This is a narrow current-fact exception, not a release of the `fix-bd`
+ownership fence.
 
 ## Authoritative tenant and recovery surfaces
 
@@ -285,9 +295,10 @@ freeze the exact production rollback point.
 ## Remaining outcome decomposition
 
 The ledger, not this document, is the status authority. This is a prose-only
-decomposition: do not file it through the current `groom` path and do not
-mutate the ledger until a later supervised instruction supplies a safe filing
-procedure.
+decomposition, and this plan-only change performs no filing or other ledger
+mutation. The safe filing valve below becomes executable only after this
+change receives exact-head supervisor review, passes all required checks, and
+rebase-merges.
 
 The identifiers `O1` through `O8` below mean “remaining outcome 1” through
 “remaining outcome 8.” A dependency names the outcomes whose evidence must be
@@ -298,9 +309,9 @@ complete before the dependent outcome begins.
 | O1 | Release and CLI qualification | None | Pin upstream provenance and prove the exact command, flag, and JSON surface against v1.1.2. | factory-safe |
 | O2 | Guard compatibility | O1 | Run the existing hermetic guard suite against the qualified v1.1.2 binary and resolve only demonstrated incompatibilities. | factory-safe |
 | O3 | Dolt restore source/target seam | None inside this repository; it is a prerequisite of O4 | In `dolt-server`, specify and implement distinct backup-source and clean scratch-target names, preserve the clean-target refusal, and correct stale examples. | factory-safe only after that repository's spec revision |
-| O4 | Migration and restore rehearsal | O1, O2, O3 | Restore each relevant tenant shape into isolation, migrate once, compare the complete invariant inventory, and prove the restore boundary. | needs privileged host |
+| O4 | Migration and restore rehearsal | O1, O2, O3 | Restore each relevant tenant shape into isolation, migrate once, compare the complete invariant inventory, and prove the restore boundary. | manual/backlog; needs privileged host and cannot be admitted until the supervisor verifies O3 closed in the `dolt-server` tenant |
 | O5 | Guarded image layout | O1, O2 | Put v1.1.2 at `bd-real`, install the tracked wrapper at `bd`, strengthen image verification, and resolve existing defect `bd-ib-dwv` with the successful guarded rebuild as evidence. | factory-safe for code; privileged host for DinD proof |
-| O6 | Current contract updates | O1, O2, O4, O5 | Update only current version-specific comments, tests, runbooks, and paths permitted by the unresolved no-touch boundary; historical records remain unchanged. | factory-safe within the permitted path set |
+| O6 | Current contract updates | O1, O2, O4, O5 | Update current version-specific comments, tests, runbooks, and permitted current specification facts under the narrow PR #1161 exception; historical records remain unchanged. | factory-safe within the reviewed path boundary |
 | O7 | Attended host and tenant rollout | O3, O4, O5, O6 | Quiesce every writer, capture the rollback artifacts, directly replace `bd-real`, migrate once per tenant, and verify before restarting writers. | mutates host machinery |
 | O8 | Closure and parity evidence | O7 and the acceptance evidence from O1 through O6 | Prove host/image parity, attach the complete audit trail, and close the upgrade only after `bd-ib-dwv` has been resolved by O5 rather than duplicated. | human-reviewed |
 
@@ -329,10 +340,67 @@ epic-linkage `groom` path for this cut:
   epic linkage to a rejected `blocks` edge and can leave a created-but-unlinked
   row.
 
-Therefore O3 must eventually be filed in the `dolt-server` tenant with a
-native target-tenant identifier, and the eight outcomes must not be filed or
-linked through the defective path. A later reviewed filing decision must name
-the safe mechanism before any ledger write occurs.
+### Safe filing valve
+
+This cut MUST NOT use `groom`, `append_work_item`, a pre-minted foreign
+identifier, `--force`, any parent or epic-linkage write, or any cross-tenant
+dependency write.
+
+After this plan-only change has passed its review and merge valve, local
+outcomes O1, O2, O4, O5, O6, O7, and O8 are filed from this repository root
+through the wrapper configured in `.livespec.jsonc` and
+`/usr/local/bin/bd`. The create command must omit an explicit identifier so
+Beads assigns a standalone native `bd-ib` identifier. It MUST NOT pass
+`--parent`. Each local outcome uses the exact `external_ref` value
+`beads-v1-1-2-upgrade:O#`, with `O#` replaced by its recorded outcome number,
+and its description names `bd-ib-3kolea` and that outcome as provenance. No
+parent or epic linkage is created.
+
+The first measured parent dry-run created no row, but it showed that normal
+parent label inheritance would add `acceptance:human-only`,
+`factory-safety:mutates-host-machinery`, and `origin:freeform` to the proposed
+child labels. The corrective `--no-inherit-labels` dry-run also created no row
+and returned exactly the five intended labels, but its `parent_id` was null
+despite `--parent bd-ib-3kolea`. The required parent proof therefore cannot
+pass, which is why this cut files standalone items.
+
+Every local dry-run and create command MUST use `--no-inherit-labels`. It must
+explicitly provide exactly one `admission:*` label, exactly one `acceptance:*`
+label, exactly one `factory-safety:*` label, `intake:triaged`, and the upgrade's
+`origin:*` label. Each approved creation is exactly one create command,
+followed immediately by `bd show` read-back of the assigned identifier before
+any next ledger write. The read-back must show the assigned native identifier,
+the exact `external_ref`, null `parent_id`, the description provenance,
+exactly one label under each of the `admission:`, `acceptance:`, and
+`factory-safety:` singleton prefixes, and the explicitly requested values. A
+missing, inherited, or contradictory singleton policy label halts the filing
+sequence.
+
+Same-tenant dependency edges are added only through the native CLI after both
+native endpoints exist. Each prerequisite edge uses direct `bd dep add`, is
+read back immediately, and must leave `bd dep cycles` passing before another
+dependency write occurs.
+
+O3 uses this anchored command prefix:
+
+`/usr/local/bin/with-livespec-env.sh -- /usr/local/bin/bd -C /data/projects/dolt-server`
+
+Before its one create command, the supervisor must use that exact prefix for a
+read-only target-tenant probe and verify that the result came from the
+`dolt-server` tenant. O3 is then filed with a native target-tenant identifier.
+It receives no foreign identifier, no cross-tenant parent, and no cross-tenant
+dependency edge. Both its description and its external reference must name
+`bd-ib-3kolea` and O3 as provenance.
+
+Cross-repository ordering is the linkage valve. O4 remains manual and
+`backlog`; it is not admitted until the supervisor reads O3 from the
+`dolt-server` tenant and verifies it is `closed`. Do not emulate the defective
+sibling or dependency link across tenants.
+
+Only outcomes whose recorded prerequisites are satisfied may be filed or
+admitted. O1 and O3 are the initial independent candidates. O2 can follow O1;
+the remaining outcomes follow the O1-through-O8 dependency order recorded in
+the table.
 
 Factory-safe slices should be driven through the dark factory only after they
 are safely filed and admitted. The migration rehearsal and production rollout
@@ -343,11 +411,11 @@ must carry their non-factory safety reason and run attended.
 ### 1. Reconcile concurrent work
 
 The relevant `fix-bd` PRs, releases, integration commits, and exact SHAs are
-recorded in “Reconciled `fix-bd` scope and unresolved path seam.” Fetch and
-rebase every affected repository before implementation, repeat the
-current-version and current-mise search, and exclude every path owned by that
-lane under the strict no-touch rule until the recorded boundary is resolved by
-a later reviewed decision.
+recorded in “Reconciled `fix-bd` scope and narrow PR #1161 path exception.”
+Fetch and rebase every affected repository before implementation, repeat the
+current-version and current-mise search, and preserve the lane's behavioral
+ownership fence. Any O6 edit under the narrow exception requires an exact-diff
+review for non-duplication.
 
 Do not treat an old cache or pre-merge checkout as proof. For each claimed
 absence, state the repositories, refs, globs, and historical exclusions
@@ -491,11 +559,13 @@ authoritative references whose truth changes, including this repository’s
 current specification, runtime comments/types, client compatibility tests,
 guard documentation, Dockerfile, build verification, and image README.
 
-The unresolved PR #1161 path seam limits this instruction. Until a reviewed
-later decision changes the boundary, do not edit any PR #1161 path, even when
-it contains a version-specific statement. Update permitted current paths and
-record blocked current-spec statements as evidence for that later decision;
-do not silently treat this outcome as overriding the path-exclusion rule.
+The narrow PR #1161 exception limits this instruction. O6 may surgically
+update a current, version-specific v1.0.5-to-v1.1.2 fact in a current
+specification path changed by PR #1161 only when the upgrade requires it and
+the exact diff is reviewed for non-duplication. It must not reimplement or
+restate guarded-entrypoint, no-mise, or private-delegate behavior. Frozen
+history remains no-touch, and `.mise.toml` and `AGENTS.md` remain no-touch
+absent a separate reviewed demonstrated requirement.
 
 Historical specification snapshots, archived plans, and changelog entries
 remain unchanged. A comment that describes version-specific JSON or flags may
@@ -703,8 +773,9 @@ because that would remove the required guard and move `bd-real` onto `bd`.
 
 ## Immediate next action
 
-Do not begin implementation and do not groom or otherwise mutate the ledger.
-First land this reconciliation through a reviewed plan-only PR. After it
-merges, the supervisor must obtain a reviewed decision for both the safe
-filing mechanism and the PR #1161 no-touch boundary. Only then may the
-supervisor authorize filing O1 through O8 in their recorded dependency order.
+Do not begin implementation and do not mutate the ledger in this plan-only
+change. First obtain exact-head supervisor review, pass every required check,
+and rebase-merge this execution-valve PR. After that merge, the supervisor may
+execute the recorded safe filing procedure for the two initial independent
+candidates, O1 and O3. Filing and implementation have not happened yet; later
+outcomes remain gated by the recorded O1-through-O8 prerequisites.
