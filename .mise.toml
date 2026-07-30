@@ -7,6 +7,10 @@
 #
 # Generated from livespec/templates/impl-plugin/ at copier-copy time;
 # re-sync via `copier update --vcs-ref=master` when livespec publishes a new release.
+#
+# `bd` is deliberately absent: beads-backed calls use the host-provisioned
+# lifecycle-guarded entry point, and a project-local mise declaration could
+# shadow that policy boundary.
 
 # `shellcheck` is pinned here because the CI cutover to the baked
 # fabro-sandbox image removed the only reason it was present. It used to be

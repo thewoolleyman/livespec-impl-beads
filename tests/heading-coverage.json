@@ -675,5 +675,12 @@
     "spec_file": "scenarios.md",
     "test": "tests.integration.test_drive_rework_return_scenario51::test_reject_rework_moves_acceptance_item_to_active_and_journals_actor",
     "reason": "Integration-tier binding for Scenario 51: the public drive.run_action surface runs reject:<work-item-id>:rework against an acceptance item through the real store/client seam with FakeBeadsClient, asserts the response journal names the operator actor, the human-valve-reject-rework stage, and the work-item id, asserts the item lands in active, and snapshots repo-local JSONL files so the durable fabro dispatch journal write is required rather than only the transient CLI response payload."
+  },
+  {
+    "heading": "## Scenario 52 — A repository mise tool cannot shadow the lifecycle-guarded bd entry point",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "reason": "TODO: bind to an INTEGRATION-TIER-or-above test (never a unit-tier test — a scenario describes user-observable behavior, per `SPECIFICATION/constraints.md` §\"Heading taxonomy\"). Added by the guarded-bd-entrypoint-no-mise revise (v052): a beads-backed repository must resolve the public lifecycle guard, must not declare bd in mise, and normal callers must not invoke the guard's private delegate."
   }
 ]
