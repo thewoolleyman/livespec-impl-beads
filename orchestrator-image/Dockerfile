@@ -44,7 +44,9 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 # --- GitHub CLI (gh) — the dispatcher's PR/merge surface. Installed from the
-#     official cli.github.com apt repo (keyring pinned). ---
+#     official cli.github.com apt repo (keyring pinned) with an exact package
+#     version so apt/Docker cache state cannot silently select a different gh. ---
+ENV GH_VERSION=2.96.0
 RUN mkdir -p -m 755 /etc/apt/keyrings \
  && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
         -o /etc/apt/keyrings/githubcli-archive-keyring.gpg \
@@ -52,7 +54,8 @@ RUN mkdir -p -m 755 /etc/apt/keyrings \
  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
         > /etc/apt/sources.list.d/github-cli.list \
  && apt-get update \
- && apt-get install -y --no-install-recommends gh \
+ && apt-get install -y --no-install-recommends gh="${GH_VERSION}" \
+ && test "$(gh --version | awk 'NR == 1 {print $3}')" = "${GH_VERSION}" \
  && rm -rf /var/lib/apt/lists/*
 
 # --- mise — needed by the dispatcher itself after a PR merge. Fabro sandboxes
