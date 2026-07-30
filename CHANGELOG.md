@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.49.3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.49.2...v0.49.3) (2026-07-30)
+
+
+### Bug Fixes
+
+* retire host dispatch cap ([0eeca13](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/0eeca13123282ea360fa4ef21c31edcee0d399d4))
+
 ## [0.49.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.49.1...v0.49.2) (2026-07-30)
 
 
