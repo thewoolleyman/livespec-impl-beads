@@ -66,12 +66,6 @@ CONFIG_KEYS: tuple[ConfigKey, ...] = (
         default=5,
         per_item_override=False,
     ),
-    ConfigKey(
-        key="host_dispatch_cap",
-        value_type="positive_integer",
-        default=2,
-        per_item_override=False,
-    ),
 )
 
 
