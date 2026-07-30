@@ -13,9 +13,10 @@ source.
   **zero bind mounts**. `host.docker.internal` does NOT resolve inside.
 - Host bridge gateway from container = `172.17.0.1` (route hex `010011AC`).
   github.com egress works (`curl https://github.com` → HTTP 200).
-- `gh` = v2.46.0 at `/root/.local/share/mise/shims/gh` (mise shim is PATH entry
-  #1; `/usr/local/bin` is later). `gh auth status` → logged in as
-  `livespec-pr-bot[bot]` via **`GITHUB_TOKEN`** (an installation token `ghs_…`).
+- `gh` = v2.96.0 at `/usr/bin/gh` from the signed `cli.github.com` apt source.
+  `gh pr checks --json` is supported on this baseline. `gh auth status` →
+  logged in as `livespec-pr-bot[bot]` via **`GITHUB_TOKEN`** (an installation
+  token `ghs_…`).
 - git origin = `https://x-access-token:<tok>@github.com/<owner>/<repo>`; **no**
   git `credential.helper` configured. `GITHUB_TOKEN` present in container env.
 
