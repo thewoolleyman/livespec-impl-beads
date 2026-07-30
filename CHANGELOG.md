@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.49.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.49.0...v0.49.1) (2026-07-30)
+
+
+### Bug Fixes
+
+* **factory:** raise Fabro checkpoint commit timeout ([be5f7ae](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/be5f7ae60cfbd4f87f3cd79877b8f8ba6116cde6))
+
 ## [0.49.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.48.2...v0.49.0) (2026-07-30)
 
 
