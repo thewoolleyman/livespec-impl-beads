@@ -37,11 +37,31 @@ The following facts were verified directly from the official
 | Tarball SHA-256 | `a72d71ed374955dc9f83a0f90b54bd7b6a0016709dd1676ae2e368651ed401c2` |
 | Extracted `bd` SHA-256 | `6d767629e90560506d0ea3de9823aef48386414f5425d8853e2ae3312cad9a82` |
 | Binary-reported version | `bd version 1.1.2 (20e493e56: HEAD@20e493e569c9)` |
-| SPDX artifact | `beads-v1.1.2.spdx.json` on the same release |
+| SPDX artifact | `beads-v1.1.2.spdx.json` on the same release; SHA-256 `b05ca7f525f05e50691a4329b13aa87f10bc93160fe8d4d1ca371867701b58e6` |
 
 The tarball hash is upstream-published. The extracted-binary hash is a derived
 pin: it was measured only after the tarball matched the upstream checksum and
 must be independently reproduced during implementation and image build.
+
+O1 re-measured these facts in a temporary directory on 2026-07-30 with no host
+installation step:
+
+```sh
+curl -fsSLO https://github.com/gastownhall/beads/releases/download/v1.1.2/checksums.txt
+curl -fsSLO https://github.com/gastownhall/beads/releases/download/v1.1.2/beads_1.1.2_linux_amd64.tar.gz
+curl -fsSLO https://github.com/gastownhall/beads/releases/download/v1.1.2/beads-v1.1.2.spdx.json
+sha256sum -c --ignore-missing checksums.txt
+tar -xzf beads_1.1.2_linux_amd64.tar.gz
+sha256sum bd beads-v1.1.2.spdx.json
+./bd version
+```
+
+The official v1.0.5 Linux amd64 asset and its checksum file still returned
+HTTP 404 on 2026-07-30, while the upstream git tag `refs/tags/v1.0.5` still
+resolved to annotated tag `fa78674f17071fd9de6d44a77e5e13b460e5fd24` and
+peeled commit `6a3f515ced18406c189c55fff789a4925bfaa35c`. This preserves the
+`bd-ib-dwv` diagnosis: the old release artifact cannot be used as the upgrade
+source in a reproducible image build.
 
 The current host layout was also measured:
 
@@ -78,6 +98,58 @@ The v1.1.2 source contains these migrations beyond the current pin:
 The v1.1 release notes specifically add migration-content hashes, a remote
 migration gate, dependency-key convergence, and schema-drift repair. Those are
 material changes for the family’s shared Dolt tenants.
+
+O1 executed the current adapter-facing commands through the extracted
+v1.1.2 binary against an isolated embedded-Dolt repository under `/tmp`; it did
+not call the host guard, did not install `bd`, and did not touch a production
+tenant. The measured command contract was:
+
+| Adapter surface | Candidate result |
+|---|---|
+| `bd config set status.custom ...` | accepts the current five custom lifecycle statuses in the existing CSV form. |
+| `bd create --id ... --type ... --title ... --description ... --priority ... --label ... --metadata ... --json` | emits a single JSON object for the created issue; the new issue starts in native `open`, so lifecycle normalization is still required. |
+| `bd create ... --silent` | emits only the created identifier. |
+| `bd update <id> --status ready --assignee fabro --add-label ... --json` | emits a JSON array containing the updated issue; `status`, `assignee`, labels, and metadata are retained in the shape the current JSON adapter accepts. |
+| `bd list --status all --limit 0 --json` | emits a bare JSON array of issue objects, including `dependency_count`, `dependent_count`, and `comment_count`. |
+| `bd show <id> --json` | still emits a one-element JSON array, not a bare object. |
+| `bd comments <id> --json` | emits a bare JSON array with comment objects containing `id`, `issue_id`, `author`, `text`, and `created_at`. |
+| `bd dep add <from> <to> --type blocks` followed by `bd dep list <from> --json` | records and reports dependency type `blocks`. |
+| `bd update <id> --parent <parent>` followed by `bd children <parent> --json` | records the parent-child dependency and returns child objects with `dependencies[]` and `parent`. |
+
+The exact fixture used a throwaway prefix `q`, issue identifiers `q-a`,
+`q-b`, and `q-parent`, and metadata
+`{"rank":"001","policy":{"factory_safety":null}}`. The resulting JSON shapes
+match the current `coerce_record_list`, `coerce_issue_record`, and
+`coerce_comment_list` expectations: list-like reads are arrays; `show` remains
+an array envelope; non-record array members were not observed; and lifecycle
+policy data remains in the native `metadata` object.
+
+`bd create --help` still does not advertise `--status` or `-s`. The guard's
+two-step create normalization remains the current compatibility path for this
+candidate. If a later Beads candidate adds a create-time status control, the
+guard must be redesigned around that fact rather than carrying this O1 result
+forward.
+
+The isolated migration-shape probe copied that throwaway repository, changed
+only `.beads/.local_version` from `1.1.2` to `1.0.5`, and ran the v1.1.2
+candidate against the copy. `bd migrate --inspect` reported schema version
+`1.1.2`, issue count `3`, and registered migrations `0`; `bd migrate schema
+--json` printed `Schema already at v53` and restored `.beads/.local_version`
+to `1.1.2`. A subsequent `bd migrate status` reported:
+
+```text
+Dolt database version: 1.1.2
+Version matches
+All metadata fields present
+```
+
+The post-probe `bd list --status all --limit 0 --json` read preserved the
+three issues, lifecycle status, metadata, labels, comment count, blocking
+dependency, and parent-child edge. This is sufficient O1 evidence for the
+candidate CLI and metadata-version repair surface, but it is deliberately not
+claimed as the full O4 production migration rehearsal: the sandbox had no
+verified v1.0.5 binary, no real v1.0.5-created Dolt tenant, no remote
+SQL-server topology, and no restore-from-backup proof.
 
 Upstream’s stable upgrade guidance requires a pre-upgrade export, one
 designated migrator for a remote-backed database, and `bd bootstrap` rather
