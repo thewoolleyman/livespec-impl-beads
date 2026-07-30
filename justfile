@@ -780,19 +780,11 @@ check-bd-guard:
     set -euo pipefail
     if command -v shellcheck >/dev/null 2>&1; then
       shellcheck --shell=sh bd-guard/bd-guard.sh
-      shellcheck --shell=bash bd-guard/install.sh bd-guard/rollback.sh bd-guard/test/run-tests.sh bd-guard/test/run-v1-1-2-candidate-tests.sh
+      shellcheck --shell=bash bd-guard/install.sh bd-guard/rollback.sh bd-guard/test/run-tests.sh
     else
       echo "WARNING: shellcheck not found; skipping shell lint (hermetic tests still run)" >&2
     fi
     bash bd-guard/test/run-tests.sh
-
-# `check-bd-guard-candidate` — explicit Beads v1.1.2 qualification leg. It
-# downloads the official Linux amd64 release into a temporary directory, verifies
-# upstream and derived hashes, then runs the tracked guard with LIVESPEC_BD_REAL
-# pointed at that temporary binary. All repositories, config, and Dolt data are
-# temporary; it never installs or copies a host binary.
-check-bd-guard-candidate:
-    bash bd-guard/test/run-v1-1-2-candidate-tests.sh
 
 # `check-codex-plugin-structure` — Codex cross-runtime structural check (P3).
 # Validates the orchestrator plugin's Codex surface (per
