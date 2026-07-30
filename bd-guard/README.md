@@ -265,6 +265,23 @@ just check-bd-guard      # shellcheck (if present) + the hermetic harness
 bash bd-guard/test/run-tests.sh
 ```
 
+Official v1.1.2 candidate qualification, still without host installation:
+
+```sh
+just check-bd-guard-candidate
+# or directly:
+bash bd-guard/test/run-v1-1-2-candidate-tests.sh
+```
+
+The candidate harness downloads the official Linux amd64 v1.1.2 release into a
+temporary directory, verifies the published tarball checksum, verifies the
+recorded SPDX and extracted-binary hashes, and points `LIVESPEC_BD_REAL` at that
+temporary binary. It creates only throwaway repositories under `mktemp`, runs
+with a temporary `HOME` and `XDG_CONFIG_HOME`, disables guard OTLP, and removes
+the entire workspace on exit. It never copies anything to `/usr/local/bin`,
+never contacts a production tenant, never builds an image, and never touches the
+Fabro server.
+
 The harness points `LIVESPEC_BD_REAL` at a generated stub that records its exact
 argv, emits controlled stdout/stderr, and exits with a controlled code, then
 asserts warn/fail behavior, exact argv preservation, byte-identical `--json`
