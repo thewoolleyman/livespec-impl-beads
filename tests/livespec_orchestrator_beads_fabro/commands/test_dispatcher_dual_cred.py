@@ -290,7 +290,13 @@ def test_fabro_run_argv_routes_implementer_to_codex_adapter(tmp_path: Path) -> N
         "review_fix_visit_cap=4",
         "merge_on_review_cap_outcome=__merge_on_review_cap_disabled__",
     ]
-    assert CODEX_IMPLEMENTER_ADAPTER == "npx --no-install @zed-industries/codex-acp"
+    expected_adapter = (
+        "npx --no-install @zed-industries/codex-acp "
+        "-c sandbox_mode=danger-full-access -c approval_policy=never"
+    )
+    assert expected_adapter == CODEX_IMPLEMENTER_ADAPTER
+    assert f"acp_adapter={expected_adapter}" in input_values
+    assert "acp_adapter=npx --no-install @zed-industries/codex-acp" not in input_values
     # The routing inputs precede --no-upgrade-check.
     assert argv.index("--input") < argv.index("--no-upgrade-check")
 
