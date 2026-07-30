@@ -7,6 +7,12 @@ dispatch path would otherwise read — the host Codex credential, the host
 suite never depends on whether the runner is logged in, has the engine
 installed, or ships `gh` on the step-subprocess PATH.
 
+The Claude credential pre-flight similarly makes one bounded live Messages
+API request before a dispatch. Tests receive a successful non-secret probe
+result by default so no hermetic dispatch test reaches Anthropic; the probe
+I/O module's own tests exercise the real request construction through a
+mocked ``urlopen``.
+
 The dispatch path projects a freshness-gated snapshot of the host Codex
 credential into the sandbox (scenarios.md Scenario 18 / 19), reading the
 host `auth.json` under `$CODEX_HOME` (default `~/.codex`). EVERY test tree
@@ -34,6 +40,38 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def _hermetic_claude_credential_probe(monkeypatch: pytest.MonkeyPatch) -> None:
+    from livespec_orchestrator_beads_fabro.commands._dispatcher_claude_credential import (
+        ClaudeCredentialStatus,
+    )
+
+    def successful_probe(*, token: str) -> ClaudeCredentialStatus:
+        _ = token
+        return ClaudeCredentialStatus(
+            condition="usable",
+            present=True,
+            usable=True,
+            http_status=200,
+            error_type=None,
+            input_tokens=8,
+            output_tokens=1,
+            message="CLAUDE_CODE_OAUTH_TOKEN is usable in the hermetic test probe.",
+            remedy="No action required.",
+        )
+
+    monkeypatch.setattr(
+        "livespec_orchestrator_beads_fabro.commands."
+        "_dispatcher_credentials.probe_claude_credential",
+        successful_probe,
+    )
+    monkeypatch.setattr(
+        "livespec_orchestrator_beads_fabro.commands."
+        "_dispatcher_claude_credential_command.probe_claude_credential",
+        successful_probe,
+    )
 
 
 def _fresh_codex_auth_json() -> str:

@@ -33,7 +33,11 @@ from pathlib import Path
 
 import pytest
 from livespec_orchestrator_beads_fabro.commands import dispatcher
+from livespec_orchestrator_beads_fabro.commands._dispatcher_claude_credential import (
+    ClaudeCredentialStatus,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_credentials import (
+    check_credential_env,
     credential_wrapper_text,
     read_dispatch_target_credential_wrapper,
 )
@@ -47,6 +51,26 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_self_update import (
 _PLUGIN_ROOT = Path(dispatcher.__file__).resolve().parents[3]
 _WORKFLOW_SUBPATH = (".fabro", "workflows", "implement-work-item", "workflow.toml")
 _PROMPTS_DIR = _PLUGIN_ROOT / ".fabro" / "workflows" / "implement-work-item" / "prompts"
+_TEST_TOKEN = "test-oauth-token"
+
+
+def _credential_status(*, token: str, usable: bool) -> ClaudeCredentialStatus:
+    assert token == _TEST_TOKEN
+    return ClaudeCredentialStatus(
+        condition="usable" if usable else "exhausted",
+        present=True,
+        usable=usable,
+        http_status=200 if usable else 429,
+        error_type=None if usable else "rate_limit_error",
+        input_tokens=9 if usable else None,
+        output_tokens=1 if usable else None,
+        message=(
+            "CLAUDE_CODE_OAUTH_TOKEN is usable."
+            if usable
+            else "CLAUDE_CODE_OAUTH_TOKEN is exhausted or rate-limited."
+        ),
+        remedy="No action required." if usable else "Wait before retrying.",
+    )
 
 
 def test_workflow_toml_resolves_from_plugin_root(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -211,3 +235,37 @@ def test_dispatch_target_credential_wrapper_rejects_unusable_config_shapes(
 
     assert read_dispatch_target_credential_wrapper(repo=tmp_path) == ()
     assert "no credential_wrapper configured" in credential_wrapper_text(repo=tmp_path)
+
+
+def test_credential_gate_accepts_a_usable_live_probe(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", _TEST_TOKEN)
+
+    assert (
+        check_credential_env(
+            repo=tmp_path,
+            probe=lambda *, token: _credential_status(token=token, usable=True),
+        )
+        is None
+    )
+
+
+def test_credential_gate_refuses_capacity_before_sandbox_launch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", _TEST_TOKEN)
+
+    refusal = check_credential_env(
+        repo=tmp_path,
+        probe=lambda *, token: _credential_status(token=token, usable=False),
+    )
+
+    assert refusal is not None
+    assert "refused before sandbox launch" in refusal
+    assert "Observed condition: exhausted" in refusal
+    assert "CLAUDE_CODE_OAUTH_TOKEN" in refusal
+    assert "Wait before retrying" in refusal
+    assert "GITHUB_APP_ID" in refusal
