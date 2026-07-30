@@ -100,6 +100,14 @@ for _ in $(seq 1 90); do
 done
 
 # T1.a — inner storage driver must be overlay2 / overlayfs, NOT vfs.
+log "T1.0 gh version"
+docker exec "$CONTAINER" bash -lc '
+  set -e
+  version="$(gh --version | awk "NR == 1 {print \$3}")"
+  echo "gh version: $version"
+  test "$version" = "$GH_VERSION"
+'
+
 log "T1.a inner storage driver"
 DRIVER="$(docker exec "$CONTAINER" docker info --format '{{.Driver}}' 2>/dev/null || echo UNKNOWN)"
 echo "inner storage driver: $DRIVER"
