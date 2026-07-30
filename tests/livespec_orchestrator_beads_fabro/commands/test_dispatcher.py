@@ -1090,7 +1090,10 @@ def test_argv_builders_encode_family_discipline(tmp_path: Path) -> None:
         "--goal-file",
         str(tmp_path / "goal.md"),
         "--input",
-        "acp_adapter=npx --no-install @zed-industries/codex-acp",
+        (
+            "acp_adapter=npx --no-install @zed-industries/codex-acp "
+            "-c sandbox_mode=danger-full-access -c approval_policy=never"
+        ),
         "--input",
         "review_fix_visit_cap=4",
         "--input",

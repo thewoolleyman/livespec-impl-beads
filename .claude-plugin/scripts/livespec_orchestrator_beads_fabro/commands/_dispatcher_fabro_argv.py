@@ -68,14 +68,22 @@ _DEFAULT_JANITOR_CORE_REF = "master"
 # Dockerfile `ARG CODEX_ACP_VERSION`) with NO npm registry round-trip — it
 # runs even under `--network none`, so the baked image's CODEX_ACP_VERSION
 # is the SINGLE source of truth for the adapter version (no orchestrator-side
-# pin to keep in sync). The non-rotatable refresh sentinel's
-# load-but-cannot-refresh behavior (project_codex_auth_snapshot; tracked by
-# bd-ib-ss7rkr) is RE-VERIFIED on every version change by the Codex-mode
-# golden-master at orchestrator-image/acceptance-live-golden-master.sh, which
-# dispatches via `dispatcher.py loop` and always routes implementer nodes to
-# THIS adapter — so a factory-gated CODEX_ACP_VERSION bump exercises the
-# credential projection end-to-end instead of relying on a manual TODO.
-CODEX_IMPLEMENTER_ADAPTER = "npx --no-install @zed-industries/codex-acp"
+# pin to keep in sync). The implementer already runs inside Fabro's ephemeral
+# Docker sandbox; on the current host AppArmor blocks Codex's inner bwrap
+# namespace, after which Fabro grants an ACP permission retry outside that inner
+# sandbox. `sandbox_mode=danger-full-access` makes the real Docker boundary
+# explicit, and `approval_policy=never` removes that failed escalation path. The
+# non-rotatable refresh sentinel's load-but-cannot-refresh behavior
+# (project_codex_auth_snapshot; tracked by bd-ib-ss7rkr) is RE-VERIFIED on every
+# version change by the Codex-mode golden-master at
+# orchestrator-image/acceptance-live-golden-master.sh, which dispatches via
+# `dispatcher.py loop` and always routes implementer nodes to THIS adapter — so
+# a factory-gated CODEX_ACP_VERSION bump exercises the credential projection
+# end-to-end instead of relying on a manual TODO.
+CODEX_IMPLEMENTER_ADAPTER = (
+    "npx --no-install @zed-industries/codex-acp "
+    "-c sandbox_mode=danger-full-access -c approval_policy=never"
+)
 
 # GitHub owner / repo-name shape. The matched values are spliced into
 # prepare-step clone scripts, so anything outside this conservative
