@@ -153,8 +153,13 @@ family dolt-server — NOT JSONL files. Installing the plugin does NOT provision
 the backend; a clone connects to its tenant only when ALL of the following are
 present:
 
-- **`bd` CLI, pinned**, at an absolute path (NEVER the mise shim), with
-  `LIVESPEC_BD_PATH` pointing at it.
+- **`bd` CLI, pinned**, through the public lifecycle-guard entry point at
+  `/usr/local/bin/bd`. This repo's mise config MUST NOT declare or install
+  `bd`: an activated mise tool or regenerated shim can shadow that policy
+  boundary. When `LIVESPEC_BD_PATH` is set it MUST point at
+  `/usr/local/bin/bd`; otherwise `bd` on `PATH` MUST resolve there. Normal
+  plugin, ledger, and operator calls MUST NOT invoke the guard's private
+  delegate executable.
 - **A running Dolt `sql-server`** reachable over **TCP `127.0.0.1:3307`**. Family
   tenants force TCP (not the unix socket); `.beads/config.yaml` carries `dolt.*`
   host/port keys with NO `socket` key.
