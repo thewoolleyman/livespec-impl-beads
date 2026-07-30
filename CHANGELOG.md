@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.49.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.49.1...v0.49.2) (2026-07-30)
+
+
+### Bug Fixes
+
+* make Codex ACP full access explicit ([d53080b](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/d53080b2128668947c18cb506df4e1acb8f9435d))
+
 ## [0.49.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.49.0...v0.49.1) (2026-07-30)
 
 
