@@ -41,12 +41,13 @@ As measured on 2026-07-30:
   and reports `bd version 1.1.2 (20e493e56: HEAD@20e493e569c9)`.
 - The image Dockerfile installs a raw v1.0.5 binary at
   `/usr/local/bin/bd`; it does not carry the guard. That layout must change.
-- The separate tmux session `fix-bd` owns removal of all mise references to
-  Beads. This thread must not duplicate those edits.
-- PR [#1161](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/pull/1161)
-  has since merged the guarded public-entrypoint specification into this
-  repository as `5675a12`; implementation must rebase onto it and still wait
-  for any additional relevant changes owned by the separate lane.
+- The separate `fix-bd` lane has merged its guarded-entrypoint, no-mise, and
+  guarded-path fallback work. The exact forge artifacts and the resulting
+  implementation boundary are recorded below. This thread must not duplicate
+  those edits.
+- This repository has integrated the released `fix-bd` dependencies and the
+  guarded public-entrypoint specification. The remaining work begins after
+  those merges, not from their pre-merge state.
 
 ## Non-negotiable boundaries
 
@@ -113,10 +114,41 @@ linked from the ledger:
 | `beads-v1-1-2-upgrade-supervisor` | adversarial review of this plan and later execution evidence |
 | Maintainer in the attended window | production writer quiescence, direct host copy, tenant migration authorization, and rollback decision |
 
-Before implementation begins, record the `fix-bd` merge PRs and SHAs in this
-handoff, fetch and rebase, then run
+Before every implementation PR, fetch and rebase, then run
 `git diff --name-only origin/master...<branch>` in every affected repository.
-Any path already owned by that lane stays out of this thread.
+Any path already owned by another lane stays out of this thread.
+
+## Reconciled `fix-bd` scope and unresolved path seam
+
+The following forge state was fetched and independently verified on
+2026-07-30. Each merge is an ancestor of the named repository's fetched
+`origin/master`; each release tag contains the corresponding implementation
+merge.
+
+| Repository and artifact | Verified merge | Discharged scope |
+|---|---|---|
+| `thewoolleyman/livespec` PR [#1845](https://github.com/thewoolleyman/livespec/pull/1845), released through PR [#1848](https://github.com/thewoolleyman/livespec/pull/1848) and tag `v0.21.0` | `b2543999be24f104194151e3a56bcdf50f55d819` | Removes the repository-mise Beads pin and makes the guarded entry point authoritative in core contracts and generated guidance. |
+| `thewoolleyman/livespec-dev-tooling` PR [#900](https://github.com/thewoolleyman/livespec-dev-tooling/pull/900), released through PR [#901](https://github.com/thewoolleyman/livespec-dev-tooling/pull/901) and tag `v1.8.1` | `0304d81faff32440e456a6770e3a436fc29e79a5` | Makes non-empty `LIVESPEC_BD_PATH` authoritative and otherwise falls back to the guarded `bd` on `PATH`. |
+| This repository, PR [#1161](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/pull/1161), included in `v0.49.2` | `5675a12fbd53381138a2e1c3c47141e74d2c0e91` | Establishes the guarded public entry point, prohibits Beads installation through repository mise, and prohibits normal callers from invoking the private delegate. |
+| This repository, PR [#1163](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/pull/1163) | `0c215084610839a80b9311ec151fdef6939299b5` | Integrates `livespec-dev-tooling` `v1.8.1`. |
+| This repository, PR [#1166](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/pull/1166) | `74deb3a7976dafd108fcadece138fbeb3ef5d6ce` | Integrates `livespec` `v0.21.0`. |
+
+That guarded-entrypoint and no-mise content is complete for this thread. It
+MUST NOT be reimplemented, restated as new behavior, or used to justify
+touching the `fix-bd` lane's paths.
+
+There is one unresolved implementation boundary. PR #1161 changed
+`.mise.toml`, `AGENTS.md`, the current `SPECIFICATION/constraints.md`,
+`SPECIFICATION/contracts.md`, and `SPECIFICATION/scenarios.md`,
+`tests/heading-coverage.json`, and its frozen history snapshot. The literal
+path-exclusion rule above therefore conflicts with this handoff's later
+requirement to update version-specific statements in some of those same
+current specification paths. Until a later reviewed decision resolves that
+conflict, the strict interpretation governs: every PR #1161 path is
+**no-touch**, including the current specification files. The “Current contract
+updates” outcome below remains required, but it does not authorize an edit to
+those paths. Do not resolve the conflict opportunistically inside an
+implementation slice.
 
 ## Authoritative tenant and recovery surfaces
 
@@ -250,34 +282,72 @@ something to bypass. The S3 remote is shared and `backup-sync.sh` advances it,
 so a successful restore proves the disaster-recovery mechanism but does not
 freeze the exact production rollback point.
 
-## Decomposition to file in the ledger
+## Remaining outcome decomposition
 
-The ledger, not this document, is the status authority. Groom epic
-`bd-ib-3kolea` into dependency-linked slices with these coherent outcomes:
+The ledger, not this document, is the status authority. This is a prose-only
+decomposition: do not file it through the current `groom` path and do not
+mutate the ledger until a later supervised instruction supplies a safe filing
+procedure.
 
-| Proposed slice | Outcome | Factory eligibility |
-|---|---|---|
-| Release and CLI qualification | Pin upstream provenance and prove the exact command/flag/JSON surface against v1.1.2 | factory-safe |
-| Guard compatibility | Make the existing hermetic guard suite run against the v1.1.2 binary and resolve real incompatibilities | factory-safe |
-| Dolt restore source/target seam | In `dolt-server`, specify and implement distinct backup-source and clean scratch-target names, then correct stale examples | factory-safe after that repository's spec revision |
-| Migration and restore rehearsal | Clone or restore each relevant tenant shape into isolation, migrate once, compare invariants, and prove restore | needs privileged host |
-| Guarded image layout | Put v1.1.2 at `bd-real`, install the tracked wrapper at `bd`, and strengthen image verification | factory-safe for code; privileged host for DinD proof |
-| Current contract updates | Revise only current specs, code comments, tests, and runbooks to the qualified version/layout | factory-safe |
-| Attended host and tenant rollout | Quiesce writers, back up, directly replace `bd-real`, migrate once per tenant, and verify | mutates host machinery |
-| Closure and parity evidence | Prove host/image parity, close `bd-ib-dwv`, and attach the audit trail | human-reviewed |
+The identifiers `O1` through `O8` below mean “remaining outcome 1” through
+“remaining outcome 8.” A dependency names the outcomes whose evidence must be
+complete before the dependent outcome begins.
 
-Factory-safe slices should be driven through the dark factory after the
-supervised plan is accepted. The migration rehearsal and production rollout
-must be marked with their non-factory safety reason and run attended.
+| Order | Remaining outcome | Depends on | Required result | Factory eligibility |
+|---|---|---|---|---|
+| O1 | Release and CLI qualification | None | Pin upstream provenance and prove the exact command, flag, and JSON surface against v1.1.2. | factory-safe |
+| O2 | Guard compatibility | O1 | Run the existing hermetic guard suite against the qualified v1.1.2 binary and resolve only demonstrated incompatibilities. | factory-safe |
+| O3 | Dolt restore source/target seam | None inside this repository; it is a prerequisite of O4 | In `dolt-server`, specify and implement distinct backup-source and clean scratch-target names, preserve the clean-target refusal, and correct stale examples. | factory-safe only after that repository's spec revision |
+| O4 | Migration and restore rehearsal | O1, O2, O3 | Restore each relevant tenant shape into isolation, migrate once, compare the complete invariant inventory, and prove the restore boundary. | needs privileged host |
+| O5 | Guarded image layout | O1, O2 | Put v1.1.2 at `bd-real`, install the tracked wrapper at `bd`, strengthen image verification, and resolve existing defect `bd-ib-dwv` with the successful guarded rebuild as evidence. | factory-safe for code; privileged host for DinD proof |
+| O6 | Current contract updates | O1, O2, O4, O5 | Update only current version-specific comments, tests, runbooks, and paths permitted by the unresolved no-touch boundary; historical records remain unchanged. | factory-safe within the permitted path set |
+| O7 | Attended host and tenant rollout | O3, O4, O5, O6 | Quiesce every writer, capture the rollback artifacts, directly replace `bd-real`, migrate once per tenant, and verify before restarting writers. | mutates host machinery |
+| O8 | Closure and parity evidence | O7 and the acceptance evidence from O1 through O6 | Prove host/image parity, attach the complete audit trail, and close the upgrade only after `bd-ib-dwv` has been resolved by O5 rather than duplicated. | human-reviewed |
+
+`bd-ib-dwv` is the one direct ledger overlap. O5 resolves that existing item;
+this cut MUST NOT file a duplicate image-asset defect.
+
+Two adjacent items constrain execution but are not adopted into this epic:
+
+- `bd-ib-yig` records that a Beads subprocess can address the wrong tenant
+  when its process working directory differs from the target repository.
+  Cross-repository reads and any later authorized writes must run from the
+  target repository root or use the proven `-C` anchor.
+- `bd-ib-rxf` records the separate, write-only auto-backup failure caused by
+  the tenant SQL user's missing `DOLT_BACKUP` grant. Read-only Beads probes do
+  not demonstrate that auto-backup works. This upgrade continues to use the
+  dedicated backup principal and server-native backup/restore contract; it
+  does not adopt the grant defect.
+
+Four live filing defects prohibit the current cross-repository and
+epic-linkage `groom` path for this cut:
+
+- `bd-ib-a8zi` and `bd-ib-dvmh` record the invalid local-prefix identifier
+  minted for a cross-repository slice and the incomplete originating
+  disposition record.
+- `bd-ib-kn63nm` and `bd-ib-vari3j` record that the sanctioned writer maps
+  epic linkage to a rejected `blocks` edge and can leave a created-but-unlinked
+  row.
+
+Therefore O3 must eventually be filed in the `dolt-server` tenant with a
+native target-tenant identifier, and the eight outcomes must not be filed or
+linked through the defective path. A later reviewed filing decision must name
+the safe mechanism before any ledger write occurs.
+
+Factory-safe slices should be driven through the dark factory only after they
+are safely filed and admitted. The migration rehearsal and production rollout
+must carry their non-factory safety reason and run attended.
 
 ## Execution sequence
 
 ### 1. Reconcile concurrent work
 
-Record already-merged PR #1161 / `5675a12`, wait for any additional relevant
-`fix-bd` PRs to merge, and record their merge SHAs. Rebase the affected
-repositories, repeat the current-version and current-mise search, and remove
-from this epic’s implementation scope every path that lane already changed.
+The relevant `fix-bd` PRs, releases, integration commits, and exact SHAs are
+recorded in “Reconciled `fix-bd` scope and unresolved path seam.” Fetch and
+rebase every affected repository before implementation, repeat the
+current-version and current-mise search, and exclude every path owned by that
+lane under the strict no-touch rule until the recorded boundary is resolved by
+a later reviewed decision.
 
 Do not treat an old cache or pre-merge checkout as proof. For each claimed
 absence, state the repositories, refs, globs, and historical exclusions
@@ -420,6 +490,12 @@ Re-run a whole-workspace search after `fix-bd` merges. Update only current
 authoritative references whose truth changes, including this repository’s
 current specification, runtime comments/types, client compatibility tests,
 guard documentation, Dockerfile, build verification, and image README.
+
+The unresolved PR #1161 path seam limits this instruction. Until a reviewed
+later decision changes the boundary, do not edit any PR #1161 path, even when
+it contains a version-specific statement. Update permitted current paths and
+record blocked current-spec statements as evidence for that later decision;
+do not silently treat this outcome as overriding the path-exclusion rule.
 
 Historical specification snapshots, archived plans, and changelog entries
 remain unchanged. A comment that describes version-specific JSON or flags may
@@ -627,19 +703,8 @@ because that would remove the required guard and move `bd-real` onto `bd`.
 
 ## Immediate next action
 
-Do not begin implementation yet. The one next path is this ordered chain:
-
-1. push this plan-only branch, open its PR, wait for required checks and
-   review, rebase-merge it, and refresh and clean the primary checkout so
-   `plan/beads-v1-1-2-upgrade/` exists on `master`;
-2. start the exact, separate tmux sessions `beads-v1-1-2-upgrade` and
-   `beads-v1-1-2-upgrade-supervisor`, each with a live agent, with the worker
-   pane inside `/data/projects/livespec-orchestrator-beads-fabro`; and
-3. rerun the named `$supervise-plan` workflow against the merged plan.
-
-The supervision workflow must produce the reviewed
-`.ai/supervisor-protocol.md` and
-`plan/beads-v1-1-2-upgrade/supervisor-handoff.md` before epic
-`bd-ib-3kolea` is groomed into executable slices. The supervision skill
-forbids creating or renaming those sessions itself; the maintainer must
-establish them.
+Do not begin implementation and do not groom or otherwise mutate the ledger.
+First land this reconciliation through a reviewed plan-only PR. After it
+merges, the supervisor must obtain a reviewed decision for both the safe
+filing mechanism and the PR #1161 no-touch boundary. Only then may the
+supervisor authorize filing O1 through O8 in their recorded dependency order.
