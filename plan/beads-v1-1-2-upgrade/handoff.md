@@ -261,11 +261,14 @@ examples in some runbooks, `--db <DB>_restoretest` cannot restore the backup
 for `<DB>`. Before the Beads migration rehearsal, land a separate
 `dolt-server` specification and implementation slice that adds explicit
 `--source-db <DB>` and `--target-db <SCRATCH_DB>` arguments, preserves the
-existing clean-target refusal, and updates the stale runbook examples. That
-cross-repository slice follows `dolt-server`'s own propose-change, revise,
-worktree, test, PR, and rebase-merge workflow. Production migration is blocked
-until the revised helper has restored a real source backup into a differently
-named scratch tenant on the live server and `--verify` has passed.
+existing clean-target refusal, updates the stale runbook examples, and proves
+the behavior with hermetic tests. That cross-repository O3 slice follows
+`dolt-server`'s own propose-change, revise, worktree, test, PR, and
+rebase-merge workflow. O3 does not run the live restore. After O3 closes, the
+attended O4 rehearsal owns the proof that the revised helper can restore a
+real source backup into a differently named scratch tenant on the live server
+with `--verify`. Production migration remains blocked until that O4 proof
+passes.
 
 The exact on-demand snapshot form for one production tenant is:
 
@@ -296,7 +299,8 @@ freeze the exact production rollback point.
 
 The ledger, not this document, is the status authority. This is a prose-only
 decomposition, and this plan-only change performs no filing or other ledger
-mutation. The safe filing valve below becomes executable only after this
+mutation. The corrected factory-safety valve below governs every remaining
+filing and the exact repairs to the already-filed O1 and O3 only after this
 change receives exact-head supervisor review, passes all required checks, and
 rebase-merges.
 
@@ -306,14 +310,14 @@ complete before the dependent outcome begins.
 
 | Order | Remaining outcome | Depends on | Required result | Factory eligibility |
 |---|---|---|---|---|
-| O1 | Release and CLI qualification | None | Pin upstream provenance and prove the exact command, flag, and JSON surface against v1.1.2. | factory-safe |
-| O2 | Guard compatibility | O1 | Run the existing hermetic guard suite against the qualified v1.1.2 binary and resolve only demonstrated incompatibilities. | factory-safe |
-| O3 | Dolt restore source/target seam | None inside this repository; it is a prerequisite of O4 | In `dolt-server`, specify and implement distinct backup-source and clean scratch-target names, preserve the clean-target refusal, and correct stale examples. | factory-safe only after that repository's spec revision |
-| O4 | Migration and restore rehearsal | O1, O2, O3 | Restore each relevant tenant shape into isolation, migrate once, compare the complete invariant inventory, and prove the restore boundary. | manual/backlog; needs privileged host and cannot be admitted until the supervisor verifies O3 closed in the `dolt-server` tenant |
-| O5 | Guarded image layout | O1, O2 | Put v1.1.2 at `bd-real`, install the tracked wrapper at `bd`, strengthen image verification, and resolve existing defect `bd-ib-dwv` with the successful guarded rebuild as evidence. | factory-safe for code; privileged host for DinD proof |
-| O6 | Current contract updates | O1, O2, O4, O5 | Update current version-specific comments, tests, runbooks, and permitted current specification facts under the narrow PR #1161 exception; historical records remain unchanged. | factory-safe within the reviewed path boundary |
-| O7 | Attended host and tenant rollout | O3, O4, O5, O6 | Quiesce every writer, capture the rollback artifacts, directly replace `bd-real`, migrate once per tenant, and verify before restarting writers. | mutates host machinery |
-| O8 | Closure and parity evidence | O7 and the acceptance evidence from O1 through O6 | Prove host/image parity, attach the complete audit trail, and close the upgrade only after `bd-ib-dwv` has been resolved by O5 rather than duplicated. | human-reviewed |
+| O1 | Release and CLI qualification | None | Pin upstream provenance and prove the exact command, flag, and JSON surface against v1.1.2. | factory-safe; zero `factory-safety:*` labels |
+| O2 | Guard compatibility | O1 | Run the existing hermetic guard suite against the qualified v1.1.2 binary and resolve only demonstrated incompatibilities. | factory-safe; zero `factory-safety:*` labels |
+| O3 | Dolt restore source/target seam | None inside this repository; it is a prerequisite of O4 | In `dolt-server`, specify and implement distinct backup-source and clean scratch-target names, preserve the clean-target refusal, add hermetic tests, and correct stale examples; do not perform the live restore in O3. | factory-safe spec/code/test slice; zero `factory-safety:*` labels |
+| O4 | Migration and restore rehearsal | O1, O2, O3 | After O3 closes, prove a real source-to-differently-named-scratch restore on the live server, restore each relevant tenant shape into isolation, migrate once, compare the complete invariant inventory, and prove the restore boundary. | manual/backlog; exactly `factory-safety:needs-privileged-host`, and cannot be admitted until the supervisor verifies O3 closed in the `dolt-server` tenant |
+| O5 | Guarded image layout | O1, O2 | Put v1.1.2 at `bd-real`, install the tracked wrapper at `bd`, strengthen image verification, and resolve existing defect `bd-ib-dwv` with the successful guarded rebuild as evidence. | factory-safe code has zero `factory-safety:*` labels; a separate attended privileged DinD proof carries exactly `factory-safety:needs-privileged-host` |
+| O6 | Current contract updates | O1, O2, O4, O5 | Update current version-specific comments, tests, runbooks, and permitted current specification facts under the narrow PR #1161 exception; historical records remain unchanged. | factory-safe within the reviewed path boundary; zero `factory-safety:*` labels |
+| O7 | Attended host and tenant rollout | O3, O4, O5, O6 | Quiesce every writer, capture the rollback artifacts, directly replace `bd-real`, migrate once per tenant, and verify before restarting writers. | attended; exactly `factory-safety:mutates-host-machinery` |
+| O8 | Closure and parity evidence | O7 and the acceptance evidence from O1 through O6 | Prove host/image parity, attach the complete audit trail, and close the upgrade only after `bd-ib-dwv` has been resolved by O5 rather than duplicated. | factory-safe evidence/closure has zero `factory-safety:*` labels; human acceptance remains a separate policy |
 
 `bd-ib-dwv` is the one direct ledger overlap. O5 resolves that existing item;
 this cut MUST NOT file a duplicate image-asset defect.
@@ -346,12 +350,13 @@ This cut MUST NOT use `groom`, `append_work_item`, a pre-minted foreign
 identifier, `--force`, any parent or epic-linkage write, or any cross-tenant
 dependency write.
 
-After this plan-only change has passed its review and merge valve, local
-outcomes O1, O2, O4, O5, O6, O7, and O8 are filed from this repository root
-through the wrapper configured in `.livespec.jsonc` and
-`/usr/local/bin/bd`. The create command must omit an explicit identifier so
-Beads assigns a standalone native `bd-ib` identifier. It MUST NOT pass
-`--parent`. Each local outcome uses the exact `external_ref` value
+After this plan-only change has passed its review and merge valve, any
+remaining local outcome among O2, O4, O5, O6, O7, and O8 is filed from this
+repository root through the wrapper configured in `.livespec.jsonc` and
+`/usr/local/bin/bd`. O1 already exists as `bd-ib-ne11`; do not file a
+duplicate. A create command must omit an explicit identifier so Beads assigns
+a standalone native `bd-ib` identifier. It MUST NOT pass `--parent`. Each
+local outcome uses the exact `external_ref` value
 `beads-v1-1-2-upgrade:O#`, with `O#` replaced by its recorded outcome number,
 and its description names `bd-ib-3kolea` and that outcome as provenance. No
 parent or epic linkage is created.
@@ -359,22 +364,51 @@ parent or epic linkage is created.
 The first measured parent dry-run created no row, but it showed that normal
 parent label inheritance would add `acceptance:human-only`,
 `factory-safety:mutates-host-machinery`, and `origin:freeform` to the proposed
-child labels. The corrective `--no-inherit-labels` dry-run also created no row
-and returned exactly the five intended labels, but its `parent_id` was null
-despite `--parent bd-ib-3kolea`. The required parent proof therefore cannot
-pass, which is why this cut files standalone items.
+child labels. The corrective `--no-inherit-labels` dry-run also created no row,
+returned the five labels then requested, and had null `parent_id` despite
+`--parent bd-ib-3kolea`. The required parent proof therefore cannot pass,
+which is why this cut files standalone items. A dry-run echoing a requested
+label does not prove that the label value is valid under the WorkItem
+contract; that distinction caused the factory-safety error recorded below.
 
 Every local dry-run and create command MUST use `--no-inherit-labels`. It must
 explicitly provide exactly one `admission:*` label, exactly one `acceptance:*`
-label, exactly one `factory-safety:*` label, `intake:triaged`, and the upgrade's
-`origin:*` label. Each approved creation is exactly one create command,
-followed immediately by `bd show` read-back of the assigned identifier before
-any next ledger write. The read-back must show the assigned native identifier,
-the exact `external_ref`, null `parent_id`, the description provenance,
-exactly one label under each of the `admission:`, `acceptance:`, and
-`factory-safety:` singleton prefixes, and the explicitly requested values. A
-missing, inherited, or contradictory singleton policy label halts the filing
-sequence.
+label, `intake:triaged`, and the upgrade's `origin:*` label. Factory-safe work
+MUST provide **zero** `factory-safety:*` labels. Genuinely attended host-only
+work MUST provide exactly one allowed factory-safety reason as classified
+below. Each approved creation is exactly one create command, followed
+immediately by `bd show` read-back of the assigned identifier before any next
+ledger write. The read-back must show the assigned native identifier, the
+exact `external_ref`, null `parent_id`, the description provenance, exactly
+one label under each of the `admission:` and `acceptance:` singleton prefixes,
+the explicitly requested values, and the expected zero-or-one
+`factory-safety:` cardinality. A missing, inherited, invalid, or contradictory
+policy label halts the filing sequence.
+
+#### Authoritative factory-safety classification and measured correction
+
+Current `SPECIFICATION/contracts.md` under “Work-item beads-issue mapping” is
+authoritative:
+
+- An absent `factory-safety:*` label reads as null and means factory-safe.
+- Any non-null `factory_safety` value is intrinsically host-only and is refused
+  before a Fabro sandbox launches.
+- The only allowed non-null reasons are `needs-host-secrets`,
+  `mutates-host-machinery`, and `needs-privileged-host`.
+- `pre-flight` is not a valid factory-safety value.
+
+Therefore O1, O2, and O3's spec/code/hermetic-test slice carry zero
+`factory-safety:*` labels. A genuinely attended slice carries exactly one of
+the three allowed reasons. When an outcome mixes factory-safe code with an
+attended proof, split those slices rather than making the code host-only.
+
+The single supervised O1 dispatch attempt measured the consequence of the
+filing error. `bd-ib-ne11` stayed `ready` at stage `host-only-refused`; it
+produced no Fabro run, branch, worktree, or PR because
+`factory-safety:pre-flight` was non-null. After this correction merges, remove
+exactly that erroneous label from `bd-ib-ne11` and immediately read the item
+back before one supervised retry. Do not set a workflow-scope override:
+workflow citation scope cannot bypass intrinsic `factory_safety`.
 
 Same-tenant dependency edges are added only through the native CLI after both
 native endpoints exist. Each prerequisite edge uses direct `bd dep add`, is
@@ -387,10 +421,16 @@ O3 uses this anchored command prefix:
 
 Before its one create command, the supervisor must use that exact prefix for a
 read-only target-tenant probe and verify that the result came from the
-`dolt-server` tenant. O3 is then filed with a native target-tenant identifier.
-It receives no foreign identifier, no cross-tenant parent, and no cross-tenant
-dependency edge. Both its description and its external reference must name
-`bd-ib-3kolea` and O3 as provenance.
+`dolt-server` tenant. O3 was filed as native target-tenant item
+`dolt-server-wgy`, with no foreign identifier, cross-tenant parent, or
+cross-tenant dependency edge. Its external reference records
+`bd-ib-3kolea` and O3 provenance. Its current description incorrectly assigns
+the live real-source-to-scratch restore proof to O3, and it carries the
+erroneous `factory-safety:pre-flight` label. After this correction merges,
+both require exact supervised repair and immediate read-back before spec-first
+O3 work begins: the description must limit O3 to the specification, code,
+hermetic tests, clean-target refusal, and stale examples, and it must carry
+zero `factory-safety:*` labels. The attended live restore proof belongs to O4.
 
 Cross-repository ordering is the linkage valve. O4 remains manual and
 `backlog`; it is not admitted until the supervisor reads O3 from the
@@ -402,9 +442,10 @@ admitted. O1 and O3 are the initial independent candidates. O2 can follow O1;
 the remaining outcomes follow the O1-through-O8 dependency order recorded in
 the table.
 
-Factory-safe slices should be driven through the dark factory only after they
-are safely filed and admitted. The migration rehearsal and production rollout
-must carry their non-factory safety reason and run attended.
+Factory-safe slices carry no factory-safety label and should be driven through
+the dark factory only after they are safely filed and admitted. The migration
+rehearsal and production rollout must each carry exactly one applicable
+allowed non-null reason and run attended.
 
 ## Execution sequence
 
@@ -509,7 +550,8 @@ required source/target helper slice lands, restore that source into
 “Authoritative tenant and recovery surfaces.” Run the baseline inventory
 against the scratch tenant, then remove it only through the reviewed
 `dolt-server` cleanup path. Do not follow the stale `<DB>_restoretest`
-examples until that source/target correction has landed.
+examples until that source/target correction has landed. This is O4's
+attended `needs-privileged-host` proof, not part of factory-safe O3.
 
 Establish how v1.1.2 classifies the family’s shared SQL-server topology. Assign
 one migrator for the isolated tenant, run the migration once, and record
@@ -773,9 +815,12 @@ because that would remove the required guard and move `bd-real` onto `bd`.
 
 ## Immediate next action
 
-Do not begin implementation and do not mutate the ledger in this plan-only
-change. First obtain exact-head supervisor review, pass every required check,
-and rebase-merge this execution-valve PR. After that merge, the supervisor may
-execute the recorded safe filing procedure for the two initial independent
-candidates, O1 and O3. Filing and implementation have not happened yet; later
-outcomes remain gated by the recorded O1-through-O8 prerequisites.
+Do not begin implementation, retry O1, or mutate either ledger in this
+plan-only correction. First obtain exact-head supervisor review, pass every
+required check, and rebase-merge this correction PR. After that merge, the
+supervisor may authorize exactly the recorded `bd-ib-ne11` label removal and
+read-back before one O1 retry, plus the recorded `dolt-server-wgy` description
+and label repairs before O3's spec-first work. O1 and O3 have been filed, O1
+remains `ready` after its single refused dispatch, and no implementation has
+started. Later outcomes remain gated by the recorded O1-through-O8
+prerequisites.
