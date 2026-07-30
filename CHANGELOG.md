@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.49.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.48.2...v0.49.0) (2026-07-30)
+
+
+### Features
+
+* gate Claude credential usability before dispatch ([37f028c](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/37f028c7c50aa1a0a9d1b141d61807a15a4c8306))
+
 ## [0.48.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.48.1...v0.48.2) (2026-07-29)
 
 
