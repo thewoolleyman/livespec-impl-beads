@@ -133,7 +133,62 @@ comes from the interactive session fleet, not from sandboxes.
 The real ceilings are elsewhere: the shared Anthropic credential, and
 same-repo merge/rebase contention — which is what `wip_cap` bounds.
 
-## 8. One open question, deliberately not blocking
+## 8. The gate refused the deletion of itself — measured, unprompted
+
+The strongest evidence in this document was not constructed. On **2026-07-30 at
+11:56:06Z**, the factory dispatch of `bd-ib-vmve.2` — the work-item whose whole
+content is deleting this gate — was **refused by the gate it was deleting**.
+
+`drive --action impl:bd-ib-vmve.2` returned dispatcher exit 3. The journal:
+
+```
+{"at": "2026-07-30T11:56:06Z", "stage": "dispatch-admission-mutex",
+ "guard": "host_dispatch_cap counting cap (bd-ib-sd8o deliverable (b))",
+ "refused": true, "run_id": "01KYSDXENCZSF5A17TASS9RNRC"}
+```
+
+The two host-wide in-flight runs at that moment belonged to **other repos**:
+
+```
+01KYSDXENCZSF5A17TASS9RNRC  running  source_directory=/data/projects/livespec-console-beads-fabro
+01KYSDQEFYEXP7BFR03ZBAEGJD  running  source_directory=/data/projects/livespec-dev-tooling
+```
+
+This repo has **no committed `host_dispatch_cap`**, so it defaulted to 2 and was
+refused with **zero runs of its own in flight** — while the Fabro scheduler sat
+at **2 of `max_concurrent_runs` = 10**, eight slots idle. That is precisely the
+repo-blind starvation of §3, reproduced **spontaneously under ordinary fleet
+load** rather than in a constructed test. Two independent reviewers each called
+it the strongest justification the deletion will ever have.
+
+Three details worth keeping:
+
+- **The guard behaved correctly per its own contract.** It refused BEFORE the
+  admission valve mutated the Ledger, so the work-item stayed `ready` with no
+  assignee and needed no cleanup. The defect is the model, not the
+  implementation.
+- **Its documented remedy had already been closed off.** The refusal offers "wait
+  for an in-flight run to reach terminal state, or raise the committed cap
+  (config-only)". The second arm was no longer available: `v053`, ratified
+  twenty minutes earlier, forbids exposing a committed key that bounds host-wide
+  dispatch concurrency. There is also no env-var overlay —
+  `_resolve_positive_int_setting` reads `.livespec.jsonc` and nothing else. So
+  waiting was the ONLY conforming option, which is itself the argument.
+- **The wait cost 38 minutes.** The `livespec-console-beads-fabro` run drained
+  and no new foreign run took the slot, so this was ordinary queueing rather than
+  sustained starvation. The retry admitted cleanly at 12:35:54Z and the dispatch
+  went green, landing `0eeca13` (PR #1174, released `v0.49.3`).
+
+For the record, the tempting non-option: the gauge fails open when `fabro ps` is
+unobservable (`_warn_cap_ps_unobservable` — "admission proceeds on the
+capacity-slot gauge alone"). Blinding it would have unblocked the dispatch
+instantly and was prohibited outright. Deliberately defeating a live check is
+worse than openly violating the rule it enforces, because it manufactures a
+counterfeit environmental fault and falsifies the one record a reviewer would use
+to reconstruct what happened. The durable form of that rule now lives in
+`AGENTS.md` §"Working with the maintainer".
+
+## 9. One open question, deliberately not blocking
 
 Do PARKED fabro runs occupy a scheduler slot? livespec's gauge explicitly
 excluded them (`_TERMINAL_OR_PARKED_KINDS` includes `blocked`) on the reasoning
