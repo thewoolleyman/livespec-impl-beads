@@ -19,6 +19,7 @@ orchestrator-PRIVATE tooling: core's contract sees only the three
   dispatcher.py ledger-normalize [--project-root <path>] [--dry-run] [--gate] [--json]
   dispatcher.py codex-cred-refresh [--dry-run] [--json]
   dispatcher.py codex-cred-status [--json]
+  dispatcher.py claude-cred-status [--json]
   dispatcher.py spec-check [--project-root <path>] [--spec-root <path>] [--json]
   dispatcher.py janitor-check [--repo <path>] [--json]
   dispatcher.py reconcile-merged --repo <path> --item <id> [--json]
@@ -173,6 +174,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_admission import (
 from livespec_orchestrator_beads_fabro.commands._dispatcher_calibration_emit import (
     emit_calibration,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_claude_credential_command import (
+    run_claude_cred_status,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_codex_auth import (
     run_codex_cred_refresh,
     run_codex_cred_status,
@@ -251,6 +255,7 @@ __all__: list[str] = [
     "ready_items",
     "reflector_oob_after_verdict",
     "requested_items_preflight_error",
+    "run_claude_cred_status",
     "run_codex_cred_refresh",
     "run_codex_cred_status",
     "run_id",
@@ -264,6 +269,7 @@ __all__: list[str] = [
 
 
 _SUBCOMMAND_HANDLERS: dict[str, Callable[..., int]] = {
+    "claude-cred-status": run_claude_cred_status,
     "codex-cred-refresh": run_codex_cred_refresh,
     "codex-cred-status": run_codex_cred_status,
     "dispatch": run_dispatch_command,
@@ -298,8 +304,8 @@ def _build_parser() -> argparse.ArgumentParser:
     # See `_dispatcher_ledger_gate.run_ledger_gate`.
     _ = norm.add_argument("--gate", dest="gate", action="store_true")
     _add_codex_cred_refresh(parser=subparsers.add_parser("codex-cred-refresh"))
-    codex_cred_status = subparsers.add_parser("codex-cred-status")
-    _ = codex_cred_status.add_argument("--json", dest="as_json", action="store_true")
+    _add_cred_status(parser=subparsers.add_parser("codex-cred-status"))
+    _add_cred_status(parser=subparsers.add_parser("claude-cred-status"))
     spec = subparsers.add_parser("spec-check")
     _ = spec.add_argument("--project-root", dest="project_root", default=None)
     _ = spec.add_argument("--spec-root", dest="spec_root", default=None)
@@ -323,6 +329,10 @@ def _build_parser() -> argparse.ArgumentParser:
 def _add_codex_cred_refresh(*, parser: argparse.ArgumentParser) -> None:
     _ = parser.add_argument("--json", dest="as_json", action="store_true")
     _ = parser.add_argument("--dry-run", dest="dry_run", action="store_true")
+
+
+def _add_cred_status(*, parser: argparse.ArgumentParser) -> None:
+    _ = parser.add_argument("--json", dest="as_json", action="store_true")
 
 
 def _add_reconcile_merged(*, parser: argparse.ArgumentParser) -> None:

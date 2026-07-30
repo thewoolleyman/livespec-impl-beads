@@ -12,6 +12,14 @@ from livespec_runtime.github_auth.errors import GithubAppAuthError
 
 from livespec_orchestrator_beads_fabro._beads_client import make_beads_client
 from livespec_orchestrator_beads_fabro.commands._config import resolve_fabro_sandbox_image
+from livespec_orchestrator_beads_fabro.commands._dispatcher_claude_credential import (
+    CLAUDE_OAUTH_TOKEN_ENV,
+    ClaudeCredentialStatus,
+    absent_claude_credential_status,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_claude_credential_io import (
+    probe_claude_credential,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_codex_auth import (
     CodexProjectionRefusal,
     project_codex_auth,
@@ -55,12 +63,11 @@ __all__: list[str] = [
     "resolve_sibling_clones",
 ]
 
-_OAUTH_TOKEN_ENV = "CLAUDE_CODE_OAUTH_TOKEN"  # noqa: S105 - env-var NAME, not a secret value
 _DISPATCH_REQUIRED_CREDENTIALS = (
     "GITHUB_APP_ID",
     "GITHUB_PRIVATE_KEY",
     "BEADS_DOLT_PASSWORD",
-    _OAUTH_TOKEN_ENV,
+    CLAUDE_OAUTH_TOKEN_ENV,
 )
 _GITHUB_TOKEN_ENV = GITHUB_TOKEN_ENV_VAR  # single-sourced from _dispatcher_io
 _LEDGER_READ_ERRORS = (
@@ -193,7 +200,7 @@ def materialize_overlay(
     rendered = render_run_config_overlay(
         committed_text=committed.read_text(encoding="utf-8"),
         workflow_dir=committed.parent.resolve(),
-        token=os.environ[_OAUTH_TOKEN_ENV],
+        token=os.environ[CLAUDE_OAUTH_TOKEN_ENV],
         github_token=github_token,
         siblings=siblings,
         otel_env=otel_env,
@@ -249,32 +256,29 @@ def credential_wrapper_text(*, repo: Path) -> str:
     return repr(list(wrapper))
 
 
-def check_credential_env(*, repo: Path) -> str | None:
-    """Fail fast when the sandbox model credential is absent.
+def check_credential_env(
+    *,
+    repo: Path,
+    probe: Callable[..., ClaudeCredentialStatus] | None = None,
+) -> str | None:
+    """Fail fast unless the exact sandbox model credential is usable.
 
-    Returns None when CLAUDE_CODE_OAUTH_TOKEN is present, or an
-    actionable error naming it. The Dispatcher's process env is the
-    SOURCE of the run-scoped overlay projection, so an absent or empty
-    variable means there is nothing to project. The dispatch target's
-    credential_wrapper must inject the full per-wrapper credential set:
-    GITHUB_APP_ID, GITHUB_PRIVATE_KEY, BEADS_DOLT_PASSWORD, and
-    CLAUDE_CODE_OAUTH_TOKEN. The GitHub credential is minted
-    per-dispatch by the App installation-token provider
-    (`_github_token_supplier`), but the refusal enumerates the whole
-    wrapper contract up front so adopters do not discover credentials
-    one failure at a time. Values are never logged.
+    Presence is not sufficient: this bounded live probe uses the same
+    ``CLAUDE_CODE_OAUTH_TOKEN`` projected into the sandbox and refuses
+    before launch when it is revoked, exhausted/rate-limited, denied, or
+    cannot be assessed. Values and response bodies are never logged.
     """
-    if os.environ.get(_OAUTH_TOKEN_ENV, "") != "":
+    token = os.environ.get(CLAUDE_OAUTH_TOKEN_ENV, "")
+    if token == "":
+        status = absent_claude_credential_status(wrapper_text=credential_wrapper_text(repo=repo))
+    else:
+        selected_probe = probe if probe is not None else probe_claude_credential
+        status = selected_probe(token=token)
+    if status.usable:
         return None
     return (
-        f"C-mode dispatch refused: {_OAUTH_TOKEN_ENV} is not set in the "
-        f"Dispatcher's process environment. The run-config overlay "
-        f"projects it into the sandbox env table (fabro "
-        f"'{{{{ env.* }}}}' interpolation cannot deliver it — the "
-        f"server-spawned worker env is allowlist-scrubbed), so an absent "
-        f"variable leaves nothing to project. Invoke the Dispatcher under "
-        f"the dispatch target's configured credential_wrapper "
-        f"{credential_wrapper_text(repo=repo)}. That wrapper must inject "
-        f"the full per-wrapper credential set: "
-        f"{dispatch_required_credentials_text()}."
+        f"C-mode dispatch refused before sandbox launch: {status.message} "
+        f"Observed condition: {status.condition}. Remedy: {status.remedy} "
+        "The dispatch target's credential_wrapper must inject the full "
+        f"per-wrapper credential set: {dispatch_required_credentials_text()}."
     )
