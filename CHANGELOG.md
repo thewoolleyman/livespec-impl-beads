@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.49.4](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.49.3...v0.49.4) (2026-07-30)
+
+
+### Reverts
+
+* remove unqualified v1.1.2 guard harness ([67ce30c](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/67ce30c9f4b2bb18a045e8cb03dd7be45f1861c2))
+
 ## [0.49.3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.49.2...v0.49.3) (2026-07-30)
 
 
