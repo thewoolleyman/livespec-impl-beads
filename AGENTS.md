@@ -460,6 +460,69 @@ pass `--no-verify`.
   `handoff.md` — now `plan/archive/dispatch-claim-liveness/handoff.md` — while
   it had PR #1098 open performing the same discharge edit; the collision was
   caught by the maintainer, not by the pushing session.)
+- **Vet an escalation before spending the maintainer's attention on it**
+  (maintainer-declared 2026-07-30). Before asking the maintainer a question,
+  submit it to BOTH an Opus sub-agent and a Codex sub-agent and see whether they
+  agree it is worth the maintainer's attention — or whether they can agree on an
+  answer between themselves. Escalate only if that vetting supports it. **Why:**
+  this is the operational teeth on "drive authorized work to completion; do not
+  over-ask" above. It converts a judgment call about interrupting into a cheap,
+  checkable procedure instead of leaving it to one agent's self-calibration.
+  **How to apply:** spawn both vetters in ONE message so they run concurrently;
+  give each the SAME tightly-framed brief — the verified facts, the concrete
+  options with their costs, and the standing rules that bear on it; require a
+  YES/NO first word plus an explicit "no fourth option" rather than an invented
+  one; have them answer independently, and tell them a genuine split is more
+  useful than agreement. Keep driving the conforming default while they run —
+  vetting is never a reason to idle. This authorizes the Agent tool for THAT
+  purpose specifically; it is not blanket permission to delegate ordinary work.
+  - *Worked example, which is what proved the rule.* The
+    `retire-host-dispatch-cap` thread's factory dispatch of `bd-ib-vmve.2` was
+    refused by the very `host_dispatch_cap` guard it was deleting: two runs from
+    OTHER repos held a cap of 2 while eight Fabro scheduler slots sat idle, so
+    this repo was refused with zero runs of its own in flight. The candidate
+    escalation offered three options — wait for a drain, transiently commit a key
+    the spec ratified minutes earlier forbids, or hand-build the deletion against
+    the handoff's factory-only mandate. Both vetters independently returned
+    NO-do-not-interrupt, take the wait, and no fourth option; both also
+    independently confirmed the fail-open prohibition below. The wait was
+    correct — capacity freed after 38 minutes and the dispatch went green.
+  - *Known limitation: this protocol can silently degrade to one leg.* In this
+    harness the Opus sub-agent channel returned THREE empty idle notifications
+    before it eventually answered, and the failure mode is the dangerous kind —
+    an idle notification carrying NO CONTENT reads as completion rather than as
+    failure. A protocol requiring two opinions therefore has a quiet path to
+    running on one without announcing it. Treat a missing answer as a MISSING
+    ANSWER: count it as absent rather than as assent, say so explicitly, and
+    state how many legs actually reported when you cite the vetting. Silence is
+    not agreement. A direct follow-up request is worth making before writing a
+    leg off — in this instance that is what finally produced the answer.
+  - *A fourth option WAS constructed and rejected; do not reinvent it.* The
+    strongest candidate was to bump the cap in an UNCOMMITTED `.livespec.jsonc`
+    inside a throwaway worktree, which clears the spec's literal "committed
+    configuration key" wording. It is rejected: it is the commit-the-key option
+    with the evidence removed — the same minutes bought, but leaving no diff a
+    reviewer could ever see. Satisfying a rule's letter by making the violation
+    invisible is not compliance.
+  - *General principle: never defeat a live check to get past it — and note that
+    blinding a check is WORSE than the honest violation, not a milder version of
+    it.* A gauge that FAILS OPEN when it cannot observe its input is a standing
+    temptation: blinding the input (an unresolvable binary, a doctored `PATH`,
+    anything that makes the observation fail) converts a refusal into a pass
+    instantly. That is worse than openly taking the forbidden option because it
+    MANUFACTURES A COUNTERFEIT ENVIRONMENTAL FAULT — the record then reads as a
+    genuine incident, so the one artifact a reviewer would use to reconstruct why
+    the work proceeded has been falsified. Committing a forbidden key is at least
+    legible in a diff; blinding a gauge lies in the journal. This holds even when
+    the check is the very thing you are authorized to delete: removing a guard by
+    the sanctioned path and evading it by engineering its blind spot are not the
+    same act. If a fail-open warning appears on a retry you did not engineer,
+    STOP and report it rather than riding the fail-open through. (The instance
+    that motivated this — the dispatch admission mutex's `fabro ps` gauge, which
+    proceeded "on the capacity-slot gauge alone" when `ps` was unobservable — was
+    deleted with that mutex by `bd-ib-vmve.2` in `0eeca13`. The principle is
+    recorded because fail-open checks recur, not because that gauge still
+    exists.)
 
 ## Verification discipline (repo-additive)
 
