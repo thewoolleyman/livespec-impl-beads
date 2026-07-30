@@ -239,6 +239,10 @@ push = false
 # red-green-replay gate (livespec-dev-tooling v0.11.0, bumped
 # family-wide) passes machine/empty checkpoint commits naturally, so
 # the interim skip_git_hooks=true escape from the probe is retired.
+# Gate-heavy repositories can legitimately spend minutes in those hooks.
+# Fabro's stock 30-second checkpoint budget destroyed completed work when
+# `git add` or `git commit` crossed that ceiling (ledger bd-ib-6ka).
+commit_timeout = "10m"
 skip_git_hooks = false
 exclude_globs = ["**/.venv/**", "**/node_modules/**", "**/.cache/**"]
 

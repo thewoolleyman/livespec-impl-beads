@@ -131,10 +131,10 @@ steps around. It is distinct from the containerized server the entrypoint
 provisions (below); the image's `COPY fabro` stages this same host binary from
 `$HOST_FABRO_BIN`, so the host install IS the image's staging source.
 
-**Current binary (2026-07-19):** `fabro 0.254.0 (b9b63a8)` — built from the
+**Current binary (2026-07-30):** `fabro 0.254.0 (8de6611)` — built from the
 `factory-integration` branch (see below). Verify with `~/.fabro/bin/fabro
 --version`; the parenthesized short SHA is the integration commit, and it MUST be
-reachable from `factory-integration` (`origin/factory-integration` = `b9b63a8a6`).
+reachable from `factory-integration` (`origin/factory-integration` = `8de661118`).
 
 ### `factory-integration` — the carrier branch for unreleased fixes
 
@@ -155,6 +155,7 @@ needs (never a subset, so the branch is always the whole truth about what runs):
 | --- | --- | --- |
 | upstream PR **#568** (`push-credential-refresh-ahead`) | credential refresh ahead of expiry | dispatches longer than ~60 min otherwise die on an expired token |
 | env-configurable daemon-readiness timeout | `FABRO_SERVER_START_READY_TIMEOUT_SECS` (default 60s) | the ~6s SlateDB store open exceeds stock 0.254's hard 5s cap, so stock 0.254 cannot start against this store |
+| upstream PR **#552** | configurable per-node checkpoint git timeout (`[run.checkpoint] commit_timeout`) | the stock 30-second budget kills completed work when gate-running repository hooks take minutes; the factory workflow sets `commit_timeout = "10m"` |
 | upstream PR **#576** | opt-in OTLP/HTTP span export | restores factory observability for the Codex era (the transport; lit up by the fork-local O1/O2 emitter wiring below) |
 | fork-local **O1** — worker OTLP env re-injection (`bd-ib-98c.4`) | the server forwards its non-secret `OTEL_*` export config into the `__run-worker` subprocess (`apply_worker_otel_export_env`), deliberately stripping the credential-bearing `OTEL_EXPORTER_OTLP_HEADERS` | #576 alone is inert in the factory: the ACP work runs in a server-spawned worker whose env is `env_clear`ed by `apply_worker_env`, so without re-injection the worker exports nothing |
 | fork-local **O2** — W3C `traceparent` join (`bd-ib-98c.5`) | the server serializes its `run`-span context to a per-run `TRACEPARENT` env at the worker-launch seam; the worker parents its `run` span on it | without it the server and worker each emit a SEPARATE root `run` span in a distinct trace, so one dispatch is unviewable as one trace |
@@ -215,8 +216,8 @@ the ratified constraint forbids:
 
 To **roll back**, copy the `.bak` binary over `~/.fabro/bin/fabro`, restart, and rebuild
 the image the same way. The current rollback artifact is
-`~/.fabro/bin/fabro.9048a8d-p2-pre-o4.bak` (the pre-O4 build: 0.254 + #568 +
-daemon-timeout + #576 + O1 + O2 + P2).
+`~/.fabro/bin/fabro.b9b63a8-pre-checkpoint-timeout.bak` (the pre-#552 build:
+0.254 + #568 + daemon-timeout + #576 + O1 + O2 + P2 + O4).
 
 ### Start / restart
 
