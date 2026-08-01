@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.49.5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.49.4...v0.49.5) (2026-08-01)
+
+
+### Bug Fixes
+
+* **hooks:** wire codex_yolo_gate for BOTH resolve_owner shapes ([12830ee](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/12830ee59918e1dbd59c4c2c3f8f1245429ab2e5))
+
 ## [0.49.4](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.49.3...v0.49.4) (2026-07-30)
 
 
