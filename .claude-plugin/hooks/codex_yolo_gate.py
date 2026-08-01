@@ -161,6 +161,41 @@ def with_marker(*, config_text: str, fleet_listed: bool) -> str:
 _REFRESH_ARGC: int = 2
 
 
+def _resolved_owner(*, resolved: object) -> str | None:
+    """The bare owner from EITHER shape of `resolve_owner`.
+
+    CONSUMER WIRING LANDS BEFORE THE PIN THAT NEEDS IT (livespec
+    `.ai/ci-gate-discipline.md` step 3), so this tolerates both shapes of the
+    dev-tooling resolver. Up to v1.13.14 it returns `str | None`, collapsing
+    three distinct failures — no origin remote, `git remote get-url` failing,
+    a non-github remote — into one `None`; the `livespec-dev-tooling-8o8e`
+    railway conversion returns `IOResult[str, ...]`, naming which. Accepting
+    both is what lets that pin move in EITHER direction, a revert included.
+
+    THE BUG THIS REPLACES IS QUIETER THAN `derive_fleet_listed`'s, and worse
+    for it. There the dead `is None` guard let control reach `manifest.owner`
+    and RAISED. Here nothing raises at all: `owner != manifest.owner` compares
+    a CONTAINER to a string, which is simply True, so every fleet member would
+    derive `fleet_listed: false` and the refresh would WRITE that verdict —
+    an articulate wrong answer, acted on, with no error anywhere.
+
+    ⛔ THE `value_or` IDIOM `derive_fleet_listed` USES DOES NOT TRANSFER, and
+    reaching for it here reproduces exactly the above one container deeper.
+    `parse_manifest` returns `Result`, whose `.value_or(None)` yields the bare
+    value; `resolve_owner` returns `IOResult`, whose `.value_or(None)` yields
+    an `IO[str]` — a container comparing unequal to every owner string.
+    `.map()` is used instead: it is public API on every `returns` container,
+    it runs ONLY on the success track (so a failure stays unresolved and the
+    gate fails CLOSED), and it needs no import of the railway library into a
+    hook that must degrade to a no-op when dev-tooling is absent entirely.
+    """
+    if resolved is None or isinstance(resolved, str):
+        return resolved
+    captured: list[str] = []
+    _ = cast("Any", resolved).map(captured.append)
+    return captured[0] if captured else None
+
+
 def main(*, argv: list[str] | None = None) -> int:
     """Refresh the local marker from a checked-out core manifest."""
     args = list(sys.argv[1:] if argv is None else argv)
@@ -175,7 +210,7 @@ def main(*, argv: list[str] | None = None) -> int:
         config_text = config_path.read_text(encoding="utf-8")
     except OSError:
         return 0
-    owner = None if resolve_owner is None else resolve_owner(cwd=repo)
+    owner = None if resolve_owner is None else _resolved_owner(resolved=resolve_owner(cwd=repo))
     listed = derive_fleet_listed(
         manifest_source=manifest_source,
         owner=owner,
