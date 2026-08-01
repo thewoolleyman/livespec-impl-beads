@@ -43,6 +43,17 @@ def _load_hook_from_path(*, hook_path: Path, module_name: str) -> ModuleType:
 
 hook = _load_hook()
 
+# ⛔ IMPORT ORDER IS LOAD-BEARING, so it is stated rather than left to luck.
+# `returns` is VENDORED INSIDE livespec-dev-tooling rather than installed, so
+# it resolves only once some dev-tooling module has run its `_VENDOR_DIR`
+# preamble — `_load_hook()` above does exactly that through the hook's own
+# guarded import, and a bare `from returns.io import ...` at the top of this
+# file fails with `No module named 'returns'` (verified, not assumed). Real
+# containers rather than stand-ins here because the shape under test IS the
+# real container's, and a hand-written fake would be asserting the very
+# `value_or` behavior these tests exist to pin.
+from returns.io import IOFailure, IOSuccess  # noqa: E402 — see the note above.
+
 
 def _write_config(*, repo: Path, marker: str) -> None:
     _ = (repo / hook.CONFIG_FILENAME).write_text(
@@ -351,6 +362,84 @@ def test_main_refresh_writes_manifest_derived_marker(
     assert hook.main(argv=["refresh", str(manifest)]) == 0
 
     assert hook.read_marker(repo=tmp_path) is True
+
+
+def _refresh_with_owner(*, owner: object, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> bool:
+    """Run `refresh` with `resolve_owner` returning `owner`, and read the marker back."""
+    manifest = tmp_path / "manifest.jsonc"
+    _ = manifest.write_text(_manifest_source(), encoding="utf-8")
+    _ = (tmp_path / hook.CONFIG_FILENAME).write_text(
+        '{\n  "implementation": {"plugin": "x"}\n}\n', encoding="utf-8"
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(hook, "resolve_owner", lambda **_kwargs: owner)
+    monkeypatch.setattr(
+        hook,
+        "remote_url_for_repo",
+        lambda **_kwargs: (
+            "https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro.git"
+        ),
+    )
+
+    assert hook.main(argv=["refresh", str(manifest)]) == 0
+
+    return hook.read_marker(repo=tmp_path)
+
+
+def test_main_refresh_accepts_both_resolve_owner_shapes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The gate must work against BOTH livespec-dev-tooling `resolve_owner` shapes.
+
+    Consumer wiring lands BEFORE the pin that needs it (livespec
+    `.ai/ci-gate-discipline.md` step 3), so this gate has to be correct on the
+    currently-pinned `str | None` AND on the `IOResult[str, ...]` the
+    `livespec-dev-tooling-8o8e` railway conversion gives it, before that pin
+    moves. Tolerating both shapes is what lets the pin move in EITHER
+    direction — including a revert — without re-breaking this hook.
+
+    THE DEFECT THIS GUARDS is quieter than the `parse_manifest` one above and
+    therefore worse. There, the dead `is None` guard let control reach
+    `manifest.owner` and raised. Here nothing raises at all: `owner !=
+    manifest.owner` compares a CONTAINER to a string, which is simply True, so
+    every fleet member silently derives `fleet_listed: false` and the refresh
+    WRITES that verdict into `.livespec.jsonc`. An articulate wrong answer,
+    acted on — not a crash.
+
+    ⛔ AND THE IDIOM FOUR FUNCTIONS UP DOES NOT TRANSFER, which is exactly why
+    this is pinned rather than left to care. `parse_manifest` returns `Result`,
+    whose `.value_or(None)` yields the bare value; `resolve_owner` returns
+    `IOResult`, whose `.value_or(None)` yields an `IO[str]` — a container that
+    compares unequal to every owner string. Copying the sibling wiring here
+    reproduces the very bug it fixed, one container deeper, and this test fails
+    if anyone does.
+    """
+    assert _refresh_with_owner(
+        owner=IOSuccess("thewoolleyman"), tmp_path=tmp_path, monkeypatch=monkeypatch
+    ), "railway shape, success track: a listed member must derive fleet_listed TRUE"
+
+
+def test_main_refresh_fails_closed_for_every_unresolved_owner_shape(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every way `resolve_owner` can decline to answer must derive OFF.
+
+    The POSITIVE CONTROL for the test above, and it is the load-bearing half:
+    without it, wiring that unwrapped EVERY container to the owner string
+    would satisfy the success case while turning a failed `git remote get-url`
+    into a full-access grant. This marker gates access, so an unanswered read
+    must fail CLOSED — the legacy `None`, the railway failure track, and the
+    absent-dev-tooling `None` resolver all alike.
+    """
+    assert not _refresh_with_owner(
+        owner=IOFailure("origin remote unresolved"), tmp_path=tmp_path, monkeypatch=monkeypatch
+    ), "railway shape, failure track: an unanswered git read must not grant access"
+    assert not _refresh_with_owner(
+        owner=None, tmp_path=tmp_path, monkeypatch=monkeypatch
+    ), "legacy shape, no answer: unchanged behavior"
+    assert not _refresh_with_owner(
+        owner=IOSuccess("someone-else"), tmp_path=tmp_path, monkeypatch=monkeypatch
+    ), "railway shape carrying a FOREIGN owner: unwrapping must not skip the comparison"
 
 
 def test_main_refresh_fails_open_when_inputs_are_unreadable(
