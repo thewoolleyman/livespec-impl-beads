@@ -17,8 +17,8 @@ Read these committed artifacts in order:
 The findings document contains the source links, dated forge state, technical
 review, and ledger reconciliation. The timestamped Quarry file preserves the
 actual Markdown source because the temporary external document advertises an
-expiry date. The comment file is the exact paste-ready response and is enclosed
-in a preformatted block that preserves its literal Markdown backticks.
+expiry date. The comment file is the exact response that was posted and is
+enclosed in a preformatted block that preserves its literal Markdown backticks.
 
 ## Purpose and decision boundary
 
@@ -35,10 +35,12 @@ deliberately on hold until Bryan confirms that this is the direction he wants
 for PR #576. Do not modify the upstream branch merely because the design is
 detailed; confirmation is the coordination gate.
 
-As of the forge read on 2026-08-02, the prepared response has not been posted by
-this planning session. Posting is a maintainer action because the user asked for
-a copy-and-paste artifact rather than authorizing this session to speak on the
-upstream thread.
+The maintainer posted the reviewed response on 2026-08-02 at 03:31:41 UTC as
+[comment 5154982522](https://github.com/fabro-sh/fabro/pull/576#issuecomment-5154982522).
+The posted body matches the response preserved in `pr-576-comment.md`. The
+complete PR conversation contained no later reply from Bryan as of the forge
+read immediately after posting. Recheck the live conversation before repeating
+that absence claim.
 
 ## Ledger relationships
 
@@ -120,10 +122,10 @@ Two explicit policy decisions should remain visible:
 
 ## Next action
 
-The maintainer copies the contents of
-`plan/fabro-otlp-telemetry/pr-576-comment.md` into PR #576. After posting,
-re-read the complete PR conversation before making any absence claim, and wait
-for Bryan's confirmation or correction.
+Wait for Bryan's confirmation or correction on
+[the posted response](https://github.com/fabro-sh/fabro/pull/576#issuecomment-5154982522).
+Before acting, re-read the complete PR conversation. Do not repost the response
+and do not rewrite the branch while the coordination gate remains unanswered.
 
 If Bryan confirms the proposed direction, update the ledger description for the
 direct upstream work, derive the implementation plan against current Fabro
