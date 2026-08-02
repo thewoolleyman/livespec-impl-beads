@@ -182,11 +182,9 @@ def _failure_result(
     Both branches keep the failure as routable DATA rather than letting it
     escape: a TIMED-OUT command becomes exit 124, and a command whose
     EXECUTABLE IS ABSENT becomes exit 127 (the POSIX command-not-found
-    convention). The absent case matters to the post-verdict self-update's
-    fail-open invariant — `resolve_merged_paths` reads any non-zero `gh`
-    exit as "unobservable" and returns `()`, so a host without `gh` skips
-    the stage exactly as a `gh` ERROR does, instead of crashing the
-    dispatch with a `FileNotFoundError`.
+    convention). The absent case matters to every post-verdict probe that
+    shells through this runner: callers receive data they can journal or
+    classify instead of crashing the dispatch with a `FileNotFoundError`.
     """
     if isinstance(error, FileNotFoundError):
         return CommandResult(

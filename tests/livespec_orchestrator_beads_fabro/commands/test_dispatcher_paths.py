@@ -14,7 +14,6 @@ def test_dispatcher_paths_exports_promoted_public_helpers() -> None:
         "journal_path",
         "plugin_root",
         "reflector_oob_spans_path",
-        "resolve_merged_paths",
         "spans_path",
         "store_config",
         "workflow_toml",
