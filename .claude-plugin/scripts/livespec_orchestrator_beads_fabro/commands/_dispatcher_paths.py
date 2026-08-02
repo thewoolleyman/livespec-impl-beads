@@ -8,10 +8,6 @@ from pathlib import Path
 
 from livespec_orchestrator_beads_fabro.commands._config import resolve_store_config
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import CommandRunner
-from livespec_orchestrator_beads_fabro.commands._dispatcher_self_update import (
-    parse_pr_files,
-    pr_files_argv,
-)
 from livespec_orchestrator_beads_fabro.types import StoreConfig
 
 __all__: list[str] = [
@@ -22,13 +18,11 @@ __all__: list[str] = [
     "journal_path",
     "plugin_root",
     "reflector_oob_spans_path",
-    "resolve_merged_paths",
     "spans_path",
     "store_config",
     "workflow_toml",
 ]
 
-_PR_FILES_PROBE_TIMEOUT_SECONDS = 60.0
 _CHECKOUT_PROBE_TIMEOUT_SECONDS = 60.0
 
 # Where a Fabro workflow config sits under whichever root carries it — the
@@ -149,22 +143,6 @@ def plugin_root() -> Path:
     if env_root:
         return Path(env_root)
     return Path(__file__).resolve().parents[3]
-
-
-def resolve_merged_paths(*, repo: Path, runner: CommandRunner) -> tuple[str, ...]:
-    """Read the merged PR's changed paths; () on any unobservable signal."""
-    head = runner.run(
-        argv=["git", "-C", str(repo), "rev-parse", "--abbrev-ref", "HEAD"],
-        cwd=repo,
-        timeout_seconds=_PR_FILES_PROBE_TIMEOUT_SECONDS,
-    )
-    branch = head.stdout.strip() if head.exit_code == 0 else "master"
-    files = runner.run(
-        argv=pr_files_argv(branch=branch),
-        cwd=repo,
-        timeout_seconds=_PR_FILES_PROBE_TIMEOUT_SECONDS,
-    )
-    return parse_pr_files(stdout=files.stdout) if files.exit_code == 0 else ()
 
 
 def is_writable_orchestrator_checkout(*, root: Path, runner: CommandRunner) -> bool:

@@ -2234,11 +2234,8 @@ def test_shell_runner_converts_timeouts(tmp_path: Path) -> None:
 def test_shell_runner_converts_a_missing_executable_into_127(tmp_path: Path) -> None:
     """An ABSENT executable degrades like any other failing command.
 
-    The 0jxs invariant makes the post-verdict self-update FAIL-OPEN: every
-    non-zero `gh` exit is "unobservable", so `resolve_merged_paths` returns
-    `()` and the stage skips. A `FileNotFoundError` escaping the runner
-    instead CRASHES the dispatch, breaking that invariant on any host whose
-    PATH lacks `gh` (the baked fabro-sandbox image). 127 is the POSIX
+    A `FileNotFoundError` escaping the runner CRASHES the dispatch on any
+    host whose PATH lacks an optional helper. 127 is the POSIX
     command-not-found convention, and callers already read any non-zero exit
     as a failure.
     """
@@ -2829,11 +2826,10 @@ def test_dispatch_green_closes_item_and_journals(
     # view` fails on the hermetic non-repo, but the record is still
     # journaled). The cost-gate stage is stubbed in this dispatcher-level
     # test; its fail-open behavior is covered in the mirrored cost-gate tests.
-    # Then ddu's staged-self-update gate runs (here
-    # `self-update-skipped`: the green outcome has a PR, but `gh pr view`
-    # fails on the hermetic non-repo so the merged-file list is empty — NOT a
-    # self-merge), then the mechanical reflection stage at the default
-    # `observe` lever (work-item 29f.2).
+    # Then ddu's staged-self-update gate runs (here `self-update-skipped`
+    # because the running release already matches the provisioned payload),
+    # then the mechanical reflection stage at the default `observe` lever
+    # (work-item 29f.2).
     assert stages == [
         "ledger-admit",
         "dispatch-id",

@@ -6,7 +6,7 @@ adopter path), per the self-contained plugin dispatch contract in
 SPECIFICATION/contracts.md — operations that presuppose a writable
 orchestrator checkout or fleet context degrade cleanly:
 
-(a) The post-merge self-update canary SKIPS cleanly — a deliberate
+(a) The release-triggered self-update canary SKIPS cleanly — a deliberate
     `self-update-skipped` journal entry naming the missing writable
     orchestrator checkout — when `_plugin_root()` is not a writable git
     checkout of the orchestrator (a flattened cache has no `.git`),
@@ -23,13 +23,15 @@ These drive the production functions with NO injected probe: guard (a)
 points `_plugin_root()` at a non-git directory via `CLAUDE_PLUGIN_ROOT`
 so the real read-only-cache detection runs end-to-end; guard (b) stubs
 `_fetch_fleet_manifest_text` to the no-manifest signal. The canary itself
-is never launched (the self-machinery hang-guard) — the self-merge path
+is never launched (the self-machinery hang-guard) — the self-update path
 short-circuits at the read-only-cache guard before any canary subprocess,
 proven by the ABSENCE of every canary/promotion journal stage.
 """
 
 from __future__ import annotations
 
+import os
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -39,7 +41,8 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_credentials import (
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import SiblingClones
 from livespec_orchestrator_beads_fabro.commands._dispatcher_self_update import (
-    self_update_after_merge,
+    released_payload_version,
+    self_update_after_release,
 )
 
 
@@ -49,14 +52,6 @@ class _RecordingJournal:
 
     def append(self, *, record: dict[str, object]) -> None:
         self.records.append(record)
-
-
-# A merged-file list that touches the dispatcher's OWN command package (a
-# self-merge): without the read-only-cache guard this stages + canaries
-# the candidate.
-_SELF_MERGE_PATHS = (
-    ".claude-plugin/scripts/livespec_orchestrator_beads_fabro/commands/dispatcher.py",
-)
 
 
 def test_self_update_skips_cleanly_on_a_read_only_plugin_cache(
@@ -72,9 +67,8 @@ def test_self_update_skips_cleanly_on_a_read_only_plugin_cache(
     cache_root.mkdir()
     monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(cache_root))
     journal = _RecordingJournal()
-    self_update_after_merge(
+    self_update_after_release(
         work_item_id="livespec-impl-beads-roc",
-        merged_paths=_SELF_MERGE_PATHS,
         candidate_bin=str(cache_root / "scripts" / "bin" / "dispatcher.py"),
         scratch_root=str(tmp_path / "scratch"),
         repo=tmp_path,
@@ -87,10 +81,20 @@ def test_self_update_skips_cleanly_on_a_read_only_plugin_cache(
     assert "self-update-error" not in stages
     assert "self-update-promoted" not in stages
     assert "self-update-kept-last-known-good" not in stages
-    # The skip reason names the read-only-cache cause (a writable
-    # orchestrator checkout), not the not-a-self-merge cause.
+    # The skip reason names the read-only-cache cause.
     skip = next(record for record in journal.records if record["stage"] == "self-update-skipped")
     assert "checkout" in str(skip["reason"]).lower()
+
+
+def test_released_payload_version_is_absent_for_unusable_plugin_json(tmp_path: Path) -> None:
+    plugin = tmp_path / "plugin"
+    plugin.mkdir()
+
+    (plugin / "plugin.json").write_text("not json", encoding="utf-8")
+    assert released_payload_version(root=plugin) is None
+
+    (plugin / "plugin.json").write_text("[]", encoding="utf-8")
+    assert released_payload_version(root=plugin) is None
 
 
 def test_resolve_sibling_clones_is_empty_when_no_fleet_manifest_is_fetchable(
@@ -107,3 +111,23 @@ def test_resolve_sibling_clones_is_empty_when_no_fleet_manifest_is_fetchable(
     resolved = resolve_sibling_clones(repo=tmp_path / "adopter-repo")
     assert isinstance(resolved, SiblingClones)
     assert resolved.repos == ()
+
+
+def test_scripted_gh_fixture_records_invocations(scripted_gh) -> None:
+    scripted_gh.script(exit_code=3, stdout="stubbed")
+
+    result = subprocess.run(
+        ["gh", "repo", "view"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 3
+    assert result.stdout == "stubbed"
+    assert scripted_gh.argv_lines() == ["repo view"]
+
+
+def test_absent_gh_fixture_replaces_path(absent_gh: None) -> None:
+    assert absent_gh is None
+    assert os.environ["PATH"].endswith("empty-bin")
