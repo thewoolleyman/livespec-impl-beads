@@ -7,14 +7,12 @@ import os
 from pathlib import Path
 
 from livespec_orchestrator_beads_fabro.commands._config import resolve_store_config
-from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import CommandRunner
 from livespec_orchestrator_beads_fabro.types import StoreConfig
 
 __all__: list[str] = [
     "cost_report_spans_path",
     "cost_sink_path",
     "heartbeat_path",
-    "is_writable_orchestrator_checkout",
     "journal_path",
     "plugin_root",
     "reflector_oob_spans_path",
@@ -23,17 +21,10 @@ __all__: list[str] = [
     "workflow_toml",
 ]
 
-_CHECKOUT_PROBE_TIMEOUT_SECONDS = 60.0
-
 # Where a Fabro workflow config sits under whichever root carries it — the
 # plugin root for the bundled default, or a dispatch target's own checkout
 # for the repo-local override.
 _WORKFLOW_SUBPATH = (".fabro", "workflows", "implement-work-item", "workflow.toml")
-
-# The slug the self-update canary requires the promotion target's `origin`
-# to carry: the candidate must be a checkout of THIS orchestrator, never a
-# stray sibling repo the plugin happens to sit inside.
-_ORCHESTRATOR_REPO_SLUG = "livespec-orchestrator-beads-fabro"
 
 
 def store_config(*, repo: Path) -> StoreConfig:
@@ -143,20 +134,3 @@ def plugin_root() -> Path:
     if env_root:
         return Path(env_root)
     return Path(__file__).resolve().parents[3]
-
-
-def is_writable_orchestrator_checkout(*, root: Path, runner: CommandRunner) -> bool:
-    """True only when `root` is inside a git work-tree whose origin is this orchestrator."""
-    inside = runner.run(
-        argv=["git", "-C", str(root), "rev-parse", "--is-inside-work-tree"],
-        cwd=Path.cwd(),
-        timeout_seconds=_CHECKOUT_PROBE_TIMEOUT_SECONDS,
-    )
-    if inside.exit_code != 0 or inside.stdout.strip() != "true":
-        return False
-    origin = runner.run(
-        argv=["git", "-C", str(root), "remote", "get-url", "origin"],
-        cwd=Path.cwd(),
-        timeout_seconds=_CHECKOUT_PROBE_TIMEOUT_SECONDS,
-    )
-    return origin.exit_code == 0 and _ORCHESTRATOR_REPO_SLUG in origin.stdout
