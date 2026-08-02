@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.49.6](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.49.5...v0.49.6) (2026-08-02)
+
+
+### Bug Fixes
+
+* **mint-app-token:** make it safe to ask the command what it does ([b087d54](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/b087d54a8ca677c8d82f16ba6819aac8b5bff1c1))
+
 ## [0.49.5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.49.4...v0.49.5) (2026-08-01)
 
 
