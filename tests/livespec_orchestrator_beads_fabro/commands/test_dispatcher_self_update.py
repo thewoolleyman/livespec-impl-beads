@@ -288,6 +288,11 @@ def test_after_verdict_uses_release_comparison_not_pr_file_detection(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    """The retired detector is gone: no `gh pr view`, and no in-process promote.
+
+    Sibling of `test_after_verdict_canaries_and_alarms_restart_due_by_default`.
+    This one guards the DELETED surface; that one guards against INERTNESS.
+    """
     plugin = tmp_path / "plugin"
     plugin.mkdir()
     (plugin / "plugin.json").write_text('{"version": "99.99.99"}', encoding="utf-8")
@@ -316,10 +321,17 @@ def test_after_verdict_uses_release_comparison_not_pr_file_detection(
     assert "self-update-promoted" not in stages
 
 
-def test_after_verdict_records_current_release_without_canary(
+def test_after_verdict_canaries_and_alarms_restart_due_by_default(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    """With NO running_release argument, the canary fires and restart-due alarms.
+
+    The default path must not be inert: `running_release` is left at its
+    import-time default, so this exercises what production actually runs.
+    Asserts `self-update-skipped` is ABSENT — the previous version of this test
+    asserted it was PRESENT, encoding the inert behavior as the contract.
+    """
     plugin = tmp_path / "plugin"
     plugin.mkdir()
     (plugin / "plugin.json").write_text('{"version": "99.99.99"}', encoding="utf-8")
