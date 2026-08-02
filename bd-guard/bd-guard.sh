@@ -684,8 +684,10 @@ if [ "${LIVESPEC_BD_GUARD_OTLP:-on}" = "off" ]; then
 fi
 
 _bdg_start=$(date +%s%N 2>/dev/null || echo 0)
+trap ':' HUP INT TERM
 "$REAL" "$@"
 _bdg_rc=$?
+trap - HUP INT TERM
 _bdg_end=$(date +%s%N 2>/dev/null || echo 0)
 _bdg_emit_span "$_bdg_rc" "$_bdg_start" "$_bdg_end"
 exit "$_bdg_rc"
