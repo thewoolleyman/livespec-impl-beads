@@ -172,8 +172,10 @@ literally and every dispatch dies `exit 127`. Deferred modernization: ledger
 binary as a rollback artifact — the pin is a file swap, so the revert is one too:
 
 ```bash
-# in the fork worktree, on factory-integration:
-cargo build --release -p fabro-cli
+# in the fork worktree, on factory-integration; invalidate any assetless cached
+# embedding crate, then refresh and embed the SPA:
+cargo clean --release -p fabro-spa
+cargo dev build --release -p fabro-cli
 # retain the CURRENT binary before overwriting it:
 cp ~/.fabro/bin/fabro ~/.fabro/bin/fabro.<outgoing-sha>-<label>.bak
 # stage + ATOMIC RENAME into place (see the Text-file-busy note below):
@@ -193,7 +195,8 @@ the listening port to free is NOT sufficient — the port frees before the proce
 fully exits, so a stop-then-`cp` can still hit `ETXTBSY`. If you do stop first,
 wait for the PROCESS to exit (`kill -0 <pid>` fails), not just the port.
 
-Then restart the server (next section) and confirm `fabro doctor` is green. Verify
+Then restart the system service (next section) and confirm `fabro doctor` is
+green. Verify
 the running daemon actually picked up the new build by comparing inodes — a
 mismatch (or an `exe` link reading `(deleted)`) means it is still running the old
 image:
@@ -221,36 +224,45 @@ the image the same way. The current rollback artifact is
 
 ### Start / restart
 
-OAuth-only — start it **without** the env wrapper and **without**
-`ANTHROPIC_API_KEY`:
+The host server is owned by the `fabro-server.service` unit distributed from
+`/data/projects/vps-info/services/fabro-server/`. Restart it through systemd:
 
 ```bash
-~/.fabro/bin/fabro server start --bind 127.0.0.1:32276 --no-web --no-upgrade-check
+sudo systemctl restart fabro-server
+/usr/local/libexec/fabro-server-verify-web
 ```
 
-- It **daemonizes** and returns once the daemon reports ready.
-- `--no-web`: the fork binary ships **no bundled web-UI assets**.
-- The SlateDB store open takes ~6s, which **exceeds stock 0.254's 5s
-  daemon-readiness cap** — the fork makes it env-configurable via
-  `FABRO_SERVER_START_READY_TIMEOUT_SECS` (default **60s**). Stock 0.254 would
-  fail to start against this store.
-- To stop it, find the daemon by port/PID and kill by PID. **Never**
-  `pkill -f 'fabro server'` — it self-matches the killing shell and can reap
-  unrelated shells; resolve the real daemon via `/proc/<pid>/exe`.
+- The unit runs Fabro in the foreground, passes `--web` explicitly, and uses
+  `Restart=always` so crashes and host reboots relaunch it with the console.
+- Its `ExecStartPost` gate requires `/runs` to exist, then requires the local
+  `/login` shell and referenced JavaScript bundle to load. A health-only/API-only
+  process is rejected rather than left running.
+- Build with `cargo clean --release -p fabro-spa` followed by
+  `cargo dev build --release -p fabro-cli`. The targeted clean is required
+  because Cargo does not notice when the gitignored asset directory has changed
+  behind an already-cached release embedding crate. A plain `cargo build` leaves
+  the embedded SPA empty and will fail the service readiness gate.
+- The unit strips `ANTHROPIC_API_KEY` and `OPENAI_API_KEY`; OAuth credentials are
+  still injected only into each dispatched sandbox.
+- Never invoke `fabro server start` or `fabro server restart` directly on this
+  host. Doing so bypasses supervision and the web-readiness invariant.
 
 ### Enabling fabro span export (O1 Lever A — opt-in)
 
 The server's tracing spans (the top-level `run` span it mints per dispatch) are
 bridged to OTLP **only when the OTLP endpoint env is present at start**; the
-default start command above carries none, so export is inert. To turn it on,
-start the server with the three **non-secret** OTLP vars added to its env:
+default unit carries none, so export is inert. To turn it on, add a systemd
+drop-in with the three **non-secret** OTLP variables:
 
-```bash
-OTEL_EXPORTER_OTLP_ENDPOINT=http://172.17.0.1:4318 \
-OTEL_EXPORTER_OTLP_PROTOCOL=http/json \
-OTEL_SERVICE_NAME=fabro \
-~/.fabro/bin/fabro server start --bind 127.0.0.1:32276 --no-web --no-upgrade-check
+```ini
+# sudo systemctl edit fabro-server
+[Service]
+Environment=OTEL_EXPORTER_OTLP_ENDPOINT=http://172.17.0.1:4318
+Environment=OTEL_EXPORTER_OTLP_PROTOCOL=http/json
+Environment=OTEL_SERVICE_NAME=fabro
 ```
+
+Then run `sudo systemctl restart fabro-server` in a quiet window.
 
 - **`http/json` is mandatory.** The upstream exporter defaults to
   `http/protobuf`, but the local receiver is json-only, so protobuf POSTs are

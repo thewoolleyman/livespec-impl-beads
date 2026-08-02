@@ -240,13 +240,21 @@ modernization is `bd-ib-6qu`.
 - **Start / restart** (OAuth-only — no wrapper, no `ANTHROPIC_API_KEY`):
 
   ```bash
-  ~/.fabro/bin/fabro server start --bind 127.0.0.1:32276 --no-web --no-upgrade-check
+  sudo systemctl restart fabro-server
   ```
 
-  It daemonizes. `--no-web`: the fork binary ships no bundled web-UI assets. The
-  ~6s SlateDB store open exceeds stock 0.254's 5s daemon-readiness cap, so the
-  fork makes it env-configurable — `FABRO_SERVER_START_READY_TIMEOUT_SECS`
-  (default 60s); stock 0.254 would fail to start against this store.
+  The canonical unit and installer live in
+  `/data/projects/vps-info/services/fabro-server/`. The unit runs Fabro in the
+  foreground under systemd, passes the affirmative `--web` option, restarts it
+  after failures and reboots, and refuses readiness unless `/runs` exists and
+  the unauthenticated `/login` shell plus its JavaScript bundle load. Build the
+  pinned fork with
+  `cargo clean --release -p fabro-spa` followed by
+  `cargo dev build --release -p fabro-cli`; the targeted clean prevents Cargo
+  from reusing an assetless release embedding crate, and a plain `cargo build`
+  does not refresh the embedded SPA. Never run `fabro server start` / `restart`
+  directly on this host, because that bypasses supervision and the web-console
+  readiness gate.
 - **OAuth-only posture — do NOT put `ANTHROPIC_API_KEY` in the SERVER env.** It
   bills API cost and can leak into the sandbox. The agent's model auth is
   `CLAUDE_CODE_OAUTH_TOKEN`, injected into the *sandbox* by the Dispatcher per
@@ -259,8 +267,9 @@ modernization is `bd-ib-6qu`.
 - **Fleet-shared + Tailscale-served.** `tailscaled` holds a standing
   `tailscale serve` proxy `https://vps.perch-rudd.ts.net:32276 → 127.0.0.1:32276`;
   it persists across restarts and simply returns refused while the loopback
-  backend is down. A `:32276` listener owned by `tailscaled` (not `fabro`) means
-  the proxy is up but the server is not.
+  backend is down. The console URL is
+  `https://vps.perch-rudd.ts.net:32276/runs`. A `:32276` listener owned by
+  `tailscaled` (not `fabro`) means the proxy is up but the server is not.
 - **Never `pkill -f 'fabro server'`** — it self-matches the killing shell and can
   reap unrelated shells. Match real daemons via `/proc/<pid>/exe` and kill by PID.
 
