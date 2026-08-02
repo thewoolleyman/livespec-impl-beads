@@ -2,8 +2,9 @@
 
 The post-verdict stage runs after the dispatch verdict is final, compares the
 running release with the released payload currently provisioned under the plugin
-root, and canaries that candidate artifact before promotion. A failing canary
-keeps last-known-good and alarms through h1p's `notify_terminal` seam.
+root, and canaries that candidate artifact. A passing canary alarms that a
+restart is due; a failing canary keeps last-known-good and alarms through h1p's
+`notify_terminal` seam.
   * **The credential-runner seam.** `github_token_supplier` /
     `post_verdict_runner` / `_github_token_error_supplier` resolve the GitHub
     App-token supplier from the wrapper-injected env and wrap the post-verdict
@@ -80,7 +81,7 @@ __all__: list[str] = [
 ]
 
 _CANARY_TIMEOUT_SECONDS = 300.0
-_RUNNING_RELEASE_ENV = "LIVESPEC_DISPATCHER_RUNNING_RELEASE"
+_RESTART_DUE_CLASS = "self-update-restart-due"
 
 
 class SelfUpdateJournal(Protocol):
@@ -93,6 +94,29 @@ class SelfUpdateJournal(Protocol):
     """
 
     def append(self, *, record: dict[str, object]) -> None: ...
+
+
+def _released_payload_version_from_root(*, root: Path) -> str | None:
+    text = attempt(
+        action=lambda: (root / "plugin.json").read_text(encoding="utf-8"),
+        exceptions=(OSError,),
+    )
+    if isinstance(text, AttemptFailure):
+        return None
+    parsed = parse_json(text=text)
+    if isinstance(parsed, JsonParseFailure) or not isinstance(parsed, dict):
+        return None
+    raw_version = cast("dict[str, Any]", parsed).get("version")
+    return raw_version.strip() if isinstance(raw_version, str) and raw_version.strip() else None
+
+
+def _import_time_plugin_root() -> Path:
+    from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import plugin_root
+
+    return plugin_root()
+
+
+_RUNNING_RELEASE_VERSION = _released_payload_version_from_root(root=_import_time_plugin_root())
 
 
 def github_token_supplier() -> Callable[[], str] | str:
@@ -151,7 +175,7 @@ def post_verdict_runner(
     return GithubTokenEnvRunner(inner=resolved_runner, token=resolved_supplier)
 
 
-def self_update_after_verdict(
+def self_update_after_verdict(  # noqa: PLR0913 - kw-only post-verdict seams and DI.
     *,
     repo: Path,
     outcomes: list[DispatchOutcome],
@@ -159,6 +183,7 @@ def self_update_after_verdict(
     runner: CommandRunner | None = None,
     token_supplier: Callable[[], str] | None = None,
     poster: NotifyPoster | None = None,
+    running_release: str | None = _RUNNING_RELEASE_VERSION,
 ) -> None:
     """Run the release-comparison self-update gate after the verdict is final."""
     green = next((outcome for outcome in outcomes if outcome.status == "green"), None)
@@ -169,7 +194,7 @@ def self_update_after_verdict(
     candidate_root = plugin_root()
     available_release = released_payload_version(root=candidate_root)
     decision = release_update_decision(
-        running_release=running_release_version(available_release=available_release),
+        running_release=running_release_version(running_release=running_release),
         available_release=available_release,
     )
     if not decision.update_required:
@@ -245,36 +270,23 @@ def _self_update(  # noqa: PLR0913 - kw-only fail-open stage body; fields are ca
 ) -> None:
     """The self-update body wrapped fail-open by `self_update_after_release`.
 
-    Read-only-cache guard FIRST (the self-contained-dispatch / adopter
-    path): when there is no writable orchestrator checkout to promote into
-    — the flattened plugin cache has no `.git` — record a CLEAN
-    `self-update-skipped` (the writable-checkout reason) and return,
-    instead of attempting a never-landable promotion and leaning on the
-    fail-open `0jxs` supervisor to swallow the resulting error. The
-    fail-open backstop stays; this guard just removes a never-applicable
-    code path from hiding behind it.
+    The Dispatcher never writes code anywhere. It canaries the candidate
+    artifact and records either a restart-due alarm on PASS or a fail-closed
+    last-known-good alarm on FAIL. The fail-open backstop stays around the
+    stage supervisor, but the canary itself is not skipped merely because the
+    running artifact is a flattened plugin cache rather than a writable
+    orchestrator checkout.
     """
-    from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
-        is_writable_orchestrator_checkout,
-        plugin_root,
-    )
-
-    if not is_writable_orchestrator_checkout(root=plugin_root(), runner=runner):
-        journal.append(
-            record={
-                "stage": "self-update-skipped",
-                "work_item_id": work_item_id,
-                "reason": "no writable orchestrator checkout to promote (read-only plugin cache)",
-            }
-        )
-        return
     canary = runner.run(
         argv=canary_self_check_argv(candidate_bin=candidate_bin, scratch_root=scratch_root),
         cwd=repo,
         timeout_seconds=_CANARY_TIMEOUT_SECONDS,
     )
-    decision = promotion_decision(verdict=canary_verdict(exit_code=canary.exit_code))
-    stage = "self-update-promoted" if decision.promote else "self-update-kept-last-known-good"
+    verdict = canary_verdict(exit_code=canary.exit_code)
+    decision = promotion_decision(verdict=verdict)
+    stage = (
+        _RESTART_DUE_CLASS if verdict is CanaryVerdict.PASS else "self-update-kept-last-known-good"
+    )
     journal.append(
         record={
             "stage": stage,
@@ -282,10 +294,11 @@ def _self_update(  # noqa: PLR0913 - kw-only fail-open stage body; fields are ca
             "reason": decision.reason,
         }
     )
-    if not decision.alarm:
-        return
+    outcome_class = (
+        _RESTART_DUE_CLASS if verdict is CanaryVerdict.PASS else SELF_UPDATE_BREACH_CLASS
+    )
     notify_terminal(
-        events=(NotifyEvent(work_item_id=work_item_id, outcome_class=SELF_UPDATE_BREACH_CLASS),),
+        events=(NotifyEvent(work_item_id=work_item_id, outcome_class=outcome_class),),
         run_id=run_id(),
         poster=poster,
         journal=journal,
@@ -294,26 +307,18 @@ def _self_update(  # noqa: PLR0913 - kw-only fail-open stage body; fields are ca
 
 def released_payload_version(*, root: Path) -> str | None:
     """Read the provisioned released payload version from `plugin.json`."""
-    text = attempt(
-        action=lambda: (root / "plugin.json").read_text(encoding="utf-8"),
-        exceptions=(OSError,),
-    )
-    if isinstance(text, AttemptFailure):
-        return None
-    parsed = parse_json(text=text)
-    if isinstance(parsed, JsonParseFailure) or not isinstance(parsed, dict):
-        return None
-    raw_version = cast("dict[str, Any]", parsed).get("version")
-    return raw_version.strip() if isinstance(raw_version, str) and raw_version.strip() else None
+    return _released_payload_version_from_root(root=root)
 
 
-def running_release_version(*, available_release: str | None) -> str | None:
-    """Return the running release marker; default to the current payload version."""
-    raw = os.environ.get(_RUNNING_RELEASE_ENV)
-    if raw is not None:
-        stripped = raw.strip()
-        return stripped if stripped else None
-    return available_release
+def running_release_version(
+    *,
+    running_release: str | None = _RUNNING_RELEASE_VERSION,
+) -> str | None:
+    """Return the import-time running release marker."""
+    if running_release is None:
+        return None
+    stripped = running_release.strip()
+    return stripped if stripped else None
 
 
 def _release_skip_stage(*, decision: ReleaseUpdateDecision) -> str:

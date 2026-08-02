@@ -1,8 +1,9 @@
 """Tests for release-triggered self-update + canary.
 
 The retired self-merge detector is deliberately absent from this test surface.
-The load-bearing safety property remains: a newer released artifact is canaried
-before promotion; a failing canary keeps last-known-good and alarms a human.
+The load-bearing safety property remains: a newer released artifact is canaried,
+a passing canary surfaces that restart is due, and a failing canary keeps
+last-known-good and alarms a human.
 """
 
 from __future__ import annotations
@@ -172,12 +173,13 @@ def test_canary_verdict_fail_on_timeout_exit() -> None:
 def test_promotion_decision_promotes_on_pass_without_alarm() -> None:
     decision = promotion_decision(verdict=CanaryVerdict.PASS)
     assert decision == PromotionDecision(
-        promote=True,
-        alarm=False,
+        promote=False,
+        alarm=True,
         reason=decision.reason,
     )
-    assert decision.promote is True
-    assert decision.alarm is False
+    assert decision.promote is False
+    assert decision.alarm is True
+    assert "restart is due" in decision.reason
 
 
 def test_promotion_decision_keeps_and_alarms_on_fail() -> None:
@@ -192,17 +194,14 @@ def test_candidate_dispatcher_bin_points_at_the_released_payload_bin_wrapper() -
     )
 
 
-def test_after_release_promotes_on_passing_canary_and_does_not_alarm() -> None:
+def test_after_release_alarms_restart_due_on_passing_canary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CLAUDE_NTFY_DISPATCHER_TOPIC", "livespec-dispatcher-test")
     journal = _RecordingJournal()
     poster = _RecordingPoster()
     runner = _QueueRunner(
         results=[
-            CommandResult(exit_code=0, stdout="true\n", stderr=""),
-            CommandResult(
-                exit_code=0,
-                stdout="https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro",
-                stderr="",
-            ),
             CommandResult(exit_code=0, stdout="[]", stderr=""),
         ],
     )
@@ -219,8 +218,11 @@ def test_after_release_promotes_on_passing_canary_and_does_not_alarm() -> None:
         candidate_bin="/pin/candidate/bin/dispatcher.py",
         scratch_root="/tmp/canary-scratch",
     )
-    assert [record["stage"] for record in journal.records] == ["self-update-promoted"]
-    assert poster.bodies == []
+    stages = [record["stage"] for record in journal.records]
+    assert "self-update-restart-due" in stages
+    assert "self-update-promoted" not in stages
+    assert len(poster.bodies) == 1
+    assert "livespec-impl-beads-ddu" in poster.bodies[0]
 
 
 def test_after_release_keeps_last_known_good_and_alarms_on_failing_canary(
@@ -231,12 +233,6 @@ def test_after_release_keeps_last_known_good_and_alarms_on_failing_canary(
     poster = _RecordingPoster()
     runner = _QueueRunner(
         results=[
-            CommandResult(exit_code=0, stdout="true\n", stderr=""),
-            CommandResult(
-                exit_code=0,
-                stdout="https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro",
-                stderr="",
-            ),
             CommandResult(exit_code=1, stdout="", stderr="boom"),
         ],
     )
@@ -290,17 +286,15 @@ def test_after_verdict_skips_when_no_green_outcomes() -> None:
 
 def test_after_verdict_uses_release_comparison_not_pr_file_detection(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
-    monkeypatch.setenv("LIVESPEC_DISPATCHER_RUNNING_RELEASE", "0.49.5")
+    plugin = tmp_path / "plugin"
+    plugin.mkdir()
+    (plugin / "plugin.json").write_text('{"version": "99.99.99"}', encoding="utf-8")
+    monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(plugin))
     journal = _RecordingJournal()
     runner = _QueueRunner(
         results=[
-            CommandResult(exit_code=0, stdout="true\n", stderr=""),
-            CommandResult(
-                exit_code=0,
-                stdout="https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro",
-                stderr="",
-            ),
             CommandResult(exit_code=0, stdout="", stderr=""),
         ]
     )
@@ -317,15 +311,26 @@ def test_after_verdict_uses_release_comparison_not_pr_file_detection(
         candidate_bin=str(candidate_dispatcher_bin()),
         scratch_root=runner.seen_argv[-1][4],
     )
-    assert [record["stage"] for record in journal.records] == ["self-update-promoted"]
+    stages = [record["stage"] for record in journal.records]
+    assert "self-update-restart-due" in stages
+    assert "self-update-promoted" not in stages
 
 
 def test_after_verdict_records_current_release_without_canary(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
-    monkeypatch.delenv("LIVESPEC_DISPATCHER_RUNNING_RELEASE", raising=False)
+    plugin = tmp_path / "plugin"
+    plugin.mkdir()
+    (plugin / "plugin.json").write_text('{"version": "99.99.99"}', encoding="utf-8")
+    monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(plugin))
+    monkeypatch.setenv("CLAUDE_NTFY_DISPATCHER_TOPIC", "livespec-dispatcher-test")
     journal = _RecordingJournal()
-    runner = _QueueRunner(results=[])
+    runner = _QueueRunner(results=[CommandResult(exit_code=0, stdout="", stderr="")])
+    expected_argv = canary_self_check_argv(
+        candidate_bin=str(candidate_dispatcher_bin()),
+        scratch_root="placeholder",
+    )
     self_update_after_verdict(
         outcomes=[_outcome(status="green")],
         repo=Path("/repo"),
@@ -333,9 +338,13 @@ def test_after_verdict_records_current_release_without_canary(
         runner=runner,
         poster=_RecordingPoster(),
     )
-    assert runner.seen_argv == []
-    assert [record["stage"] for record in journal.records] == ["self-update-skipped"]
-    assert "running release is current" in str(journal.records[0]["reason"])
+    assert runner.seen_argv != []
+    observed = runner.seen_argv[-1]
+    expected_argv[4] = observed[4]
+    assert observed == expected_argv
+    stages = [record["stage"] for record in journal.records]
+    assert "self-update-restart-due" in stages
+    assert "self-update-skipped" not in stages
 
 
 def test_after_verdict_records_undetermined_release_distinctly(
@@ -343,7 +352,6 @@ def test_after_verdict_records_undetermined_release_distinctly(
     tmp_path: Path,
 ) -> None:
     monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(tmp_path / "missing-plugin"))
-    monkeypatch.setenv("LIVESPEC_DISPATCHER_RUNNING_RELEASE", "0.49.5")
     journal = _RecordingJournal()
     runner = _QueueRunner(results=[])
     self_update_after_verdict(
@@ -356,3 +364,19 @@ def test_after_verdict_records_undetermined_release_distinctly(
     assert runner.seen_argv == []
     assert [record["stage"] for record in journal.records] == ["self-update-release-undetermined"]
     assert "available release could not be determined" in str(journal.records[0]["reason"])
+
+
+def test_running_release_env_seam_is_absent_from_the_tree() -> None:
+    token = "LIVESPEC_DISPATCHER_" + "RUNNING_RELEASE"
+    root = Path(__file__).resolve().parents[3]
+    matches = [
+        path
+        for path in root.rglob("*")
+        if path.is_file()
+        and ".git" not in path.parts
+        and "__pycache__" not in path.parts
+        and ".pytest_cache" not in path.parts
+        and ".mypy_cache" not in path.parts
+        and token in path.read_text(encoding="utf-8", errors="ignore")
+    ]
+    assert matches == []

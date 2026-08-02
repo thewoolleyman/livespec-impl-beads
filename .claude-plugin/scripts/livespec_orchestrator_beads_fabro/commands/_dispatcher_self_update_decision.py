@@ -39,7 +39,7 @@ class CanaryVerdict:
 
 @dataclass(frozen=True, kw_only=True)
 class PromotionDecision:
-    """Whether to promote the staged candidate to the active pinned copy."""
+    """Whether a canary verdict should swap code or alarm."""
 
     promote: bool
     alarm: bool
@@ -110,12 +110,12 @@ def canary_verdict(*, exit_code: int) -> CanaryVerdictValue:
 
 
 def promotion_decision(*, verdict: CanaryVerdictValue) -> PromotionDecision:
-    """Decide promotion from the canary verdict. Fail-closed on FAIL."""
+    """Decide the post-canary action. Never swap code; alarm on every verdict."""
     if verdict is CanaryVerdict.PASS:
         return PromotionDecision(
-            promote=True,
-            alarm=False,
-            reason="canary passed; promoting staged self-update to the active pinned copy",
+            promote=False,
+            alarm=True,
+            reason="canary passed; restart is due for the validated released payload",
         )
     return PromotionDecision(
         promote=False,

@@ -10,7 +10,6 @@ def test_dispatcher_paths_exports_promoted_public_helpers() -> None:
         "cost_report_spans_path",
         "cost_sink_path",
         "heartbeat_path",
-        "is_writable_orchestrator_checkout",
         "journal_path",
         "plugin_root",
         "reflector_oob_spans_path",

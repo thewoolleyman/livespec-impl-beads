@@ -1,31 +1,17 @@
 """Read-only-cache guards for the dark-factory Dispatcher (Slice 3).
 
-Two cache-hostile behaviors are hardened into CLEAN no-ops so the
+One cache-hostile behavior is hardened into a CLEAN no-op so the
 dispatcher runs correctly from a read-only, flattened plugin cache (the
 adopter path), per the self-contained plugin dispatch contract in
-SPECIFICATION/contracts.md — operations that presuppose a writable
-orchestrator checkout or fleet context degrade cleanly:
+SPECIFICATION/contracts.md:
 
-(a) The release-triggered self-update canary SKIPS cleanly — a deliberate
-    `self-update-skipped` journal entry naming the missing writable
-    orchestrator checkout — when `_plugin_root()` is not a writable git
-    checkout of the orchestrator (a flattened cache has no `.git`),
-    instead of attempting a promotion and leaning on the fail-open `0jxs`
-    supervisor to SWALLOW the resulting error. The fail-open backstop is
-    KEPT; the guard merely removes a never-applicable code path from
-    masking behind it.
-
-(b) The fleet-manifest sibling-clone projection renders an EMPTY sibling
+(a) The fleet-manifest sibling-clone projection renders an EMPTY sibling
     set when no fleet manifest is fetchable (no `gh`, no manifest, a
     non-fleet adopter), so the dispatch PROCEEDS rather than refusing it.
 
-These drive the production functions with NO injected probe: guard (a)
-points `_plugin_root()` at a non-git directory via `CLAUDE_PLUGIN_ROOT`
-so the real read-only-cache detection runs end-to-end; guard (b) stubs
-`_fetch_fleet_manifest_text` to the no-manifest signal. The canary itself
-is never launched (the self-machinery hang-guard) — the self-update path
-short-circuits at the read-only-cache guard before any canary subprocess,
-proven by the ABSENCE of every canary/promotion journal stage.
+This file also preserves the regression shape for the retired self-update
+writable-checkout guard: a flattened cache must not skip the canary merely
+because it has no `.git`.
 """
 
 from __future__ import annotations
@@ -39,9 +25,14 @@ import pytest
 from livespec_orchestrator_beads_fabro.commands._dispatcher_credentials import (
     resolve_sibling_clones,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
+    CommandResult,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import SiblingClones
 from livespec_orchestrator_beads_fabro.commands._dispatcher_self_update import (
+    canary_self_check_argv,
     released_payload_version,
+    running_release_version,
     self_update_after_release,
 )
 
@@ -54,36 +45,66 @@ class _RecordingJournal:
         self.records.append(record)
 
 
-def test_self_update_skips_cleanly_on_a_read_only_plugin_cache(
+@dataclass(kw_only=True)
+class _QueueRunner:
+    seen_argv: list[list[str]] = field(default_factory=list)
+
+    def run(
+        self,
+        *,
+        argv: list[str],
+        cwd: Path,
+        timeout_seconds: float,
+        env: dict[str, str] | None = None,
+        stdin: int | None = None,
+    ) -> CommandResult:
+        _ = (cwd, timeout_seconds, env, stdin)
+        self.seen_argv.append(list(argv))
+        return CommandResult(exit_code=0, stdout="[]", stderr="")
+
+
+@dataclass(kw_only=True)
+class _RecordingPoster:
+    bodies: list[str] = field(default_factory=list)
+
+    def post(self, *, url: str, body: str, title: str, timeout_seconds: float) -> bool:
+        _ = (url, title, timeout_seconds)
+        self.bodies.append(body)
+        return True
+
+
+def test_self_update_canaries_on_a_read_only_plugin_cache(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # A flattened read-only plugin cache has no `.git`: point the plugin
-    # root at a non-git directory so the production read-only-cache
-    # detection runs end-to-end and finds no writable orchestrator
-    # checkout to promote into. No runner/poster is injected — the guard
-    # returns before either default seam could be consulted.
+    # A flattened read-only plugin cache has no `.git`; that must not be a
+    # reason to skip the release canary.
     cache_root = tmp_path / "cache"
     cache_root.mkdir()
     monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(cache_root))
+    monkeypatch.setenv("CLAUDE_NTFY_DISPATCHER_TOPIC", "livespec-dispatcher-test")
     journal = _RecordingJournal()
+    runner = _QueueRunner()
+    poster = _RecordingPoster()
+    candidate_bin = str(cache_root / "scripts" / "bin" / "dispatcher.py")
     self_update_after_release(
         work_item_id="livespec-impl-beads-roc",
-        candidate_bin=str(cache_root / "scripts" / "bin" / "dispatcher.py"),
+        candidate_bin=candidate_bin,
         scratch_root=str(tmp_path / "scratch"),
         repo=tmp_path,
         journal=journal,
+        runner=runner,
+        poster=poster,
     )
+    assert runner.seen_argv == [
+        canary_self_check_argv(candidate_bin=candidate_bin, scratch_root=str(tmp_path / "scratch"))
+    ]
     stages = [record["stage"] for record in journal.records]
-    # A CLEAN skip — not a swallowed `self-update-error`, and NONE of the
-    # canary/promotion stages (the canary never ran).
-    assert "self-update-skipped" in stages
+    assert "self-update-restart-due" in stages
     assert "self-update-error" not in stages
     assert "self-update-promoted" not in stages
     assert "self-update-kept-last-known-good" not in stages
-    # The skip reason names the read-only-cache cause.
-    skip = next(record for record in journal.records if record["stage"] == "self-update-skipped")
-    assert "checkout" in str(skip["reason"]).lower()
+    assert len(poster.bodies) == 1
 
 
 def test_released_payload_version_is_absent_for_unusable_plugin_json(tmp_path: Path) -> None:
@@ -95,6 +116,10 @@ def test_released_payload_version_is_absent_for_unusable_plugin_json(tmp_path: P
 
     (plugin / "plugin.json").write_text("[]", encoding="utf-8")
     assert released_payload_version(root=plugin) is None
+
+
+def test_running_release_version_is_absent_when_import_marker_is_absent() -> None:
+    assert running_release_version(running_release=None) is None
 
 
 def test_resolve_sibling_clones_is_empty_when_no_fleet_manifest_is_fetchable(
