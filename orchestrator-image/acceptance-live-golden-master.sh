@@ -243,6 +243,7 @@ cleanup() {
   fi
   if [ -n "$SCRATCH_DIR" ]; then rm -rf "$SCRATCH_DIR" 2>/dev/null || true; fi
   rm -f "$HERE/fabro" 2>/dev/null || true
+  rm -rf "$HERE/bd-guard" 2>/dev/null || true
   rm -rf "$HERE/plugin-scripts" 2>/dev/null || true
   exit "$rc"
 }
@@ -269,6 +270,9 @@ stage_and_build_image() {
   rm -rf "$HERE/plugin-scripts"
   cp -R "$HERE/../.claude-plugin/scripts" "$HERE/plugin-scripts"
   find "$HERE/plugin-scripts" -type d -name __pycache__ -prune -exec rm -rf {} +
+  rm -rf "$HERE/bd-guard"
+  cp -R "$HERE/../bd-guard" "$HERE/bd-guard"
+  find "$HERE/bd-guard" -type d -name __pycache__ -prune -exec rm -rf {} +
   docker build -t "$IMAGE" "$HERE"
 }
 

@@ -42,6 +42,7 @@ cleanup() {
   docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
   docker volume rm "$VARLIB_VOL" >/dev/null 2>&1 || true
   rm -f "$HERE/fabro" || true
+  rm -rf "$HERE/bd-guard" || true
   rm -rf "$HERE/plugin-scripts" || true
 }
 trap cleanup EXIT
@@ -68,6 +69,9 @@ log "building $IMAGE"
 rm -rf "$HERE/plugin-scripts"
 cp -R "$HERE/../.claude-plugin/scripts" "$HERE/plugin-scripts"
 find "$HERE/plugin-scripts" -type d -name __pycache__ -prune -exec rm -rf {} +
+rm -rf "$HERE/bd-guard"
+cp -R "$HERE/../bd-guard" "$HERE/bd-guard"
+find "$HERE/bd-guard" -type d -name __pycache__ -prune -exec rm -rf {} +
 docker build -t "$IMAGE" "$HERE"
 
 # --------------------------------------------------------------------------
@@ -106,6 +110,20 @@ docker exec "$CONTAINER" bash -lc '
   version="$(gh --version | awk "NR == 1 {print \$3}")"
   echo "gh version: $version"
   test "$version" = "$GH_VERSION"
+'
+
+log "T1.1 guarded bd layout"
+docker exec "$CONTAINER" bash -lc '
+  set -e
+  test "$LIVESPEC_BD_PATH" = /usr/local/bin/bd
+  grep -q '"'"'bd-guard-wrapper-sentinel'"'"' /usr/local/bin/bd
+  test -x /usr/local/bin/bd-real
+  test -x /usr/local/bin/bd-guard-emit.py
+  test "$(cat /usr/local/etc/livespec-bd-guard.mode)" = warn
+  echo "$BD_BINARY_SHA256  /usr/local/bin/bd-real" | sha256sum -c -
+  /usr/local/bin/bd-real version | grep -q "bd version $BD_VERSION"
+  /usr/local/bin/bd version | grep -q "bd version $BD_VERSION"
+  echo "bd guarded layout: wrapper=$LIVESPEC_BD_PATH real=/usr/local/bin/bd-real version=$BD_VERSION"
 '
 
 log "T1.a inner storage driver"
