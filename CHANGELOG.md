@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.49.7](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.49.6...v0.49.7) (2026-08-02)
+
+
+### Bug Fixes
+
+* rewire dispatcher self update to releases ([747f641](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/747f641142fb4f63439078da2493b44982683329))
+
 ## [0.49.6](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.49.5...v0.49.6) (2026-08-02)
 
 
