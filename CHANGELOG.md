@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.49.9](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.49.8...v0.49.9) (2026-08-02)
+
+
+### Bug Fixes
+
+* require supervised Fabro web console ([b9d30fa](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/b9d30fa267a3777e1094c4781fa63066f0b599a7))
+
 ## [0.49.8](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.49.7...v0.49.8) (2026-08-02)
 
 
