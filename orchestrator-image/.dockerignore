@@ -5,5 +5,7 @@
 !Dockerfile
 !orchestrator-entrypoint.sh
 !fabro
+!bd-guard
+!bd-guard/**
 !plugin-scripts
 !plugin-scripts/**

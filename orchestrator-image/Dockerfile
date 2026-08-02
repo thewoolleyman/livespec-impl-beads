@@ -84,20 +84,36 @@ RUN curl -fsSL "https://astral.sh/uv/${UV_VERSION}/install.sh" \
  && rm -f /tmp/uv-install.sh \
  && /usr/local/bin/uv --version
 
-# --- bd (beads CLI), pinned v1.0.5 at /usr/local/bin/bd (matches the host pin).
-#     The release TARBALL is content-pinned by sha256; the extracted binary is
-#     re-verified against the proven v1.0.5 binary sha. ---
-ENV BD_VERSION=1.0.5 \
-    BD_TARBALL_SHA256=24706f65c7131c7b3261388709ae8781c8db53f0795398f67aa40538750aacf3 \
-    BD_BINARY_SHA256=463b7655041345ce5d4bac00c3a5d465166bb30166147e11ef1c6e07df0a4486
+# --- bd (beads CLI), pinned v1.1.2 behind the lifecycle guard. The official
+#     release TARBALL is content-pinned by sha256; the extracted binary is
+#     re-verified and installed as the guard's private delegate at bd-real. ---
+ENV BD_VERSION=1.1.2 \
+    BD_TARBALL_SHA256=a72d71ed374955dc9f83a0f90b54bd7b6a0016709dd1676ae2e368651ed401c2 \
+    BD_BINARY_SHA256=6d767629e90560506d0ea3de9823aef48386414f5425d8853e2ae3312cad9a82
 RUN curl -fsSL -o /tmp/beads.tar.gz \
         "https://github.com/gastownhall/beads/releases/download/v${BD_VERSION}/beads_${BD_VERSION}_linux_amd64.tar.gz" \
  && echo "${BD_TARBALL_SHA256}  /tmp/beads.tar.gz" | sha256sum -c - \
  && tar -xzf /tmp/beads.tar.gz -C /tmp \
  && echo "${BD_BINARY_SHA256}  /tmp/bd" | sha256sum -c - \
- && install -m 0755 /tmp/bd /usr/local/bin/bd \
+ && install -m 0755 /tmp/bd /usr/local/bin/bd-real \
  && rm -rf /tmp/beads.tar.gz /tmp/bd /tmp/README.md /tmp/LICENSE /tmp/CHANGELOG.md \
- && /usr/local/bin/bd version
+ && /usr/local/bin/bd-real version
+
+# --- bd lifecycle guard. The tracked wrapper is the public entry point at
+#     /usr/local/bin/bd; normal callers and LIVESPEC_BD_PATH never point at the
+#     private /usr/local/bin/bd-real delegate. The mode file is non-secret and
+#     defaults the image to warn-mode observation. ---
+COPY bd-guard /tmp/bd-guard
+RUN install -m 0755 /tmp/bd-guard/bd-guard.sh /usr/local/bin/bd \
+ && install -m 0755 /tmp/bd-guard/bd-guard-emit.py /usr/local/bin/bd-guard-emit.py \
+ && mkdir -p /usr/local/etc \
+ && printf 'warn\n' > /usr/local/etc/livespec-bd-guard.mode \
+ && chmod 0644 /usr/local/etc/livespec-bd-guard.mode \
+ && grep -q 'bd-guard-wrapper-sentinel' /usr/local/bin/bd \
+ && echo "${BD_BINARY_SHA256}  /usr/local/bin/bd-real" | sha256sum -c - \
+ && /usr/local/bin/bd-real version | grep -q "bd version ${BD_VERSION}" \
+ && /usr/local/bin/bd version | grep -q "bd version ${BD_VERSION}" \
+ && rm -rf /tmp/bd-guard
 
 # --- dolt, pinned v2.1.4 (matches the host pin) at /usr/local/bin/dolt — for
 #     the ephemeral in-container ledger substrate (the spike's Goal-5 pattern).
