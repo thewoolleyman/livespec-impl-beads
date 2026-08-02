@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.49.8](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.49.7...v0.49.8) (2026-08-02)
+
+
+### Bug Fixes
+
+* detect release canary without env seam ([74950f2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/74950f298e6b30f703bc882a8a9380ad12285318))
+
 ## [0.49.7](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.49.6...v0.49.7) (2026-08-02)
 
 
