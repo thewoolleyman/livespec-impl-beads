@@ -49,9 +49,17 @@ The relevant conversation sequence was:
 3. The maintainer replied that travel might delay a deeper response. The
    complete forge conversation contained no later technical confirmation as of
    the 2026-08-02 read.
+4. On 2026-08-02 at 03:31:41 UTC, the maintainer posted the reviewed direction
+   response as
+   [comment 5154982522](https://github.com/fabro-sh/fabro/pull/576#issuecomment-5154982522).
+   It offers to rewrite the PR around the corrected OTLP-logs design while
+   explicitly holding the current branch unchanged pending Bryan's
+   confirmation. The complete conversation contained no reply after that
+   comment in the immediate post-publication forge read.
 
-The last statement is scoped to the complete PR #576 conversation returned by
-the forge on that date. It must be rechecked before being repeated later.
+The absence statements are scoped to the complete PR #576 conversation returned
+by the forge at the stated reads. They must be rechecked before being repeated
+later.
 
 ## Ledger and plan reconciliation
 
@@ -193,6 +201,10 @@ from the first slice.
 ## Coordination ruling
 
 The maintainer is willing to rewrite PR #576 around the corrected logs design.
-The existing branch must remain unchanged until Bryan confirms that direction.
-The paste-ready response is
-`plan/fabro-otlp-telemetry/pr-576-comment.md`.
+The reviewed response was posted as
+[comment 5154982522](https://github.com/fabro-sh/fabro/pull/576#issuecomment-5154982522),
+and its exact body remains preserved in
+`plan/fabro-otlp-telemetry/pr-576-comment.md`. The existing branch must remain
+unchanged until Bryan confirms that direction. The current action is to wait
+for that confirmation or correction, then reconcile `bd-ib-i4r` and the
+implementation direction against his ruling.

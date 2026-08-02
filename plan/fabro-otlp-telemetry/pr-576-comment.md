@@ -1,8 +1,9 @@
-# Draft response for fabro-sh/fabro PR #576
+# Posted response for fabro-sh/fabro PR #576
 
-Copy only the contents of the preformatted block below. The four-backtick outer
-fence makes GitHub display a copyable preformatted block while preserving every
-literal inline Markdown backtick in the proposed comment.
+This response was posted verbatim on 2026-08-02 at 03:31:41 UTC as
+[comment 5154982522](https://github.com/fabro-sh/fabro/pull/576#issuecomment-5154982522).
+Do not repost it. The four-backtick outer fence preserves every literal inline
+Markdown backtick in the historical response.
 
 ````markdown
 Thanks, Bryan — I’ve now had a chance to read through the sketch and the discussion. This direction makes sense to me. Treating Fabro’s canonical `RunEvent` stream as the curated OTLP logs surface is cleaner than exporting the intentionally unstable developer `tracing` output, and keeping the initial increment logs-only gives the work a clear boundary while deferring metrics and trace design.
