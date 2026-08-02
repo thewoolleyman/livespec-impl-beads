@@ -14,6 +14,7 @@ pointed at a `tmp_path` fake plugin cache.
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -25,6 +26,14 @@ _HOOKS_DIR = _REPO_ROOT / ".claude-plugin" / "hooks"
 _HOOK_PATH = _REPO_ROOT / ".claude-plugin" / "hooks" / "codex_yolo_reapply.py"
 _GATE_PATH = _REPO_ROOT / ".claude-plugin" / "hooks" / "codex_yolo_gate.py"
 _MODULE_NAME = "codex_yolo_reapply_under_test"
+
+
+def test_manifest_skips_claude_only_hook_before_codex_expands_plugin_root() -> None:
+    manifest = json.loads((_HOOKS_DIR / "hooks.json").read_text())
+    command = manifest["hooks"]["SessionStart"][0]["hooks"][0]["command"]
+
+    assert command.startswith('if [ -n "${CODEX_THREAD_ID:-}" ]; then exit 0; fi; ')
+    assert command.endswith('python3 "${CLAUDE_PLUGIN_ROOT}/hooks/codex_yolo_reapply.py"')
 
 
 def _load_hook() -> ModuleType:
