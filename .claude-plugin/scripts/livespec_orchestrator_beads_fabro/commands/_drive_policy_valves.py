@@ -117,6 +117,18 @@ def set_policy(
 def set_workflow_scope_override(
     *, config: StoreConfig, item: WorkItem, aid: str, value: str
 ) -> dict[str, Any]:
+    if item.status != "ready" or item.factory_safety is not None or not item.awaits_scope_override:
+        result = valve_refusal(
+            aid=aid,
+            wid=item.id,
+            err="invalid-source-state",
+            msg=(
+                "set-workflow-scope-override requires a ready item whose "
+                "awaits_scope_override signal is true and factory_safety is null."
+            ),
+        )
+        result["error"] = "invalid-source-state"
+        return result
     store.update_work_item_workflow_scope_override(
         path=config,
         item_id=item.id,

@@ -11,6 +11,7 @@ from livespec_orchestrator_beads_fabro._beads_client import (
 from livespec_orchestrator_beads_fabro._store_mutations import (
     append_work_item,
     register_custom_statuses,
+    update_work_item_awaits_scope_override,
     update_work_item_policy,
     update_work_item_rank,
     update_work_item_status,
@@ -179,6 +180,20 @@ def test_update_work_item_policy_noop_leaves_item_unchanged() -> None:
         "manual",
         "ai-then-human",
     )
+
+
+def test_update_work_item_awaits_scope_override_sets_and_clears_label() -> None:
+    append_work_item(path=_config(), item=_minimal_work_item(id_="li-awaits"))
+    update_work_item_awaits_scope_override(path=_config(), item_id="li-awaits", value=True)
+    [with_signal] = list(read_work_items(path=_config()))
+    assert with_signal.awaits_scope_override is True
+    assert "awaits-scope-override" in _fake().show_issue(issue_id="li-awaits")["labels"]
+
+    update_work_item_awaits_scope_override(path=_config(), item_id="li-awaits", value=False)
+
+    [without_signal] = list(read_work_items(path=_config()))
+    assert without_signal.awaits_scope_override is False
+    assert "awaits-scope-override" not in _fake().show_issue(issue_id="li-awaits")["labels"]
 
 
 def test_append_lands_custom_status_via_two_step() -> None:

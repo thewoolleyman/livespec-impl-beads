@@ -639,7 +639,7 @@
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
     "test": "tests.integration.test_dispatcher_admission_acceptance_scenarios22_25::test_loop_refuses_declared_workflow_edit_before_launch",
-    "reason": "Integration-tier binding for Scenario 48: the dispatcher loop refuses a ready item whose declared scope edits `.github/workflows/` before any sandbox launch, surfaces the attended-host-session route, records a terminal host-only-refused outcome, and leaves the item ready. The same module carries the paired negative case proving `.github/actions/` composite-action edits are admitted."
+    "reason": "Integration-tier binding for Scenario 48: the dispatcher loop refuses a ready item whose declared scope edits `.github/workflows/` before any sandbox launch, surfaces the attended-host-session route, records a terminal host-only-refused outcome, sets the published `awaits_scope_override` signal, and leaves the item ready. The same module carries the paired `.github/actions/` admission negative case, the stale-signal clear on re-evaluation, the citation-only override clear/admit path, and the intrinsic `factory_safety` negative control."
   },
   {
     "heading": "## Scenario 50 — A committed wip_cap of 0 admits nothing (dispatch-off)",

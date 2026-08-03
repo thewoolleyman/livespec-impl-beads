@@ -32,14 +32,17 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import pytest
-from livespec_orchestrator_beads_fabro.commands import _dispatcher_loop
+from livespec_orchestrator_beads_fabro.commands import _dispatcher_completion, _dispatcher_loop
+from livespec_orchestrator_beads_fabro.commands._dispatcher_completion import host_only_refusal
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
+from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     DispatchPlan,
     host_only_refusal_detail,
     is_host_only_item,
 )
 from livespec_orchestrator_beads_fabro.commands.dispatcher import main
+from livespec_orchestrator_beads_fabro.errors import BeadsMappingError
 from livespec_orchestrator_beads_fabro.store import (
     append_work_item,
     materialize_work_items,
@@ -241,6 +244,54 @@ def test_host_only_refusal_detail_is_actionable() -> None:
     assert "sub-agent" in detail or "host-route" in detail
     assert "set-workflow-scope-override:<id>:citation-only" in detail
     assert "ships no files under .github/workflows/" in detail
+
+
+def test_host_only_refusal_clears_stale_signal_for_intrinsic_host_only(
+    tmp_path: Path,
+) -> None:
+    repo, _workflow = _repo_with_workflow(tmp_path=tmp_path)
+    item = _item(factory_safety="mutates-host-machinery", awaits_scope_override=True)
+    append_work_item(path=_config(), item=item)
+
+    outcome = host_only_refusal(
+        repo=repo,
+        item=item,
+        journal=JournalFile(path=repo / "journal.jsonl"),
+        raw_labels=(),
+    )
+
+    assert outcome is not None
+    assert outcome.stage == "host-only-refused"
+    assert _stored()[item.id].awaits_scope_override is False
+
+
+def test_host_only_refusal_warns_when_signal_write_fails(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, _workflow = _repo_with_workflow(tmp_path=tmp_path)
+
+    def _raise(**_kwargs: object) -> None:
+        raise BeadsMappingError(record_id="bd-missing", detail="missing")
+
+    monkeypatch.setattr(
+        _dispatcher_completion,
+        "update_work_item_awaits_scope_override",
+        _raise,
+    )
+
+    outcome = host_only_refusal(
+        repo=repo,
+        item=_item(reason="Update `.github/workflows/ci.yml`."),
+        journal=JournalFile(path=repo / "journal.jsonl"),
+        raw_labels=(),
+    )
+
+    assert outcome is not None
+    assert outcome.stage == "host-only-refused"
+    err = capsys.readouterr().err
+    assert "WARN: failed to update awaits_scope_override" in err
 
 
 # ---------------------------------------------------------------------------

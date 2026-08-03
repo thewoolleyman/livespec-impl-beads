@@ -20,6 +20,7 @@ __all__: list[str] = [
     "append_work_item",
     "create_work_item",
     "register_custom_statuses",
+    "update_work_item_awaits_scope_override",
     "update_work_item_blocked_state",
     "update_work_item_policy",
     "update_work_item_rank",
@@ -35,6 +36,7 @@ _LABEL_ACCEPTANCE = "acceptance:"
 _LABEL_BLOCKED_REASON = "blocked-reason:"
 _LABEL_FACTORY_SAFETY = "factory-safety:"
 _LABEL_WORKFLOW_SCOPE_OVERRIDE = "workflow-scope-override:"
+_LABEL_AWAITS_SCOPE_OVERRIDE = "awaits-scope-override"
 
 _META_AUDIT = "audit"
 _META_ACCEPTANCE_CRITERIA = "acceptance_criteria"
@@ -201,12 +203,29 @@ def update_work_item_workflow_scope_override(
     client = make_beads_client(config=path)
     client.update_issue(
         issue_id=item_id,
-        remove_labels=[f"{_LABEL_WORKFLOW_SCOPE_OVERRIDE}citation-only"],
+        remove_labels=[
+            f"{_LABEL_WORKFLOW_SCOPE_OVERRIDE}citation-only",
+            _LABEL_AWAITS_SCOPE_OVERRIDE,
+        ],
     )
     client.update_issue(
         issue_id=item_id,
         add_labels=[f"{_LABEL_WORKFLOW_SCOPE_OVERRIDE}{value}"],
     )
+
+
+def update_work_item_awaits_scope_override(
+    *,
+    path: StoreConfig,
+    item_id: str,
+    value: bool,
+) -> None:
+    """Set or clear the dispatcher awaits-scope-override signal label."""
+    client = make_beads_client(config=path)
+    if value:
+        client.update_issue(issue_id=item_id, add_labels=[_LABEL_AWAITS_SCOPE_OVERRIDE])
+    else:
+        client.update_issue(issue_id=item_id, remove_labels=[_LABEL_AWAITS_SCOPE_OVERRIDE])
 
 
 def register_custom_statuses(*, path: StoreConfig) -> None:
@@ -311,6 +330,8 @@ def _work_item_labels(*, item: WorkItem) -> list[str]:
         labels.append(f"{_LABEL_BLOCKED_REASON}{item.blocked_reason}")
     if item.factory_safety is not None:
         labels.append(f"{_LABEL_FACTORY_SAFETY}{item.factory_safety}")
+    if item.awaits_scope_override:
+        labels.append(_LABEL_AWAITS_SCOPE_OVERRIDE)
     return labels
 
 
