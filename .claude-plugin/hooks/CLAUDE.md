@@ -7,6 +7,8 @@ Rules:
 
 - Preserve SessionStart fail-open behavior: a missing marker, missing plugin
   cache, unreadable file, or unexpected per-file error must not abort a session.
+- Keep Claude-only SessionStart hooks inert under native Codex: short-circuit on
+  `CODEX_THREAD_ID` before expanding `CLAUDE_PLUGIN_ROOT` or invoking a script.
 - Resolve the consuming project through `CLAUDE_PROJECT_DIR`; `__file__` points
   at the plugin cache after distribution and must not be treated as the adopter
   repo.
