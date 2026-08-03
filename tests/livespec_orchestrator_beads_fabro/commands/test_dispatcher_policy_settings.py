@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+from typing import TypeVar
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings import (
     DEFAULT_ACCEPTANCE_REWORK_CAP,
@@ -15,8 +16,22 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings impo
     resolve_auto_approve_ready,
 )
 from livespec_orchestrator_beads_fabro.types import WorkItem
+from returns.io import IOResult
+from returns.unsafe import unsafe_perform_io
 
 _NO_CONFIG_CWD = Path("tests/nonexistent-policy-cwd")
+
+_Value = TypeVar("_Value")
+
+
+def _read(outcome: IOResult[_Value, object]) -> _Value:
+    """The value out of a successful policy read.
+
+    `unsafe_perform_io` is mandatory rather than decorative: `IOResult.unwrap`
+    yields `IO[value]`, and comparing that wrapper to `False`/`3` passes
+    nothing and fails everything.
+    """
+    return unsafe_perform_io(outcome.unwrap())
 
 
 def _item(**overrides: object) -> WorkItem:
@@ -54,7 +69,7 @@ def test_boolean_setting_reads_explicit_false(tmp_path: Path) -> None:
         ),
     )
 
-    assert resolve_auto_approve_ready(cwd=cwd) is False
+    assert _read(resolve_auto_approve_ready(cwd=cwd)) is False
 
 
 def test_raw_boolean_false_label_beats_true_global(tmp_path: Path) -> None:
@@ -67,8 +82,10 @@ def test_raw_boolean_false_label_beats_true_global(tmp_path: Path) -> None:
     )
 
     assert (
-        effective_merge_on_review_cap(
-            item=_item(), cwd=cwd, raw_labels=("merge-on-review-cap:false",)
+        _read(
+            effective_merge_on_review_cap(
+                item=_item(), cwd=cwd, raw_labels=("merge-on-review-cap:false",)
+            )
         )
         is False
     )
@@ -76,20 +93,28 @@ def test_raw_boolean_false_label_beats_true_global(tmp_path: Path) -> None:
 
 def test_invalid_raw_labels_without_config_fall_back_to_safe_defaults() -> None:
     assert (
-        effective_merge_on_review_cap(
-            item=_item(),
-            cwd=_NO_CONFIG_CWD,
-            raw_labels=("merge-on-review-cap:sometimes",),
+        _read(
+            effective_merge_on_review_cap(
+                item=_item(),
+                cwd=_NO_CONFIG_CWD,
+                raw_labels=("merge-on-review-cap:sometimes",),
+            )
         )
         is DEFAULT_MERGE_ON_REVIEW_CAP
     )
     assert (
-        effective_review_fix_cap(item=_item(), cwd=_NO_CONFIG_CWD, raw_labels=("review-fix-cap:0",))
+        _read(
+            effective_review_fix_cap(
+                item=_item(), cwd=_NO_CONFIG_CWD, raw_labels=("review-fix-cap:0",)
+            )
+        )
         == DEFAULT_REVIEW_FIX_CAP
     )
     assert (
-        effective_acceptance_rework_cap(
-            item=_item(), cwd=_NO_CONFIG_CWD, raw_labels=("acceptance-rework-cap:nope",)
+        _read(
+            effective_acceptance_rework_cap(
+                item=_item(), cwd=_NO_CONFIG_CWD, raw_labels=("acceptance-rework-cap:nope",)
+            )
         )
         == DEFAULT_ACCEPTANCE_REWORK_CAP
     )
@@ -99,14 +124,15 @@ def test_unrelated_raw_labels_without_config_fall_back_to_safe_defaults() -> Non
     labels = ("merge-on-review-cap-extra:true", "review-fix-cap-extra:7")
 
     assert (
-        effective_merge_on_review_cap(item=_item(), cwd=_NO_CONFIG_CWD, raw_labels=labels) is False
+        _read(effective_merge_on_review_cap(item=_item(), cwd=_NO_CONFIG_CWD, raw_labels=labels))
+        is False
     )
     assert (
-        effective_review_fix_cap(item=_item(), cwd=_NO_CONFIG_CWD, raw_labels=labels)
+        _read(effective_review_fix_cap(item=_item(), cwd=_NO_CONFIG_CWD, raw_labels=labels))
         == DEFAULT_REVIEW_FIX_CAP
     )
     assert (
-        effective_acceptance_rework_cap(item=_item(), cwd=_NO_CONFIG_CWD, raw_labels=labels)
+        _read(effective_acceptance_rework_cap(item=_item(), cwd=_NO_CONFIG_CWD, raw_labels=labels))
         == DEFAULT_ACCEPTANCE_REWORK_CAP
     )
 
@@ -124,15 +150,22 @@ def test_invalid_raw_labels_with_config_fall_back_to_global_values(tmp_path: Pat
     )
 
     assert (
-        effective_merge_on_review_cap(
-            item=_item(), cwd=cwd, raw_labels=("merge-on-review-cap:sometimes",)
+        _read(
+            effective_merge_on_review_cap(
+                item=_item(), cwd=cwd, raw_labels=("merge-on-review-cap:sometimes",)
+            )
         )
         is True
     )
-    assert effective_review_fix_cap(item=_item(), cwd=cwd, raw_labels=("review-fix-cap:nope",)) == 6
     assert (
-        effective_acceptance_rework_cap(
-            item=_item(), cwd=cwd, raw_labels=("acceptance-rework-cap:0",)
+        _read(effective_review_fix_cap(item=_item(), cwd=cwd, raw_labels=("review-fix-cap:nope",)))
+        == 6
+    )
+    assert (
+        _read(
+            effective_acceptance_rework_cap(
+                item=_item(), cwd=cwd, raw_labels=("acceptance-rework-cap:0",)
+            )
         )
         == 7
     )
