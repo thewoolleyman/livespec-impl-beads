@@ -14,12 +14,30 @@ Preserve spelling, punctuation, code formatting, blank lines, and ordering
 exactly. Live thread state is not in this binder; re-measure it from the ledger,
 the worker handoff, forge artifacts, and the supervisor marker.
 
+The marker is APPEND-ONLY and corrections land at its END, so a head-only read
+is the worst possible cut: it can hand you an open obligation whose retraction
+sits below the cut. Read it whole when it is short, and head-plus-tail with an
+explicit truncation notice when it is not — never a bare fixed cap, which no
+constant survives (one was written at 220 lines against a file that reached 528,
+then 697 within hours).
+
 ```sh
 supervisor_marker="/data/projects/livespec-orchestrator-beads-fabro/tmp/overseer/beads-v1-1-2-upgrade/.supervisor-state"
+[ -n "${supervisor_marker:-}" ] \
+  || { echo "HALT: supervisor_marker is unset or empty"; echo "REMEDY: bind it from the Bindings table before reading it — 'test ! -f \"\"' is TRUE, so an unset binding prints nothing and exits 0"; exit 1; }
 test -f ".ai/supervisor-protocol.md" \
   || { echo "HALT: missing shared supervisor protocol .ai/supervisor-protocol.md"; echo "REMEDY: regenerate the two-layer supervisor handoff before driving"; exit 1; }
 printf '%s\n' "BOOT: read .ai/supervisor-protocol.md, this binder, and the supervisor marker if it exists"
-test ! -f "$supervisor_marker" || sed -n '1,220p' "$supervisor_marker"
+if [ -f "$supervisor_marker" ]; then
+  marker_lines=$(wc -l < "$supervisor_marker")
+  if [ "$marker_lines" -le 200 ]; then
+    cat "$supervisor_marker"
+  else
+    sed -n '1,120p' "$supervisor_marker"
+    printf 'TRUNCATED: lines 121-%d of %d NOT SHOWN; the last 80 follow\n' "$((marker_lines - 80))" "$marker_lines"
+    tail -80 "$supervisor_marker"
+  fi
+fi
 ```
 
 ## Bindings

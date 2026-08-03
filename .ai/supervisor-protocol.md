@@ -32,6 +32,20 @@ The binder defines `WORKER_TARGET`, `SUPERVISOR_TARGET`, `ledger_anchor`,
 `supervisor_marker`, and `wait_channel`. Resolve and report them before using
 the commands below.
 
+**The binder MUST bind the targets in tmux's EXACT-MATCH form** — a leading `=`
+and a trailing `:` — because every `-t` below inherits whatever it produces:
+
+```sh
+WORKER_TARGET='=<worker-session>:'
+```
+
+Without both characters tmux falls back to prefix matching, so a command aimed
+at a dead session can land in a LIVE one whose name merely starts the same way.
+The trailing colon is not decoration: `=name` alone is rejected, while `=name:`
+works on `respawn-pane`, `capture-pane`, `list-panes`, `send-keys`,
+`paste-buffer` and `has-session` — measured on a private socket, correcting an
+earlier fleet claim that `respawn-pane` refused the exact form.
+
 Filed status is a claim with a timestamp. Before carrying forward item state,
 dependencies, acceptance, or an "already discharged" claim, run the binder's
 concrete ledger command and record UTC measurement time. Treat older prose as
