@@ -10,6 +10,13 @@ _BUILD_AND_VERIFY = _REPO_ROOT / "orchestrator-image" / "build-and-verify.sh"
 _DOCKERIGNORE = _REPO_ROOT / "orchestrator-image" / ".dockerignore"
 
 
+def _tier_one_embedded_bd_body(*, script: str) -> str:
+    marker = 'log "T1.d.ii bd embedded-mode round-trip (init + create + list)"'
+    section = script.split(marker, maxsplit=1)[1]
+    before_completion = section.split('log "tier-1 verification complete"', maxsplit=1)[0]
+    return before_completion.split("bash -lc '\n", maxsplit=1)[1].rsplit("\n' 2>&1", maxsplit=1)[0]
+
+
 def test_github_cli_apt_install_is_exactly_pinned_and_verified() -> None:
     dockerfile = _DOCKERFILE.read_text(encoding="utf-8")
 
@@ -71,3 +78,38 @@ def test_tier_one_verifies_guarded_beads_contract_without_host_mutation() -> Non
     assert 'echo "$BD_BINARY_SHA256  /usr/local/bin/bd-real" | sha256sum -c -' in script
     assert '/usr/local/bin/bd-real version | grep -q "bd version $BD_VERSION"' in script
     assert '/usr/local/bin/bd version | grep -q "bd version $BD_VERSION"' in script
+
+
+def test_tier_one_embedded_bd_proves_enforcement_and_normalization() -> None:
+    script = _BUILD_AND_VERIFY.read_text(encoding="utf-8")
+    body = _tier_one_embedded_bd_body(script=script)
+
+    expected_steps = (
+        "BD=/usr/local/bin/bd",
+        'test "$BD" = "$LIVESPEC_BD_PATH"',
+        "export LIVESPEC_BD_GUARD_OTLP=off",
+        'BD_NON_INTERACTIVE=1 "$BD" init --prefix ephemeral --skip-agents --skip-hooks '
+        "--setup-exclude --role maintainer --quiet",
+        '"$BD" config set status.custom "backlog,pending-approval,ready,active,acceptance"',
+        '"$BD" create --id "$ITEM_ID" --type task --title "ephemeral round-trip probe" '
+        '--description "tier-1 verification" --json >create.json',
+        '"$BD" show "$ITEM_ID" --json >after-create.json',
+        'jq -e --arg id "$ITEM_ID" \'(if type == "array" then .[0] else . end) '
+        '| .id == $id and .status == "backlog"\' after-create.json >/dev/null',
+        'LIVESPEC_BD_GUARD_MODE=fail "$BD" update "$ITEM_ID" --status in_progress '
+        "--json >blocked.json 2>blocked.err",
+        'test "$blocked_rc" -eq 3',
+        "test ! -s blocked.json",
+        'grep -qF "bd update --status in_progress\' is non-lifecycle; use --status active" '
+        "blocked.err",
+        '"$BD" show "$ITEM_ID" --json >after-block.json',
+        'jq -e --arg id "$ITEM_ID" \'(if type == "array" then .[0] else . end) '
+        '| .id == $id and .status == "backlog"\' after-block.json >/dev/null',
+    )
+
+    missing_steps = tuple(step for step in expected_steps if step not in body)
+    assert not missing_steps, missing_steps
+    positions = tuple(body.index(step) for step in expected_steps)
+    assert positions == tuple(sorted(positions))
+    assert "|| true" not in body
+    assert "\n  bd " not in body
