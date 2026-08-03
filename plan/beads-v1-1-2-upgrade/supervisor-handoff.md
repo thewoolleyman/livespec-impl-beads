@@ -11,8 +11,10 @@ Regeneration must preserve both Corrections sections byte-for-byte:
 - This binder's `## Corrections` for thread-specific corrections.
 
 Preserve spelling, punctuation, code formatting, blank lines, and ordering
-exactly. Live thread state is not in this binder; re-measure it from the ledger,
-the worker handoff, forge artifacts, and the supervisor marker.
+exactly. The `Restart checkpoint` below is the one exception to the normal rule
+that live thread state stays out of this binder: Overseer restarts this session
+with only this file, so every wind-down must replace that checkpoint with the
+latest durable state. Re-measure its timestamped claims before acting.
 
 The marker is APPEND-ONLY and corrections land at its END, so a head-only read
 is the worst possible cut: it can hand you an open obligation whose retraction
@@ -39,6 +41,71 @@ if [ -f "$supervisor_marker" ]; then
   fi
 fi
 ```
+
+## Restart checkpoint
+
+This checkpoint was written at `2026-08-03T04:30:48Z` for the next fresh
+`beads-v1-1-2-upgrade-supervisor` session. No command or worker process from the
+supervisor remains in flight.
+
+Completed and cleaned up:
+
+- Guarded-image code landed through PR #1221. The exact reviewed head was
+  `54342d6b112c2e3c08ab8e0e3d41634dd69c10d6`; the rebase-merge is
+  `976caf9744b8a6c1159434da8f2102081935f419`.
+- The exact head passed the full foreground gate and all 95 forge checks. The
+  sanctioned `dispatcher.py reconcile-merged` valve then passed its fresh
+  post-merge janitor gate.
+- The guarded-image code item `bd-ib-1rz6` is closed with PR and merge audit
+  evidence. Its feature worktree, local branch, remote branch, and stale
+  tracking ref are absent.
+- The separate attended proof item `bd-ib-dwv` remains unassigned in `backlog`
+  with `factory-safety:needs-privileged-host`; its code prerequisite is closed.
+  It has not been built, run, inspected, tagged, loaded, pushed, or closed.
+- At wind-down, the primary checkout was clean and equal to origin and GitHub
+  master at `c3d41a53e5e5458617d182d52d705b731abb4786`; the guarded-image merge is
+  an ancestor. The public guarded Beads command still reported v1.0.5.
+
+Exact remaining ownership and blockers:
+
+- This Beads upgrade plan owns `bd-ib-dwv`, the privileged guarded-image build
+  and ephemeral Tier-1 proof. The maintainer has not authorized image mutation.
+  Do not execute it until the maintainer explicitly authorizes that narrow
+  attended action. Such authorization does not imply permission for
+  `/usr/local/bin`, production-tenant, or production Dolt-data mutation.
+- The separate `governed-repo-bootstrap` plan owns the `dolt-server`
+  default-branch `ci-green` prerequisite. This plan may consume a result the
+  maintainer or that plan publishes, but MUST NOT contact, instruct, diagnose,
+  restart, mutate, or inspect that plan's supervisor, worker, marker, log,
+  worktrees, or branches. Dependency is not execution authority.
+- After that external prerequisite is published, this plan owns the canonical
+  factory-safe restore source/target seam already represented by
+  `dolt-server-wgy`; do not duplicate it. Re-measure before any sanctioned
+  dispatch.
+- The later live restore rehearsal, direct host binary replacement, and
+  all-tenant migration/rollback window are attended actions and remain
+  unauthorized. Current documentation/audit closure follows their recorded
+  dependency order in `handoff.md`.
+
+Fresh-session next action:
+
+1. Run this binder's BOOT and all five HALT-first checks, then re-measure only
+   this repository, this plan's ledger items, and its forge artifacts through
+   the configured wrapper and public `/usr/local/bin/bd`.
+2. Do not reopen or duplicate the completed guarded-image code work.
+3. If the maintainer explicitly authorizes the narrow privileged image proof,
+   supervise `bd-ib-dwv` under the attended safety envelope. Otherwise report
+   that exact maintainer decision as the immediate blocker and start nothing.
+4. Treat any separately published `dolt-server` prerequisite result as an
+   external input only; never drive its owning plan.
+
+Standing safety remains unchanged: never pass `--no-verify`; halt on hook or
+gate failure; touch no other session's worktree or branch; never alter or kill
+`livespec-overseer:1.1`; fetch and then verify forge state; tracked edits use
+worktree -> reviewed PR -> rebase-merge -> refresh/cleanup with
+`mise exec -- git`; product Python uses Red-Green-Replay; gates run foreground;
+Beads never runs through mise or its private delegate; and no `/usr/local/bin`,
+production-tenant, Dolt-data, image, or Fabro-server mutation is implied.
 
 ## Bindings
 
