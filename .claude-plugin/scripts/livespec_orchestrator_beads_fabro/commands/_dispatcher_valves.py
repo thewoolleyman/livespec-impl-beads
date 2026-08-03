@@ -35,6 +35,8 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from returns.unsafe import unsafe_perform_io
+
 from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings import (
     DEFAULT_ACCEPTANCE_POLICY,
     DEFAULT_ACCEPTANCE_REWORK_CAP,
@@ -156,13 +158,30 @@ def resolve_assignee(*, item: WorkItem) -> str | None:
     return item.assignee or DEFAULT_DOER
 
 
+def _admission_policy_or_manual(*, item: WorkItem, cwd: Path) -> str:
+    """`effective_admission_policy`, falling back to `manual` when unreadable.
+
+    The planner below is pure and mode-agnostic and must answer with a policy
+    STRING, so the fallback lives here rather than inside the reader. `manual`
+    is the safe end: an item whose policy cannot be read is HELD for a human
+    rather than auto-approved on a guess.
+
+    ⚠️ `unsafe_perform_io` is not ceremony. `IOResult.value_or` returns
+    `IO[value]`, not the value — a bare `.value_or(...)` here would compare an
+    `IO` wrapper against `"auto"` and hold EVERY item.
+    """
+    return unsafe_perform_io(
+        effective_admission_policy(item=item, cwd=cwd).value_or(DEFAULT_ADMISSION_POLICY)
+    )
+
+
 def plan_admissions(
     *,
     ready_items: Sequence[WorkItem],
     free_slots: int,
     cwd: Path,
     resolve_assignee: Callable[..., str | None],
-    admission_policy: Callable[..., str] = effective_admission_policy,
+    admission_policy: Callable[..., str] = _admission_policy_or_manual,
 ) -> AdmissionPlan:
     """Plan which rank-sorted candidates to approve, admit, hold, or defer.
 
@@ -183,9 +202,10 @@ def plan_admissions(
 
     `admission_policy` gates only the pending approval transition. Once an item
     is `ready`, admission to `active` is mechanical. The `admission_policy`
-    resolver is an injected seam defaulting to `effective_admission_policy`,
-    and `cwd` is required so global policy settings cannot be skipped.
-    keeping this a PURE, mode-agnostic planner.
+    resolver is an injected seam defaulting to `_admission_policy_or_manual`
+    (`effective_admission_policy` with its unreadable-config fallback already
+    applied), and `cwd` is required so global policy settings cannot be
+    skipped. keeping this a PURE, mode-agnostic planner.
     """
     approved: list[WorkItem] = []
     admitted: list[tuple[WorkItem, str]] = []

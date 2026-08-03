@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from returns.unsafe import unsafe_perform_io
+
 from livespec_orchestrator_beads_fabro._store_acceptance_rework import (
     update_acceptance_failed_ai_passes,
 )
@@ -15,6 +17,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_decision_journal imp
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import store_config
 from livespec_orchestrator_beads_fabro.commands._dispatcher_valves import (
+    DEFAULT_ACCEPTANCE_REWORK_CAP,
     effective_acceptance_rework_cap,
 )
 from livespec_orchestrator_beads_fabro.io import write_stderr
@@ -36,10 +39,15 @@ def rework_or_block_failed_acceptance(
     """Auto-rework a failing AI pass, or block once the item exceeds its cap."""
     config = store_config(repo=repo)
     failure_state = update_acceptance_failed_ai_passes(path=config, item_id=item.id)
-    cap = effective_acceptance_rework_cap(
-        item=item,
-        cwd=repo,
-        raw_labels=failure_state.raw_labels,
+    # An unreadable `.livespec.jsonc` falls back to the documented default cap,
+    # visibly and here rather than inside the reader. `unsafe_perform_io` is
+    # required: `IOResult.value_or` returns `IO[value]`, not the value.
+    cap = unsafe_perform_io(
+        effective_acceptance_rework_cap(
+            item=item,
+            cwd=repo,
+            raw_labels=failure_state.raw_labels,
+        ).value_or(DEFAULT_ACCEPTANCE_REWORK_CAP)
     )
     cap_source = _acceptance_rework_cap_source(raw_labels=failure_state.raw_labels)
     if failure_state.failed_ai_passes > cap:

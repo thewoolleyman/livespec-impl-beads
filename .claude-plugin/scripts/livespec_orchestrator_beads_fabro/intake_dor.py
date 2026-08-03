@@ -67,8 +67,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
+from returns.unsafe import unsafe_perform_io
+
 from livespec_orchestrator_beads_fabro._beads_client import make_beads_client
-from livespec_orchestrator_beads_fabro.commands._dispatcher_valves import effective_admission_policy
+from livespec_orchestrator_beads_fabro.commands._dispatcher_valves import (
+    DEFAULT_ADMISSION_POLICY,
+    effective_admission_policy,
+)
 from livespec_orchestrator_beads_fabro.errors import WorkItemNotFoundError
 from livespec_orchestrator_beads_fabro.store import (
     INTAKE_TRIAGED_LABEL,
@@ -155,7 +160,15 @@ def apply_intake_dor(
         if repo_root is None:
             msg = "StoreConfig.repo_root is required for intake admission policy resolution"
             raise TypeError(msg)
-        if effective_admission_policy(item=item, cwd=repo_root) == _AUTO_ADMISSION:
+        # An unreadable `.livespec.jsonc` falls back to the safe `manual`
+        # default, visibly and here rather than inside the reader: an item
+        # whose policy cannot be read waits for a human instead of being
+        # routed straight to `ready`. `unsafe_perform_io` is required —
+        # `IOResult.value_or` returns `IO[value]`, not the value.
+        policy = unsafe_perform_io(
+            effective_admission_policy(item=item, cwd=repo_root).value_or(DEFAULT_ADMISSION_POLICY)
+        )
+        if policy == _AUTO_ADMISSION:
             status = _READY_STATUS
 
     # The triage marker is stamped for EVERY verdict, not just the routed-on

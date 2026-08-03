@@ -12,6 +12,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 
+from returns.unsafe import unsafe_perform_io
+
 from livespec_orchestrator_beads_fabro.commands import _dispatcher_self_update as selfup
 from livespec_orchestrator_beads_fabro.commands._dispatcher_claim_reclaim import (
     claimed_active_count,
@@ -31,6 +33,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_outcomes import
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import store_config
 from livespec_orchestrator_beads_fabro.commands._dispatcher_valves import (
+    DEFAULT_WIP_CAP,
     admission_held_detail,
     plan_admissions,
     resolve_assignee,
@@ -94,7 +97,11 @@ def admit_and_select(
     )
     active_count = claimed_active_count(repo=repo, items=items, journal=journal)
     if enforce_cap:
-        free_slots = max(0, resolve_wip_cap(cwd=repo) - active_count)
+        # An unreadable `.livespec.jsonc` falls back to the documented cap,
+        # visibly and here rather than inside the reader. `unsafe_perform_io`
+        # is required: `IOResult.value_or` returns `IO[value]`, not the value.
+        wip_cap = unsafe_perform_io(resolve_wip_cap(cwd=repo).value_or(DEFAULT_WIP_CAP))
+        free_slots = max(0, wip_cap - active_count)
     else:
         free_slots = len(admittable)
     plan = plan_admissions(

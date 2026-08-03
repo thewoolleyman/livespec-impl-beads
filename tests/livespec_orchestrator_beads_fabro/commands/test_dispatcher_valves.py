@@ -13,13 +13,18 @@ a Hypothesis invariant on the admission planner.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
+from typing import TypeVar
 
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 from livespec_orchestrator_beads_fabro.commands import _dispatcher_valves as valves
+from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings import (
+    PolicySettingUnreadable,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_valves import (
     DEFAULT_ACCEPTANCE_POLICY,
     DEFAULT_ADMISSION_POLICY,
@@ -35,8 +40,27 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_valves import (
     resolve_wip_cap,
 )
 from livespec_orchestrator_beads_fabro.types import WorkItem
+from returns.io import IOFailure, IOResult
+from returns.unsafe import unsafe_perform_io
 
 _NO_CONFIG_CWD = Path("tests/nonexistent-policy-cwd")
+
+_Value = TypeVar("_Value")
+
+
+def _read(outcome: IOResult[_Value, PolicySettingUnreadable]) -> _Value:
+    """The value out of a policy read that SUCCEEDED.
+
+    ⚠️ `unsafe_perform_io` is mandatory rather than decorative: `IOResult.unwrap`
+    yields `IO[value]`, not the value, so a bare `.unwrap()` here would compare
+    an `IO` wrapper against `5` — false for every input, and type-clean.
+    """
+    return unsafe_perform_io(outcome.unwrap())
+
+
+def _failed(outcome: IOResult[object, PolicySettingUnreadable]) -> PolicySettingUnreadable:
+    """The `PolicySettingUnreadable` out of a policy read that FAILED."""
+    return unsafe_perform_io(outcome.failure())
 
 
 def _item(**overrides: object) -> WorkItem:
@@ -82,7 +106,7 @@ def _write_config(*, tmp_path: Path, text: str) -> Path:
 
 
 def test_resolve_wip_cap_defaults_when_no_config(tmp_path: Path) -> None:
-    assert resolve_wip_cap(cwd=tmp_path) == DEFAULT_WIP_CAP
+    assert _read(resolve_wip_cap(cwd=tmp_path)) == DEFAULT_WIP_CAP
 
 
 def test_resolve_wip_cap_reads_explicit_value(tmp_path: Path) -> None:
@@ -90,27 +114,47 @@ def test_resolve_wip_cap_reads_explicit_value(tmp_path: Path) -> None:
         tmp_path=tmp_path,
         text='{"livespec-orchestrator-beads-fabro": {"dispatcher": {"wip_cap": 2}}}',
     )
-    assert resolve_wip_cap(cwd=cwd) == 2
+    assert _read(resolve_wip_cap(cwd=cwd)) == 2
 
 
-def test_resolve_wip_cap_defaults_on_parse_error(tmp_path: Path) -> None:
+def test_resolve_wip_cap_fails_on_parse_error(tmp_path: Path) -> None:
+    """A config that will not PARSE is a failure, not an unconfigured repo.
+
+    The caller's fallback still lands on the same default — the third
+    assertion pins that — but it is now the CALLER's, taken with the reason in
+    hand, instead of a default invented where nobody could see it.
+    """
     cwd = _write_config(tmp_path=tmp_path, text="{not valid jsonc")
-    assert resolve_wip_cap(cwd=cwd) == DEFAULT_WIP_CAP
+
+    outcome = resolve_wip_cap(cwd=cwd)
+
+    assert isinstance(outcome, IOFailure)
+    assert "does not parse" in _failed(outcome).detail
+    assert unsafe_perform_io(outcome.value_or(DEFAULT_WIP_CAP)) == DEFAULT_WIP_CAP
 
 
-def test_resolve_wip_cap_defaults_when_top_level_not_object(tmp_path: Path) -> None:
+def test_resolve_wip_cap_fails_when_top_level_not_object(tmp_path: Path) -> None:
     cwd = _write_config(tmp_path=tmp_path, text="[1, 2, 3]")
-    assert resolve_wip_cap(cwd=cwd) == DEFAULT_WIP_CAP
+
+    outcome = resolve_wip_cap(cwd=cwd)
+
+    assert isinstance(outcome, IOFailure)
+    assert "root is not an object" in _failed(outcome).detail
 
 
 def test_resolve_wip_cap_defaults_when_plugin_block_missing(tmp_path: Path) -> None:
+    """An ABSENT block is an answer: nothing is configured, so the default holds."""
     cwd = _write_config(tmp_path=tmp_path, text='{"other": {}}')
-    assert resolve_wip_cap(cwd=cwd) == DEFAULT_WIP_CAP
+    assert _read(resolve_wip_cap(cwd=cwd)) == DEFAULT_WIP_CAP
 
 
-def test_resolve_wip_cap_defaults_when_plugin_block_not_object(tmp_path: Path) -> None:
+def test_resolve_wip_cap_fails_when_plugin_block_not_object(tmp_path: Path) -> None:
     cwd = _write_config(tmp_path=tmp_path, text='{"livespec-orchestrator-beads-fabro": 7}')
-    assert resolve_wip_cap(cwd=cwd) == DEFAULT_WIP_CAP
+
+    outcome = resolve_wip_cap(cwd=cwd)
+
+    assert isinstance(outcome, IOFailure)
+    assert "livespec-orchestrator-beads-fabro is not an object" in _failed(outcome).detail
 
 
 def test_resolve_wip_cap_defaults_when_dispatcher_block_missing(tmp_path: Path) -> None:
@@ -118,24 +162,36 @@ def test_resolve_wip_cap_defaults_when_dispatcher_block_missing(tmp_path: Path) 
         tmp_path=tmp_path,
         text='{"livespec-orchestrator-beads-fabro": {"connection": {"prefix": "bd-ib"}}}',
     )
-    assert resolve_wip_cap(cwd=cwd) == DEFAULT_WIP_CAP
+    assert _read(resolve_wip_cap(cwd=cwd)) == DEFAULT_WIP_CAP
 
 
-def test_resolve_wip_cap_defaults_when_dispatcher_block_not_object(tmp_path: Path) -> None:
+def test_resolve_wip_cap_fails_when_dispatcher_block_not_object(tmp_path: Path) -> None:
     cwd = _write_config(
         tmp_path=tmp_path,
         text='{"livespec-orchestrator-beads-fabro": {"dispatcher": 5}}',
     )
-    assert resolve_wip_cap(cwd=cwd) == DEFAULT_WIP_CAP
+
+    outcome = resolve_wip_cap(cwd=cwd)
+
+    assert isinstance(outcome, IOFailure)
+    assert "dispatcher is not an object" in _failed(outcome).detail
 
 
 @pytest.mark.parametrize("raw", ['"3"', "true", "-1"])
-def test_resolve_wip_cap_defaults_when_value_invalid(tmp_path: Path, raw: str) -> None:
+def test_resolve_wip_cap_fails_when_value_invalid(tmp_path: Path, raw: str) -> None:
+    """A value the setting cannot accept is the operator being wrong, not silent."""
     cwd = _write_config(
         tmp_path=tmp_path,
         text=f'{{"livespec-orchestrator-beads-fabro": {{"dispatcher": {{"wip_cap": {raw}}}}}}}',
     )
-    assert resolve_wip_cap(cwd=cwd) == DEFAULT_WIP_CAP
+
+    outcome = resolve_wip_cap(cwd=cwd)
+
+    assert isinstance(outcome, IOFailure)
+    failure = _failed(outcome)
+    assert failure.setting == "wip_cap"
+    assert "an integer >= 0" in failure.detail
+    assert unsafe_perform_io(outcome.value_or(DEFAULT_WIP_CAP)) == DEFAULT_WIP_CAP
 
 
 # ---------------------------------------------------------------------------
@@ -144,14 +200,20 @@ def test_resolve_wip_cap_defaults_when_value_invalid(tmp_path: Path, raw: str) -
 
 
 def test_dispatcher_policy_settings_default_when_no_config(tmp_path: Path) -> None:
-    assert valves.resolve_auto_approve_ready(cwd=tmp_path) is valves.DEFAULT_AUTO_APPROVE_READY
-    assert valves.resolve_merge_on_review_cap(cwd=tmp_path) is valves.DEFAULT_MERGE_ON_REVIEW_CAP
-    assert valves.resolve_acceptance_mode(cwd=tmp_path) == DEFAULT_ACCEPTANCE_POLICY
-    assert valves.resolve_review_fix_cap(cwd=tmp_path) == valves.DEFAULT_REVIEW_FIX_CAP
     assert (
-        valves.resolve_acceptance_rework_cap(cwd=tmp_path) == valves.DEFAULT_ACCEPTANCE_REWORK_CAP
+        _read(valves.resolve_auto_approve_ready(cwd=tmp_path)) is valves.DEFAULT_AUTO_APPROVE_READY
     )
-    assert resolve_wip_cap(cwd=tmp_path) == DEFAULT_WIP_CAP
+    assert (
+        _read(valves.resolve_merge_on_review_cap(cwd=tmp_path))
+        is valves.DEFAULT_MERGE_ON_REVIEW_CAP
+    )
+    assert _read(valves.resolve_acceptance_mode(cwd=tmp_path)) == DEFAULT_ACCEPTANCE_POLICY
+    assert _read(valves.resolve_review_fix_cap(cwd=tmp_path)) == valves.DEFAULT_REVIEW_FIX_CAP
+    assert (
+        _read(valves.resolve_acceptance_rework_cap(cwd=tmp_path))
+        == valves.DEFAULT_ACCEPTANCE_REWORK_CAP
+    )
+    assert _read(resolve_wip_cap(cwd=tmp_path)) == DEFAULT_WIP_CAP
 
 
 def test_dispatcher_policy_settings_read_explicit_values(tmp_path: Path) -> None:
@@ -169,37 +231,46 @@ def test_dispatcher_policy_settings_read_explicit_values(tmp_path: Path) -> None
         ),
     )
 
-    assert valves.resolve_auto_approve_ready(cwd=cwd) is True
-    assert valves.resolve_merge_on_review_cap(cwd=cwd) is True
-    assert valves.resolve_acceptance_mode(cwd=cwd) == "human-only"
-    assert valves.resolve_review_fix_cap(cwd=cwd) == 4
-    assert valves.resolve_acceptance_rework_cap(cwd=cwd) == 5
-    assert resolve_wip_cap(cwd=cwd) == 6
+    assert _read(valves.resolve_auto_approve_ready(cwd=cwd)) is True
+    assert _read(valves.resolve_merge_on_review_cap(cwd=cwd)) is True
+    assert _read(valves.resolve_acceptance_mode(cwd=cwd)) == "human-only"
+    assert _read(valves.resolve_review_fix_cap(cwd=cwd)) == 4
+    assert _read(valves.resolve_acceptance_rework_cap(cwd=cwd)) == 5
+    assert _read(resolve_wip_cap(cwd=cwd)) == 6
 
 
 @pytest.mark.parametrize(
-    ("key", "raw"),
+    ("key", "raw", "reader"),
     [
-        ("auto_approve_ready", '"true"'),
-        ("merge_on_review_cap", "1"),
-        ("acceptance_mode", '"sometimes"'),
-        ("review_fix_cap", "true"),
-        ("acceptance_rework_cap", "0"),
+        ("auto_approve_ready", '"true"', valves.resolve_auto_approve_ready),
+        ("merge_on_review_cap", "1", valves.resolve_merge_on_review_cap),
+        ("acceptance_mode", '"sometimes"', valves.resolve_acceptance_mode),
+        ("review_fix_cap", "true", valves.resolve_review_fix_cap),
+        ("acceptance_rework_cap", "0", valves.resolve_acceptance_rework_cap),
     ],
 )
-def test_dispatcher_policy_settings_default_on_wrong_typed_values(
-    tmp_path: Path, key: str, raw: str
+def test_dispatcher_policy_settings_fail_on_wrong_typed_values(
+    tmp_path: Path,
+    key: str,
+    raw: str,
+    reader: Callable[..., IOResult[object, PolicySettingUnreadable]],
 ) -> None:
+    """The WRONG key fails; the settings beside it still read their defaults.
+
+    Both halves matter. Failing only the key the operator got wrong is what
+    makes this a diagnosis rather than a blanket refusal, and it is why the
+    per-setting failure carries the setting NAME.
+    """
     cwd = _write_config(
         tmp_path=tmp_path,
         text=(f'{{"livespec-orchestrator-beads-fabro": {{"dispatcher": {{"{key}": {raw}}}}}}}'),
     )
 
-    assert valves.resolve_auto_approve_ready(cwd=cwd) is valves.DEFAULT_AUTO_APPROVE_READY
-    assert valves.resolve_merge_on_review_cap(cwd=cwd) is valves.DEFAULT_MERGE_ON_REVIEW_CAP
-    assert valves.resolve_acceptance_mode(cwd=cwd) == DEFAULT_ACCEPTANCE_POLICY
-    assert valves.resolve_review_fix_cap(cwd=cwd) == valves.DEFAULT_REVIEW_FIX_CAP
-    assert valves.resolve_acceptance_rework_cap(cwd=cwd) == valves.DEFAULT_ACCEPTANCE_REWORK_CAP
+    outcome = reader(cwd=cwd)
+
+    assert isinstance(outcome, IOFailure)
+    assert _failed(outcome).setting == key
+    assert _read(resolve_wip_cap(cwd=cwd)) == DEFAULT_WIP_CAP
 
 
 def test_effective_admission_policy_inherits_global_auto_when_unlabeled(tmp_path: Path) -> None:
@@ -207,19 +278,34 @@ def test_effective_admission_policy_inherits_global_auto_when_unlabeled(tmp_path
         tmp_path=tmp_path,
         text='{"livespec-orchestrator-beads-fabro": {"dispatcher": {"auto_approve_ready": true}}}',
     )
-    assert effective_admission_policy(item=_item(admission_policy=None), cwd=cwd) == "auto"
+    assert _read(effective_admission_policy(item=_item(admission_policy=None), cwd=cwd)) == "auto"
 
 
 def test_effective_admission_policy_inherits_manual_when_none(tmp_path: Path) -> None:
     assert (
-        effective_admission_policy(item=_item(admission_policy=None), cwd=tmp_path)
+        _read(effective_admission_policy(item=_item(admission_policy=None), cwd=tmp_path))
         == DEFAULT_ADMISSION_POLICY
     )
 
 
+def test_effective_admission_policy_propagates_an_unreadable_config(tmp_path: Path) -> None:
+    """An item with no per-item policy inherits the global read, failure and all.
+
+    This is the path that silently reverted this repo's own autonomous
+    dispatch: `auto_approve_ready: true` in a file that stopped parsing read
+    as `manual` and every ready item waited for a human with nothing said.
+    """
+    cwd = _write_config(tmp_path=tmp_path, text="{not valid jsonc")
+
+    outcome = effective_admission_policy(item=_item(admission_policy=None), cwd=cwd)
+
+    assert isinstance(outcome, IOFailure)
+    assert _failed(outcome).setting == "auto_approve_ready"
+
+
 def test_effective_acceptance_policy_defaults_with_empty_config() -> None:
     assert (
-        effective_acceptance_policy(item=_item(acceptance_policy=None), cwd=_NO_CONFIG_CWD)
+        _read(effective_acceptance_policy(item=_item(acceptance_policy=None), cwd=_NO_CONFIG_CWD))
         == DEFAULT_ACCEPTANCE_POLICY
     )
 
@@ -233,9 +319,13 @@ def test_effective_admission_policy_honors_explicit_in_both_directions(tmp_path:
         tmp_path=tmp_path / "auto-on",
         text='{"livespec-orchestrator-beads-fabro": {"dispatcher": {"auto_approve_ready": true}}}',
     )
-    assert effective_admission_policy(item=_item(admission_policy="auto"), cwd=auto_off) == "auto"
     assert (
-        effective_admission_policy(item=_item(admission_policy="manual"), cwd=auto_on) == "manual"
+        _read(effective_admission_policy(item=_item(admission_policy="auto"), cwd=auto_off))
+        == "auto"
+    )
+    assert (
+        _read(effective_admission_policy(item=_item(admission_policy="manual"), cwd=auto_on))
+        == "manual"
     )
 
 
@@ -248,7 +338,7 @@ def test_effective_admission_policy_never_auto_approves_spec_change_tier(
     )
     item = _item(admission_policy="auto", spec_commitment_hint="SC-1")
 
-    assert effective_admission_policy(item=item, cwd=cwd) == "manual"
+    assert _read(effective_admission_policy(item=item, cwd=cwd)) == "manual"
 
 
 def test_effective_acceptance_policy_inherits_global_mode_when_unlabeled(tmp_path: Path) -> None:
@@ -256,12 +346,14 @@ def test_effective_acceptance_policy_inherits_global_mode_when_unlabeled(tmp_pat
         tmp_path=tmp_path,
         text='{"livespec-orchestrator-beads-fabro": {"dispatcher": {"acceptance_mode": "ai-only"}}}',
     )
-    assert effective_acceptance_policy(item=_item(acceptance_policy=None), cwd=cwd) == "ai-only"
+    assert (
+        _read(effective_acceptance_policy(item=_item(acceptance_policy=None), cwd=cwd)) == "ai-only"
+    )
 
 
 def test_effective_acceptance_policy_inherits_default_when_none(tmp_path: Path) -> None:
     assert (
-        effective_acceptance_policy(item=_item(acceptance_policy=None), cwd=tmp_path)
+        _read(effective_acceptance_policy(item=_item(acceptance_policy=None), cwd=tmp_path))
         == DEFAULT_ACCEPTANCE_POLICY
     )
 
@@ -272,7 +364,7 @@ def test_effective_acceptance_policy_honors_explicit(tmp_path: Path) -> None:
         text='{"livespec-orchestrator-beads-fabro": {"dispatcher": {"acceptance_mode": "ai-only"}}}',
     )
     assert (
-        effective_acceptance_policy(item=_item(acceptance_policy="human-only"), cwd=cwd)
+        _read(effective_acceptance_policy(item=_item(acceptance_policy="human-only"), cwd=cwd))
         == "human-only"
     )
 
@@ -290,21 +382,40 @@ def test_new_raw_label_overrides_beat_global_settings(tmp_path: Path) -> None:
     )
 
     assert (
-        valves.effective_merge_on_review_cap(
-            item=_item(), cwd=cwd, raw_labels=("merge-on-review-cap:true",)
+        _read(
+            valves.effective_merge_on_review_cap(
+                item=_item(), cwd=cwd, raw_labels=("merge-on-review-cap:true",)
+            )
         )
         is True
     )
     assert (
-        valves.effective_review_fix_cap(item=_item(), cwd=cwd, raw_labels=("review-fix-cap:7",))
+        _read(
+            valves.effective_review_fix_cap(item=_item(), cwd=cwd, raw_labels=("review-fix-cap:7",))
+        )
         == 7
     )
     assert (
-        valves.effective_acceptance_rework_cap(
-            item=_item(), cwd=cwd, raw_labels=("acceptance-rework-cap:8",)
+        _read(
+            valves.effective_acceptance_rework_cap(
+                item=_item(), cwd=cwd, raw_labels=("acceptance-rework-cap:8",)
+            )
         )
         == 8
     )
+
+
+def test_raw_label_override_answers_even_when_the_config_is_unreadable(tmp_path: Path) -> None:
+    """A per-item label decides BEFORE the global read, so it never reaches it."""
+    cwd = _write_config(tmp_path=tmp_path, text="{not valid jsonc")
+
+    assert (
+        _read(
+            valves.effective_review_fix_cap(item=_item(), cwd=cwd, raw_labels=("review-fix-cap:7",))
+        )
+        == 7
+    )
+    assert isinstance(valves.effective_review_fix_cap(item=_item(), cwd=cwd), IOFailure)
 
 
 def test_resolve_assignee_honors_explicit() -> None:

@@ -43,6 +43,7 @@ from livespec_orchestrator_beads_fabro.store import (
     update_work_item_status,
 )
 from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
+from returns.unsafe import unsafe_perform_io
 
 _FLEET_MANIFEST_TEXT = (
     "// .livespec-fleet-manifest.jsonc — canned test copy\n"
@@ -203,7 +204,7 @@ def test_loop_admits_nothing_when_committed_wip_cap_is_zero(
     calls: list[str] = []
     monkeypatch.setattr(_dispatcher_loop, "run_dispatch", _green_recording(calls))
 
-    assert resolve_wip_cap(cwd=repo) == 0
+    assert unsafe_perform_io(resolve_wip_cap(cwd=repo).unwrap()) == 0
 
     exit_code = main(
         argv=[

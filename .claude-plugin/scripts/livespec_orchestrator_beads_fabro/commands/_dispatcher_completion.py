@@ -6,6 +6,8 @@ from collections.abc import Sequence
 from dataclasses import asdict, replace
 from pathlib import Path
 
+from returns.unsafe import unsafe_perform_io
+
 from livespec_orchestrator_beads_fabro.commands._dispatcher_acceptance_ai import (
     run_acceptance_pass,
 )
@@ -30,6 +32,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     item_sizing_warnings,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_valves import (
+    DEFAULT_ACCEPTANCE_POLICY,
     acceptance_decision,
     effective_acceptance_policy,
 )
@@ -143,7 +146,13 @@ def complete_and_accept(
     config = store_config(repo=repo)
     update_work_item_status(path=config, item_id=item.id, status="acceptance")
     journal.append(record={"stage": "ledger-complete", "work_item_id": item.id})
-    policy = effective_acceptance_policy(item=item, cwd=repo)
+    # An unreadable `.livespec.jsonc` falls back to the documented default
+    # policy, visibly and here rather than inside the reader.
+    # `unsafe_perform_io` is required: `IOResult.value_or` returns
+    # `IO[value]`, not the value.
+    policy = unsafe_perform_io(
+        effective_acceptance_policy(item=item, cwd=repo).value_or(DEFAULT_ACCEPTANCE_POLICY)
+    )
     acceptance_pass = run_acceptance_pass(repo=repo, item=item, outcome=outcome)
     journal.append(record=acceptance_pass.journal_record(work_item_id=item.id, policy=policy))
     decision = acceptance_decision(policy=policy)

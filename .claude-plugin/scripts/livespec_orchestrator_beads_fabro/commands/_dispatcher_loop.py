@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from time import sleep as _real_sleep
 
+from returns.unsafe import unsafe_perform_io
+
 from livespec_orchestrator_beads_fabro.commands import (
     _dispatcher_self_update as selfup,
 )
@@ -62,6 +64,8 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     render_goal,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings import (
+    DEFAULT_MERGE_ON_REVIEW_CAP,
+    DEFAULT_REVIEW_FIX_CAP,
     effective_merge_on_review_cap,
     effective_review_fix_cap,
 )
@@ -129,9 +133,19 @@ def _dispatch_one_locked(
         janitor=janitor,
         janitor_checkout=janitor_checkout,
         janitor_core_ref=janitor_core_ref(repo=repo),
-        review_fix_cap=effective_review_fix_cap(item=item, cwd=repo, raw_labels=raw_labels),
-        merge_on_review_cap=effective_merge_on_review_cap(
-            item=item, cwd=repo, raw_labels=raw_labels
+        # An unreadable `.livespec.jsonc` falls back to the documented
+        # defaults, visibly and here rather than inside the reader.
+        # `unsafe_perform_io` is required: `IOResult.value_or` returns
+        # `IO[value]`, not the value.
+        review_fix_cap=unsafe_perform_io(
+            effective_review_fix_cap(item=item, cwd=repo, raw_labels=raw_labels).value_or(
+                DEFAULT_REVIEW_FIX_CAP
+            )
+        ),
+        merge_on_review_cap=unsafe_perform_io(
+            effective_merge_on_review_cap(item=item, cwd=repo, raw_labels=raw_labels).value_or(
+                DEFAULT_MERGE_ON_REVIEW_CAP
+            )
         ),
     )
     warn_item_sizing(item=item, journal=journal)
