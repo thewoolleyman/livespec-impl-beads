@@ -29,6 +29,63 @@ backup is the data rollback boundary.
 
 ## Current state
 
+### Restart checkpoint — 2026-08-03
+
+The next worker must resume the owned O5 correction; do not infer that O5 or
+the upgrade is complete.
+
+- O1 `bd-ib-ne11` and O2 `bd-ib-bt1n` are closed. O5 code item
+  `bd-ib-1rz6` remains `active`, assigned to `fabro`, with external reference
+  `beads-v1-1-2-upgrade:O5`. The separate attended proof `bd-ib-dwv` remains
+  `backlog` and unassigned.
+- Factory run `01KZ0K8QR904AV5RGNZWRNXFMW` produced draft PR
+  [#1221](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/pull/1221).
+  Before correction work began, the PR was verified open and draft with
+  auto-merge disabled at exact head
+  `2f06d18f7b9fe5f2d8ba069d6caa8443b5d6ee34` and base
+  `5ccbd4c01f5f220eac946cae449a03efd4f2daca`.
+- The supervisor rejected that exact head because
+  `orchestrator-image/build-and-verify.sh` made its embedded Tier-1 `bd init`,
+  `bd create`, and `bd list` operations non-proving with `|| true`. O5 must
+  make the ephemeral leg failure-fatal and prove both behaviors through the
+  public `/usr/local/bin/bd`: an explicitly configured fail-mode prohibited
+  lifecycle mutation exits `3` with the guard warning and does not change the
+  item, while a qualifying create reads back as `backlog` after guard
+  normalization. No image build or run is authorized.
+- The owned correction worktree is
+  `/home/ubuntu/.worktrees/livespec-orchestrator-beads-fabro/feat/bd-ib-1rz6`
+  on local branch `feat/bd-ib-1rz6`, created from the exact reviewed remote
+  head. No other worktree owned that branch at creation time.
+- That worktree contains a staged, hook-formatted Red change only in
+  `tests/test_orchestrator_image_dockerfile.py`. The focused test produced a
+  genuine assertion failure requiring ordered, exact Tier-1 init/config,
+  create/readback, fail-mode block, warning, exit-code, and unchanged-backlog
+  assertions, and forbidding `|| true` and bare `bd` calls in the embedded
+  body. No shell implementation change has been made and no commit or push
+  occurred.
+- The Red commit attempt was halted exactly as required when the pre-commit
+  aggregate failed target
+  `check-primary-checkout-commit-refuse-hook-installed` with exit `1` after
+  recognizing the Red-mode shape. Do not bypass or discard the staged test.
+  Diagnose and repair that repository hook prerequisite, then retry the same
+  test-only Red commit. At the time of the failure the primary checkout was
+  clean on `master` at `b9d30fa267a3777e1094c4781fa63066f0b599a7`, while
+  fetched `origin/master`, the remote master ref, and GitHub forge master all
+  agreed at `589ff1600dc700fc709dce7cc4da5a81aef7ae00`; reconcile that clean
+  primary staleness before retrying the hook. A subsequent wrap-up bootstrap
+  refreshed primary and installed the canonical worktree pack; remeasure
+  rather than assuming the original mismatch persists.
+- After a successful Red commit, edit only
+  `orchestrator-image/build-and-verify.sh` to satisfy the staged contract,
+  amend with `mise exec -- git commit --amend --no-edit`, run the focused test
+  and `mise exec -- just check` in the foreground, verify
+  `mise exec -- git diff --name-only origin/master...feat/bd-ib-1rz6` contains
+  only the owned Tier-1 script and static test paths, then push to the existing
+  branch. Re-verify PR #1221 remains draft with auto-merge disabled, append the
+  exact new head and gate receipt to the ignored runtime worker log, and stop
+  for fresh exact-head supervisor review. Do not merge, dispatch, mutate the
+  ledger, or perform an image operation.
+
 As measured on 2026-07-30:
 
 - The host guard is correctly installed at `/usr/local/bin/bd`.
@@ -815,12 +872,12 @@ because that would remove the required guard and move `bd-real` onto `bd`.
 
 ## Immediate next action
 
-Do not begin implementation, retry O1, or mutate either ledger in this
-plan-only correction. First obtain exact-head supervisor review, pass every
-required check, and rebase-merge this correction PR. After that merge, the
-supervisor may authorize exactly the recorded `bd-ib-ne11` label removal and
-read-back before one O1 retry, plus the recorded `dolt-server-wgy` description
-and label repairs before O3's spec-first work. O1 and O3 have been filed, O1
-remains `ready` after its single refused dispatch, and no implementation has
-started. Later outcomes remain gated by the recorded O1-through-O8
-prerequisites.
+Resume only the staged Red correction in the exact O5 worktree recorded in
+“Restart checkpoint — 2026-08-03.” First remeasure the clean primary checkout
+and repair any remaining
+`check-primary-checkout-commit-refuse-hook-installed` prerequisite without
+bypassing it. Then complete the Red-Green-Replay correction, focused and full
+foreground gates, ownership diff, push to the same draft PR #1221, durable
+runtime receipt, and exact-head hold for supervisor review. Do not start any
+other outcome, merge the PR, run an image operation, mutate either ledger, or
+touch another session's branch or worktree.
