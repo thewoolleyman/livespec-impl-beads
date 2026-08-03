@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.49.11](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.49.10...v0.49.11) (2026-08-03)
+
+
+### Bug Fixes
+
+* **image:** prove guarded Beads lifecycle behavior ([e2f0a1e](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/e2f0a1eacb4527a4015a2280e1176314c1f3fa3b))
+* **image:** prove quote-safe guarded Beads lifecycle ([976caf9](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/976caf9744b8a6c1159434da8f2102081935f419))
+
 ## [0.49.10](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.49.9...v0.49.10) (2026-08-03)
 
 
