@@ -35,6 +35,16 @@
     "claude": { "status": "supported", "canonical_command": "livespec-orchestrator-beads-fabro:next" },
     "codex":  { "status": "supported", "canonical_command": "livespec-orchestrator-beads-fabro:next" }
   },
+  // Planning/work-item-resolution registry. These targets are the repo slugs
+  // accepted by typed cross-tenant `depends_on` refs so the Dispatcher
+  // readiness gate can fail closed on still-open sibling work.
+  "cross_repo_targets": {
+    "livespec-dev-tooling": {
+      "github_url": "https://github.com/thewoolleyman/livespec-dev-tooling",
+      "local_clone": "/data/projects/livespec-dev-tooling",
+      "default_branch": "master"
+    }
+  },
   "livespec-orchestrator-beads-fabro": {
     // Substrate marker. The plaintext sibling declares "jsonl"; this
     // plugin's substrate is a beads/Dolt tenant DB.
