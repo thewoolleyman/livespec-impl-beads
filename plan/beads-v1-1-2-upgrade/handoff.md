@@ -40,8 +40,8 @@ the upgrade is complete.
   `backlog` and unassigned.
 - Factory run `01KZ0K8QR904AV5RGNZWRNXFMW` produced draft PR
   [#1221](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/pull/1221).
-  Before correction work began, the PR was verified open and draft with
-  auto-merge disabled at exact head
+  At this wind-down it was re-verified open and draft with auto-merge disabled
+  at unchanged remote head
   `2f06d18f7b9fe5f2d8ba069d6caa8443b5d6ee34` and base
   `5ccbd4c01f5f220eac946cae449a03efd4f2daca`.
 - The supervisor rejected that exact head because
@@ -54,37 +54,57 @@ the upgrade is complete.
   normalization. No image build or run is authorized.
 - The owned correction worktree is
   `/home/ubuntu/.worktrees/livespec-orchestrator-beads-fabro/feat/bd-ib-1rz6`
-  on local branch `feat/bd-ib-1rz6`, created from the exact reviewed remote
-  head. No other worktree owned that branch at creation time.
-- That worktree contains a staged, hook-formatted Red change only in
-  `tests/test_orchestrator_image_dockerfile.py`. The focused test produced a
-  genuine assertion failure requiring ordered, exact Tier-1 init/config,
-  create/readback, fail-mode block, warning, exit-code, and unchanged-backlog
-  assertions, and forbidding `|| true` and bare `bd` calls in the embedded
-  body. No shell implementation change has been made and no commit or push
-  occurred.
-- The Red commit attempt was halted exactly as required when the pre-commit
-  aggregate failed target
-  `check-primary-checkout-commit-refuse-hook-installed` with exit `1` after
-  recognizing the Red-mode shape. Do not bypass or discard the staged test.
-  Diagnose and repair that repository hook prerequisite, then retry the same
-  test-only Red commit. At the time of the failure the primary checkout was
-  clean on `master` at `b9d30fa267a3777e1094c4781fa63066f0b599a7`, while
-  fetched `origin/master`, the remote master ref, and GitHub forge master all
-  agreed at `589ff1600dc700fc709dce7cc4da5a81aef7ae00`; reconcile that clean
-  primary staleness before retrying the hook. A subsequent wrap-up bootstrap
-  refreshed primary and installed the canonical worktree pack; remeasure
-  rather than assuming the original mismatch persists.
-- After a successful Red commit, edit only
-  `orchestrator-image/build-and-verify.sh` to satisfy the staged contract,
-  amend with `mise exec -- git commit --amend --no-edit`, run the focused test
-  and `mise exec -- just check` in the foreground, verify
+  on local branch `feat/bd-ib-1rz6`. The branch was fetched and rebased cleanly
+  onto verified primary, `origin/master`, and GitHub forge master
+  `f9a91f064198ef4fc15407728d218016c5bc7024`; the remote PR branch was not
+  updated. No other worktree owned this branch at creation time.
+- The missing generated worktree pack that caused the prior Red hook failure
+  was repaired in this owned worktree with `mise exec -- just bootstrap`.
+  `mise exec -- just check-primary-checkout-commit-refuse-hook-installed` then
+  passed. The bootstrap-created pack files are ignored runtime files, not
+  tracked changes. Lefthook repeatedly warned that it could not rotate an
+  already-existing `.old` hook file, but the canonical pre-commit and
+  commit-message hooks executed successfully; no hook was bypassed.
+- The ordered Tier-1 static test is committed as a genuine Red with checksum
+  trailers. Its pre-rebase commit was `9d9846df85337e7c0f1990f81ba00b37b05b244c`;
+  after the required rebase it is local head
+  `3e8c760f70f9b7046bcf1807829294c0888f1302`. All 72 Red-mode pre-commit
+  targets passed, and the commit-message hook recorded the expected focused
+  pytest failure. Do not rewrite or drop this evidence casually.
+- The worktree now has exactly one unstaged tracked change:
+  `orchestrator-image/build-and-verify.sh`. It replaces the permissive Tier-1
+  calls with the required public guarded path, failure-fatal init/config/create
+  and show operations, an exact `backlog` readback, an explicit fail-mode
+  prohibited update, exit `3` and warning assertions, and an unchanged-status
+  readback. No Green amend or push occurred.
+- The focused Python file passed (`6 passed`), but the additional static shell
+  gate `bash -n orchestrator-image/build-and-verify.sh` failed with exit `2` at
+  line 197. The cause is exact: the new single-quoted `jq` program, and later
+  the apostrophe in the warning text, terminate the surrounding existing
+  `bash -lc '…'` argument. The worker halted on that gate as required. No image
+  was built, run, inspected, tagged, loaded, or pushed, and no host, ledger,
+  tenant, Dolt, secret, backup, or Fabro mutation occurred.
+- The next worker must first preserve the current evidence and correct the
+  quoting contract through a fresh Red, because the test file bytes covered by
+  commit `3e8c760` cannot change during that commit's Green amend. Restore only
+  the unstaged broken shell edit to the local Red head, then make a new
+  test-only Red that extracts a real quote-safe here-document body such as
+  `bash -lc "$(cat <<'TIER1_BD' … TIER1_BD )"` and still requires the exact
+  ordered behavioral commands and assertions. After that genuine Red commits,
+  implement the here-document form in
+  `orchestrator-image/build-and-verify.sh`, amend the new Red with
+  `mise exec -- git commit --amend --no-edit`, and run `bash -n`, the focused
+  test file, and `mise exec -- just check` in the foreground.
+- Before pushing, fetch and immediately verify forge state again. The local
+  branch is rebased while the remote remains at `2f06d18f…`, so update the same
+  PR only with an exact-SHA `--force-with-lease` after proving the remote lease
+  still matches that reviewed head. Verify
   `mise exec -- git diff --name-only origin/master...feat/bd-ib-1rz6` contains
-  only the owned Tier-1 script and static test paths, then push to the existing
-  branch. Re-verify PR #1221 remains draft with auto-merge disabled, append the
-  exact new head and gate receipt to the ignored runtime worker log, and stop
-  for fresh exact-head supervisor review. Do not merge, dispatch, mutate the
-  ledger, or perform an image operation.
+  only `orchestrator-image/build-and-verify.sh` and
+  `tests/test_orchestrator_image_dockerfile.py`. Keep PR #1221 draft with
+  auto-merge disabled, append the new head and complete gate receipt to the
+  ignored runtime worker log, and stop for fresh exact-head supervisor review.
+  Do not merge, dispatch, mutate the ledger, or perform any image operation.
 
 As measured on 2026-07-30:
 
@@ -872,12 +892,11 @@ because that would remove the required guard and move `bd-real` onto `bd`.
 
 ## Immediate next action
 
-Resume only the staged Red correction in the exact O5 worktree recorded in
-“Restart checkpoint — 2026-08-03.” First remeasure the clean primary checkout
-and repair any remaining
-`check-primary-checkout-commit-refuse-hook-installed` prerequisite without
-bypassing it. Then complete the Red-Green-Replay correction, focused and full
-foreground gates, ownership diff, push to the same draft PR #1221, durable
-runtime receipt, and exact-head hold for supervisor review. Do not start any
-other outcome, merge the PR, run an image operation, mutate either ledger, or
-touch another session's branch or worktree.
+Resume only the quote-safe fresh-Red recovery in the exact O5 worktree recorded
+in “Restart checkpoint — 2026-08-03.” Preserve local Red head `3e8c760f…`,
+replace only its unstaged syntactically invalid shell attempt through the
+fresh-Red sequence recorded there, then complete the Green amend, foreground
+static/focused/full gates, ownership diff, exact-lease push to the same draft
+PR #1221, durable runtime receipt, and exact-head hold for supervisor review.
+Do not start any other outcome, merge the PR, run an image operation, mutate
+either ledger, or touch another session's branch or worktree.
