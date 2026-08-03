@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.50.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.50.0...v0.50.1) (2026-08-03)
+
+
+### Bug Fixes
+
+* **dispatcher:** an unreadable policy config is not an unconfigured one ([5b4813a](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/5b4813a31a05a9a57a3b37ac37360bdde03181de))
+
 ## [0.50.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.49.11...v0.50.0) (2026-08-03)
 
 
