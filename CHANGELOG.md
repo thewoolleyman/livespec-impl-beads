@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.49.10](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.49.9...v0.49.10) (2026-08-03)
+
+
+### Chores
+
+* **release:** document and publish Codex hook guard ([0e7ff6e](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/0e7ff6edde996ab7510ad55b63d352a175af9ac2))
+
 ## [0.49.9](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.49.8...v0.49.9) (2026-08-02)
 
 
