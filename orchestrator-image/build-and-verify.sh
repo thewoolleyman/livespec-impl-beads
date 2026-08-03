@@ -179,17 +179,34 @@ docker exec "$CONTAINER" bash -lc '
 ' 2>&1 | sed -E 's/[A-Za-z0-9_-]{32,}/<redacted>/g' || echo "T1.d.i note: inner-dolt leg degraded (image pull may be slow)"
 
 log "T1.d.ii bd embedded-mode round-trip (init + create + list)"
-docker exec "$CONTAINER" bash -lc '
+docker exec "$CONTAINER" bash -lc "$(cat <<'TIER1_BD'
   set -e
+  BD=/usr/local/bin/bd
+  test "$BD" = "$LIVESPEC_BD_PATH"
+  export LIVESPEC_BD_GUARD_OTLP=off
   repo="$(mktemp -d /tmp/ephemeral-repo.XXXXXX)"; cd "$repo"; git init -q
   # Embedded mode (no --server): bd spins up its own managed Dolt in .beads/ —
   # the simplest ephemeral substrate proof. --skip-agents --skip-hooks per the
   # family rule (no agent files / git hooks injected).
-  bd init --prefix ephemeral --skip-agents --skip-hooks --non-interactive --quiet 2>&1 | tail -3 || true
-  bd create "ephemeral round-trip probe" -d "tier-1 verification" 2>&1 | tail -2 || true
-  echo "--- bd list ---"
-  bd list 2>&1 | head -5 || true
-' 2>&1 | sed -E 's/[A-Za-z0-9_-]{32,}/<redacted>/g'
+  BD_NON_INTERACTIVE=1 "$BD" init --prefix ephemeral --skip-agents --skip-hooks --setup-exclude --role maintainer --quiet
+  "$BD" config set status.custom "backlog,pending-approval,ready,active,acceptance"
+
+  ITEM_ID=ephemeral-tier1
+  "$BD" create --id "$ITEM_ID" --type task --title "ephemeral round-trip probe" --description "tier-1 verification" --json >create.json
+  "$BD" show "$ITEM_ID" --json >after-create.json
+  jq -e --arg id "$ITEM_ID" '(if type == "array" then .[0] else . end) | .id == $id and .status == "backlog"' after-create.json >/dev/null
+
+  set +e
+  LIVESPEC_BD_GUARD_MODE=fail "$BD" update "$ITEM_ID" --status in_progress --json >blocked.json 2>blocked.err
+  blocked_rc=$?
+  set -e
+  test "$blocked_rc" -eq 3
+  test ! -s blocked.json
+  grep -qF "bd update --status in_progress' is non-lifecycle; use --status active" blocked.err
+  "$BD" show "$ITEM_ID" --json >after-block.json
+  jq -e --arg id "$ITEM_ID" '(if type == "array" then .[0] else . end) | .id == $id and .status == "backlog"' after-block.json >/dev/null
+TIER1_BD
+)" 2>&1 | sed -E 's/[A-Za-z0-9_-]{32,}/<redacted>/g'
 
 log "tier-1 verification complete"
 echo "ALL TIER-1 CHECKS PASSED (driver=$DRIVER, web-ui=HTTP $CODE)"
