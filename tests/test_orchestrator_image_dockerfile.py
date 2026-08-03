@@ -14,7 +14,12 @@ def _tier_one_embedded_bd_body(*, script: str) -> str:
     marker = 'log "T1.d.ii bd embedded-mode round-trip (init + create + list)"'
     section = script.split(marker, maxsplit=1)[1]
     before_completion = section.split('log "tier-1 verification complete"', maxsplit=1)[0]
-    return before_completion.split("bash -lc '\n", maxsplit=1)[1].rsplit("\n' 2>&1", maxsplit=1)[0]
+    heredoc_start = 'docker exec "$CONTAINER" bash -lc "$(cat <<\'TIER1_BD\'\n'
+    heredoc_end = '\nTIER1_BD\n)" 2>&1'
+
+    assert before_completion.count(heredoc_start) == 1
+    assert before_completion.count(heredoc_end) == 1
+    return before_completion.split(heredoc_start, maxsplit=1)[1].split(heredoc_end, maxsplit=1)[0]
 
 
 def test_github_cli_apt_install_is_exactly_pinned_and_verified() -> None:
@@ -91,13 +96,16 @@ def test_tier_one_embedded_bd_proves_enforcement_and_normalization() -> None:
         'BD_NON_INTERACTIVE=1 "$BD" init --prefix ephemeral --skip-agents --skip-hooks '
         "--setup-exclude --role maintainer --quiet",
         '"$BD" config set status.custom "backlog,pending-approval,ready,active,acceptance"',
+        "ITEM_ID=ephemeral-tier1",
         '"$BD" create --id "$ITEM_ID" --type task --title "ephemeral round-trip probe" '
         '--description "tier-1 verification" --json >create.json',
         '"$BD" show "$ITEM_ID" --json >after-create.json',
         'jq -e --arg id "$ITEM_ID" \'(if type == "array" then .[0] else . end) '
         '| .id == $id and .status == "backlog"\' after-create.json >/dev/null',
+        "set +e",
         'LIVESPEC_BD_GUARD_MODE=fail "$BD" update "$ITEM_ID" --status in_progress '
         "--json >blocked.json 2>blocked.err",
+        "blocked_rc=$?",
         'test "$blocked_rc" -eq 3',
         "test ! -s blocked.json",
         'grep -qF "bd update --status in_progress\' is non-lifecycle; use --status active" '
