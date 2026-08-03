@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.50.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.49.11...v0.50.0) (2026-08-03)
+
+
+### Features
+
+* publish awaits scope override signal ([c3d41a5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/c3d41a53e5e5458617d182d52d705b731abb4786))
+
 ## [0.49.11](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.49.10...v0.49.11) (2026-08-03)
 
 
