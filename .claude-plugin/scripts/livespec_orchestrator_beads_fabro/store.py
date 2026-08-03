@@ -26,6 +26,7 @@ from livespec_orchestrator_beads_fabro._store_intake_triage import (
 from livespec_orchestrator_beads_fabro._store_mutations import (
     append_work_item,
     register_custom_statuses,
+    update_work_item_awaits_scope_override,
     update_work_item_policy,
     update_work_item_rank,
     update_work_item_status,
@@ -63,6 +64,7 @@ __all__: list[str] = [
     "read_work_item_native_priorities",
     "read_work_items",
     "register_custom_statuses",
+    "update_work_item_awaits_scope_override",
     "update_work_item_policy",
     "update_work_item_rank",
     "update_work_item_status",
@@ -78,6 +80,7 @@ _LABEL_ADMISSION = "admission:"
 _LABEL_ACCEPTANCE = "acceptance:"
 _LABEL_BLOCKED_REASON = "blocked-reason:"
 _LABEL_FACTORY_SAFETY = "factory-safety:"
+_LABEL_AWAITS_SCOPE_OVERRIDE = "awaits-scope-override"
 
 # Metadata keys carrying livespec fields that ride in the JSON column.
 _META_AUDIT = "audit"
@@ -168,6 +171,7 @@ def _record_to_work_item(*, record: BeadsRecord) -> WorkItem:
         acceptance_policy=cast("Any", _label_value(labels=labels, prefix=_LABEL_ACCEPTANCE)),
         blocked_reason=cast("Any", _label_value(labels=labels, prefix=_LABEL_BLOCKED_REASON)),
         factory_safety=cast("Any", factory_safety),
+        awaits_scope_override=_LABEL_AWAITS_SCOPE_OVERRIDE in labels,
     )
 
 

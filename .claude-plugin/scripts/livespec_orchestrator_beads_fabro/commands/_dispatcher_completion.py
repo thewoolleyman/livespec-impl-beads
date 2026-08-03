@@ -23,6 +23,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import Dispat
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile, utc_now_iso
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import store_config
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
+    declares_workflow_scope_refusal,
     host_only_refusal_detail,
     is_host_only_item,
     is_non_convergence_outcome,
@@ -41,7 +42,11 @@ from livespec_orchestrator_beads_fabro.errors import (
     WorkItemNotFoundError,
 )
 from livespec_orchestrator_beads_fabro.io import write_stderr
-from livespec_orchestrator_beads_fabro.store import append_work_item, update_work_item_status
+from livespec_orchestrator_beads_fabro.store import (
+    append_work_item,
+    update_work_item_awaits_scope_override,
+    update_work_item_status,
+)
 from livespec_orchestrator_beads_fabro.types import AuditRecord, WorkItem
 
 __all__: list[str] = [
@@ -62,7 +67,7 @@ _LEDGER_WRITE_ERRORS = (
 
 
 def host_only_refusal(
-    *, item: WorkItem, journal: JournalFile, raw_labels: Sequence[str] = ()
+    *, repo: Path, item: WorkItem, journal: JournalFile, raw_labels: Sequence[str] = ()
 ) -> DispatchOutcome | None:
     """Refuse to sandbox a host-only self-machinery item (uvd hang-guard).
 
@@ -74,8 +79,15 @@ def host_only_refusal(
     orchestrator host-routes the item; the detail carries the actionable
     host-route instruction. Nothing is closed — the item stays open.
     """
+    workflow_scope_refusal = declares_workflow_scope_refusal(item=item, raw_labels=raw_labels)
     if not is_host_only_item(item=item, raw_labels=raw_labels):
+        if item.awaits_scope_override:
+            _set_awaits_scope_override(repo=repo, item_id=item.id, value=False)
         return None
+    if workflow_scope_refusal:
+        _set_awaits_scope_override(repo=repo, item_id=item.id, value=True)
+    elif item.awaits_scope_override:
+        _set_awaits_scope_override(repo=repo, item_id=item.id, value=False)
     outcome = DispatchOutcome(
         work_item_id=item.id,
         status="failed",
@@ -87,6 +99,24 @@ def host_only_refusal(
     journal.append(record={"stage": "outcome", "outcome": asdict(outcome)})
     _ = write_stderr(text=f"SURFACE: {outcome.detail}\n")
     return outcome
+
+
+def _set_awaits_scope_override(*, repo: Path, item_id: str, value: bool) -> None:
+    result = attempt(
+        action=lambda: update_work_item_awaits_scope_override(
+            path=store_config(repo=repo),
+            item_id=item_id,
+            value=value,
+        ),
+        exceptions=_LEDGER_WRITE_ERRORS,
+    )
+    if isinstance(result, AttemptFailure):
+        _ = write_stderr(
+            text=(
+                f"WARN: failed to update awaits_scope_override for {item_id} "
+                f"({type(result.error).__name__}: {result.error})\n"
+            )
+        )
 
 
 def complete_and_accept(

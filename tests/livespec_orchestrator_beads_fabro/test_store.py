@@ -77,6 +77,7 @@ def _minimal_work_item(
     acceptance_policy: str | None = None,
     blocked_reason: str | None = None,
     factory_safety: str | None = None,
+    awaits_scope_override: bool = False,
     acceptance_criteria: str | None = None,
     notes: str | None = None,
 ) -> WorkItem:
@@ -103,6 +104,7 @@ def _minimal_work_item(
         acceptance_policy=acceptance_policy,  # type: ignore[arg-type]
         blocked_reason=blocked_reason,  # type: ignore[arg-type]
         factory_safety=factory_safety,  # type: ignore[arg-type]
+        awaits_scope_override=awaits_scope_override,
     )
 
 
@@ -205,6 +207,15 @@ def test_policy_fields_round_trip_via_labels() -> None:
     assert read_back.factory_safety == "mutates-host-machinery"
 
 
+def test_awaits_scope_override_round_trips_via_label() -> None:
+    item = _minimal_work_item(id_="li-awaits", awaits_scope_override=True)
+    append_work_item(path=_config(), item=item)
+    record = _fake().show_issue(issue_id="li-awaits")
+    assert "awaits-scope-override" in record["labels"]
+    [read_back] = list(read_work_items(path=_config()))
+    assert read_back.awaits_scope_override is True
+
+
 def test_absent_policy_labels_read_back_none() -> None:
     """A WorkItem with no policy fields writes no policy labels and reads None."""
     append_work_item(path=_config(), item=_minimal_work_item(id_="li-nopol"))
@@ -218,6 +229,7 @@ def test_absent_policy_labels_read_back_none() -> None:
     assert read_back.acceptance_policy is None
     assert read_back.blocked_reason is None
     assert read_back.factory_safety is None
+    assert read_back.awaits_scope_override is False
 
 
 def test_prose_marker_without_factory_safety_label_reads_factory_safe(

@@ -15,6 +15,7 @@ from livespec_orchestrator_beads_fabro.types import WorkItem
 
 __all__: list[str] = [
     "WORKFLOW_SCOPE_OVERRIDE_LABEL",
+    "declares_workflow_scope_refusal",
     "host_only_refusal_detail",
     "is_host_only_item",
 ]
@@ -45,6 +46,15 @@ def is_host_only_item(*, item: WorkItem, raw_labels: Sequence[str] = ()) -> bool
     """Return True when a work-item is intrinsically unsafe for the factory."""
     if item.factory_safety is not None:
         return True
+    if WORKFLOW_SCOPE_OVERRIDE_LABEL in raw_labels:
+        return False
+    return declares_workflow_scope_refusal(item=item, raw_labels=raw_labels)
+
+
+def declares_workflow_scope_refusal(*, item: WorkItem, raw_labels: Sequence[str] = ()) -> bool:
+    """Return True when the declared workflow-edit heuristic refuses the item."""
+    if item.factory_safety is not None:
+        return False
     if WORKFLOW_SCOPE_OVERRIDE_LABEL in raw_labels:
         return False
     return _declares_workflow_edit(item=item)

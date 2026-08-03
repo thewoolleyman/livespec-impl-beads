@@ -43,6 +43,7 @@ def _item(
     rank: str = "a2",
     spec_commitment_hint: str | None = None,
     blocked_reason: str | None = None,
+    awaits_scope_override: bool = False,
 ) -> WorkItem:
     return WorkItem(
         id=id_,
@@ -70,6 +71,7 @@ def _item(
         superseded_by=None,
         spec_commitment_hint=spec_commitment_hint,
         blocked_reason=blocked_reason,  # type: ignore[arg-type]
+        awaits_scope_override=awaits_scope_override,
     )
 
 
@@ -231,6 +233,17 @@ def test_main_json_output_without_audit(
     payload = json.loads(captured.out)
     assert payload[0]["id"] == "li-open"
     assert payload[0]["audit"] is None
+
+
+def test_main_json_output_includes_awaits_scope_override_boolean(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _seed(_item(id_="li-awaits", awaits_scope_override=True))
+    rc = main(argv=["--json"])
+    captured = capsys.readouterr()
+    assert rc == 0
+    payload = json.loads(captured.out)
+    assert payload[0]["awaits_scope_override"] is True
 
 
 # -- spec_commitment_hint surface (livespec PC #4 sub-proposal 3) --------

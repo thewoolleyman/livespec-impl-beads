@@ -25,7 +25,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from livespec_orchestrator_beads_fabro._beads_client import reset_fake_singleton
+from livespec_orchestrator_beads_fabro._beads_client import fake_singleton, reset_fake_singleton
 from livespec_orchestrator_beads_fabro.commands import _dispatcher_loop
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import DispatchPlan
@@ -35,6 +35,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_valves import (
     reject_routing,
 )
 from livespec_orchestrator_beads_fabro.commands.dispatcher import main
+from livespec_orchestrator_beads_fabro.commands.drive import run_action
 from livespec_orchestrator_beads_fabro.store import (
     append_work_item,
     materialize_work_items,
@@ -295,6 +296,9 @@ def test_loop_refuses_factory_unsafe_item_before_launch(
     assert calls == []
     stored = _stored()[item.id]
     assert (stored.status, stored.assignee) == ("ready", None)
+    assert stored.awaits_scope_override is False
+    record = fake_singleton().show_issue(issue_id=item.id)
+    assert "awaits-scope-override" not in record["labels"]
     err = capsys.readouterr().err
     assert "host-route" in err.lower()
     assert item.id in err
@@ -340,6 +344,9 @@ def test_loop_refuses_declared_workflow_edit_before_launch(
     assert calls == []
     stored = _stored()[item.id]
     assert (stored.status, stored.assignee, stored.factory_safety) == ("ready", None, None)
+    assert stored.awaits_scope_override is True
+    record = fake_singleton().show_issue(issue_id=item.id)
+    assert "awaits-scope-override" in record["labels"]
     err = capsys.readouterr().err
     assert "attended host session" in err.lower()
     assert "interactive" not in err.lower()
@@ -353,6 +360,118 @@ def test_loop_refuses_declared_workflow_edit_before_launch(
         if json.loads(line).get("stage") == "outcome"
     )
     assert outcome_record["outcome"]["stage"] == "host-only-refused"
+
+
+def test_set_workflow_scope_override_clears_awaiting_signal_and_admits(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, workflow = _repo_with_workflow(tmp_path=tmp_path, wip_cap=5)
+    item = _item(
+        id="bd-ib-workflow-citation",
+        status="ready",
+        description="Scope cites `.github/workflows/ci.yml`; update Python only.",
+    )
+    append_work_item(path=_config(), item=item)
+    fake_singleton().update_issue(issue_id=item.id, add_labels=["awaits-scope-override"])
+
+    result = run_action(
+        repo=repo,
+        action_id=f"set-workflow-scope-override:{item.id}:citation-only",
+    )
+
+    assert result["status"] == "green"
+    stored_after_override = _stored()[item.id]
+    assert stored_after_override.status == "ready"
+    assert stored_after_override.awaits_scope_override is False
+    record = fake_singleton().show_issue(issue_id=item.id)
+    assert "workflow-scope-override:citation-only" in record["labels"]
+    assert "awaits-scope-override" not in record["labels"]
+
+    calls: list[str] = []
+    monkeypatch.setattr(_dispatcher_loop, "run_dispatch", _green_recording(calls))
+    exit_code = main(
+        argv=[
+            "loop",
+            "--repo",
+            str(repo),
+            "--budget",
+            "5",
+            "--workflow",
+            str(workflow),
+            "--no-close-on-merge",
+        ]
+    )
+
+    assert exit_code == 0
+    assert calls == [item.id]
+    assert _stored()[item.id].awaits_scope_override is False
+
+
+def test_dispatch_clears_stale_awaiting_signal_when_text_no_longer_declares_workflow_edit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, workflow = _repo_with_workflow(tmp_path=tmp_path, wip_cap=5)
+    item = _item(
+        id="bd-ib-stale-signal",
+        status="ready",
+        description=(
+            "Scope: edit `.github/actions/bump-pin/action.yml` and no files under "
+            "`.github/workflows/`."
+        ),
+    )
+    append_work_item(path=_config(), item=item)
+    fake_singleton().update_issue(issue_id=item.id, add_labels=["awaits-scope-override"])
+    calls: list[str] = []
+    monkeypatch.setattr(_dispatcher_loop, "run_dispatch", _green_recording(calls))
+
+    exit_code = main(
+        argv=[
+            "loop",
+            "--repo",
+            str(repo),
+            "--budget",
+            "5",
+            "--workflow",
+            str(workflow),
+            "--no-close-on-merge",
+        ]
+    )
+
+    assert exit_code == 0
+    assert calls == [item.id]
+    stored = _stored()[item.id]
+    assert (stored.status, stored.assignee) == ("active", DEFAULT_DOER)
+    assert stored.awaits_scope_override is False
+    record = fake_singleton().show_issue(issue_id=item.id)
+    assert "awaits-scope-override" not in record["labels"]
+
+
+def test_workflow_scope_override_refuses_intrinsic_host_only_item(
+    tmp_path: Path,
+) -> None:
+    repo, _workflow = _repo_with_workflow(tmp_path=tmp_path, wip_cap=5)
+    item = _item(
+        id="bd-ib-intrinsic-host",
+        status="ready",
+        factory_safety="mutates-host-machinery",
+    )
+    append_work_item(path=_config(), item=item)
+
+    result = run_action(
+        repo=repo,
+        action_id=f"set-workflow-scope-override:{item.id}:citation-only",
+    )
+
+    assert result["status"] == "failed"
+    assert result["error"] == "invalid-source-state"
+    stored = _stored()[item.id]
+    assert stored.factory_safety == "mutates-host-machinery"
+    assert stored.awaits_scope_override is False
+    record = fake_singleton().show_issue(issue_id=item.id)
+    assert "workflow-scope-override:citation-only" not in record["labels"]
+    assert "awaits-scope-override" not in record["labels"]
 
 
 def test_loop_admits_composite_action_edit_under_github_actions(
@@ -388,6 +507,8 @@ def test_loop_admits_composite_action_edit_under_github_actions(
     assert exit_code == 0
     assert calls == [item.id]
     stored = _stored()[item.id]
+    assert (stored.status, stored.assignee) == ("active", DEFAULT_DOER)
+    assert stored.awaits_scope_override is False
     assert (stored.status, stored.assignee) == ("active", DEFAULT_DOER)
 
 

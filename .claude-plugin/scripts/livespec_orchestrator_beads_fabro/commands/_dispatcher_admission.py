@@ -155,7 +155,12 @@ def _filter_host_only_candidates(
                 )
             )
             continue
-        host_refusal = host_only_refusal(item=item, journal=journal, raw_labels=raw_labels)
+        host_refusal = host_only_refusal(
+            repo=repo,
+            item=item,
+            journal=journal,
+            raw_labels=raw_labels,
+        )
         if host_refusal is not None:
             refused.append(host_refusal)
         else:

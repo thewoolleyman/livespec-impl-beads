@@ -133,6 +133,7 @@ def test_set_workflow_scope_override_records_label_without_touching_status(
 ) -> None:
     repo = _repo(tmp_path=tmp_path)
     append_work_item(path=_config(), item=_item(status="ready", admission_policy="auto"))
+    fake_singleton().update_issue(issue_id="bd-ib-123", add_labels=["awaits-scope-override"])
 
     result = run_action(
         repo=repo,
@@ -149,5 +150,7 @@ def test_set_workflow_scope_override_records_label_without_touching_status(
     stored = _stored()["bd-ib-123"]
     assert stored.status == "ready"
     assert stored.admission_policy == "auto"
+    assert stored.awaits_scope_override is False
     record = fake_singleton().show_issue(issue_id="bd-ib-123")
     assert "workflow-scope-override:citation-only" in record["labels"]
+    assert "awaits-scope-override" not in record["labels"]

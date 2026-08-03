@@ -73,6 +73,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_argv import (
 from livespec_orchestrator_beads_fabro.commands._dispatcher_goal import render_goal
 from livespec_orchestrator_beads_fabro.commands._dispatcher_host_only import (
     WORKFLOW_SCOPE_OVERRIDE_LABEL,
+    declares_workflow_scope_refusal,
     host_only_refusal_detail,
     is_host_only_item,
 )
@@ -132,6 +133,7 @@ __all__: list[str] = [
     "assess_codex_credential_freshness",
     "build_plan",
     "cc_otel_overlay_env",
+    "declares_workflow_scope_refusal",
     "escape_minijinja_literal",
     "fabro_events_argv",
     "fabro_inspect_argv",

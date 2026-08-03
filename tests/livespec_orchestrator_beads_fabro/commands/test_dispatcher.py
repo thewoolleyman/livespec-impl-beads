@@ -188,6 +188,7 @@ def test_dispatcher_plan_decomposition_contract() -> None:
     assert set(_dispatcher_goal.__all__) == {"render_goal"}
     assert set(_dispatcher_host_only.__all__) == {
         "WORKFLOW_SCOPE_OVERRIDE_LABEL",
+        "declares_workflow_scope_refusal",
         "host_only_refusal_detail",
         "is_host_only_item",
     }
