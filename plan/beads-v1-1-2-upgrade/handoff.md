@@ -29,6 +29,71 @@ backup is the data rollback boundary.
 
 ## Current state
 
+### Restart checkpoint — 2026-08-04 attended O5 proof complete
+
+This checkpoint supersedes the older 2026-08-04 pre-proof checkpoint and every
+stale “Immediate next action” below. The authorized attended guarded-image proof
+for existing item `bd-ib-dwv` completed successfully and was fully cleaned up.
+Do **not** repeat the proof, close the item, or start another outcome. The next
+action is fresh supervisor review of this exact proof receipt while
+`bd-ib-dwv` remains `active` and unassigned.
+
+- The proof ran exactly once in the foreground from the clean detached source
+  commit `b9c8904b5ad41de94eb636b3e509a027e48047a0` with the authorized command,
+  exact image tag `livespec-orchestrator:bd-ib-dwv-20260804t0132z`, container
+  `livespec-orch-verify-bd-ib-dwv-20260804t0132z`, volume
+  `livespec-orch-varlib-bd-ib-dwv-20260804t0132z`, and host port `32380`. It
+  exited `0` with the terminal artifact
+  `ALL TIER-1 CHECKS PASSED (driver=overlayfs, web-ui=HTTP 308)`.
+- The complete redacted proof output is preserved outside every checkout at
+  `/home/ubuntu/.local/state/livespec-proof-logs/bd-ib-dwv-20260804t0132z.log`.
+  It is 158 lines and 7,851 bytes, with SHA-256
+  `53eee1e2b25fb720a7ef59d5ae483af09b6cd0e32f831325c4886b4cc57db717`.
+  A value-based scan for every required injected secret found no disclosure;
+  values were never printed.
+- The created local image ID was
+  `sha256:a64973f225fbc4b10788140ef22445261a87ff798ad0da34e01723cf33254932`
+  and had no repository digest. The official v1.1.2 tarball SHA-256 was
+  `a72d71ed374955dc9f83a0f90b54bd7b6a0016709dd1676ae2e368651ed401c2`;
+  the extracted and image `/usr/local/bin/bd-real` SHA-256 was
+  `6d767629e90560506d0ea3de9823aef48386414f5425d8853e2ae3312cad9a82`.
+  The guard sentinel was present, `LIVESPEC_BD_PATH` was
+  `/usr/local/bin/bd`, and both wrapper and real version output were
+  `bd version 1.1.2 (20e493e56: HEAD@20e493e569c9)`.
+- The Tier-1 lifecycle leg ran failure-fatally under `set -e`. A qualifying
+  create read back as `backlog`. In explicit `fail` mode, prohibited
+  `--status in_progress` exited `3`, produced empty stdout, warned that
+  `bd update --status in_progress' is non-lifecycle; use --status active`, and
+  left the item in `backlog`. The inner Docker driver was `overlayfs`; the
+  ephemeral inner Dolt round trip returned `hello-dind`; the HTTP probe was
+  `308`; and the installed Fabro version was `0.254.0`.
+- A first read-only inspection command had an `awk` quoting error
+  (`$1: unbound variable`) and therefore printed a blank hash while still
+  recording versions, path, and sentinel. It did not affect the proof. The
+  hash inspection was immediately corrected with a read-only direct
+  `sha256sum` entrypoint and recorded the exact `bd-real` hash above.
+- Cleanup was complete. The script trap removed the exact container, volume,
+  and staged `fabro`, `bd-guard`, and `plugin-scripts` payloads. The sole local
+  image tag and image ID were removed without a global prune. Port `32380` is
+  free; every exact Docker resource is absent; the proof checkout had no
+  tracked or untracked residue and was removed; and its path is no longer
+  registered. Host `/usr/local/bin/bd` and `/usr/local/bin/bd-real` hashes are
+  unchanged at
+  `5f55fbfbdb872faf1e43e91e7276ed7f1f754e1611e1c84921286029224637a3`
+  and
+  `463b7655041345ce5d4bac00c3a5d465166bb30166147e11ef1c6e07df0a4486`.
+- No image was pushed, no registry was mutated, and no production tenant,
+  production Dolt data, backup/restore state, host Fabro server, host binary,
+  or unrelated process/session was touched. `bd-ib-dwv` was not closed and no
+  other ledger item was mutated. The ignored runtime terminal receipt is in
+  `tmp/overseer/beads-v1-1-2-upgrade/worker-status.log` at
+  `2026-08-04T02:21:04Z` with event
+  `bd-ib-dwv-attended-proof-green`.
+- At this checkpoint the primary checkout is clean on `master` at
+  `a25f4b415d109a900d59fdb3c6d6a59e697b067c`. The proof source commit is its
+  ancestor. No proof subprocess, proof worktree, feature branch, or background
+  sub-agent remains.
+
 ### Restart checkpoint — 2026-08-04 attended O5 proof
 
 Maintainer authorization now supersedes both the stale “Immediate next action”
