@@ -772,16 +772,8 @@ check-pbt-coverage-pure-modules:
 # this target is omitted by `check-pre-commit` via the `just skip=...`
 # argument (coverage is verified at the Green amend), so no ambient
 # env-var read is needed here (epic li-cvaudit, cvredmd).
-# Deliberately omit errexit so the per-file coverage verifier still runs after pytest.
 check-per-file-coverage:
-    #!/usr/bin/env bash
-    set -uo pipefail
-    # pytest-cov defaults `--cov-config` to `.coveragerc`, which
-    # bypasses pyproject.toml's `[tool.coverage.run]` (including
-    # the `omit = [...]` carve-outs). Pass the config path
-    # explicitly so the vendored-tree exclusion takes effect.
-    uv run pytest -n 4 --cov --cov-branch --cov-config=pyproject.toml --cov-report=term-missing
-    uv run python -m livespec_dev_tooling.checks.per_file_coverage
+    dev-tooling/just-check-per-file-coverage.sh
 
 # Shared baseline Verifier: validates this repo's harness-conformance
 # declaration against the plugin-resolution invariant. Shipped by
