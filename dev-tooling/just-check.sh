@@ -100,9 +100,6 @@ for target in "${targets[@]}"; do
         continue
     fi
     printf '\n::: just %s\n' "$target"
-    if [[ "$target" == "check-per-file-coverage" ]]; then
-        uv run pytest -n "$(bash dev-tooling/just-test-nprocs.sh)" --cov --cov-branch --cov-config=pyproject.toml --cov-report=term-missing || failed+=("pytest-for-check-per-file-coverage")
-    fi
     if ! just "$target"; then
         failed+=("$target")
     fi
