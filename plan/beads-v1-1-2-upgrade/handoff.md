@@ -67,15 +67,17 @@ that remains under review.
   remeasurement followed by sanctioned dark-factory action
   `impl:dolt-server-wgy` if every existing valve passes.
 - Resume by verifying PR #1284 still has exact head `bbda528d…`, remains
-  unmerged, and has auto-merge disabled. The primary checkout,
-  `origin/master`, and GitHub forge master are now equal at
-  `f42aed94979f01c0d2fe7980dc00994a55543642`, the merged restart-checkpoint
-  commit. Because that checkpoint advanced master beyond PR #1284's original
-  base, GitHub reports the held PR's merge state as `DIRTY`. Its exact head and
-  worktree are unchanged and clean. Stop for the pending exact-head supervisor
-  decision; do not rebase, modify, or merge that PR, start another outcome,
-  inspect the separate governed-plan runtime, or touch any other session's
-  worktree or branch without new supervisor authorization.
+  unmerged, and has auto-merge disabled. At the last review-hold verification,
+  the primary checkout, `origin/master`, and GitHub forge master were equal at
+  `dce09408532850c44888920a66cd6a38d8e2e62c`, including the merged handoff-only
+  restart checkpoints. A later handoff-only wrap-up merge may advance master
+  without changing the held PR, so reverify the three refs instead of treating
+  this snapshot as a permanent pin. GitHub reports the held PR's merge state as
+  `DIRTY`; its exact head and worktree are unchanged and clean. Stop for the
+  pending exact-head supervisor decision; do not rebase, modify, or merge that
+  PR, start another outcome, inspect the separate governed-plan runtime, or
+  touch any other session's worktree or branch without new supervisor
+  authorization.
 
 ### Restart checkpoint — 2026-08-04 attended O5 proof complete
 
