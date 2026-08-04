@@ -29,55 +29,56 @@ backup is the data rollback boundary.
 
 ## Current state
 
-### Restart checkpoint — 2026-08-04 doc reconciliation awaiting review
+### Restart checkpoint — 2026-08-04 supervisor correction paused for restart
 
-This is the sole authoritative restart checkpoint until PR #1284 receives an
-exact-head supervisor decision. It supersedes every instruction below for
-resumption purposes without merging or replacing the proposed reconciliation
-that remains under review.
+This is the sole authoritative restart checkpoint. It supersedes every older
+restart instruction and the final “Immediate next action” for resumption
+purposes. Resume only the supervisor-requested correction of PR #1284; do not
+merge it or start another outcome.
 
-- Supervisor accepted the `bd-ib-dwv` attended proof and its exact-once closure
-  at `2026-08-04T02:32:41Z`. The worker then performed only the authorized
-  doc-only reconciliation and did not rerun the proof, mutate another ledger
-  item, or begin another outcome.
-- The proposed reconciliation is open as PR
-  [#1284](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/pull/1284)
-  on branch `docs/beads-v1-1-2-o5-proof-reconcile`, exact head
-  `bbda528d096ea28b475c2d7e66530ae3fc987826`, against base
-  `154b5fd473b233b726418746fac86716091a210f`. Its sole changed path is this
-  handoff. The owned worktree is
-  `/home/ubuntu/.worktrees/livespec-orchestrator-beads-fabro/docs/beads-v1-1-2-o5-proof-reconcile`
-  and was clean at wind-down.
-- PR #1284 remains open, non-draft, and unmerged with auto-merge disabled. The
-  repository bot briefly enabled auto-merge after creation; the worker caught
-  and disabled it before merge eligibility. All 95 checks are now terminal:
-  94 succeeded, one skipped, and none failed.
-- Applicable foreground validation passed: the eight-target doc-only aggregate
-  passed manually, at commit, and at push; push-time ledger conformance was
-  clean; the ownership diff contained only this handoff; and a context-free
-  reader passed the handoff self-sufficiency gate. The non-fatal lefthook
-  synchronization warning about an existing `.old` hook file recurred, but all
-  actual hooks and gates executed successfully.
-- The proposed checkpoint in PR #1284 makes O5 terminal, records
-  `bd-ib-dwv` closed and the accepted proof-log SHA-256
-  `53eee1e2b25fb720a7ef59d5ae483af09b6cd0e32f831325c4886b4cc57db717`,
-  prohibits any proof rerun or further attended action, and replaces the stale
-  PR #1221 route. It records the external Dolt-server default-branch
-  `ci-green` evidence as the immediate blocker and permits only a later public
-  remeasurement followed by sanctioned dark-factory action
-  `impl:dolt-server-wgy` if every existing valve passes.
-- Resume by verifying PR #1284 still has exact head `bbda528d…`, remains
-  unmerged, and has auto-merge disabled. At the last review-hold verification,
-  the primary checkout, `origin/master`, and GitHub forge master were equal at
-  `dce09408532850c44888920a66cd6a38d8e2e62c`, including the merged handoff-only
-  restart checkpoints. A later handoff-only wrap-up merge may advance master
-  without changing the held PR, so reverify the three refs instead of treating
-  this snapshot as a permanent pin. GitHub reports the held PR's merge state as
-  `DIRTY`; its exact head and worktree are unchanged and clean. Stop for the
-  pending exact-head supervisor decision; do not rebase, modify, or merge that
-  PR, start another outcome, inspect the separate governed-plan runtime, or
-  touch any other session's worktree or branch without new supervisor
-  authorization.
+- PR [#1284](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/pull/1284)
+  remains on branch `docs/beads-v1-1-2-o5-proof-reconcile` at the unchanged
+  remote head `bbda528d096ea28b475c2d7e66530ae3fc987826`. Its owned worktree is
+  `/home/ubuntu/.worktrees/livespec-orchestrator-beads-fabro/docs/beads-v1-1-2-o5-proof-reconcile`.
+  The expected same-file rebase conflict was entered, then safely aborted for
+  this restart before any correction was applied, staged, committed, or
+  pushed. The branch and worktree are clean at that exact old head.
+- The live primary checkout, fetched `origin/master`, and GitHub forge master
+  were equal at `c0319f15f9923c6972cdb9c2100cf7034897e9ba` before the attempted
+  rebase. Treat earlier wrap-up SHAs as historical only. On resume, fetch and
+  reverify all three live refs and require the remote PR head still equals
+  `bbda528d096ea28b475c2d7e66530ae3fc987826` before rebasing only the owned
+  branch onto the then-current `origin/master`.
+- Resolve the expected handoff conflict from current master as the baseline.
+  Replace its temporary “awaiting review” checkpoint with a terminal
+  accepted-and-closed checkpoint, but preserve the complete tracked
+  “attended O5 proof complete” record below it. That record must retain the
+  proof-log path, line and byte count, image ID and absent repository digest,
+  official tarball and extracted/image `bd-real` hashes, guard sentinel,
+  `LIVESPEC_BD_PATH`, version outputs, failure-fatal lifecycle assertions,
+  inner Docker/Dolt/HTTP/Fabro results, corrected read-only hash-inspection
+  note, exact cleanup evidence, unchanged host hashes, and every no-mutation
+  fence. Update only its stale ledger sentence to say `bd-ib-dwv` was closed
+  once at `2026-08-04T02:32:41Z` after supervisor acceptance.
+- Remove both proposed references to a modified `.gitignore`; transient state
+  in another checkout is not durable evidence. Retain the prohibition on
+  inspecting or touching the separate `governed-repo-bootstrap` plan's
+  supervisor, worker, markers, logs, worktrees, and branches.
+- The only valid cross-repository ledger measurement is
+  `MEASURED_AT=2026-08-04T05:03:45Z`, taken with the exact target anchor
+  `/usr/local/bin/with-livespec-env.sh -- /usr/local/bin/bd -C /data/projects/dolt-server`.
+  The returned IDs were explicitly verified: `dolt-server-3jhclo`, its two
+  required `blocks` endpoints `dolt-server-22gb7i` and
+  `dolt-server-s4iyi4`, and canonical `dolt-server-wgy`. The first three were
+  `pending-approval`; `dolt-server-wgy` was `ready` and unassigned. Do not cite
+  the invalid unanchored `2026-08-04T04:59:54Z` output.
+- After correction, run the foreground doc-only gate and require the ownership
+  diff to contain exactly this handoff. Reverify the remote lease, then update
+  the same PR with exact old-head
+  `--force-with-lease=docs/beads-v1-1-2-o5-proof-reconcile:bbda528d096ea28b475c2d7e66530ae3fc987826`.
+  Keep PR #1284 open with auto-merge disabled, append the exact correction
+  receipt to the ignored worker log, and stop for fresh exact-head supervisor
+  review. Never cite an unanchored cross-tenant Beads read.
 
 ### Restart checkpoint — 2026-08-04 attended O5 proof complete
 
@@ -1109,10 +1110,11 @@ because that would remove the required guard and move `bd-real` onto `bd`.
 
 ## Immediate next action
 
-Resume only the exact-head review hold for PR #1284 at
-`bbda528d096ea28b475c2d7e66530ae3fc987826`. Verify it remains open and
-unmerged with auto-merge disabled and all 95 checks terminal. GitHub currently
-reports `DIRTY` because the restart checkpoint advanced master beyond the
-PR's original base. Wait for the supervisor's explicit rebase/merge decision.
-Do not edit, rebase, or merge the PR, return to PR #1221, rerun the proof,
-begin another outcome, or touch another session's state.
+Follow only the authoritative supervisor-correction checkpoint at the top of
+this handoff. Reverify live refs and the exact old PR head, rebase the owned
+branch, apply the three bounded documentation corrections using only the valid
+target-anchored `MEASURED_AT=2026-08-04T05:03:45Z` ledger evidence, run the
+required foreground gates, and force-with-lease push to the same PR. Keep PR
+#1284 open with auto-merge disabled and stop for fresh exact-head supervisor
+review. Do not merge, rerun the proof, begin another outcome, or inspect or
+touch the separate governed plan's runtime state.
