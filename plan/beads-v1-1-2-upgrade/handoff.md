@@ -29,56 +29,63 @@ backup is the data rollback boundary.
 
 ## Current state
 
-### Restart checkpoint — 2026-08-04 supervisor correction paused for restart
+### Restart checkpoint — 2026-08-04 O5 proof accepted and closed
 
 This is the sole authoritative restart checkpoint. It supersedes every older
-restart instruction and the final “Immediate next action” for resumption
-purposes. Resume only the supervisor-requested correction of PR #1284; do not
-merge it or start another outcome.
+restart checkpoint and every earlier version of “Immediate next action.” The
+older checkpoints remain below only as historical execution evidence; none of
+their instructions is executable now. Do not return to PR #1221, repeat the
+guarded-image proof, or begin another upgrade outcome.
 
-- PR [#1284](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/pull/1284)
-  remains on branch `docs/beads-v1-1-2-o5-proof-reconcile` at the unchanged
-  remote head `bbda528d096ea28b475c2d7e66530ae3fc987826`. Its owned worktree is
-  `/home/ubuntu/.worktrees/livespec-orchestrator-beads-fabro/docs/beads-v1-1-2-o5-proof-reconcile`.
-  The expected same-file rebase conflict was entered, then safely aborted for
-  this restart before any correction was applied, staged, committed, or
-  pushed. The branch and worktree are clean at that exact old head.
-- The live primary checkout, fetched `origin/master`, and GitHub forge master
-  were equal at `c0319f15f9923c6972cdb9c2100cf7034897e9ba` before the attempted
-  rebase. Treat earlier wrap-up SHAs as historical only. On resume, fetch and
-  reverify all three live refs and require the remote PR head still equals
-  `bbda528d096ea28b475c2d7e66530ae3fc987826` before rebasing only the owned
-  branch onto the then-current `origin/master`.
-- Resolve the expected handoff conflict from current master as the baseline.
-  Replace its temporary “awaiting review” checkpoint with a terminal
-  accepted-and-closed checkpoint, but preserve the complete tracked
-  “attended O5 proof complete” record below it. That record must retain the
-  proof-log path, line and byte count, image ID and absent repository digest,
-  official tarball and extracted/image `bd-real` hashes, guard sentinel,
-  `LIVESPEC_BD_PATH`, version outputs, failure-fatal lifecycle assertions,
-  inner Docker/Dolt/HTTP/Fabro results, corrected read-only hash-inspection
-  note, exact cleanup evidence, unchanged host hashes, and every no-mutation
-  fence. Update only its stale ledger sentence to say `bd-ib-dwv` was closed
-  once at `2026-08-04T02:32:41Z` after supervisor acceptance.
-- Remove both proposed references to a modified `.gitignore`; transient state
-  in another checkout is not durable evidence. Retain the prohibition on
-  inspecting or touching the separate `governed-repo-bootstrap` plan's
-  supervisor, worker, markers, logs, worktrees, and branches.
-- The only valid cross-repository ledger measurement is
-  `MEASURED_AT=2026-08-04T05:03:45Z`, taken with the exact target anchor
+- At `MEASURED_AT=2026-08-04T05:24:13Z`, after a fresh fetch, this repository's
+  clean primary checkout, fetched `origin/master`, and GitHub forge master were
+  equal at `73aece7ec4034ec8da0a8eb5ea1cbed97329f562`. Target-anchored reads through
+  `/data/projects/1password-env-wrapper/with-livespec-env.sh -- /usr/local/bin/bd -C /data/projects/livespec-orchestrator-beads-fabro`
+  confirmed plan anchor `bd-ib-3kolea` was `backlog`, unassigned, type `epic`,
+  and owned by `chad@thewoolleyman.com`; `bd-ib-dwv` was `closed`, unassigned,
+  with `closed_at=2026-08-04T02:32:41Z`.
+- The attended guarded-image proof for existing canonical defect
+  `bd-ib-dwv` ran exactly once from source
+  `b9c8904b5ad41de94eb636b3e509a027e48047a0` and produced exactly one terminal
+  `ALL TIER-1 CHECKS PASSED (driver=overlayfs, web-ui=HTTP 308)` receipt. The
+  supervisor independently accepted the pinned tarball and `bd-real` hashes,
+  wrapper/real v1.1.2 outputs, failure-fatal lifecycle assertions, inner Dolt,
+  secret-value scan, HTTP probe, cleanup, unchanged host hashes, and every
+  no-mutation fence.
+- The accepted proof log has SHA-256
+  `53eee1e2b25fb720a7ef59d5ae483af09b6cd0e32f831325c4886b4cc57db717`.
+  Through the configured family wrapper and public `/usr/local/bin/bd`, the
+  existing `bd-ib-dwv` item was closed exactly once at
+  `2026-08-04T02:32:41Z` with that accepted proof evidence. A fresh read-back
+  confirmed `closed`, unassigned, with its sole `blocks` prerequisite
+  `bd-ib-1rz6` also `closed`. There was no partial write or auto-backup warning.
+- O5 is terminal. The proof must not be rerun, no Docker resource may be
+  recreated, and no further attended action is authorized. No successor may
+  mutate the image, registry, host `/usr/local/bin`, production tenant or Dolt
+  data, backup/restore state, host Fabro server, or another ledger item under
+  this checkpoint.
+- The immediate remaining blocker is external to this repository and is owned
+  by the separate `governed-repo-bootstrap` plan: its Dolt-server
+  default-branch `ci-green` evidence has not yet published. Public remeasurement
+  found the Dolt-server GitHub forge master at
+  `fd7d79e97ba6bdcc169a8868df0d9d73bbfc9aaa`. The only valid cross-repository
+  ledger measurement is `MEASURED_AT=2026-08-04T05:03:45Z`, taken with the
+  exact target anchor
   `/usr/local/bin/with-livespec-env.sh -- /usr/local/bin/bd -C /data/projects/dolt-server`.
-  The returned IDs were explicitly verified: `dolt-server-3jhclo`, its two
-  required `blocks` endpoints `dolt-server-22gb7i` and
-  `dolt-server-s4iyi4`, and canonical `dolt-server-wgy`. The first three were
-  `pending-approval`; `dolt-server-wgy` was `ready` and unassigned. Do not cite
-  the invalid unanchored `2026-08-04T04:59:54Z` output.
-- After correction, run the foreground doc-only gate and require the ownership
-  diff to contain exactly this handoff. Reverify the remote lease, then update
-  the same PR with exact old-head
-  `--force-with-lease=docs/beads-v1-1-2-o5-proof-reconcile:bbda528d096ea28b475c2d7e66530ae3fc987826`.
-  Keep PR #1284 open with auto-merge disabled, append the exact correction
-  receipt to the ignored worker log, and stop for fresh exact-head supervisor
-  review. Never cite an unanchored cross-tenant Beads read.
+  It explicitly verified `dolt-server-3jhclo`, its two required `blocks`
+  endpoints `dolt-server-22gb7i` and `dolt-server-s4iyi4`, and canonical O3
+  item `dolt-server-wgy`. The first three were `pending-approval`;
+  `dolt-server-wgy` was `ready` and unassigned.
+- Do not inspect or touch the separate `governed-repo-bootstrap` plan's
+  supervisor, worker, markers, logs, worktrees, or branches.
+- Only after the external default-branch `ci-green` evidence publishes may
+  this plan independently remeasure the public Dolt-server forge and ledger
+  artifacts, with every ledger read using the exact target anchor above. If
+  the existing valves then pass and `dolt-server-wgy` remains canonical and
+  `ready`, the only permitted next execution is the sanctioned dark-factory
+  `drive` action `impl:dolt-server-wgy` from the Dolt-server repository root.
+  No duplicate O3 item, cross-tenant edge, inline implementation, or other
+  O1-through-O8 outcome is authorized.
 
 ### Restart checkpoint — 2026-08-04 attended O5 proof complete
 
@@ -135,8 +142,9 @@ action is fresh supervisor review of this exact proof receipt while
   `463b7655041345ce5d4bac00c3a5d465166bb30166147e11ef1c6e07df0a4486`.
 - No image was pushed, no registry was mutated, and no production tenant,
   production Dolt data, backup/restore state, host Fabro server, host binary,
-  or unrelated process/session was touched. `bd-ib-dwv` was not closed and no
-  other ledger item was mutated. The ignored runtime terminal receipt is in
+  or unrelated process/session was touched. After supervisor acceptance,
+  `bd-ib-dwv` was closed exactly once at `2026-08-04T02:32:41Z`; no other
+  ledger item was mutated. The ignored runtime terminal receipt is in
   `tmp/overseer/beads-v1-1-2-upgrade/worker-status.log` at
   `2026-08-04T02:21:04Z` with event
   `bd-ib-dwv-attended-proof-green`.
@@ -1110,11 +1118,17 @@ because that would remove the required guard and move `bd-real` onto `bd`.
 
 ## Immediate next action
 
-Follow only the authoritative supervisor-correction checkpoint at the top of
-this handoff. Reverify live refs and the exact old PR head, rebase the owned
-branch, apply the three bounded documentation corrections using only the valid
-target-anchored `MEASURED_AT=2026-08-04T05:03:45Z` ledger evidence, run the
-required foreground gates, and force-with-lease push to the same PR. Keep PR
-#1284 open with auto-merge disabled and stop for fresh exact-head supervisor
-review. Do not merge, rerun the proof, begin another outcome, or inspect or
-touch the separate governed plan's runtime state.
+Do not resume O5 or PR #1221 and do not perform an attended action. Wait for the
+separate `governed-repo-bootstrap` plan to publish its Dolt-server
+default-branch `ci-green` evidence without inspecting or touching that plan's
+runtime state. Once that public evidence exists, fetch and verify the public
+Dolt-server forge state and read back `dolt-server-3jhclo`, its two required
+evidence endpoints, and canonical `dolt-server-wgy` through the configured
+wrapper and public guard from the Dolt-server repository root, using the exact
+target anchor recorded in the authoritative checkpoint above.
+
+Only if those existing valves pass and `dolt-server-wgy` remains canonical and
+`ready`, dispatch the sanctioned dark-factory `drive` action
+`impl:dolt-server-wgy`. Do not file a duplicate, add a cross-tenant dependency,
+implement inline, mutate the governed plan's state, or begin any other upgrade
+outcome.
