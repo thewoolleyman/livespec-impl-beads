@@ -29,6 +29,108 @@ backup is the data rollback boundary.
 
 ## Current state
 
+### Restart checkpoint — 2026-08-04 attended O5 proof
+
+Maintainer authorization now supersedes both the stale “Immediate next action”
+and the older 2026-08-03 O5-code checkpoint below. Resume **only** the attended
+guarded-image proof for existing item `bd-ib-dwv`; do not start another outcome,
+repair code, close the item, or perform any production or host rollout work.
+
+- The primary checkout, fetched `origin/master`, and GitHub forge master were
+  clean and equal at
+  `b9c8904b5ad41de94eb636b3e509a027e48047a0` when the proof preflight ran.
+  PR #1221 was independently verified merged at
+  `976caf9744b8a6c1159434da8f2102081935f419` on
+  `2026-08-03T04:10:48Z`; that merge is an ancestor of the verified source.
+- The existing attended proof `bd-ib-dwv` passed its exact read-only
+  preconditions and was moved through the configured wrapper and public guard
+  from `backlog` to `active` at `2026-08-04T01:45:32Z`. It remains unassigned,
+  carries `factory-safety:needs-privileged-host`, and has exactly one `blocks`
+  prerequisite: closed code item `bd-ib-1rz6`. Do not mutate any other ledger
+  item, and do not close `bd-ib-dwv` after the proof; successful evidence must
+  stop in `active` for fresh supervisor review.
+- The sole proof checkout already exists as a clean detached worktree at
+  `/home/ubuntu/.worktrees/livespec-orchestrator-beads-fabro/proof-bd-ib-dwv-20260804t0132z`,
+  exact HEAD `b9c8904b5ad41de94eb636b3e509a027e48047a0`. Reuse only this checkout;
+  do not create another proof checkout or touch any other session worktree or
+  branch. It had no tracked or untracked residue when created.
+- Exact collision preflight passed immediately before the ledger transition:
+  image tag `livespec-orchestrator:bd-ib-dwv-20260804t0132z`, container
+  `livespec-orch-verify-bd-ib-dwv-20260804t0132z`, volume
+  `livespec-orch-varlib-bd-ib-dwv-20260804t0132z`, and host listener port
+  `32380` were absent. The staged `orchestrator-image/fabro`,
+  `orchestrator-image/bd-guard`, and `orchestrator-image/plugin-scripts`
+  payloads were also absent. Recheck every exact collision before any Docker
+  mutation; halt rather than deleting or reusing a collision.
+- Secret probes through
+  `/data/projects/1password-env-wrapper/with-livespec-env.sh` printed names and
+  character counts only. Required values were present:
+  `GITHUB_APP_ID=8`, `GITHUB_PRIVATE_KEY=1649`,
+  `ANTHROPIC_API_KEY_LIVESPEC_E2E=109`,
+  `CLAUDE_CODE_OAUTH_TOKEN=109`, and
+  `HONEYCOMB_INGEST_KEY_LIVESPEC=65` characters including the probe newline.
+  `GITHUB_APP_INSTALLATION_ID` and `GITHUB_API_URL` were absent; the committed
+  entrypoint and README explicitly classify both as optional overrides, so
+  this is not a proof precondition failure. Never print any value.
+- Pre-proof host hashes were recorded without executing the private delegate:
+  guard `/usr/local/bin/bd` SHA-256
+  `5f55fbfbdb872faf1e43e91e7276ed7f1f754e1611e1c84921286029224637a3` and
+  real `/usr/local/bin/bd-real` SHA-256
+  `463b7655041345ce5d4bac00c3a5d465166bb30166147e11ef1c6e07df0a4486`.
+  Recheck them after the proof to establish no host mutation.
+- The proof itself **has not started**. The worker added an outer `tee` targeting
+  the ignored runtime log under the primary checkout so the complete redacted
+  output would survive, and the Codex PreToolUse
+  `livespec_footgun_guard.py` blocked that shell command as a primary-checkout
+  write before any subprocess ran. No image, container, volume, listener,
+  staged payload, inner Dolt, production tenant, production Dolt data,
+  `/usr/local/bin`, Fabro server, backup, restore, or secret was mutated by the
+  blocked invocation. The hook explicitly said not to retry the same command,
+  and the standing safety rule required the worker to halt.
+- On the fresh session, verify SessionStart/hooks are healthy, fetch and repeat
+  the exact forge/ledger/worktree/Docker collision preflight, then preserve the
+  complete already-redacted output at a new collision-free path **outside every
+  repository checkout** (for example under a dedicated
+  `/home/ubuntu/.local/state/` proof-log directory) so the primary-write hook is
+  not tripped. Do not reuse or overwrite a prior output path. The one authorized
+  foreground proof command remains exactly:
+
+  ```sh
+  /data/projects/1password-env-wrapper/with-livespec-env.sh -- env \
+    IMAGE=livespec-orchestrator:bd-ib-dwv-20260804t0132z \
+    CONTAINER=livespec-orch-verify-bd-ib-dwv-20260804t0132z \
+    VARLIB_VOL=livespec-orch-varlib-bd-ib-dwv-20260804t0132z \
+    HOST_PUBLISH_PORT=32380 \
+    bash orchestrator-image/build-and-verify.sh
+  ```
+
+  Run it once, foreground, from the detached proof checkout. Require the
+  terminal `ALL TIER-1 CHECKS PASSED` artifact, not exit code alone.
+- Independently record source SHA, local image ID/digest, official v1.1.2
+  tarball SHA-256
+  `a72d71ed374955dc9f83a0f90b54bd7b6a0016709dd1676ae2e368651ed401c2`,
+  pinned `bd-real` SHA-256
+  `6d767629e90560506d0ea3de9823aef48386414f5425d8853e2ae3312cad9a82`,
+  guard sentinel, wrapper and real version outputs, `LIVESPEC_BD_PATH`,
+  fail-mode prohibited lifecycle exit `3` plus warning plus unchanged
+  `backlog`, qualifying-create readback as `backlog`, inner Docker driver, and
+  HTTP probe. The script authorizes only its local image build, privileged
+  ephemeral container/volume, inner ephemeral Dolt, Tier-1 run, and read-only
+  inspection—never an image push, registry write, host `/usr/local/bin`,
+  production tenant/Dolt data, backup/restore, Fabro server, or unrelated
+  process/session mutation.
+- After green evidence, prove the script trap removed the exact container,
+  volume, and three staged build-context payloads. Remove only the exact new
+  image tag/ID; do not prune Docker or remove a shared/base image. Prove all
+  exact resources absent, prove the detached checkout has no tracked or
+  untracked residue, remove only that proof worktree with `mise exec -- git`,
+  leave `bd-ib-dwv` active, append the exact terminal receipt to the ignored
+  `worker-status.log`, and stop with a concise supervisor review request.
+
+The ignored runtime log contains the authorization milestone at
+`2026-08-04T01:44:56Z`. The `.overseer-state` file was set to `winding-down`
+for this restart. No proof subprocess or background sub-agent remains.
+
 ### Restart checkpoint — 2026-08-03
 
 The next worker must resume the owned O5 correction; do not infer that O5 or
