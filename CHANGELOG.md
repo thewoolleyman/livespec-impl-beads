@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.50.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.50.1...v0.50.2) (2026-08-04)
+
+
+### Bug Fixes
+
+* restore per-file coverage producer ([487a5b0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/487a5b0172574428be2e84a571f601664625e4c5))
+* restore standalone per-file coverage recipe ([fb83c5e](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/fb83c5e74714ca88ed4e4d9f692f06c54223be28))
+
 ## [0.50.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.50.0...v0.50.1) (2026-08-03)
 
 
