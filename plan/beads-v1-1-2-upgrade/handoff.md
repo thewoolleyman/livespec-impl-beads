@@ -50,9 +50,8 @@ that remains under review.
   and was clean at wind-down.
 - PR #1284 remains open, non-draft, and unmerged with auto-merge disabled. The
   repository bot briefly enabled auto-merge after creation; the worker caught
-  and disabled it before merge eligibility. At the final wind-down snapshot,
-  93 checks had succeeded, one had skipped, one remained queued, and no check
-  had failed.
+  and disabled it before merge eligibility. All 95 checks are now terminal:
+  94 succeeded, one skipped, and none failed.
 - Applicable foreground validation passed: the eight-target doc-only aggregate
   passed manually, at commit, and at push; push-time ledger conformance was
   clean; the ownership diff contained only this handoff; and a context-free
@@ -68,8 +67,13 @@ that remains under review.
   remeasurement followed by sanctioned dark-factory action
   `impl:dolt-server-wgy` if every existing valve passes.
 - Resume by verifying PR #1284 still has exact head `bbda528d…`, remains
-  unmerged, and has auto-merge disabled. Stop for the pending exact-head
-  supervisor decision. Do not modify or merge that PR, start another outcome,
+  unmerged, and has auto-merge disabled. The primary checkout,
+  `origin/master`, and GitHub forge master are now equal at
+  `f42aed94979f01c0d2fe7980dc00994a55543642`, the merged restart-checkpoint
+  commit. Because that checkpoint advanced master beyond PR #1284's original
+  base, GitHub reports the held PR's merge state as `DIRTY`. Its exact head and
+  worktree are unchanged and clean. Stop for the pending exact-head supervisor
+  decision; do not rebase, modify, or merge that PR, start another outcome,
   inspect the separate governed-plan runtime, or touch any other session's
   worktree or branch without new supervisor authorization.
 
@@ -1105,6 +1109,8 @@ because that would remove the required guard and move `bd-real` onto `bd`.
 
 Resume only the exact-head review hold for PR #1284 at
 `bbda528d096ea28b475c2d7e66530ae3fc987826`. Verify it remains open and
-unmerged with auto-merge disabled, record the final check state, and wait for
-the supervisor's decision. Do not edit or merge the PR, return to PR #1221,
-rerun the proof, begin another outcome, or touch another session's state.
+unmerged with auto-merge disabled and all 95 checks terminal. GitHub currently
+reports `DIRTY` because the restart checkpoint advanced master beyond the
+PR's original base. Wait for the supervisor's explicit rebase/merge decision.
+Do not edit, rebase, or merge the PR, return to PR #1221, rerun the proof,
+begin another outcome, or touch another session's state.
