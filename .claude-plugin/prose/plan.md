@@ -196,7 +196,28 @@ git mv plan/<topic>/ plan/archive/<topic>/
 Reopening the epic unarchives it (move back). Nothing is lost — the
 archived thread stays under `plan/archive/` and in git history; to keep
 a research note as living reference, move it to `docs/`, `.ai/`, or a
-dedicated top-level topic directory deliberately. In spirit this is
+dedicated top-level topic directory deliberately.
+
+**Archival is total.** Move the WHOLE directory and leave NOTHING at
+`plan/<topic>/` — no stub, no terminal marker, no forwarding note, not
+even the empty directory. Never create one, and never accept one as the
+outcome of an archive you perform. In no committed tree may the same
+topic exist at both `plan/<topic>/` and `plan/archive/<topic>/`, so do
+not reuse a retired topic's slug for a new thread while its archive
+remains — pick a new slug; or, ONLY if the new work genuinely continues
+the old thread, reopen its epic, which unarchives it by moving it back.
+Never move an archived thread back without reopening its epic: that
+leaves an active thread whose epic is closed.
+
+**Closing with something unresolved.** Do exactly ONE of two things.
+Either LEAVE THE THREAD UN-ARCHIVED, its epic staying OPEN, until its
+blockers are resolved; or TRANSFER ALL BLOCKERS to a different or new
+non-archived plan thread and/or work-item — a work-item transfer goes
+through `capture-work-item` — and only then archive the thread whole.
+Archiving it and leaving a note explaining what is left is not a third
+option. Residue at the live path keeps a finished thread readable as
+ACTIVE by every consumer that discovers threads by directory, so its
+bookkeeping is never reclaimed and it stays restartable. In spirit this is
 `prune-history` for planning threads:
 the active view stays clean, completed threads move aside rather than
 getting deleted.
