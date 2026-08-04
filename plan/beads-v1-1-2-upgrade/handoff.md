@@ -29,6 +29,50 @@ backup is the data rollback boundary.
 
 ## Current state
 
+### Restart checkpoint — 2026-08-04 doc reconciliation awaiting review
+
+This is the sole authoritative restart checkpoint until PR #1284 receives an
+exact-head supervisor decision. It supersedes every instruction below for
+resumption purposes without merging or replacing the proposed reconciliation
+that remains under review.
+
+- Supervisor accepted the `bd-ib-dwv` attended proof and its exact-once closure
+  at `2026-08-04T02:32:41Z`. The worker then performed only the authorized
+  doc-only reconciliation and did not rerun the proof, mutate another ledger
+  item, or begin another outcome.
+- The proposed reconciliation is open as PR
+  [#1284](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/pull/1284)
+  on branch `docs/beads-v1-1-2-o5-proof-reconcile`, exact head
+  `bbda528d096ea28b475c2d7e66530ae3fc987826`, against base
+  `154b5fd473b233b726418746fac86716091a210f`. Its sole changed path is this
+  handoff. The owned worktree is
+  `/home/ubuntu/.worktrees/livespec-orchestrator-beads-fabro/docs/beads-v1-1-2-o5-proof-reconcile`
+  and was clean at wind-down.
+- PR #1284 remains open, non-draft, and unmerged with auto-merge disabled. The
+  repository bot briefly enabled auto-merge after creation; the worker caught
+  and disabled it before merge eligibility. At the final wind-down snapshot,
+  93 checks had succeeded, one had skipped, one remained queued, and no check
+  had failed.
+- Applicable foreground validation passed: the eight-target doc-only aggregate
+  passed manually, at commit, and at push; push-time ledger conformance was
+  clean; the ownership diff contained only this handoff; and a context-free
+  reader passed the handoff self-sufficiency gate. The non-fatal lefthook
+  synchronization warning about an existing `.old` hook file recurred, but all
+  actual hooks and gates executed successfully.
+- The proposed checkpoint in PR #1284 makes O5 terminal, records
+  `bd-ib-dwv` closed and the accepted proof-log SHA-256
+  `53eee1e2b25fb720a7ef59d5ae483af09b6cd0e32f831325c4886b4cc57db717`,
+  prohibits any proof rerun or further attended action, and replaces the stale
+  PR #1221 route. It records the external Dolt-server default-branch
+  `ci-green` evidence as the immediate blocker and permits only a later public
+  remeasurement followed by sanctioned dark-factory action
+  `impl:dolt-server-wgy` if every existing valve passes.
+- Resume by verifying PR #1284 still has exact head `bbda528d…`, remains
+  unmerged, and has auto-merge disabled. Stop for the pending exact-head
+  supervisor decision. Do not modify or merge that PR, start another outcome,
+  inspect the separate governed-plan runtime, or touch any other session's
+  worktree or branch without new supervisor authorization.
+
 ### Restart checkpoint — 2026-08-04 attended O5 proof complete
 
 This checkpoint supersedes the older 2026-08-04 pre-proof checkpoint and every
@@ -1059,11 +1103,8 @@ because that would remove the required guard and move `bd-real` onto `bd`.
 
 ## Immediate next action
 
-Resume only the quote-safe fresh-Red recovery in the exact O5 worktree recorded
-in “Restart checkpoint — 2026-08-03.” Preserve local Red head `3e8c760f…`,
-replace only its unstaged syntactically invalid shell attempt through the
-fresh-Red sequence recorded there, then complete the Green amend, foreground
-static/focused/full gates, ownership diff, exact-lease push to the same draft
-PR #1221, durable runtime receipt, and exact-head hold for supervisor review.
-Do not start any other outcome, merge the PR, run an image operation, mutate
-either ledger, or touch another session's branch or worktree.
+Resume only the exact-head review hold for PR #1284 at
+`bbda528d096ea28b475c2d7e66530ae3fc987826`. Verify it remains open and
+unmerged with auto-merge disabled, record the final check state, and wait for
+the supervisor's decision. Do not edit or merge the PR, return to PR #1221,
+rerun the proof, begin another outcome, or touch another session's state.
