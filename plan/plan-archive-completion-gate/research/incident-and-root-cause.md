@@ -55,23 +55,59 @@ Two independent operations, each individually correct in isolation, compose
 into this defect. Neither operation's spec text or prose currently says
 anything about the other.
 
-## Why nothing caught it mechanically
+## Why nothing caught it mechanically — CORRECTED 2026-08-06
 
-`SPECIFICATION/contracts.md` names "`archived` matches `epic-closed`" as one
-of the "five-slot conformance concerns... whose always-on enforcement is
-realized by the Conformance Pattern." Checked directly for an actual verifier:
+**This section originally claimed "there is no mechanical check anywhere,"
+based on a grep for the literal substrings `archive.on.epic.close` /
+`epic_close` / `archive_on_epic` — zero hits. That grep was too narrow and
+the claim was wrong.** A real check family exists in `livespec-dev-tooling`,
+named differently than the grep anticipated: `plan_thread_anchor_declared`
+(static, requires every active handoff to declare a concrete ledger anchor)
+and `plan_thread_epic_parity` (ledger-aware, credential/lever-gated —
+`LIVESPEC_RUN_PLAN_EPIC_PARITY` + `BEADS_DOLT_PASSWORD` both required to
+arm).
 
-```
-grep -rln "archive.on.epic.close\|epic_close\|archive_on_epic" --include="*.py" .
-```
+`plan_thread_epic_parity`'s own remediation text, verbatim, on finding an
+active thread pointing at a closed epic: *"the plan thread is complete —
+archive it... an active thread pointing at a done/closed epic is the
+un-archived-thread drift this check prevents."* This is the SAME conflation
+this incident exposes, now found baked into shipped code, not just prose —
+and it was a deliberate, documented design choice (epic
+`livespec-dev-tooling-scsj5e`, closed 2026-07-18), motivated by a real prior
+incident (`rop-sweep-library-checks`) where a genuinely-complete epic sat
+un-archived. That motivating case is this incident's mirror image: there,
+"closed" really did mean "done"; here, "closed" meant "administratively
+retired via `groom`'s regroom-out, replaced by open descendants" — same
+assumption, opposite ground truth.
 
-— zero hits, in this repo and in `livespec-dev-tooling`. There is no
-mechanical check anywhere. The only thing that ever "enforced" this rule was
-an LLM session reading the prose and (in this case) getting it wrong. This
-repo's own fleet already carries two named instances of exactly this failure
-shape — a rule that ran and could not fail (`check-no-workflow-edits`, wired
-into neither the aggregate nor CI; `LIVESPEC_RUN_MUTATION`, a verified
-no-op). This incident is a third.
+Two things still hold from the original (wrong) claim, now corrected in
+scope rather than retracted outright:
+
+1. **This check is un-armed everywhere in the fleet today.** Checked: zero
+   `LIVESPEC_RUN_PLAN_EPIC_PARITY` references in any `.github/workflows/`
+   across `livespec`, `livespec-overseer`, `livespec-orchestrator-beads-fabro`;
+   `livespec-dev-tooling-d1j` ("establish a standing armed home") is still
+   `backlog`, unstarted. So even where the check exists, it was not actually
+   running in this session's environment — the only thing that "enforced"
+   this rule at the moment of the incident was an LLM reading the prose by
+   hand, which is what actually happened, and got it wrong.
+2. **Even fully armed, this check would not have caught this incident.**
+   Its assertion direction is "active thread + closed epic → fail." In this
+   incident the *thread itself* was what got archived — by the time the
+   mistake existed on disk, there was no longer an *active* thread pointing
+   at a closed epic to catch; the plan had already moved to `plan/archive/`,
+   which is structurally outside this check's glob (a separate, independently
+   found defect: `livespec-dev-tooling-q3emww`). Catching this incident's
+   specific shape needs a THIRD, different check — descendant completion,
+   not anchor status — filed as `livespec-dev-tooling-5asgvm`. See the
+   handoff's "Correction" section for the full re-scoping this produced.
+
+This repo's own fleet already carries other named instances of the general
+failure shape — a rule that ran and could not fail (`check-no-workflow-edits`,
+wired into neither the aggregate nor CI; `LIVESPEC_RUN_MUTATION`, a verified
+no-op). `plan_thread_epic_parity` un-armed is another instance of the same
+family; the wrong-direction remediation text is a distinct, additional
+defect on top of that.
 
 ## Cross-repo relationship
 
@@ -89,5 +125,6 @@ research docs against the epic's children at archive time" — which would have
 caught this exact incident by construction. This incident is recorded there
 as evidence (`livespec` PR #2066).
 
-This thread's two goals are scoped to ship ahead of that redesign as a
-tactical stopgap — see the handoff's "Scope" section.
+This thread's remaining goal (the prose/spec text correction only, after
+re-scoping — see the handoff's "Correction" section) ships ahead of that
+redesign as a tactical stopgap.
