@@ -27,95 +27,91 @@ and changes storage behavior. A binary rollback alone is not a database
 rollback after those migrations; restoration of the pre-migration tenant
 backup is the data rollback boundary.
 
+## Plan label key
+
+The labels `O1` through `O8` belong to this Beads v1.1.2 upgrade plan. They
+mean, respectively: release and command-line qualification (`O1`), guard
+compatibility (`O2`), the distinct backup-source and clean-target restore seam
+(`O3`), the isolated migration-and-restore rehearsal (`O4`), the guarded image
+layout (`O5`), version-specific current-code and documentation alignment
+(`O6`), the attended production cutover (`O7`), and closure with parity
+evidence (`O8`). The labels `B5` and `B8` belong to the archived
+`governed-repo-bootstrap` plan; they mean its attended-restore acceptance and
+audit-acceptance outcomes. Later tables retain these short labels only after
+this owning-plan and descriptive-outcome definition.
+
 ## Current state
 
-### Restart checkpoint — 2026-08-06 archived Dolt evidence reconciled
+### Restart checkpoint — 2026-08-06 residual isolated rehearsal package prepared
 
 This is the sole authoritative restart checkpoint. It supersedes every older
-restart checkpoint and the stale executable instruction under “Immediate next
-action.” The only action authorized now is exact-head supervisor review of the
-one-file reconciliation PR that carries this checkpoint. Do not start another
-upgrade outcome, mutate a ledger item, or perform an attended action under this
-checkpoint.
+restart checkpoint and every earlier version of “Immediate next action.” The
+only current action is exact-head supervisor review of the one-file plan PR
+that carries this package. This checkpoint does not authorize a ledger write,
+factory dispatch, fixture write, migration, backup, restore, cleanup, image
+operation, host copy, or rollout.
 
-- A fresh fetch found this repository's clean primary checkout and
-  `origin/master` equal at
-  `35f08d52e1b516b29a2ce4ce0ac7bf208623dee0`. The public Dolt-server default
-  branch, its clean primary checkout, and fetched `origin/master` were equal at
-  `86e94c374d23d2f2115f7cc3785eb4e47afd5c4a`. Public workflow run
-  `31074194596` completed successfully on that exact Dolt-server commit; its
-  `check` and aggregate `ci-green` jobs both completed successfully.
-- Public Dolt-server PR
-  [#46](https://github.com/thewoolleyman/dolt-server/pull/46) is merged at
-  `ceaa078a8652ef6309e371181a3f6e9450fd1ab2`, which is an ancestor of the
-  verified default-branch head. Both PR checks passed. At
-  `MEASURED_AT=2026-08-06T09:09:49Z`, target-anchored reads through the exact
-  prefix
-  `/usr/local/bin/with-livespec-env.sh -- /usr/local/bin/bd -C /data/projects/dolt-server`
-  confirmed canonical seam `dolt-server-wgy` was `closed` with its description
-  limited to this Beads-upgrade plan's distinct-source/clean-target helper
-  outcome (O3), literal
-  `external_ref=beads-v1-1-2-upgrade:bd-ib-3kolea:O3`, zero dependencies, the
-  one expected governed-plan dependent, and audit metadata naming PR #46 and
-  the merge above. The same target-anchored pass confirmed
-  prerequisite endpoints `dolt-server-22gb7i` and `dolt-server-s4iyi4`,
-  aggregate-CI owner `dolt-server-3jhclo`, and governed-plan epic
-  `dolt-server-3ychlx` were all `closed`.
-- The target-tenant non-closed survey returned four items: one lifecycle-anchor
-  task and the three deferred standby-replication items. Their full
-  descriptions contain no overlapping Beads v1.1.2 migration or restore-seam
-  work. At `MEASURED_AT=2026-08-06T09:10:48Z`, this repository's target-anchored
-  ledger read confirmed `bd-ib-3kolea` remained `backlog`, unassigned, and the
-  sole live upgrade anchor. No ledger mutation was made.
-- Public Dolt-server PR
-  [#50](https://github.com/thewoolleyman/dolt-server/pull/50) merged the tracked
-  attended restore record at
-  `c846a0c33ba1fb32e97c98aa383c2e8fbdcb3544`; both of its checks passed. The
-  governed plan and that evidence are now tracked under
-  `plan/archive/governed-repo-bootstrap/` on the verified Dolt-server master.
-  Its closure commit is the exact verified master
-  `86e94c374d23d2f2115f7cc3785eb4e47afd5c4a`.
+- A fresh fetch at `MEASURED_AT=2026-08-06T10:41:06Z` found this repository's
+  clean primary checkout, `origin/master`, and public forge master equal at
+  `1a993d2d54c4fc44389948a62a306a655331b80a`. The release forge still peels
+  upstream Beads tag `v1.1.2` to
+  `20e493e569c922d1253bdeff068c5e56c94957fb`; the official Linux AMD64 tarball
+  has SHA-256
+  `a72d71ed374955dc9f83a0f90b54bd7b6a0016709dd1676ae2e368651ed401c2`,
+  the extracted executable has SHA-256
+  `6d767629e90560506d0ea3de9823aef48386414f5425d8853e2ae3312cad9a82`,
+  and the SPDX artifact has SHA-256
+  `b05ca7f525f05e50691a4329b13aa87f10bc93160fe8d4d1ca371867701b58e6`.
+- Upstream tag `v1.0.5` still peels to
+  `6a3f515ced18406c189c55fff789a4925bfaa35c`. Its release API and expected
+  Linux AMD64 asset both return HTTP 404, so the future fixture producer must
+  be built from that exact source commit with its declared Go 1.26.2 toolchain;
+  the build receipt must record the source archive, toolchain, command, and
+  resulting executable hashes. It must not substitute the host's private
+  delegate.
+- Read-only calls through the family wrapper and public guarded `bd` surveyed
+  all nine committed family tenant pointers. The representative evidence
+  sources are `/data/projects/livespec` for the dense lifecycle and policy
+  shape (625 all-row issues, 132 issues with dependencies, 123 with comments,
+  479 with metadata, and 88 distinct label values), this repository for the
+  factory-policy shape (447 all-row issues, 56 with dependencies, 108 with
+  comments, 233 with metadata, and 55 distinct label values), and
+  `/data/projects/livespec-driver-codex` for the sparse closed-only shape (25
+  closed issues, two with dependencies, three with comments, 13 with metadata,
+  and seven distinct label values). These are read-only shape sources, not
+  databases to copy or mutate.
+- The all-row, infrastructure-inclusive survey found zero `rig` issue rows in
+  every family tenant. The 0053 rig/wisp case therefore requires a deterministic
+  synthetic v1.0.5 fixture derived from the tagged upstream schema and migration
+  tests. The plan must not claim that a production-derived fixture covers a
+  shape the read-only evidence did not observe.
+- The non-closed target-tenant survey found only upgrade anchor `bd-ib-3kolea`
+  and adjacent auto-backup defect `bd-ib-rxf` in the migration/restore defect
+  class. The latter confirms that tenant-user writes cannot be trusted to make
+  server-native backups because that user lacks `DOLT_BACKUP`; the rehearsal
+  must use a dedicated isolated backup principal and must not repair or bypass
+  that grant boundary. No ledger state was changed.
 
-The archived evidence proves one narrow, reusable part of this plan's rehearsal
-contract. The real source `livespec-orch-beads-fabro` was restored through the
-reviewed helper into the differently named clean scratch target
-`livespec-orch-beads-fabro_beads112_restore` with `--verify`. The comparison
-used the ordered branch list and a row count for every base table. The source
-reading before restore, the restored-target reading, and the source reading
-after restore were byte-identical at SHA-256
+The archived live helper receipt remains credited without repetition. It
+restored real source `livespec-orch-beads-fabro` into differently named clean
+target `livespec-orch-beads-fabro_beads112_restore`, compared the ordered branch
+list and every base-table row count, and obtained the same SHA-256 before,
+during, and after the restore:
 `5f73c196716ee022ebe779cf366a5f897ab1e20b290d859e7c5b116076b4b3f6`.
-The reviewed cleanup helper then removed the scratch target, returned the live
-tenant count to 13, and a final source reading retained the same digest. The
-older stored digest beginning `37dfd588` is explicitly retired because it has
-no reproducible recipe; do not reinstate it or rerun the live restore merely to
-manufacture a replacement constant.
+Its reviewed cleanup returned the live tenant count to 13. The unreproducible
+older digest beginning `37dfd588` remains retired. This receipt completes this
+upgrade plan's distinct backup-source and clean-target restore seam (`O3`) and
+the archived governed plan's attended-restore and audit-acceptance outcomes
+(`B5` and `B8`); it does not complete this upgrade plan's isolated migration
+and restore rehearsal (`O4`).
 
-The Dolt archive's statement that its “O4 is COMPLETE” is scoped to the
-archived `governed-repo-bootstrap` plan's attended-restore acceptance outcome
-(B5) and audit-acceptance outcome (B8). It does **not** complete this
-Beads-upgrade plan's isolated migration-and-restore rehearsal outcome (O4). The
-reconciliation is:
-
-| This plan's requirement | What the archive proves | Remaining obligation |
-|---|---|---|
-| Distinct-source/clean-target helper seam (this Beads-upgrade plan's O3) | Fully discharged by closed `dolt-server-wgy` and PR #46. | Do not dispatch, reopen, duplicate, or relabel that outcome. |
-| One real source-to-differently-named-scratch restore and helper-level parity | Discharged for the one recorded source, including exact cleanup. | Reuse the tracked receipt; do not rerun the same live proof. |
-| Representative v1.0.5 tenant-shape rehearsal through migrations 0050–0053 (part of this plan's O4 isolated rehearsal) | Not proved. The archive ran no Beads v1.1.2 migration. | Still requires isolated restored tenant shapes, one designated migrator per shape, and an observed remote-migration-gate decision. |
-| Complete invariant comparison and write round trips (part of the same O4 isolated rehearsal) | Not proved by branch names plus table row counts. | Still requires the plan's status/type counts, dependencies, comments, labels, policy metadata, schema-row content hashes, and post-migration create/update/dependency/comment/close/list/show round trips. |
-| Restore boundary after migration (part of the same O4 isolated rehearsal) | Not proved. The recorded scratch target was cleaned up after the helper-level parity proof. | Still requires restoring the pre-migration backup after the isolated migration and proving return to the complete baseline. |
-| Frozen whole-server rollback boundary (a prerequisite for this plan's O7 attended production cutover) | Not proved. No stopped-server cold archive or isolated extraction was created by the archived proof. | The checksummed, root-read-only cold archive and metadata-preserving extraction rehearsal remain mandatory before production migration. |
-
-The isolated migration-and-restore rehearsal (O4) therefore remains incomplete.
-The version-specific current-code and documentation alignment outcome (O6)
-remains blocked on that rehearsal, and the attended production cutover outcome
-(O7) remains unauthorized. The next non-attended boundary, after this one-file
-PR passes exact-head review and rebase-merges, is preparation and review of the
-residual isolated rehearsal package only: credit the archived helper proof,
-specify the still-missing isolated migration, invariant, round-trip, and
-rollback evidence, and stop before ledger filing or admission and before any
-host, tenant, Dolt, image, backup/restore, or Fabro mutation. A later action
-must receive a new explicit obligation and authorization; this checkpoint does
-not provide either.
+The residual `O4` package below is now concrete: it uses only synthetic
+v1.0.5-created non-production tenants, one designated migrator, an observed
+remote-gate decision, exact invariant inventories, write round trips, a frozen
+single-use pre-migration backup identity, restore to the complete baseline,
+and exact cleanup receipts. Version-specific current-code and documentation
+alignment (`O6`) remains blocked on accepted `O4` evidence, and the attended
+production cutover (`O7`) remains unauthorized.
 
 ### Restart checkpoint — 2026-08-04 O5 proof accepted and closed
 
@@ -646,20 +642,15 @@ Both commands authenticate through the `backup` principal, using
 `/usr/local/bin/with-dolt-admin-env.sh` and
 `scripts/with-dolt-admin-creds.sh`; no secret is printed.
 
-There is a sharp edge in the current restore helper: its single `--db` value is
-both the source S3 path and target database name. Despite stale scratch-suffix
-examples in some runbooks, `--db <DB>_restoretest` cannot restore the backup
-for `<DB>`. Before the Beads migration rehearsal, land a separate
-`dolt-server` specification and implementation slice that adds explicit
-`--source-db <DB>` and `--target-db <SCRATCH_DB>` arguments, preserves the
-existing clean-target refusal, updates the stale runbook examples, and proves
-the behavior with hermetic tests. That cross-repository O3 slice follows
-`dolt-server`'s own propose-change, revise, worktree, test, PR, and
-rebase-merge workflow. O3 does not run the live restore. After O3 closes, the
-attended O4 rehearsal owns the proof that the revised helper can restore a
-real source backup into a differently named scratch tenant on the live server
-with `--verify`. Production migration remains blocked until that O4 proof
-passes.
+The former single-`--db` source/target defect is closed. Dolt-server PR #46
+added distinct `--source-db` and `--target-db` arguments while preserving the
+clean-target refusal, and the archived governed plan later exercised that seam
+on the live server. The exact archived receipt is in the newest checkpoint.
+Do not reopen or dispatch the completed seam, do not repeat the attended live
+restore, and do not advance the shared production S3 backup merely to create a
+new receipt. The residual rehearsal below uses a separate single-use
+non-production backup namespace and never points the tracked helper at the
+production server, bucket, DynamoDB manifest table, or tenant registry.
 
 The exact on-demand snapshot form for one production tenant is:
 
@@ -669,7 +660,9 @@ OPENV_KEEP_PRIVILEGES=1 sudo -E /usr/local/bin/with-dolt-admin-env.sh \
   /data/projects/dolt-server/scripts/backup-sync.sh --db '<DB>'
 ```
 
-After the source/target slice lands, the exact rehearsal form is:
+The following live-server form is retained only as historical syntax for the
+already-credited receipt; it is not an executable step in the residual
+rehearsal:
 
 ```sh
 OPENV_KEEP_PRIVILEGES=1 sudo -E /usr/local/bin/with-dolt-admin-env.sh \
@@ -680,7 +673,7 @@ OPENV_KEEP_PRIVILEGES=1 sudo -E /usr/local/bin/with-dolt-admin-env.sh \
   --verify
 ```
 
-The revised helper must reject an existing target before issuing
+The helper must reject an existing target before issuing
 `DOLT_BACKUP('restore', ...)`; that refusal is a required safety check, not
 something to bypass. The S3 remote is shared and `backup-sync.sh` advances it,
 so a successful restore proves the disaster-recovery mechanism but does not
@@ -704,7 +697,7 @@ complete before the dependent outcome begins.
 | O1 | Release and CLI qualification | None | Pin upstream provenance and prove the exact command, flag, and JSON surface against v1.1.2. | factory-safe; zero `factory-safety:*` labels |
 | O2 | Guard compatibility | O1 | Run the existing hermetic guard suite against the qualified v1.1.2 binary and resolve only demonstrated incompatibilities. | factory-safe; zero `factory-safety:*` labels |
 | O3 | Dolt restore source/target seam | None inside this repository; it is a prerequisite of O4 | In `dolt-server`, specify and implement distinct backup-source and clean scratch-target names, preserve the clean-target refusal, add hermetic tests, and correct stale examples; do not perform the live restore in O3. | factory-safe spec/code/test slice; zero `factory-safety:*` labels |
-| O4 | Migration and restore rehearsal | O1, O2, O3 | After O3 closes, prove a real source-to-differently-named-scratch restore on the live server, restore each relevant tenant shape into isolation, migrate once, compare the complete invariant inventory, and prove the restore boundary. | manual/backlog; exactly `factory-safety:needs-privileged-host`, and cannot be admitted until the supervisor verifies O3 closed in the `dolt-server` tenant |
+| O4 | Migration and restore rehearsal | O1, O2, O3 | Consume the archived live helper receipt without rerunning it; create the three synthetic v1.0.5 shapes on a dedicated non-production server, migrate them through 0050–0053 with one designated migrator, compare the exact invariant and round-trip inventories, and restore the frozen pre-migration backup into clean targets that match the complete baseline. | manual/backlog; exactly `factory-safety:needs-privileged-host`; preparation code may be factory-safe, but every fixture write, server action, migration, backup, restore, and cleanup remains attended |
 | O5 | Guarded image layout | O1, O2 | Put v1.1.2 at `bd-real`, install the tracked wrapper at `bd`, strengthen image verification, and resolve existing defect `bd-ib-dwv` with the successful guarded rebuild as evidence. | factory-safe code has zero `factory-safety:*` labels; a separate attended privileged DinD proof carries exactly `factory-safety:needs-privileged-host` |
 | O6 | Current contract updates | O1, O2, O4, O5 | Update current version-specific comments, tests, runbooks, and permitted current specification facts under the narrow PR #1161 exception; historical records remain unchanged. | factory-safe within the reviewed path boundary; zero `factory-safety:*` labels |
 | O7 | Attended host and tenant rollout | O3, O4, O5, O6 | Quiesce every writer, capture the rollback artifacts, directly replace `bd-real`, migrate once per tenant, and verify before restarting writers. | attended; exactly `factory-safety:mutates-host-machinery` |
@@ -887,79 +880,450 @@ Add a candidate-real-binary leg to the guard harness. At minimum prove:
 
 ### 4. Rehearse migration and restoration
 
-First run both commands in “Authoritative tenant and recovery surfaces” and
-reconcile the live registry with the committed family pointers. For each
-tenant in the resulting intersection, capture counts and stable hashes or
-normalized exports for:
+This step consumes the archived live helper receipt and does not repeat it. The
+remaining proof uses three synthetic tenants created by the verified v1.0.5
+fixture producer on one dedicated non-production Dolt server. No production
+tenant, production backup, live registry, family wrapper, `/var/lib/doltdb`,
+`/var/backups`, port `3307`, or production credential may appear in an
+executable rehearsal command.
 
-- issues grouped by lifecycle status and issue type;
-- dependency edges;
-- comments;
-- labels and metadata needed by the WorkItem adapter;
-- intake-triage, policy, and factory-safety labels; and
-- schema migration rows and their content hashes.
+#### Preparation and attendance boundary
 
-Create the export root once, refusing to reuse an existing cutover timestamp:
+Factory-safe preparation may create only reviewed fixture definitions,
+inventory queries, command wrappers, receipt schemas, and hermetic tests. It
+may also fetch and hash public upstream artifacts and build the v1.0.5 fixture
+producer from the tagged source in a disposable build directory. This includes
+the version-neutral identity-probe implementation, its locked dependencies,
+and its negative statement-refusal tests; preparation never connects that probe
+to a database. Factory-safe preparation must not start a server, initialize or
+write a tenant, configure a remote, run Beads against a database, take or
+restore a backup, or clean an execution target. Those are all attended actions,
+even though their targets are non-production.
 
-```sh
-set -euo pipefail
-cutover_utc='<CUTOVER_UTC>'
-export_root="/var/backups/livespec-beads-v1.1.2-pre-$cutover_utc"
-operator_user="$(id -un)"
-operator_group="$(id -gn)"
-sudo test ! -e "$export_root"
-sudo install -d -o "$operator_user" -g "$operator_group" -m 0700 \
-  "$export_root/exports"
+Every attended action requires a new durable supervisor obligation after the
+preparation PR is reviewed and merged. The operator must run the attended
+sequence in the foreground. No factory dispatch may perform a fixture write,
+migration, backup, restore, or cleanup.
+
+#### Executable package inputs and provenance
+
+The preparation PR must produce a manifest before any attended action. The
+manifest uses `RUN_ID` for a lowercase UTC token in the form
+`yyyymmddthhmmssz`, `RUN_ROOT` for a newly created directory matching
+`/var/tmp/beads112-rehearsal.${RUN_ID}`, and `RECEIPT_ROOT` for a separate
+owner-only evidence directory under
+`/home/ubuntu/.local/state/livespec-proof-logs/beads112-${RUN_ID}`. These names
+are defined here before later command templates use them. Neither directory
+may exist before the run, and neither may resolve through a symlink.
+
+The manifest must pin all of the following:
+
+- The v1.0.5 fixture producer comes from upstream tag `v1.0.5`, peeled commit
+  `6a3f515ced18406c189c55fff789a4925bfaa35c`, and the tag's declared Go 1.26.2
+  toolchain. Because no official v1.0.5 release asset exists, the receipt must
+  include the source archive SHA-256, toolchain version, complete build command,
+  and resulting executable SHA-256. It may not use or copy the host private
+  delegate.
+- The candidate comes from official tag `v1.1.2`, peeled commit
+  `20e493e569c922d1253bdeff068c5e56c94957fb`. Its Linux AMD64 tarball SHA-256
+  must be
+  `a72d71ed374955dc9f83a0f90b54bd7b6a0016709dd1676ae2e368651ed401c2`,
+  its extracted executable SHA-256 must be
+  `6d767629e90560506d0ea3de9823aef48386414f5425d8853e2ae3312cad9a82`,
+  its SPDX SHA-256 must be
+  `b05ca7f525f05e50691a4329b13aa87f10bc93160fe8d4d1ca371867701b58e6`,
+  and its version output must be
+  `bd version 1.1.2 (20e493e56: HEAD@20e493e569c9)`.
+- Both Beads executables live under the reviewed package root and are invoked
+  directly against isolated client directories. Beads never runs through
+  mise, `/usr/local/bin/bd-real`, or any private delegate. The production
+  public guard remains untouched.
+
+#### Isolated topology and three fixture shapes
+
+The attended run uses one Dolt process bound only to `127.0.0.1:13307`, with
+its socket, configuration, data directory, PID file, logs, local sync remotes,
+and client directories all beneath `RUN_ROOT`. Port `13307` must be unbound
+before start. The server executable and version must match the production Dolt
+server build, but the process must not read the production configuration or
+data directory. A dedicated single-use backup bucket prefix and DynamoDB
+manifest namespace must contain `RUN_ID`, must be different from the values in
+`/data/projects/dolt-server/backup.env`, and must be visible only to the
+isolated server's dedicated backup principal. If a distinct non-production
+backup namespace and injected secret set are unavailable, stop; never fall
+back to production values.
+
+Each shape has three databases whose exact names are recorded in the manifest:
+`beads112_${RUN_ID}_${SHAPE}_source`,
+`beads112_${RUN_ID}_${SHAPE}_migrated`, and
+`beads112_${RUN_ID}_${SHAPE}_restored`. Here `SHAPE` is exactly one of
+`dense_policy`, `sparse_closed`, or `rig_wisp`. The source is created with the
+v1.0.5 fixture producer; the migrated and restored names must not exist before
+their clean-target restores. The one schema-reference database is named exactly
+`beads112_${RUN_ID}_golden`; it is not a fourth tenant shape.
+
+Every database has its own client directory and its own database-scoped SQL
+user; neither may be reused by another database. The manifest maps
+`dense_policy`, `sparse_closed`, and `rig_wisp` to the short shape codes `dp`,
+`sc`, and `rw`, and maps source, migrated, and restored to the role codes `s`,
+`m`, and `r`. For each three-shape database, its exact client directory is
+`RUN_ROOT/clients/${DATABASE}` and its exact SQL user is
+`b112_${RUN_ID}_${SHAPE_CODE}_${ROLE_CODE}`. The golden database uses
+`RUN_ROOT/clients/beads112_${RUN_ID}_golden` and SQL user
+`b112_${RUN_ID}_g`. Each user has privileges only on its exact manifest database
+and cannot see any other rehearsal, family, or production database. The
+topology preflight rejects duplicate client-directory realpaths, duplicate SQL
+users, a database or user not containing the exact `RUN_ID`, or a name outside
+this mapping.
+
+#### Client pointer, credential, and database-identity boundary
+
+Before a Beads executable may enter any client directory, the attended operator
+must create that directory's `.beads/config.yaml` manually from the reviewed
+literal template below. The template is expanded once with that manifest row's
+exact `DATABASE` and `SQL_USER`, ends with one newline, and has no other
+`dolt.*` key:
+
+```yaml
+dolt.auto-start: false
+dolt.mode: server
+dolt.server-host: 127.0.0.1
+dolt.server-port: 13307
+dolt.server-user: <SQL_USER>
+dolt.database: <DATABASE>
+dolt.prefix: b112
 ```
 
-For each tenant, create a logical `bd export --all` interoperability artifact
-through the currently guarded v1.0.5 CLI from the repository that owns that
-tenant:
+The pointer must be a regular owner-only file beneath its unique client
+directory. It must contain no socket key, symlink, password, production port
+`3307`, family database or SQL-user name, production/family endpoint, or value
+copied from a repository's `.beads` directory. Its canonical parsed bytes and
+SHA-256 are recorded in the topology manifest before first use. No command may
+use `bd init` to generate or repair a pointer. If a reviewed fixture or golden
+schema producer needs `bd init` after the pointer exists, it may run only inside
+its mapped client directory beneath `RUN_ROOT`, only after the anchor check
+below passes, and must leave the pointer hash unchanged. It must never run in a
+repository primary checkout or worktree.
+
+Regenerable `.beads/metadata.json` is a separate artifact, never part of pointer
+identity and never copied between clients. The manifest records it as absent or
+records its reviewed schema, exact isolated database identifier, and separate
+SHA-256. It may contain no endpoint, SQL user, or credential and may not
+override `config.yaml`; an unexpected metadata file or changed pointer hash is
+a hard stop.
+
+The reviewed package provides one owner-only wrapper, `WITH_CLIENT`, and pins
+its SHA-256. `WITH_CLIENT CLIENT_KEY COMMAND...` resolves exactly one manifest
+row, obtains that row's isolated SQL-user credential from the dedicated
+non-production credential source, clears every inherited Beads/Dolt credential,
+and injects only the bare `BEADS_DOLT_PASSWORD` into `COMMAND`. It must not call
+the family wrapper, any production wrapper, `/usr/local/bin/with-*-env.sh`, or
+the production/family credential source, and it must itself be launched outside
+all such wrappers. A pre-existing bare password or family/production wrapper
+marker in the parent environment is a hard stop before credential lookup. The
+wrapper probes the isolated credential only with
+`printenv BEADS_DOLT_PASSWORD | wc -c`, records only the positive byte count,
+and never prints, hashes, persists, or copies the value. A missing value, a
+second credential variable, or a credential-source/user mismatch is a hard
+stop.
+
+Immediately before every fixture-producer call, remote configuration or fetch,
+migration attempt, round-trip command, inventory query, golden-schema command,
+and restored-database read, `WITH_CLIENT` must run the reviewed
+`assert-client-anchor` helper. `assert-client-anchor` is a version-neutral,
+read-only MySQL-protocol program named `ANCHOR_PROBE`; it is not a Beads or Dolt
+client. It must never invoke or import `bd`, `dolt`, a `mysql` shell, a Beads or
+Dolt package, or any migration, bootstrap, remote, or arbitrary-SQL command.
+It has no SQL argv, stdin, environment, configuration, callback, or plugin
+surface. Its implementation contains one compile-time query literal and one
+execute site, so it is mechanically incapable of submitting a second or
+different statement.
+
+The provenance manifest pins `ANCHOR_PROBE_SHA256`, the dependency-lock
+SHA-256, and the name, version, source, and SHA-256 of every dependency artifact.
+The probe and dependency closure are loaded only from the reviewed package root;
+every invocation re-hashes them before connecting and stops on any mismatch.
+The probe opens a transaction through the pinned driver's typed read-only API,
+allows exactly the one literal statement
+`SELECT DATABASE(), CURRENT_USER(), @@hostname, @@port`, rolls the transaction
+back, and closes the connection. It does not expose a general query executor.
+
+The helper then:
+
+1. resolves the client-directory realpath and proves its one-to-one manifest
+   mapping;
+2. hashes and parses `.beads/config.yaml` again, proves the hash and all seven
+   mappings equal the manifest, and proves no socket or extra `dolt.*` key is
+   present;
+3. records the separate metadata presence/hash state and the wrapper hash;
+4. through that exact pointer and isolated password, runs `ANCHOR_PROBE`, while
+   its reviewed MySQL-protocol transport records the TCP peer; and
+5. proves the returned database, authenticated manifest account, server
+   hostname, port `13307`, TCP peer `127.0.0.1:13307`, and isolated server
+   instance fingerprint all equal the topology manifest.
+
+The helper writes a canonical per-command anchor receipt containing the pinned
+implementation and dependency hashes, exact query text and SHA-256, read-only
+transaction flag, statement count of one, start/finish timestamps, exit code,
+returned identity row, TCP peer, and isolated server fingerprint without
+contaminating the wrapped command's stdout or stderr. A missing/unreadable
+pointer, implementation/dependency hash mismatch, metadata change, nonzero
+probe exit, query or statement-count difference, database/user mismatch, peer
+other than `127.0.0.1:13307`, family or production endpoint, or inability to
+prove the isolated server fingerprint hard-stops before the requested command.
+The operator may not retry with another `-C`, raw database flag, wrapper,
+credential, or identity tool.
+
+Hermetic tests must prove that attempts to supply a second statement, a
+semicolon-appended statement, or any mutating statement such as `INSERT`,
+`UPDATE`, `DELETE`, `CREATE`, `DROP`, or `CALL` are refused before a socket is
+opened; argv, stdin, environment, and dependency callbacks cannot replace the
+literal; and `WITH_CLIENT` does not execute its requested command after any
+probe refusal. The factory-safe preparation gate records these tests passing
+against the exact implementation and dependency hashes used by the manifest.
+
+The fixtures are synthetic; read-only family data supplies only their shape
+requirements:
+
+| Shape | Read-only evidence source | Required deterministic v1.0.5 contents |
+|---|---|---|
+| `dense_policy` | `/data/projects/livespec` and this repository | At least one issue in every observed lifecycle status and every observed issue type; at least two logical dependency types; comments; ordinary labels; policy labels with the `acceptance:`, `admission:`, `intake:`, `origin:`, `factory-safety:`, and `blocked-reason:` prefixes; and metadata containing `acceptance_criteria`, `non_local_depends_on`, `notes`, `origin`, and `rank`. |
+| `sparse_closed` | `/data/projects/livespec-driver-codex` | One closed task, no open issue, no label, no dependency, no comment, and empty snapshot tables. This preserves empty auxiliary-table coverage while still exercising close state. |
+| `rig_wisp` | Tagged upstream v1.1.2 migration 0053 and its tests, because the family survey found no rig rows | One v1.0.5 wisp with `issue_type=rig`, its label, event, comment, dependency, and child counter; one durable issue whose dependency targets that rig as a wisp; and no duplicate durable rig row before migration. The fixture SQL is reviewed and hashed during factory-safe preparation, then executed only during the attended isolated run. |
+
+The v1.0.5 producer must leave each source at schema version 49. Each shape's
+manifest defines `SYNC_REMOTE_URL` as its exact run-scoped sync remote beneath
+`RUN_ROOT/remotes/${SHAPE}` and `ACTIVE_BRANCH` as the source's active branch.
+The v1.0.5 client configures that source remote as `origin` and pushes the v49
+baseline to it. This source-side push seeds the isolated remote, but it does
+not by itself establish a remote or cached remote-tracking ref on a later
+`DOLT_BACKUP` restore target.
+
+#### Exact baseline, migration, and schema inventories
+
+The package must provide one `capture-inventory` command that runs read-only
+through `WITH_CLIENT`, emits canonical UTF-8 JSON with sorted keys and rows, and
+writes a SHA-256 for each artifact plus a combined SHA-256. It runs before
+backup, after the first gate decision, after migration, after round trips, and
+after restore. Every capture includes exactly these projections:
+
+1. `status-type-counts.json` contains `status`, `issue_type`, and `COUNT(*)`,
+   ordered by status and type.
+2. `issues.json` contains every row ordered by `id`, projecting `id`, `title`,
+   `description`, `design`, `acceptance_criteria`, `notes`, `status`, `priority`,
+   `issue_type`, `assignee`, `owner`, `created_at`, `created_by`, `updated_at`,
+   `closed_at`, `close_reason`, `external_ref`, `spec_id`, `due_at`,
+   `defer_until`, and canonicalized `metadata`.
+3. `dependencies.json` contains every logical edge ordered by `issue_id` and
+   target, projecting `id`, `issue_id`, `depends_on_issue_id`,
+   `depends_on_wisp_id`, `depends_on_external`, `type`, `created_at`,
+   `created_by`, canonicalized `metadata`, and `thread_id`.
+4. `comments.json` contains `id`, `issue_id`, `author`, `text`, and
+   `created_at`, ordered by issue and comment ID. `labels.json` contains
+   `issue_id` and `label`, ordered by both columns.
+5. `policy-metadata.json` contains each issue ID, the complete canonical
+   metadata object, and the sorted labels whose prefixes are `acceptance:`,
+   `admission:`, `intake:`, `origin:`, `factory-safety:`, or
+   `blocked-reason:`. This is the exact policy projection; label counts alone
+   are not acceptable.
+6. `schema-migrations.json` contains the discovered column manifest and every
+   ordered row from `schema_migrations` and `ignored_schema_migrations`.
+   `schema.json` contains every user-table column, index, unique constraint,
+   foreign key, and view definition from `information_schema`, ordered by
+   object and ordinal position. `branches.json` contains every branch name and
+   head hash. `table-counts.json` contains every base-table name and row count.
+7. `remotes.json` contains the ordered `dolt_remotes` rows, `ACTIVE_BRANCH`,
+   the local active-branch head, the cached
+   `remotes/origin/${ACTIVE_BRANCH}` head, the local and cached-ref
+   `schema_migrations` rows, and the SHA-256 manifest for the tagged v1.0.5
+   migration files numbered 1 through 49. An intentionally absent column is
+   represented explicitly rather than omitted.
+8. `client-anchor.json` contains the client key, client-directory realpath,
+   database and SQL user, canonical pointer SHA-256, separate metadata
+   presence/SHA-256, wrapper SHA-256, `ANCHOR_PROBE` and dependency hashes,
+   credential byte count, exact query hash, read-only flag, statement count,
+   probe exit and identity result, TCP peer, isolated server fingerprint, and
+   the immediately following command's category and sequence number. It
+   contains no credential value.
+
+The pre-migration v49 capture is the complete baseline. The post-migration
+capture must show schema version 53; migration content hashes must equal the
+SHA-256 of the corresponding tagged v1.1.2 migration bytes. Migration 0050 may
+change dependency IDs but must preserve the logical edge set and produce the
+tagged deterministic-ID result. Migration 0051 must remove ID defaults from
+`events`, `comments`, `issue_snapshots`, and `compaction_snapshots` without
+changing their rows. Migration 0052 must replace the old status index with
+`idx_issues_status_updated_at` and add `idx_issues_defer_until`. Migration 0053
+must move the synthetic rig plus its auxiliary rows into durable tables, set
+the rig non-ephemeral, rewrite wisp-targeting dependencies to durable issue
+targets, and remove the migrated rig rows from wisp tables. All other logical
+issue, edge, comment, label, and policy-metadata bytes must match the baseline.
+The migrated schema hash must also equal a fresh v1.1.2 golden schema created
+inside the same isolated server; that golden database is schema reference only,
+not a fourth tenant shape.
+
+#### Single-use backup and one designated migrator
+
+No v1.1.2 candidate process ever opens a v49 source. Before any clean-target
+restore, the attended operator uses the tracked Dolt-server backup helper with
+`DOLT_SOCKET`, backup principal, bucket, manifest table, region, and source
+database explicitly overridden to the isolated values. Each source is synced
+exactly once. No later backup sync is allowed. The backup identity receipt
+records the source database, `RUN_ID`,
+backup URL, bucket prefix, manifest namespace, object key, version ID, ETag and
+size inventory, every branch head, the complete v49 baseline digest, start and
+finish timestamps, helper commit, command digest, and exit status. Missing
+object version IDs or an advancing namespace is a hard stop.
+
+Each single-use backup is restored through the tracked helper into its clean
+`_migrated` database with `--verify`. A restore is not a clone: it creates a
+fresh database and syncs roots into it, so it does not establish the source's
+remote configuration or cached remote-tracking branches on the target. Before
+any v1.1.2 candidate process may open an `_migrated` target, the attended
+package must therefore use only the verified v1.0.5 producer/client through the
+`_migrated` database's exact `WITH_CLIENT` mapping to perform this target-side
+sequence:
+
+1. Read `ACTIVE_BRANCH` and the restored local head, and prove both equal the
+   source's recorded v49 baseline.
+2. Refuse any existing target-side remote. Configure exactly one remote named
+   `origin` at the manifest's exact `SYNC_REMOTE_URL`; any other URL, name, or
+   pre-existing remote is a hard stop.
+3. Fetch that run-scoped `origin` with the v1.0.5 client to materialize
+   `remotes/origin/${ACTIVE_BRANCH}`. This fetch may contact only the local
+   remote beneath `RUN_ROOT`.
+4. Capture `dolt_remotes`, the local active-branch head, the cached remote-ref
+   head, local `schema_migrations`, and `schema_migrations AS OF` the cached
+   remote ref. Prove both heads equal the source v49 baseline, both ordered
+   migration-row sets equal the baseline, and both resolve to the same tagged
+   migration-files-1-through-49 SHA-256 manifest. If the v49 schema lacks a
+   `content_hash` column, the receipt records that identical local/remote
+   absence alongside the tagged file hashes; it never invents a database value.
+5. Run a read-only remote-presence probe again from the exact target client
+   directory and write its canonical output to `remotes.json`. An unreadable
+   `dolt_remotes` row, missing or unreadable cached ref, mismatched head,
+   mismatched migration rows or hashes, network destination outside
+   `RUN_ROOT`, or any changed baseline artifact is a hard stop before the
+   candidate starts.
+
+Only after that target-side receipt and every associated client-anchor receipt
+pass does the operator record one designated migrator identity for the entire
+three-shape run: human/session identity, process ID, candidate executable hash,
+host, start time, and ordered database list. No second candidate process may
+open a migration target until that migrator finishes and pushes the migrated
+state to its isolated remote.
+
+No v1.1.2 process may open, inspect, inventory, or otherwise connect to a v49
+`_migrated` target before the separately logged `bd migrate` invocation below.
+Every anchor and v49 inventory before that point uses only `ANCHOR_PROBE`, the
+verified v1.0.5 producer/client, or a reviewed version-neutral read-only capture
+helper. `ANCHOR_PROBE` is not the first gate or migration attempt. The first
+v1.1.2 connection to each v49 target must be the designated migrator's recorded
+`bd migrate`, with its exact command, start time, stdout, stderr, and exit code
+already armed for capture before process start.
+
+For each migrated target, first prove `BD_ALLOW_REMOTE_MIGRATE` and
+`BD_SMART_GATE` are unset, then invoke `bd migrate` once and capture exact
+stdout, stderr, and exit code through that target's `WITH_CLIENT` mapping.
+`assert-client-anchor` runs again before the permitted retry as well as before
+the first attempt. Capture the full inventory again immediately.
+If the gate permits a smart first-mover migration, record that decision and do
+not set the escape hatch. If the gate refuses with the migrate-or-adopt
+decision, prove the refusal changed no inventory bytes, then the already
+designated migrator may make exactly one foreground retry with
+`BD_ALLOW_REMOTE_MIGRATE=1`. A gate decision of `adopt`, `fork-skew`, an
+unrecognized classification, or any changed bytes after a refusal is a hard
+stop; do not migrate, bootstrap, or improvise.
+
+#### Required command round trips
+
+After each shape reaches the accepted v53 post-migration baseline, run the
+same round trip with the verified v1.1.2 candidate from that shape's isolated
+client directory. `BD112` below means the manifest-pinned candidate path and
+`CLIENT_KEY` and `CLIENT_DIR` mean the migrated database's manifest key and
+unique client directory. `WITH_CLIENT` means the manifest-pinned isolated
+credential-and-anchor wrapper. All four variables are defined in the reviewed
+command package before this template is executed, so every command gets a fresh
+pointer and database-identity proof.
 
 ```sh
-set -euo pipefail
-cutover_utc='<CUTOVER_UTC>'
-export_root="/var/backups/livespec-beads-v1.1.2-pre-$cutover_utc"
-repo='<REPO>'
-database='<DB>'
-export_path="$export_root/exports/$database.jsonl"
-test ! -e "$export_path"
-/data/projects/1password-env-wrapper/with-livespec-env.sh -- \
-  /usr/local/bin/bd -C "$repo" export --all -o "$export_path"
-jq -c . "$export_path" >/dev/null
-sha256sum "$export_path"
-wc -l "$export_path"
+parent_id="$("$WITH_CLIENT" "$CLIENT_KEY" "$BD112" -C "$CLIENT_DIR" create \
+  "rehearsal parent" --type epic --priority 2 \
+  --labels 'origin:rehearsal,intake:triaged,admission:manual' \
+  --metadata '{"rank":"m","origin":"rehearsal"}' --silent)"
+child_id="$("$WITH_CLIENT" "$CLIENT_KEY" "$BD112" -C "$CLIENT_DIR" create \
+  "rehearsal child" --type task --priority 3 \
+  --labels 'acceptance:ai-then-human,factory-safety:needs-privileged-host' \
+  --metadata '{"acceptance_criteria":"round-trip","rank":"n"}' --silent)"
+"$WITH_CLIENT" "$CLIENT_KEY" "$BD112" -C "$CLIENT_DIR" update "$child_id" --status active --type bug \
+  --set-metadata origin=rehearsal-update --json
+"$WITH_CLIENT" "$CLIENT_KEY" "$BD112" -C "$CLIENT_DIR" dep add "$child_id" "$parent_id" \
+  --type discovered-from --json
+"$WITH_CLIENT" "$CLIENT_KEY" "$BD112" -C "$CLIENT_DIR" comments add "$child_id" \
+  'isolated v1.1.2 round-trip comment' --json
+"$WITH_CLIENT" "$CLIENT_KEY" "$BD112" -C "$CLIENT_DIR" close "$child_id" \
+  --reason 'isolated v1.1.2 round-trip complete' --json
+"$WITH_CLIENT" "$CLIENT_KEY" "$BD112" -C "$CLIENT_DIR" list --all --id "$parent_id,$child_id" --json
+"$WITH_CLIENT" "$CLIENT_KEY" "$BD112" -C "$CLIENT_DIR" show "$child_id" --include-comments --json
 ```
 
-Record the checksum and line count. This JSONL captures issue
-interoperability data; it is not a full database backup and cannot restore
-schema, branches, or the complete working set.
+Every command must exit zero and its JSON must parse. The post-round-trip
+inventory must differ from the accepted post-migration baseline by exactly two
+issues, one lifecycle/type update followed by one close, one logical dependency,
+one comment, the declared labels, and the declared metadata. Any additional
+row or field change is a hard stop.
 
-Consume the tracked archived receipt described in the current checkpoint as
-the proof that the reviewed helper can restore a real source to a differently
-named clean scratch target with `--verify` and then clean that target exactly.
-Do not repeat that live source-to-scratch proof or run a fresh backup sync merely
-to manufacture a replacement receipt. The remaining isolated rehearsal uses a
-representative v1.0.5 tenant shape, records its complete pre-migration baseline,
-and preserves its pre-migration server-native backup for the restore-to-baseline
-proof below. This is part of this plan's isolated migration-and-restore
-rehearsal outcome (O4), not the already-complete factory-safe helper outcome
-(O3).
+#### Restore, cleanup, receipts, and rollback boundary
 
-Establish how v1.1.2 classifies the family’s shared SQL-server topology. Assign
-one migrator for the isolated tenant, run the migration once, and record
-whether the remote-migration gate requires `BD_ALLOW_REMOTE_MIGRATE=1`. Use
-that escape hatch only if the observed gate requires it and the isolated proof
-shows the expected migration path.
+After round trips, restore each unchanged single-use pre-migration backup into
+its clean `_restored` database. Use the v1.0.5 fixture producer only for the
+read-only restored capture, through that restored database's unique
+`WITH_CLIENT` mapping, so the candidate cannot auto-migrate the proof target.
+Every restored artifact, branch head, base-table count, per-artifact hash, and
+combined hash must equal that shape's complete pre-migration v49 baseline. This
+is the missing restore-to-complete-baseline proof. It is not a repeat of the
+archived live source-to-scratch receipt and it never uses the production S3
+remote.
 
-After migration, run read/write round trips for issue creation, lifecycle
-update, dependency creation, comment creation, close, list, and show. Compare
-the full invariant inventory. Restore the isolated rehearsal tenant from its
-pre-migration server-native backup and prove return to the complete baseline.
-This is the still-missing post-migration restore-to-baseline proof; it must not
-repeat the already-recorded live source-to-scratch helper proof. It rehearses S3
-disaster recovery; the stopped-server cold snapshot in step 7 is the frozen
-rollback artifact for the attended cutover.
+The immutable receipt set contains the provenance manifest, topology manifest,
+fixture SQL and hashes, the complete database-to-client-directory-to-SQL-user
+map, every canonical pointer hash, separate metadata state/hash, isolated
+wrapper hash, `ANCHOR_PROBE` implementation/dependency hashes and hermetic-test
+receipt, credential presence/length probes, every per-command single-query
+SQL/endpoint identity receipt, sanitized environment-variable names, ordered
+command log, stdout/stderr/exit-code hashes, each `_migrated` restore target's
+exact `origin` URL, active branch, local head, cached remote-ref head,
+local/remote migration-row comparison and migration-file hash manifest,
+designated-migrator record, gate-decision record, every inventory and hash,
+backup identity, round-trip delta, restored baseline comparison, and a top-level
+`SHA256SUMS`. Secret values are never written. Copy and hash this set into
+`RECEIPT_ROOT` before cleanup.
+
+Cleanup is a separate attended action after the supervisor accepts the receipt.
+It may stop only the PID whose executable, start time, port, socket, and
+`RUN_ROOT` match the topology manifest; delete only the run-scoped databases,
+every source and target-side remote registration, every cached
+`remotes/origin/${ACTIVE_BRANCH}` ref, the local remote repositories, bucket
+prefix, manifest namespace, isolated database-scoped SQL users and grants,
+client directories, manually created pointers, regenerable metadata, wrappers,
+the run-scoped `ANCHOR_PROBE` implementation and dependency closure, and
+credential handles containing the exact `RUN_ID`; and remove only `RUN_ROOT`.
+It must retain `RECEIPT_ROOT`. The cleanup receipt proves the PID and port are
+absent, every manifest client directory, pointer, metadata file, isolated
+wrapper, identity probe/dependency artifact, SQL user/grant, target-side remote
+configuration, and cached ref is absent with every other run-scoped resource,
+production port `3307` still answers as it did before the run, production tenant
+registry and backup configuration digests are unchanged, and every involved
+checkout is clean. Any target outside the manifest or any shared-resource match
+is a hard stop.
+
+There is no in-place schema downgrade. Before migration, a failure leaves only
+disposable isolated resources for attended cleanup. After migration begins,
+the rehearsal rollback boundary is the frozen single-use v49 backup restored
+to a clean target and proved against the complete baseline. The production
+rollback boundary remains the stopped-server cold archive described in step 7;
+this isolated receipt does not authorize or replace that later attended
+cutover artifact.
 
 ### 5. Implement the guarded container layout
 
@@ -1202,7 +1566,7 @@ because that would remove the required guard and move `bd-real` onto `bd`.
 | Host layout | wrapper sentinel/hash unchanged; real binary hash/version changed to v1.1.2; no direct callers of `bd-real` |
 | CLI adapter | complete focused tests plus `just check`; exact argv and JSON fixtures qualified against candidate |
 | Guard | full hermetic harness against stub and candidate; create normalization and selector safety proven |
-| Database | isolated migrate and restore; pre/post counts, edges, comments, statuses, labels, metadata, and schema hashes match expectations |
+| Database | every source/migrated/restored/golden client pointer and SQL/endpoint identity is anchored; isolated migrate and restore; pre/post counts, edges, comments, statuses, labels, metadata, and schema hashes match expectations |
 | Concurrency | all writers enumerated and stopped; one migrator per tenant; writers restarted only after checks |
 | Container | pinned guarded layout; build succeeds; Tier 1 uses only ephemeral data and proves lifecycle normalization |
 | Fleet | host/image version and hashes agree; current non-historical references agree; no Beads installation via mise |
@@ -1210,16 +1574,24 @@ because that would remove the required guard and move `bd-real` onto `bd`.
 
 ## Immediate next action
 
-Stop for exact-head supervisor review of the one-file archived-evidence
-reconciliation PR. The review must independently confirm the public
-Dolt-server default-branch checks, PRs #46 and #50, target-anchored ledger
-reads, tracked archive receipt, and the requirement-by-requirement boundary in
-the newest checkpoint. Do not merge before that review passes.
+Stop for exact-head supervisor review of this one-file residual isolated
+rehearsal-package PR. The review must confirm that the only changed path is
+this handoff; all three synthetic shapes, the isolated topology, candidate and
+fixture-producer provenance, one designated migrator, observed gate decision,
+the unique manually created client pointer and isolated SQL user for every
+source/migrated/restored/golden database, the per-command pointer-hash and
+SQL/endpoint identity proof uses only the pinned version-neutral single-query
+probe, no v1.1.2 process opens v49 before the logged `bd migrate`, the restored
+target's exact run-scoped `origin` and cached v49 remote-ref proof exists before
+candidate open, exact inventories, round trips, frozen backup identity,
+restore-to-baseline proof, cleanup receipt, stop conditions, and rollback
+boundary are concrete; and the archived live helper receipt is credited without
+repetition. Auto-merge must remain disabled before and throughout this review.
 
-This review is the only current action. Do not dispatch or reopen
-`dolt-server-wgy`, repeat the attended source-to-scratch proof, file or admit a
-remaining outcome, begin O6 or O7, or mutate any ledger, host, tenant, Dolt,
-image, backup/restore, or Fabro state. If the exact head is accepted and the PR
-rebase-merges, the next non-attended planning boundary is the residual O4
-rehearsal-package preparation described above; it must stop for a new reviewed
-obligation before any filing, admission, or attended execution.
+This review is the only current action. If the exact head is accepted, the PR
+may follow the repository's reviewed rebase-merge and cleanup workflow. After
+merge, stop. Filing, linking, assigning, admitting, or dispatching a ledger
+item and every fixture write, server action, migration, backup, restore,
+cleanup, image operation, host copy, or rollout require a new durable
+supervisor obligation and explicit authorization. Do not begin `O4` execution,
+`O6`, or `O7` from this handoff update alone.
