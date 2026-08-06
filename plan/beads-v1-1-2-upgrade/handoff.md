@@ -29,6 +29,94 @@ backup is the data rollback boundary.
 
 ## Current state
 
+### Restart checkpoint — 2026-08-06 archived Dolt evidence reconciled
+
+This is the sole authoritative restart checkpoint. It supersedes every older
+restart checkpoint and the stale executable instruction under “Immediate next
+action.” The only action authorized now is exact-head supervisor review of the
+one-file reconciliation PR that carries this checkpoint. Do not start another
+upgrade outcome, mutate a ledger item, or perform an attended action under this
+checkpoint.
+
+- A fresh fetch found this repository's clean primary checkout and
+  `origin/master` equal at
+  `35f08d52e1b516b29a2ce4ce0ac7bf208623dee0`. The public Dolt-server default
+  branch, its clean primary checkout, and fetched `origin/master` were equal at
+  `86e94c374d23d2f2115f7cc3785eb4e47afd5c4a`. Public workflow run
+  `31074194596` completed successfully on that exact Dolt-server commit; its
+  `check` and aggregate `ci-green` jobs both completed successfully.
+- Public Dolt-server PR
+  [#46](https://github.com/thewoolleyman/dolt-server/pull/46) is merged at
+  `ceaa078a8652ef6309e371181a3f6e9450fd1ab2`, which is an ancestor of the
+  verified default-branch head. Both PR checks passed. At
+  `MEASURED_AT=2026-08-06T09:09:49Z`, target-anchored reads through the exact
+  prefix
+  `/usr/local/bin/with-livespec-env.sh -- /usr/local/bin/bd -C /data/projects/dolt-server`
+  confirmed canonical seam `dolt-server-wgy` was `closed` with its description
+  limited to this Beads-upgrade plan's distinct-source/clean-target helper
+  outcome (O3), literal
+  `external_ref=beads-v1-1-2-upgrade:bd-ib-3kolea:O3`, zero dependencies, the
+  one expected governed-plan dependent, and audit metadata naming PR #46 and
+  the merge above. The same target-anchored pass confirmed
+  prerequisite endpoints `dolt-server-22gb7i` and `dolt-server-s4iyi4`,
+  aggregate-CI owner `dolt-server-3jhclo`, and governed-plan epic
+  `dolt-server-3ychlx` were all `closed`.
+- The target-tenant non-closed survey returned four items: one lifecycle-anchor
+  task and the three deferred standby-replication items. Their full
+  descriptions contain no overlapping Beads v1.1.2 migration or restore-seam
+  work. At `MEASURED_AT=2026-08-06T09:10:48Z`, this repository's target-anchored
+  ledger read confirmed `bd-ib-3kolea` remained `backlog`, unassigned, and the
+  sole live upgrade anchor. No ledger mutation was made.
+- Public Dolt-server PR
+  [#50](https://github.com/thewoolleyman/dolt-server/pull/50) merged the tracked
+  attended restore record at
+  `c846a0c33ba1fb32e97c98aa383c2e8fbdcb3544`; both of its checks passed. The
+  governed plan and that evidence are now tracked under
+  `plan/archive/governed-repo-bootstrap/` on the verified Dolt-server master.
+  Its closure commit is the exact verified master
+  `86e94c374d23d2f2115f7cc3785eb4e47afd5c4a`.
+
+The archived evidence proves one narrow, reusable part of this plan's rehearsal
+contract. The real source `livespec-orch-beads-fabro` was restored through the
+reviewed helper into the differently named clean scratch target
+`livespec-orch-beads-fabro_beads112_restore` with `--verify`. The comparison
+used the ordered branch list and a row count for every base table. The source
+reading before restore, the restored-target reading, and the source reading
+after restore were byte-identical at SHA-256
+`5f73c196716ee022ebe779cf366a5f897ab1e20b290d859e7c5b116076b4b3f6`.
+The reviewed cleanup helper then removed the scratch target, returned the live
+tenant count to 13, and a final source reading retained the same digest. The
+older stored digest beginning `37dfd588` is explicitly retired because it has
+no reproducible recipe; do not reinstate it or rerun the live restore merely to
+manufacture a replacement constant.
+
+The Dolt archive's statement that its “O4 is COMPLETE” is scoped to the
+archived `governed-repo-bootstrap` plan's attended-restore acceptance outcome
+(B5) and audit-acceptance outcome (B8). It does **not** complete this
+Beads-upgrade plan's isolated migration-and-restore rehearsal outcome (O4). The
+reconciliation is:
+
+| This plan's requirement | What the archive proves | Remaining obligation |
+|---|---|---|
+| Distinct-source/clean-target helper seam (this Beads-upgrade plan's O3) | Fully discharged by closed `dolt-server-wgy` and PR #46. | Do not dispatch, reopen, duplicate, or relabel that outcome. |
+| One real source-to-differently-named-scratch restore and helper-level parity | Discharged for the one recorded source, including exact cleanup. | Reuse the tracked receipt; do not rerun the same live proof. |
+| Representative v1.0.5 tenant-shape rehearsal through migrations 0050–0053 (part of this plan's O4 isolated rehearsal) | Not proved. The archive ran no Beads v1.1.2 migration. | Still requires isolated restored tenant shapes, one designated migrator per shape, and an observed remote-migration-gate decision. |
+| Complete invariant comparison and write round trips (part of the same O4 isolated rehearsal) | Not proved by branch names plus table row counts. | Still requires the plan's status/type counts, dependencies, comments, labels, policy metadata, schema-row content hashes, and post-migration create/update/dependency/comment/close/list/show round trips. |
+| Restore boundary after migration (part of the same O4 isolated rehearsal) | Not proved. The recorded scratch target was cleaned up after the helper-level parity proof. | Still requires restoring the pre-migration backup after the isolated migration and proving return to the complete baseline. |
+| Frozen whole-server rollback boundary (a prerequisite for this plan's O7 attended production cutover) | Not proved. No stopped-server cold archive or isolated extraction was created by the archived proof. | The checksummed, root-read-only cold archive and metadata-preserving extraction rehearsal remain mandatory before production migration. |
+
+The isolated migration-and-restore rehearsal (O4) therefore remains incomplete.
+The version-specific current-code and documentation alignment outcome (O6)
+remains blocked on that rehearsal, and the attended production cutover outcome
+(O7) remains unauthorized. The next non-attended boundary, after this one-file
+PR passes exact-head review and rebase-merges, is preparation and review of the
+residual isolated rehearsal package only: credit the archived helper proof,
+specify the still-missing isolated migration, invariant, round-trip, and
+rollback evidence, and stop before ledger filing or admission and before any
+host, tenant, Dolt, image, backup/restore, or Fabro mutation. A later action
+must receive a new explicit obligation and authorization; this checkpoint does
+not provide either.
+
 ### Restart checkpoint — 2026-08-04 O5 proof accepted and closed
 
 This is the sole authoritative restart checkpoint. It supersedes every older
@@ -847,14 +935,16 @@ Record the checksum and line count. This JSONL captures issue
 interoperability data; it is not a full database backup and cannot restore
 schema, branches, or the complete working set.
 
-Also run a fresh `backup-sync.sh --db <DB>` server-native sync. After the
-required source/target helper slice lands, restore that source into
-`<DB>_beads112_restore` on the live server with the exact command in
-“Authoritative tenant and recovery surfaces.” Run the baseline inventory
-against the scratch tenant, then remove it only through the reviewed
-`dolt-server` cleanup path. Do not follow the stale `<DB>_restoretest`
-examples until that source/target correction has landed. This is O4's
-attended `needs-privileged-host` proof, not part of factory-safe O3.
+Consume the tracked archived receipt described in the current checkpoint as
+the proof that the reviewed helper can restore a real source to a differently
+named clean scratch target with `--verify` and then clean that target exactly.
+Do not repeat that live source-to-scratch proof or run a fresh backup sync merely
+to manufacture a replacement receipt. The remaining isolated rehearsal uses a
+representative v1.0.5 tenant shape, records its complete pre-migration baseline,
+and preserves its pre-migration server-native backup for the restore-to-baseline
+proof below. This is part of this plan's isolated migration-and-restore
+rehearsal outcome (O4), not the already-complete factory-safe helper outcome
+(O3).
 
 Establish how v1.1.2 classifies the family’s shared SQL-server topology. Assign
 one migrator for the isolated tenant, run the migration once, and record
@@ -864,10 +954,12 @@ shows the expected migration path.
 
 After migration, run read/write round trips for issue creation, lifecycle
 update, dependency creation, comment creation, close, list, and show. Compare
-the full invariant inventory. Re-run the source-to-scratch restore and prove
-that the pre-migration server-native backup still returns to the baseline.
-This rehearses S3 disaster recovery; the stopped-server cold snapshot in step
-7 is the frozen rollback artifact for the attended cutover.
+the full invariant inventory. Restore the isolated rehearsal tenant from its
+pre-migration server-native backup and prove return to the complete baseline.
+This is the still-missing post-migration restore-to-baseline proof; it must not
+repeat the already-recorded live source-to-scratch helper proof. It rehearses S3
+disaster recovery; the stopped-server cold snapshot in step 7 is the frozen
+rollback artifact for the attended cutover.
 
 ### 5. Implement the guarded container layout
 
@@ -1118,17 +1210,16 @@ because that would remove the required guard and move `bd-real` onto `bd`.
 
 ## Immediate next action
 
-Do not resume O5 or PR #1221 and do not perform an attended action. Wait for the
-separate `governed-repo-bootstrap` plan to publish its Dolt-server
-default-branch `ci-green` evidence without inspecting or touching that plan's
-runtime state. Once that public evidence exists, fetch and verify the public
-Dolt-server forge state and read back `dolt-server-3jhclo`, its two required
-evidence endpoints, and canonical `dolt-server-wgy` through the configured
-wrapper and public guard from the Dolt-server repository root, using the exact
-target anchor recorded in the authoritative checkpoint above.
+Stop for exact-head supervisor review of the one-file archived-evidence
+reconciliation PR. The review must independently confirm the public
+Dolt-server default-branch checks, PRs #46 and #50, target-anchored ledger
+reads, tracked archive receipt, and the requirement-by-requirement boundary in
+the newest checkpoint. Do not merge before that review passes.
 
-Only if those existing valves pass and `dolt-server-wgy` remains canonical and
-`ready`, dispatch the sanctioned dark-factory `drive` action
-`impl:dolt-server-wgy`. Do not file a duplicate, add a cross-tenant dependency,
-implement inline, mutate the governed plan's state, or begin any other upgrade
-outcome.
+This review is the only current action. Do not dispatch or reopen
+`dolt-server-wgy`, repeat the attended source-to-scratch proof, file or admit a
+remaining outcome, begin O6 or O7, or mutate any ledger, host, tenant, Dolt,
+image, backup/restore, or Fabro state. If the exact head is accepted and the PR
+rebase-merges, the next non-attended planning boundary is the residual O4
+rehearsal-package preparation described above; it must stop for a new reviewed
+obligation before any filing, admission, or attended execution.
