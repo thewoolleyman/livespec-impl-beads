@@ -44,60 +44,87 @@ fi
 
 ## Restart checkpoint
 
-This checkpoint was written at `2026-08-03T04:30:48Z` for the next fresh
-`beads-v1-1-2-upgrade-supervisor` session. No command or worker process from the
-supervisor remains in flight.
+This checkpoint was written at `2026-08-06T09:08:49Z` for the next fresh
+`beads-v1-1-2-upgrade-supervisor` session. The temporary transcript watcher the
+supervisor started has been stopped. The exact supervised worker described
+below remains in flight on its own tmux pane; do not assume it finished while
+this supervisor was restarting.
 
-Completed and cleaned up:
+Verified completed state:
 
-- Guarded-image code landed through PR #1221. The exact reviewed head was
-  `54342d6b112c2e3c08ab8e0e3d41634dd69c10d6`; the rebase-merge is
-  `976caf9744b8a6c1159434da8f2102081935f419`.
-- The exact head passed the full foreground gate and all 95 forge checks. The
-  sanctioned `dispatcher.py reconcile-merged` valve then passed its fresh
-  post-merge janitor gate.
-- The guarded-image code item `bd-ib-1rz6` is closed with PR and merge audit
-  evidence. Its feature worktree, local branch, remote branch, and stale
-  tracking ref are absent.
-- The separate attended proof item `bd-ib-dwv` remains unassigned in `backlog`
-  with `factory-safety:needs-privileged-host`; its code prerequisite is closed.
-  It has not been built, run, inspected, tagged, loaded, pushed, or closed.
-- At wind-down, the primary checkout was clean and equal to origin and GitHub
-  master at `c3d41a53e5e5458617d182d52d705b731abb4786`; the guarded-image merge is
-  an ancestor. The public guarded Beads command still reported v1.0.5.
+- This repository's clean primary checkout, `origin/master`, and GitHub master
+  were equal at `6ae82dc3ec05b1651325765874b1c5bf9c6b9a14` when measured on
+  2026-08-06. The plan anchor `bd-ib-3kolea` remained an unassigned `backlog`
+  epic with zero dependencies, dependents, and comments. The release/CLI,
+  guard-compatibility, guarded-image code, and attended guarded-image proof
+  items are closed; the direct image overlap `bd-ib-dwv` closed at
+  `2026-08-04T02:32:41Z`. Do not reopen or duplicate any of them.
+- The external `governed-repo-bootstrap` plan is complete and archived on
+  `dolt-server` master `86e94c374d23d2f2115f7cc3785eb4e47afd5c4a`.
+  Its current-master `check` and `ci-green` checks both completed successfully.
+  That external plan is no longer a blocker. Inspect only its tracked archive,
+  public forge, and target-anchored ledger evidence; never its archived runtime.
+- Canonical restore-seam item `dolt-server-wgy` is closed. Fabro PR #46 landed
+  as `ceaa078a8652ef6309e371181a3f6e9450fd1ab2`, with its post-merge janitor
+  green. It has zero dependencies and comments and one already-recorded
+  dependent. Do not dispatch, reopen, replace, or duplicate it.
+- The governed plan's tracked archive records an attended real restore from
+  source `livespec-orch-beads-fabro` to differently named scratch target
+  `livespec-orch-beads-fabro_beads112_restore`. Source-before, target, and
+  source-after inventories share digest
+  `5f73c196716ee022ebe779cf366a5f897ab1e20b290d859e7c5b116076b4b3f6`;
+  the source remained present and the scratch target was removed exactly. This
+  is reusable evidence, not authorization to repeat a live restore.
+- That archived proof discharges only the real distinct-source/target seam and
+  cleanup portion of this plan's broader rehearsal. It does not prove a
+  v1.0.5-shaped per-tenant restore, migrations 0050 through 0053, the full
+  invariant inventory and round trips, or rollback-boundary replay. Do not call
+  the broader rehearsal or attended rollout complete from the archived proof.
 
-Exact remaining ownership and blockers:
+Exact in-flight worker state:
 
-- This Beads upgrade plan owns `bd-ib-dwv`, the privileged guarded-image build
-  and ephemeral Tier-1 proof. The maintainer has not authorized image mutation.
-  Do not execute it until the maintainer explicitly authorizes that narrow
-  attended action. Such authorization does not imply permission for
-  `/usr/local/bin`, production-tenant, or production Dolt-data mutation.
-- The separate `governed-repo-bootstrap` plan owns the `dolt-server`
-  default-branch `ci-green` prerequisite. This plan may consume a result the
-  maintainer or that plan publishes, but MUST NOT contact, instruct, diagnose,
-  restart, mutate, or inspect that plan's supervisor, worker, marker, log,
-  worktrees, or branches. Dependency is not execution authority.
-- After that external prerequisite is published, this plan owns the canonical
-  factory-safe restore source/target seam already represented by
-  `dolt-server-wgy`; do not duplicate it. Re-measure before any sanctioned
-  dispatch.
-- The later live restore rehearsal, direct host binary replacement, and
-  all-tenant migration/rollback window are attended actions and remain
-  unauthorized. Current documentation/audit closure follows their recorded
-  dependency order in `handoff.md`.
+- The earlier worker retained removed livespec-driver-codex 0.5.8 Stop hooks
+  and entered a hook loop. It produced no new branch, worktree, PR, ledger
+  write, or reconciliation receipt. Only the exact worker pane was restarted;
+  `livespec-overseer:1.1` and every other session were untouched.
+- The fresh worker is on tmux target `'=beads-v1-1-2-upgrade:'`, with node PID
+  3254176 and Codex PID 3254220 at checkpoint time. Its transcript is
+  `/home/ubuntu/.codex/sessions/2026/08/06/rollout-2026-08-06T11-02-45-019fd64f-8c75-7e72-96e6-c35b784d53d7.jsonl`.
+- Its sole assignment is read-only reconciliation of the public archived Dolt
+  evidence against this plan, followed by a one-file PR updating only
+  `plan/beads-v1-1-2-upgrade/handoff.md`. It may not mutate the ledger, host,
+  tenant, Dolt data, image, backup/restore state, or Fabro. It must stop for a
+  fresh exact-head supervisor review. At checkpoint time its transcript showed
+  active verification and `worker-status.log` still had the 92-line baseline;
+  no receipt or PR had arrived.
+- The supervisor's temporary unified-exec watcher was stopped during wind-down.
+  The successor must create a new bounded wait condition after rechecking the
+  exact worker process, transcript, and `worker-status.log`; session ID 38889 is
+  closed and must not be reused.
 
 Fresh-session next action:
 
-1. Run this binder's BOOT and all five HALT-first checks, then re-measure only
-   this repository, this plan's ledger items, and its forge artifacts through
-   the configured wrapper and public `/usr/local/bin/bd`.
-2. Do not reopen or duplicate the completed guarded-image code work.
-3. If the maintainer explicitly authorizes the narrow privileged image proof,
-   supervise `bd-ib-dwv` under the attended safety envelope. Otherwise report
-   that exact maintainer decision as the immediate blocker and start nothing.
-4. Treat any separately published `dolt-server` prerequisite result as an
-   external input only; never drive its owning plan.
+1. Run this binder's BOOT and all five HALT-first checks. Re-measure this repo,
+   the plan ledger anchor, the Dolt public archive/forge/ledger evidence, and
+   the exact worker state. Never enter the archived governed plan's runtime.
+2. Inspect the fresh worker transcript, pane, and `worker-status.log`. If the
+   bounded one-file reconciliation PR is ready, adversarially review its exact
+   head against the verified partial-proof boundary. Otherwise re-arm a bounded
+   transcript/log wait and continue supervising it.
+3. Reject any claim that the archived restore alone completes the broader
+   migration-and-rollback rehearsal. Reject any duplicate/reopened restore-seam
+   item or repetition of the already-recorded live restore.
+4. After an exact-head review passes, drive only the reviewed PR through the
+   normal merge and cleanup path, then use the reconciled worker handoff to
+   select the next safe, non-attended boundary. No attended rollout or mutation
+   is authorized by this checkpoint.
+
+Wind-down note: the mandated shell write of the ignored `.overseer-state`
+marker was initially rejected by `livespec_footgun_guard.py` because the exact
+runtime path lives beneath the primary checkout. The supervisor halted that
+command, did not bypass the hook, and wrote the exact ignored marker through
+the file-edit path instead. The tracked handoff was changed only in its own
+dedicated wrap-up worktree.
 
 Standing safety remains unchanged: never pass `--no-verify`; halt on hook or
 gate failure; touch no other session's worktree or branch; never alter or kill
