@@ -42,14 +42,15 @@ this owning-plan and descriptive-outcome definition.
 
 ## Current state
 
-### Restart checkpoint — 2026-08-07 O4 filing contract clarification
+### Restart checkpoint — 2026-08-07 O4 create-boundary correction
 
 This is the sole authoritative restart checkpoint. It supersedes every older
 restart checkpoint and every earlier version of “Immediate next action.” The
 only current action is exact-head supervisor review of the one-file plan PR
-that defines the two-row O4 filing contract below. This checkpoint does not
-authorize a ledger write or dry run, factory dispatch, fixture write, migration,
-backup, restore, cleanup, image operation, host copy, or rollout.
+that corrects the dry-run and real-create boundary for the two-row O4 filing
+contract below. This checkpoint does not authorize a ledger dry run or write,
+factory dispatch, fixture write, migration, backup, restore, cleanup, image
+operation, host copy, or rollout.
 
 - A fresh fetch at `MEASURED_AT=2026-08-06T10:41:06Z` found this repository's
   clean primary checkout, `origin/master`, and public forge master equal at
@@ -734,13 +735,14 @@ This cut MUST NOT use `groom`, `append_work_item`, a pre-minted foreign
 identifier, `--force`, any parent or epic-linkage write, or any cross-tenant
 dependency write.
 
-After this plan-only change has passed its review and merge valve, any
-remaining local outcome among O2, O4, O5, O6, O7, and O8 is filed from this
+After this plan-only correction has passed its review and merge valve, a new
+durable filing obligation must separately authorize any remaining local outcome
+among O2, O4, O5, O6, O7, and O8. Each authorized filing runs from this
 repository root through the wrapper configured in `.livespec.jsonc` and
-`/usr/local/bin/bd`. O1 already exists as `bd-ib-ne11`; do not file a
-duplicate. A create command must omit an explicit identifier so Beads assigns
-a standalone native `bd-ib` identifier. It MUST NOT pass `--parent`. Each
-local outcome uses the exact `external_ref` value
+`/usr/local/bin/bd`. O1 already exists as `bd-ib-ne11`; do not file a duplicate.
+A create command must omit an explicit identifier so Beads assigns a standalone
+native `bd-ib` identifier. It MUST NOT pass `--parent`. Each local outcome uses
+the exact `external_ref` value
 `beads-v1-1-2-upgrade:O#`, with `O#` replaced by its recorded outcome number,
 and its description names `bd-ib-3kolea` and that outcome as provenance. No
 parent or epic linkage is created.
@@ -755,13 +757,53 @@ plan's O4 isolated migration-and-restore rehearsal, not a new numbered outcome.
 Before any later dry run or create, the complete ledger must be collision-checked
 for both exact external references and both exact titles below.
 
-Both future rows are standalone native `bd-ib` tasks at priority 2 with null
-`parent_id`. Beads assigns each identifier: neither create supplies an explicit
-ID or `--parent`, and neither uses inheritance, `groom`, `append_work_item`,
-`--force`, an epic link, or a cross-tenant link. Each future create uses
-`--no-inherit-labels`, and its immediate read-back must prove the native ID,
-task type, priority 2, exact Livespec status `backlog`, null `parent_id`, exact
-external reference, exact title, exact description, and exact labels.
+Both future rows are standalone native `bd-ib` tasks at priority 2 with stored
+null `parent_id`. Beads assigns each identifier: neither create supplies an
+explicit ID or `--parent`, and neither uses inheritance, `groom`,
+`append_work_item`, `--force`, an epic link, or a cross-tenant link. Each future
+create uses `--no-inherit-labels`.
+
+Every dry-run and real create for these two rows must execute from the exact
+repository root `/data/projects/livespec-orchestrator-beads-fabro`. The operator
+must first change to that directory, then invoke the exact configured
+wrapper-and-public-guard prefix with no tenant selector:
+
+```sh
+cd /data/projects/livespec-orchestrator-beads-fabro
+/data/projects/1password-env-wrapper/with-livespec-env.sh -- \
+  /usr/local/bin/bd create <exact-row-arguments>
+```
+
+Here `<exact-row-arguments>` means the exact title, description, external
+reference, task type, priority, labels, and `--no-inherit-labels` defined below,
+plus `--dry-run --json` only for a preview. It never includes `-C`,
+`--directory`, `--db`, `--global`, `--repo`, or any other tenant selector, and
+it never includes an explicit ID, `--parent`, or `--force`. This ban is specific
+to these create commands; the exact target-anchored `-C` forms remain permitted
+for read-only and dependency commands below.
+
+A v1.0.5 `create --dry-run --json` result is native planning output, not the
+stored post-create state. It must echo the exact requested title, description,
+external reference, task type, priority, and labels. It is expected to report
+native `status: open`, an empty ID, and may omit `parent_id` when no parent was
+supplied. The preview cannot prove the eventual native identifier, normalized
+Livespec lifecycle status, or stored null parent.
+
+A later real create omits `--dry-run`; from the established target-root working
+directory and without a tenant selector, it qualifies for the public guard's
+post-create `backlog` normalization. The create output is not final-state proof.
+Before any next ledger write, the assigned identifier must be read back either
+through the same wrapper and public guard from that already-established working
+directory without a selector, or through their exact read-only target anchor
+`-C /data/projects/livespec-orchestrator-beads-fabro`. That
+immediate read-back must prove the native `bd-ib` ID, task type, priority 2,
+exact Livespec status `backlog`, stored null `parent_id`, exact external
+reference, exact title, exact description, and exact labels.
+
+The guard's post-create normalization is fail-open, so this immediate read-back
+is mandatory. Any non-`backlog` status, non-null stored parent, or other field
+mismatch halts before another ledger write and is reported for a separate
+corrective obligation. Do not silently normalize, delete, retry, or continue.
 
 The preparation row is defined exactly as follows:
 
@@ -835,19 +877,25 @@ row must not be admitted until the preparation row and target-tenant
 parent, sibling, dependency, or any other cross-tenant edge to
 `dolt-server-wgy`; its closure is an independently read precondition only.
 
-This plan-only clarification authorizes no ledger write or dry run. Both require
-a new durable supervisor obligation after this one-file PR is reviewed and
-merged.
+This plan-only correction authorizes no ledger write or dry run. After it is
+reviewed and merged, a new durable dry-run obligation must explicitly authorize
+fresh reruns of both the preparation and attended previews from the exact target
+root without selectors; the earlier `-C` selector-bearing preparation preview
+cannot satisfy this corrected boundary.
 
 The first measured parent dry-run created no row, but it showed that normal
 parent label inheritance would add `acceptance:human-only`,
 `factory-safety:mutates-host-machinery`, and `origin:freeform` to the proposed
-child labels. The corrective `--no-inherit-labels` dry-run also created no row,
-returned the five labels then requested, and had null `parent_id` despite
-`--parent bd-ib-3kolea`. The required parent proof therefore cannot pass,
-which is why this cut files standalone items. A dry-run echoing a requested
-label does not prove that the label value is valid under the WorkItem
-contract; that distinction caused the factory-safety error recorded below.
+child labels. The corrective parent-bearing `--no-inherit-labels` dry-run also
+created no row, returned the five labels then requested, and serialized null
+`parent_id` despite `--parent bd-ib-3kolea`. The later standalone preparation
+preview also created no row and omitted `parent_id`; that omission is permitted
+native planning output and does not prove the eventual stored parent. The
+required real parent proof therefore cannot pass for a parent-bearing create,
+which is why this cut files standalone items and requires a strict immediate
+real read-back. A dry-run echoing a requested label does not prove that the
+label value is valid under the WorkItem contract; that distinction caused the
+factory-safety error recorded below.
 
 Every local dry-run and create command MUST use `--no-inherit-labels`. It must
 explicitly provide exactly one `admission:*` label, exactly one `acceptance:*`
@@ -856,12 +904,12 @@ MUST provide **zero** `factory-safety:*` labels. Genuinely attended host-only
 work MUST provide exactly one allowed factory-safety reason as classified
 below. Each approved creation is exactly one create command, followed
 immediately by `bd show` read-back of the assigned identifier before any next
-ledger write. The read-back must show the assigned native identifier, the
-exact `external_ref`, null `parent_id`, the description provenance, exactly
-one label under each of the `admission:` and `acceptance:` singleton prefixes,
-the explicitly requested values, and the expected zero-or-one
-`factory-safety:` cardinality. A missing, inherited, invalid, or contradictory
-policy label halts the filing sequence.
+ledger write. The read-back must show the assigned native identifier, exact
+Livespec status `backlog`, exact `external_ref`, stored null `parent_id`, the
+description provenance, exactly one label under each of the `admission:` and
+`acceptance:` singleton prefixes, the explicitly requested values, and the
+expected zero-or-one `factory-safety:` cardinality. A missing, inherited,
+invalid, or contradictory policy label halts the filing sequence.
 
 #### Authoritative factory-safety classification and measured correction
 
@@ -1670,22 +1718,28 @@ because that would remove the required guard and move `bd-real` onto `bd`.
 
 ## Immediate next action
 
-Stop for exact-head supervisor review of the draft one-file O4 filing-contract
-clarification PR whose head branch is
-`docs/clarify-o4-preparation-filing`. The review must confirm that this handoff
-is the only changed path; `beads-v1-1-2-upgrade:O4-preparation` is the sole plan-authorized
-external-reference exception and names an O4 slice rather than a new numbered
-outcome; `beads-v1-1-2-upgrade:O4` remains reserved for the attended rehearsal;
-both future standalone task rows have the exact fields, titles, descriptions,
-labels, null-parent boundary, and same-tenant dependency direction above; the
-attended row alone has the independent `dolt-server-wgy` closure precondition;
-and this clarification performs and authorizes no ledger dry run or write.
-Auto-merge must remain disabled before and throughout review.
+Stop for exact-head supervisor review of the draft one-file O4 create-boundary
+correction PR whose head branch is `docs/correct-o4-create-boundary`. The review
+must confirm that this handoff is the only changed path; previews explicitly
+expect native `open`, empty ID, and an optional omitted `parent_id`; every O4
+dry-run and real create uses the configured wrapper and public guard from the
+exact target root without a tenant selector; strict real-create read-back still
+requires a native ID, `backlog`, stored null parent, and every exact row field;
+the fail-open stop boundary forbids normalization, deletion, retry, or another
+write after a mismatch; and `-C` target anchoring remains available for
+read-only and dependency commands. The review must also confirm that the exact
+O4 external references, fields, labels, same-tenant dependency direction,
+independent `dolt-server-wgy` closed precondition, and PR #1161 ownership fence
+are unchanged, and that this correction performs and authorizes no ledger dry
+run or write. Auto-merge must remain disabled before and throughout review.
 
-This review is the only current action. If the exact head is accepted, the PR
-may follow the repository's reviewed rebase-merge and cleanup workflow. After
-merge, stop. Any dry run, filing, linking, assigning, admitting, or dispatching
-and every fixture write, server action, migration, backup, restore, cleanup,
-image operation, host copy, or rollout require a new durable supervisor
-obligation and explicit authorization. Do not begin O4 preparation or attended
-execution, O6, or O7 from this clarification alone.
+This review is the only current action. Do not merge under this obligation.
+Fresh reruns of both the preparation and attended previews may run only after
+this correction is reviewed and merged and a new durable dry-run obligation
+explicitly authorizes their exact-target-root, selector-free forms; the prior
+`-C` selector-bearing preparation preview is not reusable. Any dry run, filing,
+linking, assigning, admitting, or dispatching and every fixture write, server
+action, migration, backup, restore, cleanup, image operation, host copy, or
+rollout require a new durable supervisor obligation and explicit authorization.
+Do not begin O4 preparation or attended execution, O6, or O7 from this
+correction alone.
