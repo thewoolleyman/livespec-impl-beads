@@ -42,14 +42,14 @@ this owning-plan and descriptive-outcome definition.
 
 ## Current state
 
-### Restart checkpoint — 2026-08-06 residual isolated rehearsal package prepared
+### Restart checkpoint — 2026-08-07 O4 filing contract clarification
 
 This is the sole authoritative restart checkpoint. It supersedes every older
 restart checkpoint and every earlier version of “Immediate next action.” The
 only current action is exact-head supervisor review of the one-file plan PR
-that carries this package. This checkpoint does not authorize a ledger write,
-factory dispatch, fixture write, migration, backup, restore, cleanup, image
-operation, host copy, or rollout.
+that defines the two-row O4 filing contract below. This checkpoint does not
+authorize a ledger write or dry run, factory dispatch, fixture write, migration,
+backup, restore, cleanup, image operation, host copy, or rollout.
 
 - A fresh fetch at `MEASURED_AT=2026-08-06T10:41:06Z` found this repository's
   clean primary checkout, `origin/master`, and public forge master equal at
@@ -745,6 +745,100 @@ local outcome uses the exact `external_ref` value
 and its description names `bd-ib-3kolea` and that outcome as provenance. No
 parent or epic linkage is created.
 
+#### O4 two-row filing contract
+
+The attended residual migration-and-restore rehearsal retains the exact
+`external_ref` `beads-v1-1-2-upgrade:O4`. The separate factory-safe preparation
+slice uses the exact plan-authorized exception
+`beads-v1-1-2-upgrade:O4-preparation`. The preparation row is a slice of this
+plan's O4 isolated migration-and-restore rehearsal, not a new numbered outcome.
+Before any later dry run or create, the complete ledger must be collision-checked
+for both exact external references and both exact titles below.
+
+Both future rows are standalone native `bd-ib` tasks at priority 2 with null
+`parent_id`. Beads assigns each identifier: neither create supplies an explicit
+ID or `--parent`, and neither uses inheritance, `groom`, `append_work_item`,
+`--force`, an epic link, or a cross-tenant link. Each future create uses
+`--no-inherit-labels`, and its immediate read-back must prove the native ID,
+task type, priority 2, exact Livespec status `backlog`, null `parent_id`, exact
+external reference, exact title, exact description, and exact labels.
+
+The preparation row is defined exactly as follows:
+
+- Title: `Prepare the synthetic isolated Beads v1.1.2 migration-and-restore rehearsal package`.
+- External reference: `beads-v1-1-2-upgrade:O4-preparation`.
+- Labels, with zero `factory-safety:*` labels:
+  `acceptance:ai-only`, `admission:auto`, `intake:triaged`, and
+  `origin:beads-v1-1-2-upgrade`.
+- Description:
+
+  > Provenance: `bd-ib-3kolea`, O4 preparation. This factory-safe slice of O4
+  > owns only the factory-safe preparation already bounded by this merged
+  > package: reviewed provenance and topology manifests, including public
+  > upstream artifact fetch/hash and v1.0.5 fixture-producer build receipts;
+  > deterministic fixture definitions; canonical inventory queries; command and
+  > credential-and-anchor wrappers; receipt schemas; the version-neutral
+  > identity-probe implementation and locked dependencies; and hermetic tests.
+  > It does not perform the rehearsal. It forbids every server start, tenant or
+  > database write, migration, backup, restore, cleanup, image action, host
+  > `/usr/local/bin` mutation, production mutation or write-capable production
+  > probe, secret disclosure or mutation, and Fabro or Fabro-server mutation.
+  > Its only production-facing activity is the exact read-only deterministic
+  > fixture-shape survey from `/data/projects/livespec`, this repository, and
+  > `/data/projects/livespec-driver-codex`, run from each target root through its
+  > configured wrapper and public `/usr/local/bin/bd` as applicable.
+
+The attended row is defined exactly as follows:
+
+- Title: `Run the attended residual isolated Beads v1.1.2 migration-and-restore rehearsal`.
+- External reference: `beads-v1-1-2-upgrade:O4`.
+- Labels: `acceptance:ai-only`, `admission:manual`, `intake:triaged`,
+  `origin:beads-v1-1-2-upgrade`, and
+  `factory-safety:needs-privileged-host`.
+- Description:
+
+  > Provenance: `bd-ib-3kolea`, O4. Consume only the reviewed and merged O4
+  > preparation package. In an attended foreground window, own the isolated
+  > non-production three-shape fixture, server, migration, single-use backup,
+  > clean-target restore-to-complete-baseline, and cleanup proof defined by this
+  > package, including its invariant, round-trip, remote, pointer, identity,
+  > stop-boundary, and receipt evidence. Preserve the already-credited live
+  > distinct-source and clean-target helper receipt without rerunning it. Keep
+  > this item in backlog under manual admission. It forbids production tenant or
+  > data mutation, host `/usr/local/bin` mutation, every image action, secret
+  > disclosure or mutation, and Fabro-server mutation. Its production-facing
+  > activity is limited to the read-only unchanged-state probes required by the
+  > package's preflight and cleanup receipts.
+
+Only after both native rows exist and each has passed its immediate read-back
+may a later authorized writer add their same-tenant prerequisite edge. Here
+`<attended-id>` means the native ID read back for the attended row, and
+`<preparation-id>` means the native ID read back for the preparation row. The
+only permitted direction and verification sequence is:
+
+```sh
+/data/projects/1password-env-wrapper/with-livespec-env.sh -- \
+  /usr/local/bin/bd -C /data/projects/livespec-orchestrator-beads-fabro \
+  dep add <attended-id> <preparation-id> --type blocks
+/data/projects/1password-env-wrapper/with-livespec-env.sh -- \
+  /usr/local/bin/bd -C /data/projects/livespec-orchestrator-beads-fabro \
+  show <attended-id> --json
+/data/projects/1password-env-wrapper/with-livespec-env.sh -- \
+  /usr/local/bin/bd -C /data/projects/livespec-orchestrator-beads-fabro \
+  dep cycles
+```
+
+The edge read-back must prove that the attended row depends on the preparation
+row, and `bd dep cycles` must pass before any next ledger write. The attended
+row must not be admitted until the preparation row and target-tenant
+`dolt-server-wgy` have each been independently verified closed. Do not create a
+parent, sibling, dependency, or any other cross-tenant edge to
+`dolt-server-wgy`; its closure is an independently read precondition only.
+
+This plan-only clarification authorizes no ledger write or dry run. Both require
+a new durable supervisor obligation after this one-file PR is reviewed and
+merged.
+
 The first measured parent dry-run created no row, but it showed that normal
 parent label inheritance would add `acceptance:human-only`,
 `factory-safety:mutates-host-machinery`, and `origin:freeform` to the proposed
@@ -896,9 +990,11 @@ producer from the tagged source in a disposable build directory. This includes
 the version-neutral identity-probe implementation, its locked dependencies,
 and its negative statement-refusal tests; preparation never connects that probe
 to a database. Factory-safe preparation must not start a server, initialize or
-write a tenant, configure a remote, run Beads against a database, take or
-restore a backup, or clean an execution target. Those are all attended actions,
-even though their targets are non-production.
+write a tenant, configure a remote, take or restore a backup, or clean an
+execution target. Its sole permission to run Beads against a database is the
+exact read-only three-repository fixture-shape survey defined in the O4 two-row
+filing contract above; every other Beads database call remains attended. Those
+attended actions remain host-only even though their targets are non-production.
 
 Every attended action requires a new durable supervisor obligation after the
 preparation PR is reviewed and merged. The operator must run the attended
@@ -1574,24 +1670,22 @@ because that would remove the required guard and move `bd-real` onto `bd`.
 
 ## Immediate next action
 
-Stop for exact-head supervisor review of this one-file residual isolated
-rehearsal-package PR. The review must confirm that the only changed path is
-this handoff; all three synthetic shapes, the isolated topology, candidate and
-fixture-producer provenance, one designated migrator, observed gate decision,
-the unique manually created client pointer and isolated SQL user for every
-source/migrated/restored/golden database, the per-command pointer-hash and
-SQL/endpoint identity proof uses only the pinned version-neutral single-query
-probe, no v1.1.2 process opens v49 before the logged `bd migrate`, the restored
-target's exact run-scoped `origin` and cached v49 remote-ref proof exists before
-candidate open, exact inventories, round trips, frozen backup identity,
-restore-to-baseline proof, cleanup receipt, stop conditions, and rollback
-boundary are concrete; and the archived live helper receipt is credited without
-repetition. Auto-merge must remain disabled before and throughout this review.
+Stop for exact-head supervisor review of the draft one-file O4 filing-contract
+clarification PR whose head branch is
+`docs/clarify-o4-preparation-filing`. The review must confirm that this handoff
+is the only changed path; `beads-v1-1-2-upgrade:O4-preparation` is the sole plan-authorized
+external-reference exception and names an O4 slice rather than a new numbered
+outcome; `beads-v1-1-2-upgrade:O4` remains reserved for the attended rehearsal;
+both future standalone task rows have the exact fields, titles, descriptions,
+labels, null-parent boundary, and same-tenant dependency direction above; the
+attended row alone has the independent `dolt-server-wgy` closure precondition;
+and this clarification performs and authorizes no ledger dry run or write.
+Auto-merge must remain disabled before and throughout review.
 
 This review is the only current action. If the exact head is accepted, the PR
 may follow the repository's reviewed rebase-merge and cleanup workflow. After
-merge, stop. Filing, linking, assigning, admitting, or dispatching a ledger
-item and every fixture write, server action, migration, backup, restore,
-cleanup, image operation, host copy, or rollout require a new durable
-supervisor obligation and explicit authorization. Do not begin `O4` execution,
-`O6`, or `O7` from this handoff update alone.
+merge, stop. Any dry run, filing, linking, assigning, admitting, or dispatching
+and every fixture write, server action, migration, backup, restore, cleanup,
+image operation, host copy, or rollout require a new durable supervisor
+obligation and explicit authorization. Do not begin O4 preparation or attended
+execution, O6, or O7 from this clarification alone.
