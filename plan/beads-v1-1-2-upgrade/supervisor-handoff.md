@@ -44,17 +44,16 @@ fi
 
 ## Restart checkpoint
 
-This checkpoint was written at `2026-08-06T09:08:49Z` for the next fresh
-`beads-v1-1-2-upgrade-supervisor` session. The temporary transcript watcher the
-supervisor started has been stopped. The exact supervised worker described
-below remains in flight on its own tmux pane; do not assume it finished while
-this supervisor was restarting.
+This checkpoint was written at `2026-08-07T11:22:46Z`. Re-measure every
+timestamped claim before acting. The exact worker is idle at its prompt; do not
+give it another instruction until the recorded provider-capacity wait expires
+and the marker has been re-read through its append-only end.
 
 Verified completed state:
 
 - This repository's clean primary checkout, `origin/master`, and GitHub master
-  were equal at `6ae82dc3ec05b1651325765874b1c5bf9c6b9a14` when measured on
-  2026-08-06. The plan anchor `bd-ib-3kolea` remained an unassigned `backlog`
+  were equal at `310c8657951e2bc1b689d6cec50b4dbe4fd0720c` when measured on
+  2026-08-07. The plan anchor `bd-ib-3kolea` remained an unassigned `backlog`
   epic with zero dependencies, dependents, and comments. The release/CLI,
   guard-compatibility, guarded-image code, and attended guarded-image proof
   items are closed; the direct image overlap `bd-ib-dwv` closed at
@@ -83,48 +82,62 @@ Verified completed state:
 
 Exact in-flight worker state:
 
-- The earlier worker retained removed livespec-driver-codex 0.5.8 Stop hooks
-  and entered a hook loop. It produced no new branch, worktree, PR, ledger
-  write, or reconciliation receipt. Only the exact worker pane was restarted;
-  `livespec-overseer:1.1` and every other session were untouched.
-- The fresh worker is on tmux target `'=beads-v1-1-2-upgrade:'`, with node PID
-  3254176 and Codex PID 3254220 at checkpoint time. Its transcript is
+- The worker is on tmux target `'=beads-v1-1-2-upgrade:'`, with node PID 3254176
+  and Codex PID 3254220 at checkpoint time. Its transcript is
   `/home/ubuntu/.codex/sessions/2026/08/06/rollout-2026-08-06T11-02-45-019fd64f-8c75-7e72-96e6-c35b784d53d7.jsonl`.
-- Its sole assignment is read-only reconciliation of the public archived Dolt
-  evidence against this plan, followed by a one-file PR updating only
-  `plan/beads-v1-1-2-upgrade/handoff.md`. It may not mutate the ledger, host,
-  tenant, Dolt data, image, backup/restore state, or Fabro. It must stop for a
-  fresh exact-head supervisor review. At checkpoint time its transcript showed
-  active verification and `worker-status.log` still had the 92-line baseline;
-  no receipt or PR had arrived.
-- The supervisor's temporary unified-exec watcher was stopped during wind-down.
-  The successor must create a new bounded wait condition after rechecking the
-  exact worker process, transcript, and `worker-status.log`; session ID 38889 is
-  closed and must not be reused.
+- PR #1327 merged the reviewed residual-rehearsal filing correction at
+  `310c8657951e2bc1b689d6cec50b4dbe4fd0720c`, and its worktree and refs were
+  cleaned. The correction makes both creates target-root anchored, configured-
+  wrapper/public-guard only, selector-free, and parent-free.
+- The worker then created exactly two standalone plan rows: factory-safe
+  preparation `bd-ib-8azd` and attended rehearsal `bd-ib-ao3j`. The attended
+  row has exactly one same-tenant `blocks` dependency on the preparation row.
+  No epic linkage, cross-tenant edge, duplicate item, or automated groom was
+  used. `worker-status.log` lines 120 through 125 are the terminal receipts.
+- `bd-ib-8azd` is exactly `ready`, unassigned, parentless, and prerequisite-
+  free, with one dependent. `bd-ib-ao3j` remains exactly `backlog`, unassigned,
+  and blocked only by `bd-ib-8azd`. The first factory attempt was correctly
+  refused while the preparation was still backlog. After its single guarded
+  admission, the only ready-item attempt failed at `run-config-overlay` before
+  sandbox launch with provider HTTP 429 and no reset timestamp.
+- That provider failure created no Fabro run, branch, PR, merge, or dispatch
+  lock but temporarily claimed the item. Binding prior art `bd-ib-zp3u7y` was
+  re-read, zero target runs were proved across 544 Fabro records, and the exact
+  guarded `move:bd-ib-8azd:ready` valve released the claim once. At
+  `2026-08-07T11:22:46Z`, the item was ready and unassigned, the exact lock was
+  absent, and target branches, PRs, and Fabro runs were all zero.
+- The worker is idle at its prompt after the terminal release receipt. It has
+  no authorized in-flight action. Do not reuse the stale prompt text as an
+  assignment, and do not restart or alter any other pane.
 
 Fresh-session next action:
 
 1. Run this binder's BOOT and all five HALT-first checks. Re-measure this repo,
-   the plan ledger anchor, the Dolt public archive/forge/ledger evidence, and
-   the exact worker state. Never enter the archived governed plan's runtime.
-2. Inspect the fresh worker transcript, pane, and `worker-status.log`. If the
-   bounded one-file reconciliation PR is ready, adversarially review its exact
-   head against the verified partial-proof boundary. Otherwise re-arm a bounded
-   transcript/log wait and continue supervising it.
-3. Reject any claim that the archived restore alone completes the broader
-   migration-and-rollback rehearsal. Reject any duplicate/reopened restore-seam
-   item or repetition of the already-recorded live restore.
-4. After an exact-head review passes, drive only the reviewed PR through the
-   normal merge and cleanup path, then use the reconciled worker handoff to
-   select the next safe, non-attended boundary. No attended rollout or mutation
-   is authorized by this checkpoint.
-
-Wind-down note: the mandated shell write of the ignored `.overseer-state`
-marker was initially rejected by `livespec_footgun_guard.py` because the exact
-runtime path lives beneath the primary checkout. The supervisor halted that
-command, did not bypass the hook, and wrote the exact ignored marker through
-the file-edit path instead. The tracked handoff was changed only in its own
-dedicated wrap-up worktree.
+   the plan ledger anchor, both residual-rehearsal rows and their sole edge, the
+   exact worker state, and the full append-only marker. Never enter the archived
+   governed plan's runtime.
+2. Honor marker obligation `wait_for_factory_oauth_capacity_bd_ib_8azd`. Do not
+   attempt another dispatch before `2026-08-07T13:18:10Z`. The two required
+   independent escalation vetters both said not to interrupt the maintainer
+   after this single sample: wait for rolling OAuth capacity, with no fourth
+   option. Credential inspection or rotation, billing changes, hand-building,
+   and blinding the gate remain unauthorized.
+3. After that time, fetch and verify forge, then re-prove that `bd-ib-8azd` is
+   ready and unassigned with no target run, lock, branch, or PR. Open one new
+   durable dispatch obligation and send the worker at most one fresh supervised
+   `drive` action for this exact item. Run it in the foreground through the
+   configured wrapper and in-repo driver. Preserve unrelated factory runs.
+4. If the fresh attempt again returns HTTP 429 before launch, prove the no-run
+   shape, release only its partial claim through the guarded same-ID move valve,
+   append exact receipts, and extend the rolling wait. Do not use
+   `reconcile-merged`, edit the assignee directly, or retry immediately. If
+   multiple spaced attempts or a full rolling window still fail, vet and then
+   escalate the credential or billing decision to the maintainer.
+5. If the dispatch creates a run, supervise only that exact run through the
+   normal reviewed-PR, rebase-merge, post-merge, ledger, and cleanup receipts.
+   The attended rehearsal remains blocked until its preparation is genuinely
+   complete; this checkpoint authorizes no server, tenant, migration, backup,
+   restore, image, host, secret, or Fabro-server mutation.
 
 Standing safety remains unchanged: never pass `--no-verify`; halt on hook or
 gate failure; touch no other session's worktree or branch; never alter or kill
