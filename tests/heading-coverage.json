@@ -579,18 +579,18 @@
     "reason": "Never-inject (absent / placeholder / unmerged / unreadable fail-open) scenario; integration-tier test id populated when the lessons-brief-injection consumer (livespec-impl-beads-29f.10) lands."
   },
   {
-    "heading": "## Scenario 41 — standalone analysis lands in a plan thread, not a root research tree",
+    "heading": "## Scenario 41 — standalone analysis lands in a plan, not a root research tree",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
     "test": "TODO",
-    "reason": "Analysis-placement scenario for the no-root-research-tree invariant (normative restatement in contracts.md §\"The plan/<topic>/ thread store\"); integration-tier test id populated as the enforcing structural gate binds."
+    "reason": "Analysis-placement scenario for the no-root-research-tree invariant, renamed to plan vocabulary by the planning-lane-realization-core-v197-v198 proposal; the covering test is the bd-ib-mrqoy2.3 plan-operation implementation follow-up and must land at the integration tier or above per the scenario-tier rule."
   },
   {
-    "heading": "## Scenario 42 — list-plan-threads enumerates unarchived plan threads",
+    "heading": "## Scenario 42 — list-plans enumerates unarchived plans",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "tests.integration.test_list_plan_threads_scenario42::test_scenario42_list_plan_threads_enumerates_unarchived_plan_threads",
-    "reason": "Covers the ratified unarchived-visible / archived-invisible enumeration, lexicographic ordering, JSON shape, and read-only behavior; the companion missing-plan test in the same file covers degrade-on-missing."
+    "test": "TODO",
+    "reason": "list-plans enumeration scenario renamed from list-plan-threads by the planning-lane-realization-core-v197-v198 proposal; the existing tests.integration.test_list_plan_threads_scenario42 covers the OLD surface and is renamed by the bd-ib-mrqoy2.4 implementation follow-up, which must keep the covering test at the integration tier or above."
   },
   {
     "heading": "## Dispatcher loop invocation surface",
