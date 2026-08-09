@@ -23,8 +23,9 @@ mutable handoff persistence moves to append-only, per-entry, attributed,
 timestamped plan-epic ledger comments. A scoping event must cut known
 requirements from research prose into requirement-carrier children before
 the plan epic takes implementation children. Archive requires both no
-undisposed children and an independent completeness review that attests
-every requirement, including deferred requirements, has a ledger carrier.
+undisposed children and an independent adversarial completeness review
+that attests every requirement, including deferred requirements, has a
+ledger carrier.
 
 The revision also performs the vocabulary migration from "plan thread" to
 "plan" in live spec prose, including the thin-transport primitive rename
@@ -128,9 +129,9 @@ capture/admission surfaces.
 
 **G. Two-leg archive gate and total archival.** Rework
 `SPECIFICATION/contracts.md` §"Archive on epic close" so archive requires
-both legs: no undisposed children, and an independent completeness review
-of the research prose against the epic's children attesting every
-requirement, including deferred requirements, has a carrier. A
+both legs: no undisposed children, and an independent adversarial
+completeness review of the research prose against the epic's children
+attesting every requirement, including deferred requirements, has a carrier. A
 `plan/<slug>/` record is active if and only if its ledger epic is open.
 
 Keep the total-archival invariant in plan vocabulary: archival relocates
@@ -173,12 +174,15 @@ missing-plan zero result, and read-only guarantee.
 headings, the ratifying revise payload MUST include
 `tests/heading-coverage.json` in the same `resulting_files[]` set. The
 entries for Scenario 41 and Scenario 42 MUST be re-derived from the
-ratified headings. Scenario 41 may retain a `TODO` test with an updated
-reason. Scenario 42 MUST NOT keep a stale test id that still names
-`list_plan_threads` unless the implementation test has already been
-renamed or an alias test explicitly covers the new `list-plans` contract;
-otherwise use `TODO` with a reason naming this proposal and the
-implementation follow-up.
+ratified headings. Any `TODO` entry for Scenario 41 or Scenario 42 MUST
+carry a reason that names this proposal, names the implementation
+follow-up, and explicitly acknowledges the integration tier using one of
+the literal tier keywords `tier`, `integration`, `e2e`, `consumer`, or
+`pyramid`; alternatively, map the heading to a test id under an
+integration-tier prefix such as `tests.integration`. Scenario 42 MUST NOT
+keep a stale test id that still names `list_plan_threads` unless the
+implementation test has already been renamed or an alias test explicitly
+covers the new `list-plans` contract.
 
 **L. Vocabulary sweep.** Re-enumerate the live spec vocabulary sweep at
 ratification time with a search equivalent to:
