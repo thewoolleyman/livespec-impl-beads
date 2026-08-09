@@ -354,6 +354,7 @@ check:
         check-bd-guard
         check-codex-skill-picker
         check-no-fleet-pat-dispatch-surface
+        check-spec-governance-default-block
         check-no-workflow-edits
         check-fresh-clone-setup
         check-doctor-static
@@ -584,6 +585,13 @@ check-bd-guard-candidate:
 # Not a canonical livespec-dev-tooling slug, so it is wired in the private block.
 check-codex-plugin-structure:
     uv run python dev-tooling/checks/codex_plugin_structure.py
+
+# `check-spec-governance-default-block` — consumer-side guard for the commented
+# spec_governance defaults block in `.livespec.jsonc`. The implementation lives
+# in livespec-runtime so consumers validate against the current shared manifest,
+# not a copied or justfile-pinned checker.
+check-spec-governance-default-block:
+    uv run python dev-tooling/check-spec-governance-default-block.py
 
 # livespec core's doctor STATIC phase (reference-discipline + out-of-band
 # invariants) against THIS repo's SPECIFICATION/ tree, wired fleet-wide per
