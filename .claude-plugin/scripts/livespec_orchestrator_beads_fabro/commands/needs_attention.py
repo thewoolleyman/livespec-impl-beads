@@ -23,7 +23,7 @@ from livespec_orchestrator_beads_fabro.commands._needs_attention_core_roots impo
     resolve_spec_next_command,
 )
 from livespec_orchestrator_beads_fabro.commands._needs_attention_handoffs import (
-    plan_threads,
+    plans,
 )
 from livespec_orchestrator_beads_fabro.commands._needs_attention_spec_next_adapt import (
     adapt_top_candidate,
@@ -117,7 +117,7 @@ def build_attention(
                 manifest=manifest,
                 sibling_status_lookup=sibling_status_lookup,
             ),
-            plan_threads=plan_threads(project_root=project_root),
+            plan_threads=plans(project_root=project_root),
             hygiene_scan=(),
         )
         + auto_admission_items(project_root=project_root, repo=repo_name, items=materialized)

@@ -7,13 +7,13 @@ from pathlib import Path
 
 from livespec_runtime.needs_attention import PlanThreadOutput
 
-from livespec_orchestrator_beads_fabro.commands.list_plan_threads import list_plan_threads
+from livespec_orchestrator_beads_fabro.commands.list_plans import list_plans
 
 __all__: list[str] = [
     "dispatcher_loop_command",
     "drive_command",
     "host_only_command",
-    "plan_threads",
+    "plans",
     "reconcile_merged_command",
     "untriaged_backlog_command",
     "untriaged_backlog_summary_command",
@@ -22,18 +22,18 @@ __all__: list[str] = [
 _PLUGIN_NAME = "livespec-orchestrator-beads-fabro"
 
 
-def plan_threads(*, project_root: Path) -> list[PlanThreadOutput]:
+def plans(*, project_root: Path) -> list[PlanThreadOutput]:
     return [
         PlanThreadOutput(
             topic=topic,
             path=f"plan/{topic}/",
-            summary=f"Review plan thread {topic}.",
+            summary=f"Review plan {topic}.",
             command=(
                 f"codex exec {_PLUGIN_NAME}:plan "
                 f"--project-root {_quote(path=project_root)} {shlex.quote(topic)}"
             ),
         )
-        for topic in list_plan_threads(project_root=project_root)
+        for topic in list_plans(project_root=project_root)
     ]
 
 

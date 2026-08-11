@@ -17,7 +17,7 @@ skill).
 
 SCOPE — the six THIN wrapper-backed ops plus the five PROSE-backed
 heavyweight ops (all nine orchestrator ops are now Codex-covered). The
-six wrapper-backed ops (next, list-work-items, list-plan-threads,
+six wrapper-backed ops (next, list-work-items, list-plans,
 detect-impl-gaps, needs-attention, drive) each dispatch to their `scripts/bin/<op>.py` reference
 wrapper. The five prose-backed heavyweight ops (capture-work-item,
 capture-impl-gaps, capture-spec-drift, implement, groom) have NO single
@@ -121,7 +121,7 @@ _SKILLS_DIR = _CODEX_DIR / "skills"
 _PRESENT_OPS: dict[str, str] = {
     "next": "next.py",
     "list-work-items": "list_work_items.py",
-    "list-plan-threads": "list_plan_threads.py",
+    "list-plans": "list_plans.py",
     "detect-impl-gaps": "detect_impl_gaps.py",
     "needs-attention": "needs_attention.py",
     "drive": "drive.py",

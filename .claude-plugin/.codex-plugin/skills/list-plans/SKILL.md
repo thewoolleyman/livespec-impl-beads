@@ -1,12 +1,12 @@
 ---
-name: list-plan-threads
-description: List unarchived plan threads from the repo plan thread store (read-only thin transport). Invoked as livespec-orchestrator-beads-fabro:list-plan-threads.
+name: list-plans
+description: List unarchived plans from the repo plan store (read-only thin transport). Invoked as livespec-orchestrator-beads-fabro:list-plans.
 ---
 
-# list-plan-threads — Codex binding
+# list-plans — Codex binding
 
-Thin Codex binding for `list-plan-threads`. The behavior lives in the
-plugin's reference wrapper `scripts/bin/list_plan_threads.py`; this
+Thin Codex binding for `list-plans`. The behavior lives in the
+plugin's reference wrapper `scripts/bin/list_plans.py`; this
 binding only resolves the plugin root and dispatches. Read-only
 pass-through — it never mutates the tenant DB or plan store.
 
@@ -111,12 +111,12 @@ If resolution fails, STOP and surface those install instructions.
 ## Invocation
 
 ```bash
-python3 "$PLUGIN_ROOT/scripts/bin/list_plan_threads.py" "$@"
+python3 "$PLUGIN_ROOT/scripts/bin/list_plans.py" "$@"
 ```
 
 Supported flags mirror the wrapper: `--json`, `--project-root <path>`.
 
 ## Output
 
-Surface the wrapper's stdout verbatim — the `plan_threads` JSON envelope when
+Surface the wrapper's stdout verbatim — the `plans` JSON envelope when
 `--json` is passed. Do NOT re-interpret or mutate any state.

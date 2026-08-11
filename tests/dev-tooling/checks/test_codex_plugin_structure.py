@@ -4,7 +4,7 @@ The check validates the orchestrator plugin's Codex cross-runtime surface:
 the repo-root `.agents/plugins/marketplace.json` catalog, the nested
 `.claude-plugin/.codex-plugin/plugin.json` manifest, the SIX thin
 wrapper-backed `.codex-plugin/skills/<op>/SKILL.md` bindings (next,
-list-work-items, list-plan-threads, detect-impl-gaps, needs-attention, drive), and the FIVE prose-backed
+list-work-items, list-plans, detect-impl-gaps, needs-attention, drive), and the FIVE prose-backed
 heavyweight bindings (capture-work-item, capture-impl-gaps,
 capture-spec-drift, implement, groom) that read `prose/<op>.md` instead of
 self-invoking a wrapper. The P3b prose extraction is complete — implement
@@ -55,7 +55,7 @@ _VERSION = "0.1.0"
 _PRESENT_OPS = {
     "next": "next.py",
     "list-work-items": "list_work_items.py",
-    "list-plan-threads": "list_plan_threads.py",
+    "list-plans": "list_plans.py",
     "detect-impl-gaps": "detect_impl_gaps.py",
     "needs-attention": "needs_attention.py",
     "drive": "drive.py",
