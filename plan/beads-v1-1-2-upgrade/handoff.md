@@ -42,11 +42,52 @@ this owning-plan and descriptive-outcome definition.
 
 ## Current state
 
+### Authoritative restart checkpoint — 2026-08-11 external factory-capacity blocker
+
+This is the sole authoritative restart checkpoint. It supersedes every lower
+restart checkpoint and every earlier version of “Immediate next action.” The
+O4 filing contract and recovery are complete, but the factory-safe preparation
+item has not produced a Fabro run or implementation. Read the newest
+append-only supervisor marker at
+`/data/projects/livespec-orchestrator-beads-fabro/tmp/overseer/beads-v1-1-2-upgrade/.supervisor-state`
+in full. Its latest entry leaves obligation
+`wait_for_factory_oauth_capacity_bd_ib_8azd` in
+`blocked-external-capacity`, held by the supervisor and handed to the
+maintainer. Its only wake mechanisms are maintainer capacity remediation or a
+later explicitly requested bounded `claude-cred-status` probe. A generic plan
+resume does not authorize that probe, another submission, or any mutation.
+
+Read-only remeasurement at `MEASURED_AT=2026-08-11T06:23:42Z` established:
+
+- The clean primary checkout, fetched `origin/master`, and public forge master
+  are equal at `18fd82ffa37ed68a4d13effc1d933245041e043f`.
+- Factory-safe O4 preparation task `bd-ib-8azd` remains P2, `ready`,
+  unassigned, and standalone with `admission:auto`, `acceptance:ai-only`,
+  `intake:triaged`, `origin:beads-v1-1-2-upgrade`, zero
+  `factory-safety:*` labels, zero prerequisites, and exactly one dependent.
+  Attended O4 rehearsal task `bd-ib-ao3j` remains P2, `backlog`, unassigned,
+  and standalone with its sole `blocks` prerequisite pointing to
+  `bd-ib-8azd`. It remains manual and unauthorized.
+- `fabro ps -a --json` listed 563 historical and current runs and contained
+  zero match for `bd-ib-8azd`. The exact dispatch lock
+  `tmp/fabro-dispatch-bd-ib-8azd.lock` is absent, and the forge has zero
+  matching remote branches and zero matching open or merged pull requests.
+- The three currently listed unrelated Fabro runs were preserved:
+  `01KZQJFMFZXVS4TXSBYZ8TV0ZC` for `bd-ib-mrqoy2.3` and
+  `01KZQGC1QXADJVZYEQ7FRW243T` for `bd-ib-mrqoy2.8` were blocked, while
+  livespec-dev-tooling run `01KZ2P36KXCK4P7JFFG696Q6V1` remained runnable.
+  Their state may change independently; never alter them from this plan.
+
+No ledger, dispatch, credential, Fabro, product, fixture, server, migration,
+backup, restore, cleanup, image, host, tenant, Dolt-data, secret, or rollout
+mutation occurred during this reconciliation. Stop and report the external
+capacity blocker. Do not probe capacity or retry until a new durable supervisor
+obligation explicitly authorizes the bounded action after its wake condition.
+
 ### Restart checkpoint — 2026-08-07 O4 create-boundary correction
 
-This is the sole authoritative restart checkpoint. It supersedes every older
-restart checkpoint and every earlier version of “Immediate next action.” The
-only current action is exact-head supervisor review of the one-file plan PR
+This historical checkpoint is retained as execution evidence. At that time,
+the only action was exact-head supervisor review of the one-file plan PR
 that corrects the dry-run and real-create boundary for the two-row O4 filing
 contract below. This checkpoint does not authorize a ledger dry run or write,
 factory dispatch, fixture write, migration, backup, restore, cleanup, image
@@ -116,8 +157,7 @@ production cutover (`O7`) remains unauthorized.
 
 ### Restart checkpoint — 2026-08-04 O5 proof accepted and closed
 
-This is the sole authoritative restart checkpoint. It supersedes every older
-restart checkpoint and every earlier version of “Immediate next action.” The
+This historical checkpoint is retained as execution evidence. The
 older checkpoints remain below only as historical execution evidence; none of
 their instructions is executable now. Do not return to PR #1221, repeat the
 guarded-image proof, or begin another upgrade outcome.
@@ -1718,56 +1758,33 @@ because that would remove the required guard and move `bd-real` onto `bd`.
 
 ## Immediate next action
 
-### Restart checkpoint
+Stop at the external factory-capacity blocker recorded in the authoritative
+2026-08-11 checkpoint above. The O4 filing contract and guarded release are
+complete: `bd-ib-8azd` is safely `ready` and unassigned with no target run,
+lock, branch, or pull request, while attended `bd-ib-ao3j` remains manual and
+`backlog` behind its sole `blocks` prerequisite.
 
-The O4 filing contract is merged and the bounded filing work is complete. The
-last verified ledger state on 2026-08-07 is:
+On restart, read this handoff and the complete append-only supervisor marker at
+`/data/projects/livespec-orchestrator-beads-fabro/tmp/overseer/beads-v1-1-2-upgrade/.supervisor-state`.
+If the marker is missing or unreadable, stop. If its latest entry still leaves
+`wait_for_factory_oauth_capacity_bd_ib_8azd` blocked and handed to the
+maintainer, report that blocker and stop. Do not infer a wake from elapsed time,
+the item being ready, or a generic instruction to resume the plan. Do not run
+`claude-cred-status`, inspect or change credentials, submit another factory
+action, or hand-build the preparation without a new durable supervisor
+obligation that explicitly authorizes that exact bounded action.
 
-- Factory-safe O4 preparation is native task `bd-ib-8azd`, P2, `ready`,
-  unassigned, with null parent, `admission:auto`, `acceptance:ai-only`, zero
-  `factory-safety:*` labels, no dependencies, and exactly one dependent.
-- Attended O4 rehearsal is native task `bd-ib-ao3j`, P2, `backlog`, unassigned,
-  with null parent and exactly one `blocks` dependency on `bd-ib-8azd`. It must
-  remain manual and must not be admitted until preparation is independently
-  closed. The independently read prerequisite `dolt-server-wgy` was closed.
-- The two creates and their one same-tenant edge changed the local ledger from
-  448 to 450 rows, adding exactly two backlog rows before preparation admission.
-  Exact titles and external references each resolve once.
+If a later durable obligation authorizes a fresh submission after capacity is
+restored, remeasure the item, relation, forge, complete Fabro run set, exact
+dispatch lock, matching branches, and matching pull requests first. Any future
+submission must use the configured environment wrapper and the distributed
+`livespec-orchestrator-beads-fabro:drive` action, never a direct Dispatcher call
+or manual implementation. A partial no-run claim after another refusal may be
+released only through a separately authorized guarded move valve; never repair
+it with a manual status or assignee edit.
 
-Two separately authorized factory submissions were attempted through the
-distributed `livespec-orchestrator-beads-fabro:drive` surface. The first was
-refused because preparation had not yet moved from backlog to ready. After its
-one authorized admission write, the second submission failed at
-`run-config-overlay` before sandbox launch because `CLAUDE_CODE_OAUTH_TOKEN` was
-reported exhausted or rate-limited with HTTP 429. That action returned
-`fabro_run_id: null` but left `bd-ib-8azd` active and assigned to `fabro`.
-
-The guarded pre-branch/no-run recovery from `bd-ib-zp3u7y` was then applied
-exactly once through `move:bd-ib-8azd:ready`. Before release, read-only proof
-found no target Fabro run among 544 historical/current runs, no exact dispatch
-lock at `tmp/fabro-dispatch-bd-ib-8azd.lock`, no matching remote branch, and no
-matching pull request. The valve returned green, journaled
-`human-valve-move`, and immediate read-back proved `bd-ib-8azd` ready and
-unassigned with every other field and relation logically unchanged. The
-unrelated runnable livespec-dev-tooling run whose full ID is
-`01KZ2P36KXCK4P7JFFG696Q6V1` was never touched. Worker-status receipts 120
-through 125 retain the replayable command and measurement details, but this
-checkpoint contains the complete state needed to resume.
-
-### Resume boundary
-
-There is no authorized retry or implementation action at this checkpoint. On a
-fresh session, read the newest append-only supervisor marker and remeasure the
-item, relation, forge, run, lock, branch, and pull-request facts before acting.
-A new durable supervisor obligation is required for any further preparation
-submission. Never infer permission from the item being ready, never retry a
-credential refusal, and do not inspect or change credentials in this plan
-thread. A future authorized factory submission must still use the configured
-environment wrapper and the distributed drive action, never a direct Dispatcher
-call or manual implementation.
-
-Do not admit or execute `bd-ib-ao3j`, and do not perform a fixture write, server
-action, migration, backup, restore, cleanup, image operation, host copy,
+Do not admit or execute `bd-ib-ao3j`, and do not perform a fixture write,
+server action, migration, backup, restore, cleanup, image operation, host copy,
 `/usr/local/bin` mutation, production-tenant or Dolt-data mutation, secret
 action, rollout, or Fabro code/config/service/server mutation without a new
 durable obligation and the attended authorization required by this package.
