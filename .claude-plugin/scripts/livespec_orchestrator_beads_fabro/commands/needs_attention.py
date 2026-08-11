@@ -117,7 +117,11 @@ def build_attention(
                 manifest=manifest,
                 sibling_status_lookup=sibling_status_lookup,
             ),
-            plan_threads=plan_threads(project_root=project_root),
+            plan_threads=plan_threads(
+                project_root=project_root,
+                config=config.work_items_path,
+                items=materialized,
+            ),
             hygiene_scan=(),
         )
         + auto_admission_items(project_root=project_root, repo=repo_name, items=materialized)

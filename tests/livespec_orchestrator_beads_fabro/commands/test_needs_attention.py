@@ -6,7 +6,10 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from livespec_orchestrator_beads_fabro._beads_client import IssueDraft, make_beads_client
+from livespec_orchestrator_beads_fabro._beads_client import (
+    IssueDraft,
+    make_beads_client,
+)
 from livespec_orchestrator_beads_fabro.commands import needs_attention
 from livespec_orchestrator_beads_fabro.commands.needs_attention import (
     SpecNextSeam,
@@ -17,6 +20,7 @@ from livespec_orchestrator_beads_fabro.commands.needs_attention import (
     render_json,
     render_markdown,
 )
+from livespec_orchestrator_beads_fabro.commands.plan import append_handoff
 from livespec_orchestrator_beads_fabro.store import append_work_item
 from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
 from livespec_runtime.needs_attention import SpecNextOutput
@@ -154,14 +158,16 @@ def _item(
     *,
     id_: str,
     status: str,
+    type_: str = "task",
     rank: str = "a2",
     blocked_reason: str | None = None,
     factory_safety: str | None = None,
     admission_policy: str | None = None,
+    spec_commitment_hint: str | None = None,
 ) -> WorkItem:
     return WorkItem(
         id=id_,
-        type="task",
+        type=type_,  # type: ignore[arg-type]
         status=status,  # type: ignore[arg-type]
         title=f"{id_} title",
         description="d",
@@ -175,6 +181,7 @@ def _item(
         reason=None,
         audit=None,
         superseded_by=None,
+        spec_commitment_hint=spec_commitment_hint,
         blocked_reason=blocked_reason,  # type: ignore[arg-type]
         factory_safety=factory_safety,  # type: ignore[arg-type]
         admission_policy=admission_policy,  # type: ignore[arg-type]
@@ -217,6 +224,43 @@ def test_build_attention_composes_impl_human_valves_plan_threads_and_spec_next(
     assert attention[1].handoff.command.endswith("--action accept:bd-accept --json")
     assert attention[3].handoff.command.endswith("--action impl:bd-ready --json")
     assert attention[-1].source_ref.path == "plan/needs-attention/"
+
+
+def test_build_attention_reads_plan_threads_from_ledger_epics_without_plan_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_config(tmp_path)
+    _stub_spec_next(monkeypatch, output=None)
+    _seed(
+        _item(
+            id_="bd-plan",
+            type_="epic",
+            status="backlog",
+            rank="a1",
+            spec_commitment_hint="plan:ledger-thread",
+        )
+    )
+    append_handoff(
+        config=_config(),
+        epic_id="bd-plan",
+        body="Continue this ledger-held plan.",
+        author="factory-test",
+        now="2026-08-11T01:02:03Z",
+    )
+
+    attention = build_attention(
+        project_root=tmp_path,
+        repo_name="repo",
+        include_hygiene=False,
+    )
+
+    assert not (tmp_path / "plan" / "ledger-thread").exists()
+    [plan_item] = [item for item in attention if item.kind == "plan"]
+    assert plan_item.id == "plan:ledger-thread"
+    assert plan_item.summary == "Review plan thread ledger-thread."
+    assert plan_item.source_ref.path == "plan/ledger-thread/"
+    assert "ledger-thread" in plan_item.handoff.command
 
 
 def test_build_attention_advertises_approve_only_for_effective_manual_policy(

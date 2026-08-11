@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import shlex
+from collections.abc import Iterable
 from pathlib import Path
 
 from livespec_runtime.needs_attention import PlanThreadOutput
 
 from livespec_orchestrator_beads_fabro.commands.list_plan_threads import list_plan_threads
+from livespec_orchestrator_beads_fabro.commands.plan import read_timeline
+from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
 
 __all__: list[str] = [
     "dispatcher_loop_command",
@@ -22,19 +25,55 @@ __all__: list[str] = [
 _PLUGIN_NAME = "livespec-orchestrator-beads-fabro"
 
 
-def plan_threads(*, project_root: Path) -> list[PlanThreadOutput]:
-    return [
-        PlanThreadOutput(
-            topic=topic,
-            path=f"plan/{topic}/",
-            summary=f"Review plan thread {topic}.",
-            command=(
-                f"codex exec {_PLUGIN_NAME}:plan "
-                f"--project-root {_quote(path=project_root)} {shlex.quote(topic)}"
-            ),
-        )
+def plan_threads(
+    *,
+    project_root: Path,
+    config: StoreConfig,
+    items: Iterable[WorkItem],
+) -> list[PlanThreadOutput]:
+    ledger_topics = _ledger_plan_topics(config=config, items=items)
+    fallback_topics = [
+        topic
         for topic in list_plan_threads(project_root=project_root)
+        if topic not in ledger_topics
     ]
+    return [
+        _plan_thread_output(project_root=project_root, topic=topic)
+        for topic in [*sorted(ledger_topics), *fallback_topics]
+    ]
+
+
+def _plan_thread_output(*, project_root: Path, topic: str) -> PlanThreadOutput:
+    return PlanThreadOutput(
+        topic=topic,
+        path=f"plan/{topic}/",
+        summary=f"Review plan thread {topic}.",
+        command=(
+            f"codex exec {_PLUGIN_NAME}:plan "
+            f"--project-root {_quote(path=project_root)} {shlex.quote(topic)}"
+        ),
+    )
+
+
+def _ledger_plan_topics(*, config: StoreConfig, items: Iterable[WorkItem]) -> set[str]:
+    topics: set[str] = set()
+    for item in items:
+        topic = _ledger_plan_topic(item=item)
+        if topic is None:
+            continue
+        _ = read_timeline(config=config, epic_id=item.id)
+        topics.add(topic)
+    return topics
+
+
+def _ledger_plan_topic(*, item: WorkItem) -> str | None:
+    if item.type != "epic" or item.status == "done":
+        return None
+    hint = item.spec_commitment_hint
+    if hint is None or not hint.startswith("plan:"):
+        return None
+    topic = hint.removeprefix("plan:")
+    return topic or None
 
 
 def drive_command(*, project_root: Path, action_id: str) -> str:
