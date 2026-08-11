@@ -1,4 +1,4 @@
-"""`list-plan-threads` thin-transport command."""
+"""`list-plans` thin-transport command."""
 
 import argparse
 import json
@@ -6,18 +6,18 @@ from pathlib import Path
 
 from livespec_orchestrator_beads_fabro.io import write_stdout
 
-__all__: list[str] = ["build_envelope", "list_plan_threads", "main"]
+__all__: list[str] = ["build_envelope", "list_plans", "main"]
 
 _ARCHIVE_DIR_NAME = "archive"
 
 
 def main(*, argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="list-plan-threads")
+    parser = argparse.ArgumentParser(prog="list-plans")
     _ = parser.add_argument("--json", dest="as_json", action="store_true")
     _ = parser.add_argument("--project-root", dest="project_root", default=None)
     args = parser.parse_args(argv)
     project_root = Path(args.project_root) if args.project_root is not None else Path.cwd()
-    topics = list_plan_threads(project_root=project_root)
+    topics = list_plans(project_root=project_root)
     if args.as_json:
         _ = write_stdout(text=json.dumps(build_envelope(topics=topics), sort_keys=True) + "\n")
     else:
@@ -26,7 +26,7 @@ def main(*, argv: list[str] | None = None) -> int:
     return 0
 
 
-def list_plan_threads(*, project_root: Path) -> list[str]:
+def list_plans(*, project_root: Path) -> list[str]:
     plan_dir = project_root / "plan"
     if not plan_dir.is_dir():
         return []
@@ -38,4 +38,4 @@ def list_plan_threads(*, project_root: Path) -> list[str]:
 
 
 def build_envelope(*, topics: list[str]) -> dict[str, list[str]]:
-    return {"plan_threads": topics}
+    return {"plans": topics}

@@ -75,8 +75,8 @@ operator skill, and four thin-transport machine-query surfaces, per livespec's
   beads store
 - `/livespec-orchestrator-beads-fabro:next` — rank the most-ripe impl-side action (pure
   function of store state; no LLM in the ranking path)
-- `/livespec-orchestrator-beads-fabro:list-plan-threads` — enumerate the open
-  (unarchived) plan threads under `plan/` (pure read-and-emit; sibling of
+- `/livespec-orchestrator-beads-fabro:list-plans` — enumerate the open
+  (unarchived) plans under `plan/` (pure read-and-emit; sibling of
   `list-work-items`)
 
 Each skill resolves livespec core's prose and config-named CLIs at
