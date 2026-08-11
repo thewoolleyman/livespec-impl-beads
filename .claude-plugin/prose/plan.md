@@ -1,267 +1,186 @@
 # plan
 
 Harness-neutral driving prose for the `plan` operation, per
-`SPECIFICATION/constraints.md` §"Skill orchestration constraints":
-this artifact is the plugin-owned LLM-facing half of the operation —
-the planning-thread create/resume dialogue, the reasoning-capture and
-handoff-refresh writes, the matured-piece routing, the handoff
-self-sufficiency gate, and the archive-on-close transition. Each
-per-runtime SKILL.md is a THIN binding that resolves the plugin root,
-reads this prose in full, and maps its harness-neutral vocabulary (the
-`<plugin-root>` token, the "ask the user" / "read the file" / "write
-the file" / "fresh-context reader" verbs, the named sibling operations)
-to that runtime's tools. Nothing in this file names a specific agent
-runtime's tools or command namespace.
+`SPECIFICATION/constraints.md` "Skill orchestration constraints".
+This artifact is the plugin-owned LLM-facing half of the Planning Lane:
+the thread create/resume dialogue, write-once research capture, the
+ledger epic anchor, ledger-held handoff timeline entries, scoping
+events, routed child work, and archive gates. Each per-runtime
+`SKILL.md` is a thin binding that resolves the plugin root, reads this
+prose in full, and maps the neutral verbs below to that runtime's tools.
 
-`plan` is the Orchestrator-Plane realization of the **Planning Lane** —
-the durable, multi-session *planning* work that decides what should
-become spec, implementation, or research before any of those lanes is
-committed to. It realizes the repo-agnostic pattern that
-`livespec`'s `non-functional-requirements.md` §"Planning Lane guidance"
-carries (the same cut as grooming: core records the pattern, this
-plugin realizes it), and the contract for this realization is
-`SPECIFICATION/contracts.md` §"Planning Lane realization". Unlike the
-one-shot `capture-*` family, a planning thread is **stateful and
-re-entered** for the same topic, like `groom`.
+`plan` is stateful and re-entered for the same topic. It decides what
+should become spec, implementation, or research before those lanes are
+committed to. The durable coordination record is the plan epic in the
+beads ledger; filesystem artifacts hold research only.
 
 ## Pre-requisites
 
 - The `livespec-orchestrator-beads-fabro` Python package is on the
-  import path (the wrappers self-bootstrap it).
-- A reachable work-items store (a planning thread anchors a ledger
-  epic and routes ripe work into the ledger).
-- `livespec` installed (a matured-reasoning piece routes to the
-  `propose-change` operation).
+  import path; the bundled wrappers self-bootstrap it.
+- A reachable work-items store exists. A planning thread anchors exactly
+  one ledger `epic`.
+- `livespec` is installed for the cross-boundary `propose-change`
+  operation.
 - A `plan/` directory at the project root is the thread store; the
   operation creates it on first use.
 
-## The planning-thread store
+## The Planning Thread Store
 
-A planning thread is a first-class directory **`plan/<topic>/`** holding
-two facets:
+A live planning thread has two stores:
 
-- **At most one handoff** — the reserved filename
-  `plan/<topic>/handoff.md`, the single resumable execution-coordination
-  point for the thread. Only one resumption point may be active per
-  topic; a second handoff (any other `handoff*.md`) is malformed and
-  this operation refuses to create it.
-- **Zero or more research files** — durable reasoning ("why this
-  shape"). A single note MAY sit directly in `plan/<topic>/`; multiple
-  sub-topic notes live under `plan/<topic>/research/` (the directory
-  carries the topic, so the filenames do not repeat it). A young thread
-  MAY be research-only (no handoff yet).
-- **At most one hosted supervision artifact** — the reserved
-  `plan/<topic>/supervisor-handoff.md`, authored by a Control-Plane
-  realization through the repository's normal reviewed commit path.
-  It is NOT a facet and NOT a handoff in this store's sense (it
-  resumes the SUPERVISING actor, never the thread's own work), so the
-  at-most-one-handoff rule is unaffected and the name is the
-  enumerated exception to the `handoff*.md` refusal. This operation
-  neither creates, reads, nor validates it.
+- Filesystem research under `plan/<topic>/research/`. Creation writes
+  one initial research note and no other filesystem artifact. Further
+  reasoning updates add or revise research notes deliberately.
+- One write-once plan epic in the beads ledger. The epic carries the
+  thread slug in its metadata and is the status anchor, handoff anchor,
+  scope-event anchor, and archive lifecycle anchor.
 
-There is NO root `research/` tree: standalone analysis lives in a plan
-thread (or, once the thread closes, under `plan/archive/`), and a
-living reference document lives in `docs/`, `.ai/`, or a dedicated
-top-level topic directory (precedent: `loop-reflection-gate/`).
-Archived threads live under `plan/archive/<topic>/`.
+The operation never authors `plan/<topic>/handoff.md`. Handoffs are
+append-only comments on the plan epic. Each entry is one ledger comment,
+attributed and timestamped, and is read through the same timeline read
+path used by the package command. Existing legacy `handoff.md` files may
+be read only as historical migration input; do not create or update one.
+
+Archived threads move whole directories to `plan/archive/<topic>/`.
+There is no root `research/` tree: standalone analysis lives in a plan
+thread, or after closure under `plan/archive/`.
+
+## Package Commands
+
+The operation's testable package substrate is
+`livespec_orchestrator_beads_fabro.commands.plan`:
+
+- `create_thread(...)` creates `plan/<slug>/research/<file>` and one
+  ledger epic anchor.
+- `append_handoff(...)` appends one plan-epic comment.
+- `read_timeline(...)` reads plan handoff and scope comments
+  oldest-first.
+- `record_scope_event(...)` records requirement carriers and explicit
+  deferrals before implementation children are admitted.
+- `archive_thread(...)` performs both archive gates and then moves the
+  thread directory to `plan/archive/<slug>/`.
+
+Use those package calls when this operation needs deterministic local
+behavior. Continue to use `list-work-items`, `next`, and
+`capture-work-item` for their existing public skill responsibilities.
 
 ## Flow
 
-### Step 1 — Resolve the invocation mode
+### Step 1 - Resolve The Invocation Mode
 
-This operation has two entry modes, fixed by whether a `<slug>`
-argument was supplied:
+This operation has two entry modes:
 
-- **No argument → interactive entry** (Step 2). Used to resume an open
-  thread or start a new one.
-- **`<slug>` argument → strict resume** (Step 3, against an existing
-  thread only). Deterministic: it MUST match an existing `plan/<slug>/`
-  exactly. If no such directory exists, FAIL HARD with an error that
-  lists the existing slugs (the open threads). There is NO fuzzy match
-  and NO accidental create-on-typo — creation happens only through the
-  no-argument interview path (Step 2).
+- No argument means interactive entry. Resume an open thread or start a
+  new one.
+- A `<slug>` argument means strict resume. It must match an existing
+  live `plan/<slug>/` exactly. If it does not, fail hard and list the
+  existing live slugs. Do not create on a typo.
 
-### Step 2 — Interactive entry (no argument): resume or create
+### Step 2 - Interactive Entry
 
-Compose the open-thread list from BOTH sources and present it:
+Compose the open-thread list from both sources and present it:
 
-1. The ledger's open planning epics — via the `list-work-items`
-   operation (`--json`), the ledger ids whose thread the human may
-   resume. Status is READ from the ledger here; it is never stored in a
-   planning artifact (the no-shadow-ledger rule).
-2. The on-disk threads — the `plan/<topic>/` directories (excluding
-   `plan/archive/`).
+1. Open planning epics from the ledger via `list-work-items --json`.
+   Status is read from the ledger only; it is never copied into a
+   planning artifact.
+2. Live filesystem threads from direct child directories under `plan/`,
+   excluding `plan/archive/`.
 
-Ask the user whether to **resume** one of the listed threads (→ Step 3
-against that slug) or **start a new** thread.
+Ask whether to resume one listed thread or start a new thread.
 
-To start a new thread, ask the user to describe it in one or two
-sentences, then **propose a canonical dash-cased slug** derived from
-that description using the SAME canonicalization the `propose-change`
-operation applies to a topic hint: lowercase → replace every run of
-non-`[a-z0-9]` characters with a single hyphen → strip leading and
-trailing hyphens → truncate to 64 characters. The human never
-hand-crafts the identifier, so there are no spaces, no over-long
-strings, and the output is deterministic. Confirm the proposed slug
-with the user (offer to adjust the description if the slug reads
-poorly), then on confirmation:
+To start a new thread, ask for a one- or two-sentence topic
+description. Propose a canonical dash-cased slug using the same
+canonicalization as `propose-change`: lowercase, replace each run of
+non-`[a-z0-9]` characters with one hyphen, strip leading and trailing
+hyphens, and truncate to 64 characters. Confirm the proposed slug.
 
-- **Create the thread directory** `plan/<slug>/` (write the initial
-  reasoning note the user described, or leave it for a later
-  invocation).
-- **Anchor a ledger epic** for the thread via the `capture-work-item`
-  operation — an `epic`-type work-item whose title names the thread.
-  This is the thread's status anchor; its id is what the handoff and
-  the open-thread list cite. Filing through `capture-work-item` keeps
-  the cross-plane write per-operation consented and routes it through
-  the one consented store-writer (never a direct cross-plane write).
+On confirmation, create exactly these records:
 
-### Step 3 — Work the thread
+1. One initial research note under `plan/<slug>/research/`.
+2. One ledger `epic` anchor for the thread.
 
-Within a thread (resumed by slug or just created), any of the following
-may happen this invocation; ask the user which, one at a time:
+Do not create `handoff.md`, status files, terminal markers, local queue
+files, or any other thread metadata file.
 
-- **Update the reasoning.** Write or revise a research note under
-  `plan/<slug>/` (or `plan/<slug>/research/` for a sub-topic).
-- **Refresh the handoff.** Write or update `plan/<slug>/handoff.md`,
-  then run the **handoff self-sufficiency gate** (Step 4) before
-  declaring it ready. A handoff cites the thread's ledger ids
-  read-only and composes status from `list-work-items` / `next`; it
-  never embeds a parallel `[ ]`/`[x]` work queue that shadows the
-  ledger.
-- **Route a matured piece.** When a piece of the thread is ripe:
-  - *becomes spec* → hand off to the `propose-change` operation
-    (cross-boundary, human-accepts).
-  - *becomes ledger work* → file it via the `capture-work-item`
-    operation as a CHILD of the thread's epic anchor (linked via
-    `depends_on`). Routing ripe work into the ledger is
-    the second of the two one-directional seams; it always goes through
-    `capture-work-item`, never a direct store write. The planning
-    session **FILES** ripe work; it does **NOT** hand-code the
-    implementation inline. Ready, factory-safe implementation is built
-    **factory-side** under the janitor gate — the Dispatcher drains
-    `ready` items, or an operator runs the `drive` operation —
-    never inline in the planning session (that is the retired
-    inline-overseer anti-pattern).
-- **Close the thread** → archive it (Step 5).
+### Step 3 - Work The Thread
 
-### Step 4 — The handoff self-sufficiency gate
+Within a thread, ask which action to take and perform one action at a
+time:
 
-A handoff is NOT ready until it is self-sufficient: a fresh session
-opening ONLY the handoff can execute its next action without
-re-deriving anything. Enforce all four before declaring a handoff
-ready; if any fails, repair the handoff and re-run the gate.
+- Update reasoning. Add or revise a research note under
+  `plan/<slug>/research/`.
+- Append a handoff entry. Write one plan-epic ledger comment with the
+  next action, current facts, and read-first chain. Read it back through
+  `read_timeline(...)` before declaring it recorded.
+- Record a scoping event. Before implementation children are admitted,
+  write a scope comment that names the requirement carriers and the
+  explicit deferrals. Deferrals must be concrete: what is deferred, why
+  it is not part of the current implementation children, and where it
+  will be reconsidered.
+- Route a matured piece. If it becomes spec, hand it to
+  `propose-change`. If it becomes ledger work, file it through
+  `capture-work-item` as a child of the plan epic after the scoping
+  event exists. Planning sessions file ripe work; they do not implement
+  it inline.
+- Close the thread. Run the archive gates in Step 5.
 
-1. **Cold-open readiness test.** Have a **fresh-context reader** (a
-   sub-agent with no prior session context in runtimes that provide
-   one; otherwise a deliberately cleared re-read) open ONLY the handoff
-   and the artifacts on its read-first chain, and confirm it can
-   proceed to the named next action without consulting chat history or
-   re-deriving anything. If the reader cannot proceed, the handoff is
-   not self-sufficient — fix it (commit the missing artifact, add it to
-   the read-first chain) rather than relying on conversational context.
-2. **One path.** The next-session command names exactly ONE path — the
-   handoff. If the handoff's "next" text needs to ALSO list other
-   files, that is the smell that the handoff is not self-sufficient:
-   fold those references into the handoff's read-first chain and fix the
-   handoff, do not list more paths.
-3. **No dangling reference (fail-closed).** Every artifact the handoff
-   cites — its read-first chain and its next action — MUST exist and be
-   committed. Check each referenced path with the runtime's shell
-   (`git ls-files --error-unmatch <path>`, or existence + tracked
-   status); a missing or uncommitted reference FAILS the gate. Surface
-   the offending path and stop — do not declare the handoff ready.
-4. **Dispatch routing (the factory path).** When the handoff's next
-   action includes implementing ledger-backed work, it MUST name the
-   factory dispatch route — the `drive` operation (action `impl:<id>`)
-   or the Dispatcher drain — as THE implementation path, and it MUST
-   NOT direct the reader to the in-session Red→Green driver (the
-   `implement` operation), except for items explicitly recorded as
-   factory-ineligible. "Factory path" refers EXCLUSIVELY to dispatch
-   through the Dispatcher/`drive`; a handoff that uses the phrase for
-   in-session implementation FAILS this gate.
+### Step 4 - Handoff Timeline Requirements
 
-### Step 5 — Archive on epic close
+A handoff entry is ready only when a fresh session can continue from the
+ledger timeline without chat history:
 
-A plan thread's lifecycle binds to its ledger epic: `plan/<topic>/` is
-active if and only if its epic is open, and archived to
-`plan/archive/<topic>/` if and only if the epic is closed. When the
-user closes the thread, close the epic anchor (via the ledger) AND move
-the directory:
+1. The entry names exactly one next action.
+2. Every path it cites exists and is committed.
+3. If the next action is implementation work, it names the factory route:
+   the `drive` operation (`impl:<id>`) or Dispatcher drain. Only items
+   explicitly recorded as factory-ineligible may name an in-session
+   implementation route.
+4. It does not embed a parallel checklist or status queue. Status is
+   composed from the ledger via `list-work-items` and `next`.
+
+### Step 5 - Archive Gates
+
+A plan thread is active if and only if its epic is open. It is archived
+if and only if its epic is closed and its directory has moved to
+`plan/archive/<topic>/`.
+
+Archiving has two required legs:
+
+1. Mechanical child disposition. Refuse archive if any child of the plan
+   epic is not disposed. Undisposed means any child work-item whose
+   ledger status is not closed.
+2. Completeness-review evidence. Refuse archive unless an independent
+   completeness-review evidence id is supplied. The review itself is a
+   downstream gate; this operation records and requires the evidence
+   reference, but does not spawn the reviewer.
+
+After both gates pass, close the epic and move the whole directory:
 
 ```text
 git mv plan/<topic>/ plan/archive/<topic>/
 ```
 
-Reopening the epic unarchives it (move back). Nothing is lost — the
-archived thread stays under `plan/archive/` and in git history; to keep
-a research note as living reference, move it to `docs/`, `.ai/`, or a
-dedicated top-level topic directory deliberately.
+Leave nothing at `plan/<topic>/`: no stub, marker, forwarding note, or
+empty directory. If unresolved work remains, either keep the thread live
+with its epic open, or transfer every blocker to another live plan thread
+or work-item before archiving.
 
-**Archival is total.** Move the WHOLE directory and leave NOTHING at
-`plan/<topic>/` — no stub, no terminal marker, no forwarding note, not
-even the empty directory. Never create one, and never accept one as the
-outcome of an archive you perform. In no committed tree may the same
-topic exist at both `plan/<topic>/` and `plan/archive/<topic>/`, so do
-not reuse a retired topic's slug for a new thread while its archive
-remains — pick a new slug; or, ONLY if the new work genuinely continues
-the old thread, reopen its epic, which unarchives it by moving it back.
-Never move an archived thread back without reopening its epic: that
-leaves an active thread whose epic is closed.
+## Important Properties
 
-**Closing with something unresolved.** Do exactly ONE of two things.
-Either LEAVE THE THREAD UN-ARCHIVED, its epic staying OPEN, until its
-blockers are resolved; or TRANSFER ALL BLOCKERS to a different or new
-non-archived plan thread and/or work-item — a work-item transfer goes
-through `capture-work-item` — and only then archive the thread whole.
-Archiving it and leaving a note explaining what is left is not a third
-option. Residue at the live path keeps a finished thread readable as
-ACTIVE by every consumer that discovers threads by directory, so its
-bookkeeping is never reclaimed and it stays restartable. In spirit this is
-`prune-history` for planning threads:
-the active view stays clean, completed threads move aside rather than
-getting deleted.
+- Research is filesystem-held; handoffs are ledger-held.
+- Creation writes one research note plus one epic anchor and nothing
+  else.
+- Status is derived from the ledger and never shadowed in files.
+- Scope events cut requirements and explicit deferrals before
+  implementation children are admitted.
+- Archive has two gates: no undisposed children, and independent
+  completeness-review evidence.
+- The operation never authors `handoff.md`.
 
-The mechanical backstops (exactly one handoff per topic; `archived`
-matches `epic-closed`) are five-slot conformance concerns whose
-always-on enforcement is realized by the Conformance Pattern, not by
-this operation; this prose enforces them behaviorally (it writes only
-the reserved `handoff.md`, and it archives on close).
+## What This Operation Does Not Do
 
-## Important properties
-
-- **Status is derived, never stored** — the open-thread list and every
-  handoff compose status from the ledger (`list-work-items` / `next`)
-  as a read-only first action; no planning artifact stores a status or
-  a shadow work queue (the no-shadow-ledger rule).
-- **Two one-directional seams** — *prompt → ledger* is read-only (cite
-  ids, compose status); *plan → work* routes ripe work through the
-  `capture-work-item` operation. Never a direct cross-plane store
-  write.
-- **Strict `plan <slug>`** — the argument form never creates; it
-  resolves an existing thread or fails listing slugs. Creation is the
-  interview path's job, with a canonical slug the human confirms.
-- **Self-sufficient handoffs** — a handoff is declared ready only after
-  the Step 4 gate (cold-open test + one path + no dangling reference +
-  dispatch routing).
-- **No new ledger state, no new store path beyond `plan/`** — the
-  thread anchors a plain Beads `epic` and reuses the `capture-work-item`
-  machinery; `plan/<topic>/` and `plan/archive/<topic>/` are the only
-  new paths.
-
-## What this operation does NOT do
-
-- Does NOT write the ledger directly — epic anchors and child work-items
-  are filed through the `capture-work-item` operation; status is read
-  through `list-work-items` / `next`.
-- Does NOT create a thread from the `<slug>` argument form — that form
-  is strict-resume-or-fail.
-- Does NOT decompose an epic into ready slices — use the `groom`
-  operation.
-- Does NOT detect gaps or drift — use the `capture-impl-gaps` /
-  `capture-spec-drift` operations.
-- Does NOT dispatch work — the Dispatcher drains `ready` items.
-- Does NOT implement work inline — a planning session FILES ripe work
-  and never hand-codes its implementation; ready, factory-safe
-  implementation is built factory-side (the Dispatcher / `drive`)
-  under the janitor gate.
+- Does not write status or queues into planning files.
+- Does not create a thread from strict `<slug>` resume mode.
+- Does not implement child work inline.
+- Does not spawn the downstream completeness reviewer.
