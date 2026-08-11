@@ -1718,28 +1718,56 @@ because that would remove the required guard and move `bd-real` onto `bd`.
 
 ## Immediate next action
 
-Stop for exact-head supervisor review of the draft one-file O4 create-boundary
-correction PR whose head branch is `docs/correct-o4-create-boundary`. The review
-must confirm that this handoff is the only changed path; previews explicitly
-expect native `open`, empty ID, and an optional omitted `parent_id`; every O4
-dry-run and real create uses the configured wrapper and public guard from the
-exact target root without a tenant selector; strict real-create read-back still
-requires a native ID, `backlog`, stored null parent, and every exact row field;
-the fail-open stop boundary forbids normalization, deletion, retry, or another
-write after a mismatch; and `-C` target anchoring remains available for
-read-only and dependency commands. The review must also confirm that the exact
-O4 external references, fields, labels, same-tenant dependency direction,
-independent `dolt-server-wgy` closed precondition, and PR #1161 ownership fence
-are unchanged, and that this correction performs and authorizes no ledger dry
-run or write. Auto-merge must remain disabled before and throughout review.
+### Restart checkpoint
 
-This review is the only current action. Do not merge under this obligation.
-Fresh reruns of both the preparation and attended previews may run only after
-this correction is reviewed and merged and a new durable dry-run obligation
-explicitly authorizes their exact-target-root, selector-free forms; the prior
-`-C` selector-bearing preparation preview is not reusable. Any dry run, filing,
-linking, assigning, admitting, or dispatching and every fixture write, server
-action, migration, backup, restore, cleanup, image operation, host copy, or
-rollout require a new durable supervisor obligation and explicit authorization.
-Do not begin O4 preparation or attended execution, O6, or O7 from this
-correction alone.
+The O4 filing contract is merged and the bounded filing work is complete. The
+last verified ledger state on 2026-08-07 is:
+
+- Factory-safe O4 preparation is native task `bd-ib-8azd`, P2, `ready`,
+  unassigned, with null parent, `admission:auto`, `acceptance:ai-only`, zero
+  `factory-safety:*` labels, no dependencies, and exactly one dependent.
+- Attended O4 rehearsal is native task `bd-ib-ao3j`, P2, `backlog`, unassigned,
+  with null parent and exactly one `blocks` dependency on `bd-ib-8azd`. It must
+  remain manual and must not be admitted until preparation is independently
+  closed. The independently read prerequisite `dolt-server-wgy` was closed.
+- The two creates and their one same-tenant edge changed the local ledger from
+  448 to 450 rows, adding exactly two backlog rows before preparation admission.
+  Exact titles and external references each resolve once.
+
+Two separately authorized factory submissions were attempted through the
+distributed `livespec-orchestrator-beads-fabro:drive` surface. The first was
+refused because preparation had not yet moved from backlog to ready. After its
+one authorized admission write, the second submission failed at
+`run-config-overlay` before sandbox launch because `CLAUDE_CODE_OAUTH_TOKEN` was
+reported exhausted or rate-limited with HTTP 429. That action returned
+`fabro_run_id: null` but left `bd-ib-8azd` active and assigned to `fabro`.
+
+The guarded pre-branch/no-run recovery from `bd-ib-zp3u7y` was then applied
+exactly once through `move:bd-ib-8azd:ready`. Before release, read-only proof
+found no target Fabro run among 544 historical/current runs, no exact dispatch
+lock at `tmp/fabro-dispatch-bd-ib-8azd.lock`, no matching remote branch, and no
+matching pull request. The valve returned green, journaled
+`human-valve-move`, and immediate read-back proved `bd-ib-8azd` ready and
+unassigned with every other field and relation logically unchanged. The
+unrelated runnable livespec-dev-tooling run whose full ID is
+`01KZ2P36KXCK4P7JFFG696Q6V1` was never touched. Worker-status receipts 120
+through 125 retain the replayable command and measurement details, but this
+checkpoint contains the complete state needed to resume.
+
+### Resume boundary
+
+There is no authorized retry or implementation action at this checkpoint. On a
+fresh session, read the newest append-only supervisor marker and remeasure the
+item, relation, forge, run, lock, branch, and pull-request facts before acting.
+A new durable supervisor obligation is required for any further preparation
+submission. Never infer permission from the item being ready, never retry a
+credential refusal, and do not inspect or change credentials in this plan
+thread. A future authorized factory submission must still use the configured
+environment wrapper and the distributed drive action, never a direct Dispatcher
+call or manual implementation.
+
+Do not admit or execute `bd-ib-ao3j`, and do not perform a fixture write, server
+action, migration, backup, restore, cleanup, image operation, host copy,
+`/usr/local/bin` mutation, production-tenant or Dolt-data mutation, secret
+action, rollout, or Fabro code/config/service/server mutation without a new
+durable obligation and the attended authorization required by this package.
