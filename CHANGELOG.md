@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.51.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.50.2...v0.51.0) (2026-08-11)
+
+
+### Features
+
+* add plan ledger handoff behavior ([95ff4e5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/95ff4e572ce3bd0708361c6eb077e61923a1f19c))
+
+
+### Bug Fixes
+
+* gate plan archive on ledger child edges ([6b5d01f](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/6b5d01f96fab6019f5717023cca712d1e2f80ec6))
+
 ## [0.50.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.50.1...v0.50.2) (2026-08-04)
 
 
