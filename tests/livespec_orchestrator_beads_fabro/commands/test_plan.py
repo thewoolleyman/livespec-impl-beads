@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from livespec_orchestrator_beads_fabro._beads_client import (
+    EDGE_BLOCKS,
     FakeBeadsClient,
     IssueDraft,
     make_beads_client,
@@ -159,7 +160,12 @@ def test_archive_refuses_undisposed_children(tmp_path: Path) -> None:
         research_text="research\n",
         now="2026-08-11T00:00:00Z",
     )
-    _ = _fake().create_issue(draft=_draft(issue_id="bd-ib-child", parent_id=created["epic_id"]))
+    _ = _fake().create_issue(draft=_draft(issue_id="bd-ib-child", parent_id=None))
+    _fake().add_dependency(
+        from_id="bd-ib-child",
+        to_id=created["epic_id"],
+        edge_type=EDGE_BLOCKS,
+    )
     _fake().update_issue(issue_id="bd-ib-child", status="ready")
 
     with pytest.raises(plan.PlanArchiveRefusedError) as exc:
@@ -172,6 +178,19 @@ def test_archive_refuses_undisposed_children(tmp_path: Path) -> None:
         )
 
     assert "undisposed child work-items: bd-ib-child" in str(exc.value)
+
+
+def test_archive_edge_predicate_ignores_malformed_dependency_records() -> None:
+    plan = importlib.import_module("livespec_orchestrator_beads_fabro.commands.plan")
+
+    assert not plan._has_blocks_edge_to_epic(  # noqa: SLF001 - malformed ledger-record coverage.
+        record={"dependencies": "not-a-list"},
+        epic_id="bd-ib-epic",
+    )
+    assert not plan._is_blocks_edge_to_epic(  # noqa: SLF001 - malformed ledger-edge coverage.
+        edge="not-an-edge",
+        epic_id="bd-ib-epic",
+    )
 
 
 def test_archive_requires_completeness_review_evidence(tmp_path: Path) -> None:
@@ -211,7 +230,12 @@ def test_archive_moves_thread_and_closes_epic_after_two_gates(tmp_path: Path) ->
         research_text="research\n",
         now="2026-08-11T00:00:00Z",
     )
-    _ = _fake().create_issue(draft=_draft(issue_id="bd-ib-child", parent_id=created["epic_id"]))
+    _ = _fake().create_issue(draft=_draft(issue_id="bd-ib-child", parent_id=None))
+    _fake().add_dependency(
+        from_id="bd-ib-child",
+        to_id=created["epic_id"],
+        edge_type=EDGE_BLOCKS,
+    )
     _fake().close_issue(issue_id="bd-ib-child", reason="completed")
 
     result = plan.archive_thread(
