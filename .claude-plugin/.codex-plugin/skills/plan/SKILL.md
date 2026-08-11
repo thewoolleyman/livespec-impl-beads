@@ -1,6 +1,6 @@
 ---
 name: plan
-description: Open or resume a durable, multi-session planning thread in `plan/<topic>/` (reasoning + a self-sufficient handoff), anchor a ledger epic, route matured pieces to the spec lifecycle or the ledger, and archive on close. Invoked as livespec-orchestrator-beads-fabro:plan (bare to create or resume interactively; with a slug to resume strictly).
+description: Open or resume a durable planning thread with filesystem research plus ledger-held plan-epic handoff comments, route scoped work to spec or ledger children, and archive only after child-disposition and completeness-review evidence gates pass. Invoked as livespec-orchestrator-beads-fabro:plan (bare to create or resume interactively; with a slug to resume strictly).
 ---
 
 # plan — Codex binding
@@ -8,9 +8,9 @@ description: Open or resume a durable, multi-session planning thread in `plan/<t
 Thin Codex binding for the `plan` operation of the
 **livespec-orchestrator-beads-fabro** plugin. The complete
 harness-neutral driving prose — the planning-thread create/resume
-dialogue, the reasoning-capture and handoff-refresh writes, the
-matured-piece routing, the handoff self-sufficiency gate, the
-archive-on-close transition, and the `livespec_orchestrator_beads_fabro.*`
+dialogue, write-once research and epic-anchor creation, ledger-held
+handoff comment writes, scope-event recording, matured-piece routing,
+archive gates, and the `livespec_orchestrator_beads_fabro.*`
 package calls — is the plugin's own artifact at
 `$PLUGIN_ROOT/prose/plan.md`. FIRST resolve `$PLUGIN_ROOT` (next
 section), THEN read that prose file in full, then execute it
@@ -138,11 +138,10 @@ cat "$PLUGIN_ROOT/prose/plan.md"
   the shell tool against the bundled
   `livespec_orchestrator_beads_fabro` package (the wrappers
   self-bootstrap the import path).
-- **"fresh-context reader" (the cold-open readiness test)** — a
-  sub-agent that opens ONLY the handoff and its read-first chain when
-  this runtime exposes one to skills; otherwise a deliberately cleared
-  re-read that consults only those paths and ignores conversational
-  context.
+- **"append a handoff" / "read the timeline" / "record a scoping
+  event" / "archive the thread"** — call the package primitives in
+  `livespec_orchestrator_beads_fabro.commands.plan` from a Python
+  snippet, using the project root and resolved store config.
 - **"the `list-work-items` / `next` operation"** — the `list-work-items`
   and `next` skills in this plugin (the read-only status surface;
   invoke them by name).
