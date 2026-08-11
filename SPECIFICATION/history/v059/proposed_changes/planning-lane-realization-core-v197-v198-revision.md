@@ -29,3 +29,21 @@ reviewed_at: 2026-08-09T12:01:11Z
 verdict: NO BLOCKERS
 proposal_stem: planning-lane-realization-core-v197-v198
 content_digest: 86c95993edc891b01ae715642075dae68a97b11d0bab7a6b6449dde0436162ac
+
+## Accepted deviation — the recorded review does not cover the digest-bound bytes
+
+This revision's `reviewed_at` of `2026-08-09T12:01:11Z` timestamps an
+independent review of the PROPOSAL bytes only. The `content_digest` recorded
+above spans the proposal bytes AND the resulting-file bytes, and those resulting
+bytes were recomposed at `revised_at` `2026-08-09T13:44:33Z` during a
+payload-fidelity repair. The independent adversarial review that actually covers
+the digest-bound bytes was delivered approximately five minutes AFTER this
+ratification, and returned `NO BLOCKERS` on content; it is preserved verbatim at
+`SPECIFICATION/history/v059/proposed_changes/ratification-review-post-repair.md`.
+
+No conforming correction exists: the contract requires `reviewed_at` to precede
+`revised_at`, the covering review postdates it, and a content-identical
+re-ratification would fail `doctor-accept-decision-snapshot-consistency`. The
+maintainer accepted this as a documented deviation on 2026-08-09 rather than
+revert spec content that independent review confirmed correct. The fleet-wide
+hardening is tracked as `livespec-yrq4`.
