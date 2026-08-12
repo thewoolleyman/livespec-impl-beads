@@ -1,6 +1,6 @@
 ---
 name: needs-attention
-description: Compose spec, implementation, human-valve, plan-thread, and hygiene gather primitives into a Markdown attention list. Invoke as `/livespec-orchestrator-beads-fabro:needs-attention [--project-root <path>]`.
+description: Compose spec, implementation, human-valve, plan, and hygiene gather primitives into a Markdown attention list. Invoke as `/livespec-orchestrator-beads-fabro:needs-attention [--project-root <path>]`.
 allowed-tools: Bash
 ---
 

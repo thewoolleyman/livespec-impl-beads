@@ -1,6 +1,6 @@
 ---
 name: plan
-description: Open or resume a durable planning thread with filesystem research plus ledger-held plan-epic handoff comments, route scoped work to spec or ledger children, and archive only after child-disposition and completeness-review evidence gates pass. Invoked as livespec-orchestrator-beads-fabro:plan (bare to create or resume interactively; with a slug to resume strictly).
+description: Open or resume a durable plan with filesystem research plus ledger-held plan-epic handoff comments, route scoped work to spec or ledger children, and archive only after child-disposition and completeness-review evidence gates pass. Invoked as livespec-orchestrator-beads-fabro:plan (bare to create or resume interactively; with a slug to resume strictly).
 ---
 
 # plan — Codex binding
