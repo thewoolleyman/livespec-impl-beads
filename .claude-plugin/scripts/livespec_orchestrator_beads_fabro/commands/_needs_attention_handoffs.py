@@ -9,8 +9,7 @@ from pathlib import Path
 from livespec_runtime.needs_attention import PlanThreadOutput
 
 from livespec_orchestrator_beads_fabro.commands.list_plan_threads import list_plan_threads
-from livespec_orchestrator_beads_fabro.commands.plan import read_timeline
-from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
+from livespec_orchestrator_beads_fabro.types import WorkItem
 
 __all__: list[str] = [
     "dispatcher_loop_command",
@@ -28,10 +27,9 @@ _PLUGIN_NAME = "livespec-orchestrator-beads-fabro"
 def plan_threads(
     *,
     project_root: Path,
-    config: StoreConfig,
     items: Iterable[WorkItem],
 ) -> list[PlanThreadOutput]:
-    ledger_topics = _ledger_plan_topics(config=config, items=items)
+    ledger_topics = _ledger_plan_topics(items=items)
     fallback_topics = [
         topic
         for topic in list_plan_threads(project_root=project_root)
@@ -55,13 +53,12 @@ def _plan_thread_output(*, project_root: Path, topic: str) -> PlanThreadOutput:
     )
 
 
-def _ledger_plan_topics(*, config: StoreConfig, items: Iterable[WorkItem]) -> set[str]:
+def _ledger_plan_topics(*, items: Iterable[WorkItem]) -> set[str]:
     topics: set[str] = set()
     for item in items:
         topic = _ledger_plan_topic(item=item)
         if topic is None:
             continue
-        _ = read_timeline(config=config, epic_id=item.id)
         topics.add(topic)
     return topics
 

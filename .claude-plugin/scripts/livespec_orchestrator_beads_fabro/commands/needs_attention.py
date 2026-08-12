@@ -119,7 +119,6 @@ def build_attention(
             ),
             plan_threads=plan_threads(
                 project_root=project_root,
-                config=config.work_items_path,
                 items=materialized,
             ),
             hygiene_scan=(),

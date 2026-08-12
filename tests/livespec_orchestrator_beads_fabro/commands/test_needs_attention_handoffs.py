@@ -3,18 +3,7 @@
 from pathlib import Path
 
 from livespec_orchestrator_beads_fabro.commands._needs_attention_handoffs import plan_threads
-from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
-
-
-def _config() -> StoreConfig:
-    return StoreConfig(
-        tenant="livespec-impl-beads",
-        prefix="bd",
-        server_user="livespec-impl-beads",
-        database="livespec-impl-beads",
-        bd_path="bd",
-        fake=True,
-    )
+from livespec_orchestrator_beads_fabro.types import WorkItem
 
 
 def _epic(*, spec_commitment_hint: str | None) -> WorkItem:
@@ -42,7 +31,6 @@ def test_plan_threads_ignores_epics_without_plan_commitment(tmp_path: Path) -> N
     assert (
         plan_threads(
             project_root=tmp_path,
-            config=_config(),
             items=[_epic(spec_commitment_hint="SPECIFICATION/contracts.md")],
         )
         == []
