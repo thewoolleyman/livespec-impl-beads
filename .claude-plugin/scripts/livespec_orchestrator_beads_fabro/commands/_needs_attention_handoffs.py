@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import shlex
+from collections.abc import Iterable
 from pathlib import Path
 
 from livespec_runtime.needs_attention import PlanThreadOutput
 
 from livespec_orchestrator_beads_fabro.commands.list_plans import list_plans
+from livespec_orchestrator_beads_fabro.commands.plan import read_timeline
+from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
 
 __all__: list[str] = [
     "dispatcher_loop_command",
@@ -20,21 +23,64 @@ __all__: list[str] = [
 ]
 
 _PLUGIN_NAME = "livespec-orchestrator-beads-fabro"
+_PLAN_HINT_PREFIX = "plan:"
 
 
-def plans(*, project_root: Path) -> list[PlanThreadOutput]:
+def plans(
+    *,
+    project_root: Path,
+    config: StoreConfig,
+    items: Iterable[WorkItem],
+) -> list[PlanThreadOutput]:
     return [
         PlanThreadOutput(
             topic=topic,
             path=f"plan/{topic}/",
-            summary=f"Review plan {topic}.",
+            summary=f"Review plan thread {topic}.",
             command=(
                 f"codex exec {_PLUGIN_NAME}:plan "
                 f"--project-root {_quote(path=project_root)} {shlex.quote(topic)}"
             ),
         )
-        for topic in list_plans(project_root=project_root)
+        for topic in _plan_topics(project_root=project_root, config=config, items=items)
     ]
+
+
+def _plan_topics(
+    *,
+    project_root: Path,
+    config: StoreConfig,
+    items: Iterable[WorkItem],
+) -> list[str]:
+    return sorted(
+        {
+            *list_plans(project_root=project_root),
+            *_ledger_plan_topics(config=config, items=items),
+        }
+    )
+
+
+def _ledger_plan_topics(*, config: StoreConfig, items: Iterable[WorkItem]) -> list[str]:
+    topics: list[str] = []
+    for item in items:
+        topic = _plan_topic(item=item)
+        if topic is None:
+            continue
+        _ = read_timeline(config=config, epic_id=item.id)
+        topics.append(topic)
+    return topics
+
+
+def _plan_topic(*, item: WorkItem) -> str | None:
+    hint = item.spec_commitment_hint
+    if item.type != "epic" or item.status == "done" or hint is None:
+        return None
+    if not hint.startswith(_PLAN_HINT_PREFIX):
+        return None
+    topic = hint.removeprefix(_PLAN_HINT_PREFIX)
+    if topic == "":
+        return None
+    return topic
 
 
 def drive_command(*, project_root: Path, action_id: str) -> str:
