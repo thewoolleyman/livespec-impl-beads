@@ -61,7 +61,7 @@ Resolve the routing before driving anything in-session:
      repo is not factory-wired) and the work must not wait;
    - the **maintainer explicitly directed** in-session execution for
      this item in this session.
-4. **Non-product changesets** (docs, spec prose, plan threads,
+4. **Non-product changesets** (docs, spec prose, plans,
    work-item records, config chores — what the Red-Green-Replay gate
    exempts) are not factory-gated; proceed to Step 1.
 

@@ -18,16 +18,16 @@ beads ledger; filesystem artifacts hold research only.
 
 - The `livespec-orchestrator-beads-fabro` Python package is on the
   import path; the bundled wrappers self-bootstrap it.
-- A reachable work-items store exists. A planning thread anchors exactly
+- A reachable work-items store exists. A plan anchors exactly
   one ledger `epic`.
 - `livespec` is installed for the cross-boundary `propose-change`
   operation.
-- A `plan/` directory at the project root is the thread store; the
+- A `plan/` directory at the project root is the plan store; the
   operation creates it on first use.
 
-## The Planning Thread Store
+## The Plan Store
 
-A live planning thread has two stores:
+A live plan has two stores:
 
 - Filesystem research under `plan/<topic>/research/`. Creation writes
   one initial research note and no other filesystem artifact. Further
@@ -141,7 +141,7 @@ ledger timeline without chat history:
 
 ### Step 5 - Archive Gates
 
-A plan thread remains live until its work is genuinely complete:
+A plan remains live until its work is genuinely complete:
 implemented, merged, and, where a release applies, shipped and verified.
 Do not archive merely because the plan epic's ledger status moved to
 closed; closed can also mean regroomed out, superseded, or otherwise
@@ -171,8 +171,8 @@ git mv plan/<topic>/ plan/archive/<topic>/
 ```
 
 Leave nothing at `plan/<topic>/`: no stub, marker, forwarding note, or
-empty directory. If unresolved work remains, either keep the thread live
-with its epic open, or transfer every blocker to another live plan thread
+empty directory. If unresolved work remains, either keep the plan live
+with its epic open, or transfer every blocker to another live plan
 or work-item before archiving.
 
 ## Important Properties

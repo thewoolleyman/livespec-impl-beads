@@ -8,7 +8,7 @@ thread-specific valves, and its own Corrections log.
 ## HALT-first preconditions
 
 Before driving a worker, verify the exact worker session, exact supervisor
-session, live agent drivers, plan-thread path, and worker working directory.
+session, live agent drivers, plan path, and worker working directory.
 Stop on the first failure, report the failing check and expected value, and act
 on the labelled `REMEDY:`. Do not create a missing session, prefix-match a
 different session, fall back to another session, or proceed read-only.
