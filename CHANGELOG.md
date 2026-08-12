@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.52.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.51.0...v0.52.0) (2026-08-12)
+
+
+### Features
+
+* rename list surface to list-plans ([eaeb000](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/eaeb000881f83a06f29a5ac75fddbc2d11602669))
+
 ## [0.51.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.50.2...v0.51.0) (2026-08-11)
 
 
