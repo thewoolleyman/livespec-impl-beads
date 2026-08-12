@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.52.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.52.0...v0.52.1) (2026-08-12)
+
+
+### Bug Fixes
+
+* gather needs-attention plans from ledger ([7a68b4b](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/7a68b4b7086e6dd34bda9d23fe5e076a369d923f))
+
 ## [0.52.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.51.0...v0.52.0) (2026-08-12)
 
 
