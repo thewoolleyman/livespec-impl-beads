@@ -1,4 +1,4 @@
-"""Plan-thread primitives backed by ledger-held handoff comments."""
+"""Plan primitives backed by ledger-held handoff comments."""
 
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ _RESEARCH_DIR = "research"
 
 
 class PlanArchiveRefusedError(Exception):
-    """Expected refusal raised when a plan thread cannot be archived."""
+    """Expected refusal raised when a plan cannot be archived."""
 
     @classmethod
     def missing_completeness_review(cls) -> PlanArchiveRefusedError:
@@ -65,7 +65,7 @@ def create_thread(  # noqa: PLR0913 — package primitive mirrors the plan-creat
     research_text: str,
     now: str,
 ) -> dict[str, str]:
-    """Create a plan thread with one research note and one ledger epic anchor."""
+    """Create a plan with one research note and one ledger epic anchor."""
     topic_dir = project_root / _PLAN_DIR / slug
     research_path = topic_dir / _RESEARCH_DIR / research_filename
     research_path.parent.mkdir(parents=True, exist_ok=False)
@@ -75,7 +75,7 @@ def create_thread(  # noqa: PLR0913 — package primitive mirrors the plan-creat
         type="epic",
         status="backlog",
         title=title,
-        description=f"Plan thread anchor for plan/{slug}.",
+        description=f"Plan anchor for plan/{slug}.",
         origin="freeform",
         gap_id=None,
         rank=key_between(a=None, b=None),
