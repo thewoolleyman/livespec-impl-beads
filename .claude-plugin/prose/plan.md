@@ -141,9 +141,18 @@ ledger timeline without chat history:
 
 ### Step 5 - Archive Gates
 
-A plan thread is active if and only if its epic is open. It is archived
-if and only if its epic is closed and its directory has moved to
-`plan/archive/<topic>/`.
+A plan thread remains live until its work is genuinely complete:
+implemented, merged, and, where a release applies, shipped and verified.
+Do not archive merely because the plan epic's ledger status moved to
+closed; closed can also mean regroomed out, superseded, or otherwise
+retired without completing the work.
+
+The only exception is an explicit handoff at archive time: any remaining
+work must be transferred to named follow-up plan(s) or work-item(s), and
+the archive record must state those names exactly. Mechanical enforcement
+of this corrected archive rule is tracked outside this repo in
+`livespec-dev-tooling-5asgvm` and the related converse-gap item
+`livespec-dev-tooling-q3emww`.
 
 Archiving has two required legs:
 
