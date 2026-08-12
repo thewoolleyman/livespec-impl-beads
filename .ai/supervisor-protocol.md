@@ -108,6 +108,39 @@ Idle plus queued input is stuck, not idle. Never name a variable `TMUX`, never
 run `tmux kill-server`, and never kill the acting overseer daemon in
 `livespec-overseer:1.1`.
 
+## Runtime session adoption
+
+Session adoption is runtime-specific. Do not collapse Claude and Codex into one
+command shape, and do not treat a tmux session name as an adoption key. A tmux
+target is only the pane address used to inspect and drive a live session.
+
+### Claude
+
+Claude adoption uses the registry name. Fresh launch:
+
+```sh
+claude --dangerously-skip-permissions -n <topic>
+```
+
+Live repair: `/rename <topic>` only when the session is not at a structured
+permission gate or a numbered-cursor gate.
+
+### Codex
+
+Codex adoption uses `session_index.jsonl` `thread_name`. Restart: recover the
+session UUID from `session_index.jsonl` by topic, then use exactly:
+
+```sh
+codex resume --dangerously-bypass-approvals-and-sandbox <session-id> "<kick>"
+```
+
+Fresh launch: immediately use `/rename <topic>` so the `session_index.jsonl`
+`thread_name` is the adoption join.
+
+These instructions only identify or name the supervised runtime session. They
+do not authorize daemon behavior changes, live kill actions, or live block
+actions.
+
 ## Decision-vetting rubric
 
 Escalate only a genuinely blocking decision: no legitimate work can proceed
