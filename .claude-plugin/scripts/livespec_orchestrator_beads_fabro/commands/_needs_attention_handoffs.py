@@ -36,7 +36,7 @@ def plans(
         PlanThreadOutput(
             topic=topic,
             path=f"plan/{topic}/",
-            summary=f"Review plan thread {topic}.",
+            summary=f"Review plan {topic}.",
             command=(
                 f"codex exec {_PLUGIN_NAME}:plan "
                 f"--project-root {_quote(path=project_root)} {shlex.quote(topic)}"

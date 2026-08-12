@@ -253,7 +253,7 @@ def test_build_attention_reads_ledger_held_plan_without_handoff_file(
 
     assert not (tmp_path / "plan" / "ledger-held" / "handoff.md").exists()
     [plan_item] = [item for item in attention if item.id == "plan:ledger-held"]
-    assert plan_item.summary == "Review plan thread ledger-held."
+    assert plan_item.summary == "Review plan ledger-held."
     assert plan_item.source_ref.path == "plan/ledger-held/"
 
 
