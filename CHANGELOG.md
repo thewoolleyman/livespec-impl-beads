@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.52.3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.52.2...v0.52.3) (2026-08-13)
+
+
+### Bug Fixes
+
+* **ci:** add MISE_HTTP_RETRIES alongside UV_HTTP_RETRIES ([403f878](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/403f878fa25f9e3094535ad1f627d2028f261f77))
+
 ## [0.52.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.52.1...v0.52.2) (2026-08-13)
 
 
