@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.52.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.52.1...v0.52.2) (2026-08-13)
+
+
+### Bug Fixes
+
+* rename the residual plan-thread prose in shipped Python ([6e37f95](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/6e37f95f83485a0a32d1084647c57763cb976ac0))
+
 ## [0.52.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.52.0...v0.52.1) (2026-08-12)
 
 
