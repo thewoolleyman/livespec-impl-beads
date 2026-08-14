@@ -7,10 +7,13 @@ deliberately ships NO such callback — a `runtime -> beads` read would be a
 back-edge — so a cross-repo sibling dependency fails closed
 (`UNKNOWN` -> BLOCK) until the orchestrator injects a real one. This module is
 that injection: `make_sibling_status_lookup` builds a callable that resolves a
-fleet sibling's `repo` slug to its host clone, reads that sibling tenant's LIVE
+sibling `repo` slug to its host clone, reads that sibling tenant's LIVE
 work-items via `load_items`, and maps the target item's status to a
-`RefStatus`. Only `done`/`closed` resolves `CLOSED` (and stops blocking); every
-other live status resolves `OPEN`.
+`RefStatus`. The resolver accepts both the fetched fleet manifest and the
+project's configured `.livespec.jsonc` `cross_repo_targets`, so a dispatch from
+one fleet member can rely on explicitly configured siblings even when the core
+fleet manifest lags behind. Only `done`/`closed` resolves `CLOSED` (and stops
+blocking); every other live status resolves `OPEN`.
 
 Fail-closed is the load-bearing invariant. Anything the lookup cannot resolve
 definitively — a `repo` that is not a known fleet member, an unfetchable or
@@ -39,8 +42,9 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from livespec_runtime.cross_repo.types import RefStatus
+from livespec_runtime.cross_repo.types import CrossRepoManifest, CrossRepoTarget, RefStatus
 
+from livespec_orchestrator_beads_fabro.commands._cross_repo import load_manifest
 from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_argv import parse_fleet_members
 from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_close import load_items
 from livespec_orchestrator_beads_fabro.commands._dispatcher_sibling_clones import (
@@ -93,7 +97,11 @@ def make_sibling_status_lookup(*, project_root: Path) -> Callable[[str, str], Re
     pass the SAME instance to every `is_item_ready` / `lane_of` call in one
     command so each sibling tenant is read at most once per pass.
     """
-    return _SiblingStatusLookup(clone_root=project_root.parent)
+    return _SiblingStatusLookup(
+        project_root=project_root,
+        clone_root=project_root.parent,
+        manifest=load_manifest(project_root=project_root),
+    )
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -109,7 +117,9 @@ class _SiblingStatusLookup:
     unresolvable).
     """
 
+    project_root: Path
     clone_root: Path
+    manifest: CrossRepoManifest
     _members_cache: dict[str, dict[str, Path]] = field(default_factory=dict)
     _index_cache: dict[str, dict[str, WorkItem] | None] = field(default_factory=dict)
 
@@ -131,6 +141,21 @@ class _SiblingStatusLookup:
         return self._members_cache[_MEMBERS_KEY]
 
     def _compute_member_clones(self) -> dict[str, Path]:
+        clones = self._fleet_member_clones()
+        clones.update(
+            {
+                repo: _configured_clone(
+                    project_root=self.project_root,
+                    clone_root=self.clone_root,
+                    repo=repo,
+                    target=target,
+                )
+                for repo, target in self.manifest.targets.items()
+            }
+        )
+        return clones
+
+    def _fleet_member_clones(self) -> dict[str, Path]:
         manifest_text = fetch_fleet_manifest_text()
         if manifest_text is None:
             return {}
@@ -152,3 +177,17 @@ def _load_sibling_index(*, clone: Path) -> dict[str, WorkItem] | None:
     if isinstance(loaded, AttemptFailure):
         return None
     return {item.id: item for item in loaded}
+
+
+def _configured_clone(
+    *,
+    project_root: Path,
+    clone_root: Path,
+    repo: str,
+    target: CrossRepoTarget,
+) -> Path:
+    if target.local_clone is None:
+        return clone_root / repo
+    if target.local_clone.is_absolute():
+        return target.local_clone
+    return project_root / target.local_clone

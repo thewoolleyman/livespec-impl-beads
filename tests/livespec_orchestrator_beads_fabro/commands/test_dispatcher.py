@@ -54,6 +54,7 @@ from livespec_orchestrator_beads_fabro.commands import (
     _dispatcher_run_commands,
     _dispatcher_self_update,
     _dispatcher_sibling_clones,
+    _sibling_status_lookup,
     dispatcher,
 )
 from livespec_orchestrator_beads_fabro.commands import next as next_command
@@ -4348,3 +4349,65 @@ def test_ready_items_drain_order_equals_next_ranking(tmp_path: Path) -> None:
     assert drain_order == next_order
     # Pin the canonical (rank, id) order explicitly.
     assert drain_order == ["li-bbb", "li-ccc", "li-aaa"]
+
+
+def test_ready_items_resolves_configured_sibling_terminal_states(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    livespec = tmp_path / "livespec"
+    beads_fabro = tmp_path / "livespec-orchestrator-beads-fabro"
+    overseer = tmp_path / "livespec-overseer"
+    livespec.mkdir()
+    beads_fabro.mkdir()
+    overseer.mkdir()
+    _ = (livespec / ".livespec.jsonc").write_text(
+        f"""
+        {{
+          "cross_repo_targets": {{
+            "livespec-orchestrator-beads-fabro": {{
+              "github_url": "https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro",
+              "local_clone": "{beads_fabro}"
+            }},
+            "livespec-overseer": {{
+              "github_url": "https://github.com/thewoolleyman/livespec-overseer",
+              "local_clone": "{overseer}"
+            }}
+          }}
+        }}
+        """,
+        encoding="utf-8",
+    )
+    item = _item(
+        id="livespec-zsn2xh.5",
+        status="pending-approval",
+        depends_on=(
+            {
+                "kind": "sibling_work_item",
+                "repo": "livespec-orchestrator-beads-fabro",
+                "work_item_id": "bd-ib-mrqoy2",
+            },
+            {
+                "kind": "sibling_work_item",
+                "repo": "livespec-overseer",
+                "work_item_id": "overseer-pfpfty",
+            },
+        ),
+    )
+
+    def _fetch() -> str:
+        return _FLEET_MANIFEST_TEXT
+
+    sibling_items = {
+        beads_fabro: [_item(id="bd-ib-mrqoy2", status="done")],
+        overseer: [_item(id="overseer-pfpfty", status="done")],
+    }
+
+    def _load(*, repo: Path) -> list[WorkItem]:
+        return sibling_items[repo]
+
+    monkeypatch.setattr(_sibling_status_lookup, "fetch_fleet_manifest_text", _fetch)
+    monkeypatch.setattr(_sibling_status_lookup, "load_items", _load)
+
+    assert [candidate.id for candidate in ready_items(items=[item], repo=livespec)] == [
+        "livespec-zsn2xh.5"
+    ]
