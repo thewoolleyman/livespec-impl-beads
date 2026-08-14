@@ -109,6 +109,55 @@ def test_open_sibling_resolves_open(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     assert lookup(_SIBLING_REPO, "sib-1") == RefStatus.OPEN
 
 
+def test_configured_sibling_without_local_clone_uses_peer_clone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project_root = _project_root(tmp_path=tmp_path, make_clone_dir=True)
+    _ = (project_root / ".livespec.jsonc").write_text(
+        """
+        {
+          "cross_repo_targets": {
+            "sibling-repo": {
+              "github_url": "https://github.com/someowner/sibling-repo"
+            }
+          }
+        }
+        """,
+        encoding="utf-8",
+    )
+    _install_fleet(
+        monkeypatch=monkeypatch, manifest_text=None, items=[_item(id_="sib-1", status="done")]
+    )
+    lookup = make_sibling_status_lookup(project_root=project_root)
+    assert lookup(_SIBLING_REPO, "sib-1") == RefStatus.CLOSED
+
+
+def test_configured_sibling_relative_local_clone_uses_project_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project_root = _project_root(tmp_path=tmp_path, make_clone_dir=False)
+    relative_clone = project_root / "siblings" / _SIBLING_REPO
+    relative_clone.mkdir(parents=True)
+    _ = (project_root / ".livespec.jsonc").write_text(
+        """
+        {
+          "cross_repo_targets": {
+            "sibling-repo": {
+              "github_url": "https://github.com/someowner/sibling-repo",
+              "local_clone": "siblings/sibling-repo"
+            }
+          }
+        }
+        """,
+        encoding="utf-8",
+    )
+    _install_fleet(
+        monkeypatch=monkeypatch, manifest_text=None, items=[_item(id_="sib-1", status="done")]
+    )
+    lookup = make_sibling_status_lookup(project_root=project_root)
+    assert lookup(_SIBLING_REPO, "sib-1") == RefStatus.CLOSED
+
+
 def test_missing_clone_dir_fails_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project_root = _project_root(tmp_path=tmp_path, make_clone_dir=False)
     _install_fleet(
