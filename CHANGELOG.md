@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.52.4](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.52.3...v0.52.4) (2026-08-14)
+
+
+### Bug Fixes
+
+* resolve configured sibling terminal states ([3e4928e](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/3e4928e795cec6b40361896bbde99051a358d189))
+
 ## [0.52.3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.52.2...v0.52.3) (2026-08-13)
 
 
