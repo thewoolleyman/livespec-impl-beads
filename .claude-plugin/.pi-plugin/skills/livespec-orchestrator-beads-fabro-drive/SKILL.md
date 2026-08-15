@@ -8,7 +8,7 @@ allowed-tools: bash
 
 This file is the thin pi binding of the `drive` operation of the
 **livespec-orchestrator-beads-fabro** plugin, per
-`SPECIFICATION/contracts.md` §"pi skill surface". It carries pi-runtime
+this repository's `SPECIFICATION/contracts.md` (the pi skill surface contract). It carries pi-runtime
 mechanics ONLY. The behavior lives in the plugin's reference wrapper
 `scripts/bin/drive.py`; this binding resolves the plugin root and
 dispatches to it, adding no operation behavior of its own.

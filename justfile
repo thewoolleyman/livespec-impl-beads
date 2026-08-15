@@ -351,6 +351,7 @@ check:
         check-status-conformance
         check-closed-item-integrity
         check-codex-plugin-structure
+        check-pi-plugin-structure
         check-bd-guard
         check-codex-skill-picker
         check-no-fleet-pat-dispatch-surface
@@ -585,6 +586,20 @@ check-bd-guard-candidate:
 # Not a canonical livespec-dev-tooling slug, so it is wired in the private block.
 check-codex-plugin-structure:
     uv run python dev-tooling/checks/codex_plugin_structure.py
+
+# `check-pi-plugin-structure` — pi cross-runtime structural check. Validates the
+# orchestrator plugin's pi surface (per SPECIFICATION/contracts.md §"pi skill
+# surface"): the repo-root package.json pi manifest (name; pi-package keyword;
+# pi.skills naming the bindings tree; NO pi.extensions), the one shared
+# plugin-root resolver, and one thin
+# .claude-plugin/.pi-plugin/skills/livespec-orchestrator-beads-fabro-<op>/SKILL.md
+# binding per operation the plugin ships. Both the operation set and each
+# operation's backing are DERIVED from the tree rather than enumerated, so the
+# check cannot fall out of lockstep with the shipped surface. Pure-filesystem
+# (no beads / no store), so it runs in any tier with no live bd / dolt-server.
+# Not a canonical livespec-dev-tooling slug, so it is wired in the private block.
+check-pi-plugin-structure:
+    uv run python dev-tooling/checks/pi_plugin_structure.py
 
 # `check-spec-governance-default-block` — consumer-side guard for the commented
 # spec_governance defaults block in `.livespec.jsonc`. The implementation lives

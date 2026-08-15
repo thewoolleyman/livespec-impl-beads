@@ -8,7 +8,7 @@ allowed-tools: bash read
 
 This file is the thin pi binding of the `capture-spec-drift` operation of the
 **livespec-orchestrator-beads-fabro** plugin, per
-`SPECIFICATION/contracts.md` §"pi skill surface". It carries pi-runtime
+this repository's `SPECIFICATION/contracts.md` (the pi skill surface contract). It carries pi-runtime
 mechanics ONLY. The complete harness-neutral driving prose is the
 plugin's shared artifact at `prose/capture-spec-drift.md`, the same artifact the
 Claude and Codex bindings read.
@@ -67,8 +67,8 @@ rather than a missing install.
   tool, so ask in plain prose, state the options explicitly, and WAIT
   for the user's reply before proceeding. Every store write this
   operation performs on the user's behalf is consented before it
-  executes, per `SPECIFICATION/contracts.md` §"Store-write consent
-  discipline"; a missing picker is never grounds to skip the turn.
+  executes, per this repository's `SPECIFICATION/contracts.md` (the store-write consent
+  discipline); a missing picker is never grounds to skip the turn.
 - **"read `<file>`" / "list `<dir>`"** — the `read` tool, or the `bash`
   tool for shell work.
 - **"invoke the `<name>` wrapper"** — the `bash` tool, invoking
