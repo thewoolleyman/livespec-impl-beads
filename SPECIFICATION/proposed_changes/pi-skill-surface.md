@@ -121,9 +121,12 @@ bindings resolve.
 
 **Skill names.** pi's skill namespace is FLAT. A pi skill name admits
 only lowercase letters, digits, and hyphens (1–64 characters, no
-leading or trailing hyphen, no consecutive hyphens), so the
-colon-qualified `/livespec-orchestrator-beads-fabro:<op>` form the
-Claude and Codex surfaces use cannot be expressed. The namespace is
+leading or trailing hyphen, no consecutive hyphens) — pi's documented
+name rules as of pi v0.84.1, anchored because they are a claim about an
+external project no gate here watches, and to be re-verified on any pi
+major-version bump — so the colon-qualified
+`/livespec-orchestrator-beads-fabro:<op>` form the Claude and Codex
+surfaces use cannot be expressed. The namespace is
 therefore carried by a name PREFIX, exactly as core's pi Driver carries
 `/livespec:<op>` as the pi skill name `livespec-<operation>`. Each of
 this plugin's operations is exposed to pi as the skill named
