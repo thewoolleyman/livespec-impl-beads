@@ -958,6 +958,52 @@ def test_dispatch_factory_selection_reaches_fabro_run_argv_and_env(
     ]
 
 
+def test_dispatch_logs_into_dev_token_factory_before_fabro_run(tmp_path: Path) -> None:
+    factory_credential = "fixture-value"
+    plan = build_plan(
+        repo=tmp_path,
+        work_item_id="x-1",
+        workflow_toml=tmp_path / "wf.toml",
+        goal_file=tmp_path / "goal.md",
+        fabro_bin="fabro",
+        janitor=None,
+        janitor_checkout=tmp_path / "janitor-co",
+        fabro_factory_name="remote",
+        fabro_factory_server="https://factory.example.test",
+        fabro_factory_dev_token=factory_credential,
+    )
+    runner = _FakeRunner(queue=[_ok(), _err()])
+    journal = _RecordingJournal()
+
+    outcome = run_dispatch(
+        plan=plan,
+        runner=runner,
+        journal=journal,
+        sleep=lambda _seconds: None,
+        poll=PollPolicy(attempts=1, interval_seconds=0.5),
+    )
+
+    assert outcome.status == "failed"
+    assert runner.calls[0] == (
+        [
+            "fabro",
+            "auth",
+            "login",
+            "--dev-token",
+            factory_credential,
+            "--server",
+            "https://factory.example.test",
+        ],
+        tmp_path,
+    )
+    assert runner.calls[1][0][:4] == [
+        "fabro",
+        "--server",
+        "https://factory.example.test",
+        "run",
+    ]
+
+
 def test_janitor_argv_with_default_passthrough_and_empty() -> None:
     assert janitor_argv_with_default(janitor=("echo", "hi")) == ("echo", "hi")
     assert janitor_argv_with_default(janitor=()) == (

@@ -13,6 +13,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandRunner,
     FabroRunResult,
     JournalWriter,
+    run_fabro_factory_auth_login,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_heartbeat_probe import (
     HeartbeatLivenessProbe,
@@ -88,6 +89,7 @@ class WatchedFabroLauncher:
         runner: CommandRunner,
         journal: JournalWriter,
     ) -> FabroRunResult:
+        run_fabro_factory_auth_login(plan=plan, runner=runner)
         holder: dict[str, CommandResult] = {}
 
         def _run_fabro() -> None:
