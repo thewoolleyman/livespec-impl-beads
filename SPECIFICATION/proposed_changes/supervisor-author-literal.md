@@ -46,13 +46,15 @@ that shadows the ledger.", insert a new paragraph:
 ```
 A plan's SUPERVISOR role — the entity coordinating the plan across
 worker-session restarts, distinct from the worker session itself — MUST
-be attributable by a deterministic literal, not free text. When a
-handoff entry is authored on the supervisor's behalf, the ledger
-comment's body-parsed `author:` field MUST be exactly `f"{topic}-supervisor"`,
-where `topic` is the plan's slug — computed by the entry-writing
-primitive itself, never accepted as a caller-supplied string, mirroring
-the archive-authorship precedent above (`author="plan-archive"`,
-hardcoded at its one call site). A "does this plan have a supervisor"
+be attributable by a deterministic literal, not free text, mirroring an
+archive entry's own attribution: an archive entry's body-parsed
+`author:` field is the reserved literal `plan-archive`, computed by the
+archiving primitive and never caller-supplied. Generalizing that same
+rule, when a handoff entry is authored on the supervisor's behalf, the
+ledger comment's body-parsed `author:` field MUST be exactly
+`<slug>-supervisor`, where `<slug>` is the plan's slug — likewise
+computed by the entry-writing primitive itself, never accepted as a
+caller-supplied string. A "does this plan have a supervisor"
 discriminator MUST scan the timeline for a body-parsed `author:` field
 matching this literal — a plain string-equality check, never prose or
 LLM interpretation of entry content. This check reads the body-parsed
@@ -62,10 +64,11 @@ identity layer (e.g. a human runtime acting on the supervisor's behalf
 carries its own `--actor` while the comment body still names the role),
 and the two are permitted to diverge. Every free-text `author` a worker
 session supplies through the general handoff primitive is unaffected by
-this reservation; only the supervisor literal is reserved. Design
-record: repo `thewoolleyman/livespec-orchestrator-beads-fabro`,
-work-item `bd-ib-8stn`, independently corroborated the same date by repo
-`thewoolleyman/livespec-overseer`, work-item `overseer-4bbnit`.
+this reservation; only the archive and supervisor literals are reserved.
+Design record: repo `thewoolleyman/livespec-orchestrator-beads-fabro`,
+work-item `bd-ib-8stn`, filed 2026-08-15; independently corroborated the
+same date by repo `thewoolleyman/livespec-overseer`, work-item
+`overseer-4bbnit`.
 ```
 
 No heading is added, changed, or removed.
