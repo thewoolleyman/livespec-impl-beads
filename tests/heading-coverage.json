@@ -56,6 +56,13 @@
     "reason": "Baseline heading-coverage backfill for the beads substrate (Phase E). The shared heading_coverage check is satisfied by enumerating every SPECIFICATION/ H2 heading; real test IDs are populated as the governed propose-change/revise loop's resulting_files[] mechanism binds each heading to an exercising test."
   },
   {
+    "heading": "## pi skill surface",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "contracts.md",
+    "test": "TODO",
+    "reason": "Added by the pi-skill-surface ratification: the pi packaging, flat skill-name prefix, thin-binding, and trust-gate contract for this plugin's pi surface; structural coverage lands with the pi package implementation's check-pi-plugin-structure gate and tests."
+  },
+  {
     "heading": "## Interactive dialogue ownership (orchestrator-side)",
     "spec_root": "SPECIFICATION",
     "spec_file": "contracts.md",
