@@ -119,6 +119,34 @@ def test_handoff_append_is_ledger_comment_and_timeline_readable(tmp_path: Path) 
     assert entries[0].body == "Next action: dispatch bd-ib-child through the factory."
 
 
+def test_supervisor_handoff_computes_reserved_author_literal(tmp_path: Path) -> None:
+    reset_fake_singleton()
+    plan = importlib.import_module("livespec_orchestrator_beads_fabro.commands.plan")
+    created = plan.create_thread(
+        project_root=tmp_path,
+        config=_config(),
+        slug="harness-smoke",
+        title="Harness smoke planning",
+        research_filename="initial.md",
+        research_text="research\n",
+        now="2026-08-11T00:00:00Z",
+    )
+
+    plan.append_supervisor_handoff(
+        config=_config(),
+        epic_id=created["epic_id"],
+        slug="harness-smoke",
+        body="Resume state before wind-down.",
+        now="2026-08-11T01:02:03Z",
+    )
+    entries = plan.read_timeline(config=_config(), epic_id=created["epic_id"])
+
+    assert len(entries) == 1
+    assert entries[0].author == "harness-smoke-supervisor"
+    assert entries[0].created_at == "2026-08-11T01:02:03Z"
+    assert entries[0].body == "Resume state before wind-down."
+
+
 def test_scope_event_records_requirements_and_explicit_deferrals(tmp_path: Path) -> None:
     reset_fake_singleton()
     plan = importlib.import_module("livespec_orchestrator_beads_fabro.commands.plan")

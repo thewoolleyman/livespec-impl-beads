@@ -53,7 +53,13 @@ The operation's testable package substrate is
 
 - `create_thread(...)` creates `plan/<slug>/research/<file>` and one
   ledger epic anchor.
-- `append_handoff(...)` appends one plan-epic comment.
+- `append_handoff(...)` appends one plan-epic comment, with a
+  caller-supplied `author`.
+- `append_supervisor_handoff(...)` appends one plan-epic comment on
+  behalf of the plan's supervisor role, computing the reserved
+  `<slug>-supervisor` author literal internally (never caller-supplied).
+  A supervisor session driving this operation MUST use this call, never
+  `append_handoff`, for its own handoff entries.
 - `read_timeline(...)` reads plan handoff and scope comments
   oldest-first.
 - `record_scope_event(...)` records requirement carriers and explicit
