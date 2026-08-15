@@ -78,6 +78,7 @@ targets=(
     check-status-conformance
     check-closed-item-integrity
     check-codex-plugin-structure
+    check-pi-plugin-structure
     check-bd-guard
     check-codex-skill-picker
     check-no-fleet-pat-dispatch-surface
