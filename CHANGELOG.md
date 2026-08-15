@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.56.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.56.0...v0.56.1) (2026-08-15)
+
+
+### Bug Fixes
+
+* login to dev-token fabro factory ([ccc30b5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/ccc30b5587ae129aebacb982c01c4bf2ba8332e3))
+
 ## [0.56.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.55.2...v0.56.0) (2026-08-15)
 
 
