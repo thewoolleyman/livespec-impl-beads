@@ -52,7 +52,11 @@ from livespec_orchestrator_beads_fabro.commands._sibling_status_lookup import (
     make_sibling_status_lookup,
 )
 from livespec_orchestrator_beads_fabro.io import write_stdout
-from livespec_orchestrator_beads_fabro.store import materialize_work_items, read_work_items
+from livespec_orchestrator_beads_fabro.store import (
+    dispatch_factory_for,
+    materialize_work_items,
+    read_work_items,
+)
 from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
 
 __all__: list[str] = ["main"]
@@ -101,11 +105,15 @@ def main(*, argv: list[str] | None = None) -> int:
         _write_json(
             items=filtered,
             index={item.id: item for item in materialized},
+            dispatch_factories=_dispatch_factories(path=config.work_items_path, items=filtered),
             manifest=manifest,
             sibling_status_lookup=sibling_status_lookup,
         )
     else:
-        _write_human(items=filtered)
+        _write_human(
+            items=filtered,
+            dispatch_factories=_dispatch_factories(path=config.work_items_path, items=filtered),
+        )
     return 0
 
 
@@ -169,6 +177,7 @@ def _write_json(
     *,
     items: list[WorkItem],
     index: dict[str, WorkItem],
+    dispatch_factories: dict[str, str | None],
     manifest: CrossRepoManifest,
     sibling_status_lookup: Callable[[str, str], RefStatus] | None = None,
 ) -> None:
@@ -176,6 +185,7 @@ def _write_json(
         _work_item_to_dict(
             item=item,
             index=index,
+            dispatch_factory=dispatch_factories.get(item.id),
             manifest=manifest,
             sibling_status_lookup=sibling_status_lookup,
         )
@@ -184,13 +194,18 @@ def _write_json(
     _ = write_stdout(text=json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
-def _write_human(*, items: list[WorkItem]) -> None:
+def _write_human(*, items: list[WorkItem], dispatch_factories: dict[str, str | None]) -> None:
     if not items:
         _ = write_stdout(text="(no work-items)\n")
         return
     for item in items:
         gap_marker = f" gap={item.gap_id}" if item.gap_id is not None else ""
-        line = f"{item.id}  [{item.status}/{item.origin}{gap_marker}]  {item.title}\n"
+        factory = dispatch_factories.get(item.id)
+        factory_marker = f" factory={factory}" if factory is not None else ""
+        line = (
+            f"{item.id}  [{item.status}/{item.origin}{gap_marker}{factory_marker}]"
+            f"  {item.title}\n"
+        )
         _ = write_stdout(text=line)
 
 
@@ -198,11 +213,13 @@ def _work_item_to_dict(
     *,
     item: WorkItem,
     index: dict[str, WorkItem],
+    dispatch_factory: str | None,
     manifest: CrossRepoManifest,
     sibling_status_lookup: Callable[[str, str], RefStatus] | None = None,
 ) -> dict[str, object]:
     payload = asdict(item)
     payload["depends_on"] = list(item.depends_on)
+    payload["dispatch_factory"] = dispatch_factory
     if item.audit is not None:
         payload["audit"] = {
             "verification_timestamp": item.audit.verification_timestamp,
@@ -219,3 +236,7 @@ def _work_item_to_dict(
     payload["lane"] = lane.name
     payload["lane_reason"] = lane.reason
     return payload
+
+
+def _dispatch_factories(*, path: StoreConfig, items: list[WorkItem]) -> dict[str, str | None]:
+    return {item.id: dispatch_factory_for(path=path, work_item_id=item.id) for item in items}

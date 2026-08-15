@@ -11,7 +11,7 @@ import json
 
 import pytest
 from livespec_orchestrator_beads_fabro.commands.list_work_items import main
-from livespec_orchestrator_beads_fabro.store import append_work_item
+from livespec_orchestrator_beads_fabro.store import append_work_item, record_dispatch_factory
 from livespec_orchestrator_beads_fabro.types import AuditRecord, StoreConfig, WorkItem
 
 
@@ -95,6 +95,17 @@ def test_main_lists_all_human(
     assert "li-a" in captured.out
     assert "li-b" in captured.out
     assert "gap=G1" in captured.out
+
+
+def test_main_lists_dispatch_factory_human(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _seed(_item(id_="li-a"))
+    record_dispatch_factory(path=_config(), work_item_id="li-a", factory="remote")
+    rc = main(argv=[])
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert "factory=remote" in captured.out
 
 
 def test_main_filter_gap_tied(
@@ -201,6 +212,18 @@ def test_main_json_output_with_audit(
     payload = json.loads(captured.out)
     assert payload[0]["id"] == "li-a"
     assert payload[0]["audit"]["commits"] == ["c"]
+
+
+def test_main_json_output_includes_dispatch_factory(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _seed(_item(id_="li-a"))
+    record_dispatch_factory(path=_config(), work_item_id="li-a", factory="remote")
+    rc = main(argv=["--json"])
+    captured = capsys.readouterr()
+    assert rc == 0
+    payload = json.loads(captured.out)
+    assert payload[0]["dispatch_factory"] == "remote"
 
 
 def test_main_json_output_depends_on_is_typed_dict_local_entry(
