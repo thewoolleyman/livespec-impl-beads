@@ -61,6 +61,7 @@ from __future__ import annotations
 
 import os
 import shutil
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
@@ -69,8 +70,10 @@ from livespec_orchestrator_beads_fabro.errors import ConnectionPrefixMissingErro
 from livespec_orchestrator_beads_fabro.types import StoreConfig
 
 __all__: list[str] = [
+    "FactoryTarget",
     "resolve_credential_wrapper",
     "resolve_fabro_bin",
+    "resolve_fabro_factory",
     "resolve_fabro_sandbox_image",
     "resolve_store_config",
 ]
@@ -89,9 +92,20 @@ _DEFAULT_TENANT = "livespec-orch-beads-fabro"
 _ENV_BD_PATH = "LIVESPEC_BD_PATH"
 _ENV_FAKE = "LIVESPEC_BEADS_FAKE"
 _ENV_FABRO_BIN = "LIVESPEC_FABRO_BIN"
+_ENV_FABRO_FACTORY = "LIVESPEC_FABRO_FACTORY"
+_FABRO_DEV_AUTH_ENV_PREFIX = "FABRO_DEV_TOKEN__"
 _ENV_FABRO_SANDBOX_IMAGE = "LIVESPEC_FABRO_SANDBOX_IMAGE"
 
 _TRUTHY = frozenset({"1", "true", "yes", "on"})
+
+
+@dataclass(frozen=True, kw_only=True)
+class FactoryTarget:
+    """Resolved Fabro factory target for a dispatcher invocation."""
+
+    name: str
+    server: str | None
+    dev_token: str | None
 
 
 def resolve_store_config(
@@ -146,6 +160,26 @@ def resolve_fabro_bin(*, cwd: Path) -> str:
     if configured != "":
         return configured
     return _default_fabro_bin()
+
+
+def resolve_fabro_factory(*, cwd: Path) -> FactoryTarget:
+    """Resolve the Dispatcher's Fabro factory target (env > config > default).
+
+    The selected factory name comes from a non-empty `LIVESPEC_FABRO_FACTORY`
+    value when present; otherwise it comes from `dispatcher.default_factory`
+    when that name exists in `dispatcher.factories`; otherwise from a configured
+    `factories.default` entry when present; otherwise from the implicit
+    single-factory `"default"` target. The implicit target has no server value
+    so downstream callers preserve today's ambient Fabro CLI behavior.
+    """
+    block = _read_dispatcher_block(cwd=cwd)
+    env_value = os.environ.get(_ENV_FABRO_FACTORY)
+    if env_value is not None and env_value != "":
+        return _factory_target_for(name=env_value, block=block)
+    return _factory_target_for(
+        name=_resolve_configured_factory_name(block=block),
+        block=block,
+    )
 
 
 def resolve_fabro_sandbox_image(*, cwd: Path) -> str | None:
@@ -273,6 +307,32 @@ def _default_fabro_bin() -> str:
     if found is not None:
         return found
     return str(home_candidate)
+
+
+def _resolve_configured_factory_name(*, block: dict[str, Any]) -> str:
+    factories_raw = block.get("factories")
+    default_name = _str_or(value=block.get("default_factory"), default="default")
+    if isinstance(factories_raw, dict):
+        factories = cast("dict[str, Any]", factories_raw)
+        if default_name in factories:
+            return default_name
+    return "default"
+
+
+def _factory_target_for(*, name: str, block: dict[str, Any]) -> FactoryTarget:
+    factories_raw = block.get("factories")
+    server: str | None = None
+    if isinstance(factories_raw, dict):
+        factories = cast("dict[str, Any]", factories_raw)
+        factory_raw = factories.get(name)
+        if isinstance(factory_raw, dict):
+            factory = cast("dict[str, Any]", factory_raw)
+            server = _optional_str(value=factory.get("server"))
+    return FactoryTarget(
+        name=name,
+        server=server,
+        dev_token=_optional_str(value=os.environ.get(f"{_FABRO_DEV_AUTH_ENV_PREFIX}{name}")),
+    )
 
 
 def _resolve_fake(*, block: dict[str, Any]) -> bool:
