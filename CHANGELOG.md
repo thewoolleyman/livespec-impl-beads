@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.53.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.52.4...v0.53.0) (2026-08-15)
+
+
+### Features
+
+* add append_supervisor_handoff computing the reserved author literal ([ccf217f](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/ccf217f38098a486819d28b57b43c84911ba505c))
+
 ## [0.52.4](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.52.3...v0.52.4) (2026-08-14)
 
 
