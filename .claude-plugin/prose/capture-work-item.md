@@ -37,6 +37,10 @@ Optional follow-ups (skip-confirmable):
 - **Assignee** — string or null (default null).
 - **Depends-on** — comma-separated work-item ids (the tenant's
   configured `<prefix>-XXXXXX` form); empty list permitted.
+- **Plan parent** — when the caller is filing this as a child of a
+  plan epic, the plan epic id; otherwise null. This is distinct from
+  `depends_on`: plan-child linkage is a beads parent-child relation, not
+  a blocker edge.
 - **Spec-commitment-hint** — string `id_hint` or null (default null).
   Supplied via `--spec-commitment-hint <id_hint>` when the work-item
   is being filed in response to a spec-side
@@ -56,6 +60,7 @@ Show the user the assembled record and ask "file?". On `yes`, append:
 
 ```python
 from livespec_orchestrator_beads_fabro._ids import new_work_item_id
+from livespec_orchestrator_beads_fabro._beads_client import make_beads_client
 from livespec_orchestrator_beads_fabro.commands._config import resolve_store_config
 from livespec_orchestrator_beads_fabro.store import append_work_item
 from livespec_orchestrator_beads_fabro.types import WorkItem
@@ -87,6 +92,11 @@ item = WorkItem(
     spec_commitment_hint=spec_commitment_hint,  # str | None; None for freeform.
 )
 append_work_item(path=config, item=item)
+if plan_parent_id is not None:
+    make_beads_client(config=config).update_issue(
+        issue_id=item.id,
+        parent_id=plan_parent_id,
+    )
 ```
 
 Print the assigned id back to the user.
@@ -150,6 +160,12 @@ Narrate the verdict to the user:
 If the item has unresolved blockers, make sure the dependency edges are
 linked in `depends_on`; linked blockers derive the dependency lane and
 MUST NOT be bypassed by direct `ready` routing.
+
+If the item is part of a plan thread, make sure the plan epic is linked
+through `plan_parent_id` / `parent_id`, not `depends_on`. Task children
+cannot block epics on the live beads server, and the plan archive gate
+enumerates parent-child children when refusing archive for undisposed
+work.
 
 ## Important properties
 

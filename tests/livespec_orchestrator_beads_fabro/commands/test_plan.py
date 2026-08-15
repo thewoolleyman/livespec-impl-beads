@@ -208,6 +208,33 @@ def test_archive_refuses_undisposed_children(tmp_path: Path) -> None:
     assert "undisposed child work-items: bd-ib-child" in str(exc.value)
 
 
+def test_archive_refuses_undisposed_parent_child_children(tmp_path: Path) -> None:
+    reset_fake_singleton()
+    plan = importlib.import_module("livespec_orchestrator_beads_fabro.commands.plan")
+    created = plan.create_thread(
+        project_root=tmp_path,
+        config=_config(),
+        slug="archive-thread",
+        title="Archive thread",
+        research_filename="initial.md",
+        research_text="research\n",
+        now="2026-08-11T00:00:00Z",
+    )
+    _ = _fake().create_issue(draft=_draft(issue_id="bd-ib-child", parent_id=created["epic_id"]))
+    _fake().update_issue(issue_id="bd-ib-child", status="ready")
+
+    with pytest.raises(plan.PlanArchiveRefusedError) as exc:
+        plan.archive_thread(
+            project_root=tmp_path,
+            config=_config(),
+            slug="archive-thread",
+            epic_id=created["epic_id"],
+            completeness_review_comment_id="bd-comment-1",
+        )
+
+    assert "undisposed child work-items: bd-ib-child" in str(exc.value)
+
+
 def test_archive_edge_predicate_ignores_malformed_dependency_records() -> None:
     plan = importlib.import_module("livespec_orchestrator_beads_fabro.commands.plan")
 
