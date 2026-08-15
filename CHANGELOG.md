@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.55.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.54.0...v0.55.0) (2026-08-15)
+
+
+### Features
+
+* thread factory selection into fabro dispatch ([ebfc523](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/ebfc523c9a563fbd46af9cf6d1a033687d8ce3b7))
+
 ## [0.54.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.53.0...v0.54.0) (2026-08-15)
 
 
