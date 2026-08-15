@@ -21,6 +21,7 @@ __all__: list[str] = [
     "PlanArchiveRefusedError",
     "PlanTimelineEntry",
     "append_handoff",
+    "append_supervisor_handoff",
     "archive_thread",
     "create_thread",
     "read_timeline",
@@ -110,6 +111,30 @@ def append_handoff(
     client.add_comment(
         issue_id=epic_id,
         body=_comment_body(prefix=_PLAN_HANDOFF_PREFIX, author=author, now=now, body=body),
+    )
+
+
+def append_supervisor_handoff(
+    *,
+    config: StoreConfig,
+    epic_id: str,
+    slug: str,
+    body: str,
+    now: str,
+) -> None:
+    """Append one handoff entry authored as the plan's reserved supervisor literal.
+
+    Per contracts.md's "Ledger-held handoff persistence": the supervisor
+    role's `author:` field MUST be `<slug>-supervisor`, computed here rather
+    than accepted as a caller-supplied string, mirroring `archive_thread`'s
+    `author="plan-archive"` reservation.
+    """
+    append_handoff(
+        config=config,
+        epic_id=epic_id,
+        body=body,
+        author=f"{slug}-supervisor",
+        now=now,
     )
 
 
