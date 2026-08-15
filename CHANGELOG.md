@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.56.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.55.2...v0.56.0) (2026-08-15)
+
+
+### Features
+
+* gate the pi package surface with check-pi-plugin-structure ([300fb6b](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/300fb6b0cc6a2ae62f136773b5a1b8969526810b))
+
 ## [0.55.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.55.1...v0.55.2) (2026-08-15)
 
 
