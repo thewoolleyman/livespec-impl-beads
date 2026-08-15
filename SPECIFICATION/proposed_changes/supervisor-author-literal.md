@@ -13,11 +13,11 @@ created_at: 2026-08-15T07:55:00Z
 ### Summary
 
 Ratify a reserved, deterministically-computed `author` literal —
-`f"{topic}-supervisor"` — for plan-epic handoff entries written by the
+`<slug>-supervisor` — for plan-epic handoff entries written by the
 plan's supervisor role, so a downstream consumer can tell "does this
 plan have a supervisor-authored entry" with a plain string-equality
 scan instead of prose/LLM parsing. State explicitly that the check
-reads the body-parsed `author:` field, never `bd`'s own `--actor`/`-a`
+reads the body-parsed `author:` field, never `bd`'s own `--actor`
 audit-trail field.
 
 ### Motivation
@@ -58,7 +58,7 @@ caller-supplied string. A "does this plan have a supervisor"
 discriminator MUST scan the timeline for a body-parsed `author:` field
 matching this literal — a plain string-equality check, never prose or
 LLM interpretation of entry content. This check reads the body-parsed
-`author:` field ONLY. It MUST NOT read Beads' own `--actor`/`-a`
+`author:` field ONLY. It MUST NOT read Beads' own `--actor`
 audit-trail field: that field is a separate, independently-settable
 identity layer (e.g. a human runtime acting on the supervisor's behalf
 carries its own `--actor` while the comment body still names the role),
