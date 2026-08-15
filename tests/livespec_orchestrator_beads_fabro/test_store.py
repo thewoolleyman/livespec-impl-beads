@@ -31,10 +31,12 @@ from livespec_orchestrator_beads_fabro.store import (
     BeadsWorkItemStore,
     WorkItemComment,
     append_work_item,
+    dispatch_factory_for,
     materialize_work_items,
     read_work_item_comments,
     read_work_item_native_priorities,
     read_work_items,
+    record_dispatch_factory,
 )
 from livespec_orchestrator_beads_fabro.types import AuditRecord, StoreConfig, WorkItem
 from livespec_runtime.work_items.rank import BOTTOM_SENTINEL
@@ -866,6 +868,18 @@ def test_read_work_item_comments_skips_unusable_records_fail_soft(
     )
     comments = read_work_item_comments(path=_config(), work_item_id="li-any")
     assert comments == (WorkItemComment(text="kept", author=None, created_at=None),)
+
+
+def test_dispatch_factory_marker_uses_latest_non_empty_marker_and_deduplicates() -> None:
+    append_work_item(path=_config(), item=_minimal_work_item())
+    _fake().seed_comment(issue_id="li-aaa111", text="ordinary rider")
+    _fake().seed_comment(issue_id="li-aaa111", text="livespec-dispatch-factory: ")
+    record_dispatch_factory(path=_config(), work_item_id="li-aaa111", factory="remote")
+    record_dispatch_factory(path=_config(), work_item_id="li-aaa111", factory="remote")
+
+    comments = read_work_item_comments(path=_config(), work_item_id="li-aaa111")
+    assert dispatch_factory_for(path=_config(), work_item_id="li-aaa111") == "remote"
+    assert [comment.text for comment in comments].count("livespec-dispatch-factory: remote") == 1
 
 
 # --------------------------------------------------------------------------

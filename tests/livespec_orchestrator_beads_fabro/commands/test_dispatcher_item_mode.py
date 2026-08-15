@@ -16,7 +16,12 @@ from livespec_orchestrator_beads_fabro.commands import _dispatcher_loop
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import DispatchPlan
 from livespec_orchestrator_beads_fabro.commands.dispatcher import main
-from livespec_orchestrator_beads_fabro.store import append_work_item, read_work_items
+from livespec_orchestrator_beads_fabro.store import (
+    append_work_item,
+    read_work_item_comments,
+    read_work_items,
+    update_work_item_status,
+)
 from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
 
 _FLEET_MANIFEST_TEXT = (
@@ -114,6 +119,7 @@ class _RecordingRunDispatch:
     """run_dispatch stand-in: records dispatched work_item_ids and returns green."""
 
     calls: list[str] = field(default_factory=list)
+    factories: list[str] = field(default_factory=list)
 
     def __call__(self, **kwargs: object) -> DispatchOutcome:
         plan = kwargs["plan"]
@@ -121,6 +127,7 @@ class _RecordingRunDispatch:
         _ = plan.workflow_toml.read_text(encoding="utf-8")
         _ = stat.S_IMODE(plan.workflow_toml.stat().st_mode)
         self.calls.append(plan.work_item_id)
+        self.factories.append(plan.fabro_factory_name)
         return DispatchOutcome(
             work_item_id=plan.work_item_id,
             status="green",
@@ -247,6 +254,55 @@ def test_loop_with_item_dispatches_requested_not_top_ranked(
     )
     assert exit_code == 0
     assert recording.calls == ["b-2"]
+
+
+def test_dispatch_records_factory_and_retry_reuses_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, workflow = _repo_with_workflow(tmp_path=tmp_path)
+    item = _item(id="factory-pinned")
+    append_work_item(path=_config(), item=item)
+    recording = _RecordingRunDispatch()
+    monkeypatch.setattr(_dispatcher_loop, "run_dispatch", recording)
+
+    first_exit = main(
+        argv=[
+            "loop",
+            "--repo",
+            str(repo),
+            "--budget",
+            "1",
+            "--item",
+            "factory-pinned",
+            "--factory",
+            "remote",
+            "--workflow",
+            str(workflow),
+            "--no-close-on-merge",
+        ]
+    )
+    update_work_item_status(path=_config(), item_id="factory-pinned", status="ready")
+    second_exit = main(
+        argv=[
+            "loop",
+            "--repo",
+            str(repo),
+            "--budget",
+            "1",
+            "--item",
+            "factory-pinned",
+            "--workflow",
+            str(workflow),
+            "--no-close-on-merge",
+        ]
+    )
+
+    comments = read_work_item_comments(path=_config(), work_item_id="factory-pinned")
+    assert first_exit == 0
+    assert second_exit == 0
+    assert recording.factories == ["remote", "remote"]
+    assert [comment.text for comment in comments].count("livespec-dispatch-factory: remote") == 1
 
 
 def test_loop_dry_run_plans_selection_without_dispatch_or_ledger_mutation(

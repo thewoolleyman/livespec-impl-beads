@@ -187,6 +187,7 @@ def test_work_item_to_dict_closed_sibling_renders_ready_lane() -> None:
     payload = _work_item_to_dict(
         item=item,
         index={item.id: item},
+        dispatch_factory=None,
         manifest=_manifest(),
         sibling_status_lookup=lambda _repo, _work_item_id: RefStatus.CLOSED,
     )
@@ -199,6 +200,7 @@ def test_work_item_to_dict_open_sibling_renders_blocked_dependency_lane() -> Non
     payload = _work_item_to_dict(
         item=item,
         index={item.id: item},
+        dispatch_factory=None,
         manifest=_manifest(),
         sibling_status_lookup=lambda _repo, _work_item_id: RefStatus.OPEN,
     )

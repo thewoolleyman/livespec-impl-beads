@@ -17,6 +17,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_cost_gate import (
     cost_gate_after_verdict,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
+from livespec_orchestrator_beads_fabro.commands._dispatcher_factory_ledger import (
+    args_with_dispatch_factory_target,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import (
     JournalFile,
 )
@@ -153,7 +156,13 @@ def _admit_and_dispatch_target(
         enforce_cap=False,
     )
     dispatched = [
-        dispatch_one(args=args, repo=repo, item=item, journal=journal, janitor=janitor)
+        dispatch_one(
+            args=args_with_dispatch_factory_target(args=args, repo=repo, work_item_id=item.id),
+            repo=repo,
+            item=item,
+            journal=journal,
+            janitor=janitor,
+        )
         for item in admission.admitted
     ]
     return (admission.refused + dispatched)[0]

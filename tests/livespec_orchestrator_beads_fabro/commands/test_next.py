@@ -20,7 +20,7 @@ from livespec_orchestrator_beads_fabro.commands.next import (
     main,
     rank_candidates,
 )
-from livespec_orchestrator_beads_fabro.store import append_work_item
+from livespec_orchestrator_beads_fabro.store import append_work_item, record_dispatch_factory
 from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
 
 
@@ -163,6 +163,13 @@ def test_rank_candidates_carries_required_envelope_fields() -> None:
     # impl-beads-specific fields MAY ride along (contract permits)
     assert candidate["rank"] == "a0"
     assert candidate["origin"] == "gap-tied"
+    assert candidate["dispatch_factory"] is None
+
+
+def test_rank_candidates_carries_dispatch_factory_when_supplied() -> None:
+    items = [_item(id_="li-x", rank="a0")]
+    candidates = rank_candidates(items=items, dispatch_factories={"li-x": "remote"})
+    assert candidates[0]["dispatch_factory"] == "remote"
 
 
 def test_rank_candidates_urgency_is_uniformly_medium() -> None:
@@ -229,6 +236,18 @@ def test_build_envelope_offset_past_total_returns_empty_with_has_more_false() ->
     }
 
 
+def test_build_envelope_threads_dispatch_factory() -> None:
+    envelope = build_envelope(
+        items=[_item(id_="li-x")],
+        offset=0,
+        limit=5,
+        dispatch_factories={"li-x": "remote"},
+    )
+    candidates = envelope["candidates"]
+    assert isinstance(candidates, list)
+    assert candidates[0]["dispatch_factory"] == "remote"
+
+
 # ---------------------------------------------------------------------------
 # main — wrapper-level integration (--json output, flag validation).
 # ---------------------------------------------------------------------------
@@ -279,6 +298,18 @@ def test_main_json_output_envelope_shape(
         "total": 1,
         "has_more": False,
     }
+
+
+def test_main_json_output_includes_dispatch_factory(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _seed(_item(id_="li-x"))
+    record_dispatch_factory(path=_config(), work_item_id="li-x", factory="remote")
+    rc = main(argv=["--json"])
+    captured = capsys.readouterr()
+    assert rc == 0
+    payload = json.loads(captured.out)
+    assert payload["candidates"][0]["dispatch_factory"] == "remote"
 
 
 def test_main_human_output_lists_each_candidate(

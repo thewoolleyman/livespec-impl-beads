@@ -62,7 +62,11 @@ from livespec_orchestrator_beads_fabro.commands._sibling_status_lookup import (
     make_sibling_status_lookup,
 )
 from livespec_orchestrator_beads_fabro.io import write_stderr, write_stdout
-from livespec_orchestrator_beads_fabro.store import materialize_work_items, read_work_items
+from livespec_orchestrator_beads_fabro.store import (
+    dispatch_factory_for,
+    materialize_work_items,
+    read_work_items,
+)
 from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
 
 __all__: list[str] = ["build_envelope", "main", "rank_candidates"]
@@ -99,6 +103,7 @@ def main(*, argv: list[str] | None = None) -> int:
         items=materialized,
         manifest=manifest,
         sibling_status_lookup=sibling_status_lookup,
+        dispatch_factories=_dispatch_factories(path=config.work_items_path, items=materialized),
     )
     envelope = _slice_envelope(ranked=ranked, offset=offset, limit=limit)
     if args.as_json:
@@ -114,6 +119,7 @@ def rank_candidates(
     items: list[WorkItem],
     manifest: CrossRepoManifest | None = None,
     sibling_status_lookup: Callable[[str, str], RefStatus] | None = None,
+    dispatch_factories: dict[str, str | None] | None = None,
 ) -> list[dict[str, Any]]:
     """Return the full ranked list of candidate envelopes (no slicing).
 
@@ -143,7 +149,15 @@ def rank_candidates(
         )
     ]
     ready.sort(key=ready_sort_key)
-    return [_candidate_for(item=item) for item in ready]
+    return [
+        _candidate_for(
+            item=item,
+            dispatch_factory=None
+            if dispatch_factories is None
+            else dispatch_factories.get(item.id),
+        )
+        for item in ready
+    ]
 
 
 def build_envelope(
@@ -153,6 +167,7 @@ def build_envelope(
     limit: int,
     manifest: CrossRepoManifest | None = None,
     sibling_status_lookup: Callable[[str, str], RefStatus] | None = None,
+    dispatch_factories: dict[str, str | None] | None = None,
 ) -> dict[str, Any]:
     """Return the `{candidates[], pagination}` envelope per v005 contract.
 
@@ -166,6 +181,7 @@ def build_envelope(
         items=items,
         manifest=manifest,
         sibling_status_lookup=sibling_status_lookup,
+        dispatch_factories=dispatch_factories,
     )
     return _slice_envelope(ranked=ranked, offset=offset, limit=limit)
 
@@ -190,7 +206,7 @@ def _slice_envelope(
     }
 
 
-def _candidate_for(*, item: WorkItem) -> dict[str, Any]:
+def _candidate_for(*, item: WorkItem, dispatch_factory: str | None) -> dict[str, Any]:
     return {
         "action": "implement",
         "work_item_ref": item.id,
@@ -202,6 +218,7 @@ def _candidate_for(*, item: WorkItem) -> dict[str, Any]:
         "reason": (f"ranked ready item (rank {item.rank}, origin {item.origin})"),
         "rank": item.rank,
         "origin": item.origin,
+        "dispatch_factory": dispatch_factory,
     }
 
 
@@ -211,6 +228,10 @@ def _load_work_items(*, path: StoreConfig) -> list[WorkItem]:
     # `StoreFileMissingError` fallback the plaintext sibling carried is not
     # reachable here. An empty tenant is the natural empty-result path.
     return list(materialize_work_items(records=read_work_items(path=path)).values())
+
+
+def _dispatch_factories(*, path: StoreConfig, items: list[WorkItem]) -> dict[str, str | None]:
+    return {item.id: dispatch_factory_for(path=path, work_item_id=item.id) for item in items}
 
 
 def _parse_positive_int(*, raw: str, flag: str) -> int | None:
