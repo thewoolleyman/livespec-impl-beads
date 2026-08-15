@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.55.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.55.1...v0.55.2) (2026-08-15)
+
+
+### Bug Fixes
+
+* gate plan archive on parent children ([eab456b](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/eab456b0c2c45c458f42c00b6629890b63a0aa54))
+
 ## [0.55.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.55.0...v0.55.1) (2026-08-15)
 
 
