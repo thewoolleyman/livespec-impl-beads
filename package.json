@@ -1,0 +1,21 @@
+{
+  "name": "livespec-orchestrator-beads-fabro",
+  "version": "0.0.0",
+  "description": "pi package surface of the Beads/Dolt-backed livespec orchestrator plugin \u2014 thin pi SKILL.md bindings over the same wrapper CLIs and prose artifacts the Claude and Codex surfaces bind.",
+  "private": true,
+  "keywords": [
+    "pi-package"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro.git"
+  },
+  "pi": {
+    "skills": [
+      "./.claude-plugin/.pi-plugin/skills"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}
