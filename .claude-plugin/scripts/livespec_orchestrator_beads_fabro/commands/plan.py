@@ -14,7 +14,7 @@ from livespec_orchestrator_beads_fabro.store import append_work_item, read_work_
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
 if TYPE_CHECKING:
-    from livespec_orchestrator_beads_fabro._beads_client import BeadsRecord
+    from livespec_orchestrator_beads_fabro._beads_client import BeadsClient, BeadsRecord
     from livespec_orchestrator_beads_fabro.types import StoreConfig
 
 __all__: list[str] = [
@@ -183,9 +183,7 @@ def archive_thread(
         raise PlanArchiveRefusedError.missing_completeness_review()
     client = make_beads_client(config=config)
     undisposed = sorted(
-        record["id"]
-        for record in client.list_issues()
-        if _is_undisposed_plan_child(record=record, epic_id=epic_id)
+        record["id"] for record in _undisposed_plan_children(client=client, epic_id=epic_id)
     )
     if undisposed:
         raise PlanArchiveRefusedError.undisposed_children(child_ids=undisposed)
@@ -228,11 +226,33 @@ def _parse_entry(*, text: str) -> PlanTimelineEntry:
     )
 
 
+def _undisposed_plan_children(*, client: BeadsClient, epic_id: str) -> list[BeadsRecord]:
+    return [
+        record
+        for record in _plan_child_records(client=client, epic_id=epic_id)
+        if _is_undisposed_plan_child(record=record, epic_id=epic_id)
+    ]
+
+
+def _plan_child_records(*, client: BeadsClient, epic_id: str) -> list[BeadsRecord]:
+    records_by_id = {
+        cast("str", record["id"]): record for record in client.children(parent_id=epic_id)
+    }
+    for record in client.list_issues():
+        issue_id = record.get("id")
+        if isinstance(issue_id, str) and _has_blocks_edge_to_epic(record=record, epic_id=epic_id):
+            _ = records_by_id.setdefault(issue_id, record)
+    return list(records_by_id.values())
+
+
 def _is_undisposed_plan_child(*, record: BeadsRecord, epic_id: str) -> bool:
     issue_id = record.get("id")
     if not isinstance(issue_id, str) or record.get("status") == "closed":
         return False
-    return _has_blocks_edge_to_epic(record=record, epic_id=epic_id)
+    return record.get("parent_id") == epic_id or _has_blocks_edge_to_epic(
+        record=record,
+        epic_id=epic_id,
+    )
 
 
 def _has_blocks_edge_to_epic(*, record: BeadsRecord, epic_id: str) -> bool:
