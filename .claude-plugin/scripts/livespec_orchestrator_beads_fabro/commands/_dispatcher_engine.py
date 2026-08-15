@@ -70,6 +70,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     DispatchPlan,
     fabro_inspect_argv,
     fabro_run_argv,
+    fabro_server_env,
     parse_run_id,
     parse_run_status,
 )
@@ -203,10 +204,20 @@ class SynchronousFabroLauncher:
         journal: JournalWriter,
     ) -> FabroRunResult:
         _ = journal
-        command = runner.run(
-            argv=fabro_run_argv(plan=plan),
-            cwd=plan.repo,
-            timeout_seconds=_FABRO_TIMEOUT_SECONDS,
+        env = fabro_server_env(plan=plan)
+        command = (
+            runner.run(
+                argv=fabro_run_argv(plan=plan),
+                cwd=plan.repo,
+                timeout_seconds=_FABRO_TIMEOUT_SECONDS,
+                env=env,
+            )
+            if env is not None
+            else runner.run(
+                argv=fabro_run_argv(plan=plan),
+                cwd=plan.repo,
+                timeout_seconds=_FABRO_TIMEOUT_SECONDS,
+            )
         )
         return FabroRunResult(command=command)
 

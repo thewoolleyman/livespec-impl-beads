@@ -10,12 +10,14 @@ from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
 from time import sleep as _real_sleep
+from typing import cast
 
 from returns.unsafe import unsafe_perform_io
 
 from livespec_orchestrator_beads_fabro.commands import (
     _dispatcher_self_update as selfup,
 )
+from livespec_orchestrator_beads_fabro.commands._config import FactoryTarget
 from livespec_orchestrator_beads_fabro.commands._dispatcher_completion import (
     warn_item_sizing,
 )
@@ -88,6 +90,8 @@ def dispatch_one(
     journal: JournalFile,
     janitor: tuple[str, ...] | None,
 ) -> DispatchOutcome:
+    if not hasattr(args, "fabro_factory_target"):
+        args.fabro_factory_target = FactoryTarget(name="default", server=None, dev_token=None)
     lock = live_dispatch_lock(repo=repo, work_item_id=item.id)
     if lock is None or lock.dispatch_id is None:
         dispatch_id = run_id()
@@ -124,12 +128,16 @@ def _dispatch_one_locked(
         return failed_dispatch_outcome(
             journal=journal, work_item_id=item.id, stage="ledger-labels", detail=raw_labels
         )
+    factory_target = cast("FactoryTarget", args.fabro_factory_target)
     plan = build_plan(
         repo=repo,
         work_item_id=item.id,
         workflow_toml=overlay_file,
         goal_file=goal_file,
         fabro_bin=args.fabro_bin,
+        fabro_factory_name=factory_target.name,
+        fabro_factory_server=factory_target.server,
+        fabro_factory_dev_token=factory_target.dev_token,
         janitor=janitor,
         janitor_checkout=janitor_checkout,
         janitor_core_ref=janitor_core_ref(repo=repo),

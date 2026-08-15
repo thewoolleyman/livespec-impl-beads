@@ -212,7 +212,7 @@ def fabro_run_argv(*, plan: DispatchPlan) -> list[str]:
     # unaffected. The dual-credential overlay projects the matching
     # auth.json so the adapter authenticates from the host snapshot.
     return [
-        plan.fabro_bin,
+        *_fabro_command_prefix(plan=plan),
         "run",
         str(plan.workflow_toml),
         "--goal-file",
@@ -227,8 +227,20 @@ def fabro_run_argv(*, plan: DispatchPlan) -> list[str]:
     ]
 
 
+def fabro_server_env(*, plan: DispatchPlan) -> dict[str, str] | None:
+    if plan.fabro_factory_server is None:
+        return None
+    return {"FABRO_SERVER": plan.fabro_factory_server}
+
+
+def _fabro_command_prefix(*, plan: DispatchPlan) -> list[str]:
+    if plan.fabro_factory_server is None:
+        return [plan.fabro_bin]
+    return [plan.fabro_bin, "--server", plan.fabro_factory_server]
+
+
 def fabro_inspect_argv(*, plan: DispatchPlan, run_id: str) -> list[str]:
-    return [plan.fabro_bin, "inspect", run_id, "--json"]
+    return [*_fabro_command_prefix(plan=plan), "inspect", run_id, "--json"]
 
 
 def fabro_events_argv(*, plan: DispatchPlan, run_id: str) -> list[str]:
@@ -238,7 +250,7 @@ def fabro_events_argv(*, plan: DispatchPlan, run_id: str) -> list[str]:
     liveness signal (work-item livespec-impl-beads-oyg); a stream that
     flatlines for the full stall window is the confirmed-stall signal.
     """
-    return [plan.fabro_bin, "events", run_id, "--json"]
+    return [*_fabro_command_prefix(plan=plan), "events", run_id, "--json"]
 
 
 def fabro_ps_argv(*, plan: DispatchPlan) -> list[str]:
@@ -249,7 +261,7 @@ def fabro_ps_argv(*, plan: DispatchPlan) -> list[str]:
     `fabro ps` (matched on the work-item id embedded in the run's goal
     text plus a `running` status — see `parse_running_run_id`).
     """
-    return [plan.fabro_bin, "ps", "-a", "--json"]
+    return [*_fabro_command_prefix(plan=plan), "ps", "-a", "--json"]
 
 
 def fabro_rm_argv(*, plan: DispatchPlan, run_id: str) -> list[str]:
@@ -259,7 +271,7 @@ def fabro_rm_argv(*, plan: DispatchPlan, run_id: str) -> list[str]:
     free the slot + stop the spend (the manual `fabro rm` a human had to
     do at 152min in the 7us.6 incident, now mechanized).
     """
-    return [plan.fabro_bin, "rm", "-f", run_id]
+    return [*_fabro_command_prefix(plan=plan), "rm", "-f", run_id]
 
 
 def pr_view_argv(*, plan: DispatchPlan) -> list[str]:

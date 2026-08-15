@@ -47,6 +47,9 @@ class DispatchPlan:
     workflow_toml: Path
     goal_file: Path
     fabro_bin: str
+    fabro_factory_name: str
+    fabro_factory_server: str | None
+    fabro_factory_dev_token: str | None
     janitor: tuple[str, ...]
     janitor_checkout: Path
     janitor_core_checkout: Path
@@ -63,6 +66,9 @@ def build_plan(  # noqa: PLR0913 — kw-only plan resolver; each field is an ind
     workflow_toml: Path,
     goal_file: Path,
     fabro_bin: str,
+    fabro_factory_name: str = "default",
+    fabro_factory_server: str | None = None,
+    fabro_factory_dev_token: str | None = None,
     janitor: tuple[str, ...] | None,
     janitor_checkout: Path,
     janitor_core_repo_url: str = _DEFAULT_JANITOR_CORE_REPO_URL,
@@ -78,6 +84,9 @@ def build_plan(  # noqa: PLR0913 — kw-only plan resolver; each field is an ind
         workflow_toml=workflow_toml,
         goal_file=goal_file,
         fabro_bin=fabro_bin,
+        fabro_factory_name=fabro_factory_name,
+        fabro_factory_server=fabro_factory_server,
+        fabro_factory_dev_token=fabro_factory_dev_token,
         janitor=janitor_argv_with_default(janitor=janitor),
         janitor_checkout=janitor_checkout,
         janitor_core_checkout=janitor_core_checkout_path(janitor_checkout=janitor_checkout),
