@@ -432,6 +432,150 @@ def test_env_fabro_bin_beats_config(
     assert resolve_fabro_bin(cwd=tmp_path) == "/env/fabro/bin/fabro"
 
 
+def test_resolve_fabro_factory_uses_env_selected_config_entry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A non-empty `LIVESPEC_FABRO_FACTORY` selects that named factory outright."""
+    assert hasattr(_config, "resolve_fabro_factory")
+    monkeypatch.setenv("LIVESPEC_FABRO_FACTORY", "remote")
+    monkeypatch.setenv("FABRO_DEV_TOKEN__remote", "remote-token")
+    _write_config(
+        cwd=tmp_path,
+        body=json.dumps(
+            {
+                "livespec-orchestrator-beads-fabro": {
+                    "dispatcher": {
+                        "default_factory": "local",
+                        "factories": {
+                            "local": {"server": "http://127.0.0.1:32276"},
+                            "remote": {"server": "https://factory.example.test"},
+                        },
+                    }
+                }
+            }
+        ),
+    )
+    target = _config.resolve_fabro_factory(cwd=tmp_path)
+    assert target.name == "remote"
+    assert target.server == "https://factory.example.test"
+    assert target.dev_token == "remote-token"
+
+
+def test_resolve_fabro_factory_uses_configured_default_factory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With no env override, `dispatcher.default_factory` selects a configured entry."""
+    monkeypatch.delenv("LIVESPEC_FABRO_FACTORY", raising=False)
+    monkeypatch.setenv("FABRO_DEV_TOKEN__west", "west-token")
+    _write_config(
+        cwd=tmp_path,
+        body=json.dumps(
+            {
+                "livespec-orchestrator-beads-fabro": {
+                    "dispatcher": {
+                        "default_factory": "west",
+                        "factories": {
+                            "west": {"server": "https://west.example.test"},
+                        },
+                    }
+                }
+            }
+        ),
+    )
+    target = _config.resolve_fabro_factory(cwd=tmp_path)
+    assert target.name == "west"
+    assert target.server == "https://west.example.test"
+    assert target.dev_token == "west-token"
+
+
+def test_resolve_fabro_factory_defaults_to_configured_default_entry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without `default_factory`, a `factories.default` entry is used when present."""
+    monkeypatch.delenv("LIVESPEC_FABRO_FACTORY", raising=False)
+    _write_config(
+        cwd=tmp_path,
+        body=json.dumps(
+            {
+                "livespec-orchestrator-beads-fabro": {
+                    "dispatcher": {
+                        "factories": {
+                            "default": {"server": "https://default.example.test"},
+                        },
+                    }
+                }
+            }
+        ),
+    )
+    target = _config.resolve_fabro_factory(cwd=tmp_path)
+    assert target.name == "default"
+    assert target.server == "https://default.example.test"
+    assert target.dev_token is None
+
+
+def test_resolve_fabro_factory_implicit_default_preserves_loopback_behavior(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No env or configured entry yields the implicit single default factory."""
+    monkeypatch.delenv("LIVESPEC_FABRO_FACTORY", raising=False)
+    target = _config.resolve_fabro_factory(cwd=tmp_path)
+    assert target.name == "default"
+    assert target.server is None
+    assert target.dev_token is None
+
+
+def test_resolve_fabro_factory_empty_env_falls_through_to_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An empty env override is ignored, matching the existing Fabro-bin pattern."""
+    monkeypatch.setenv("LIVESPEC_FABRO_FACTORY", "")
+    _write_config(
+        cwd=tmp_path,
+        body=json.dumps(
+            {
+                "livespec-orchestrator-beads-fabro": {
+                    "dispatcher": {
+                        "default_factory": "east",
+                        "factories": {"east": {"server": "https://east.example.test"}},
+                    }
+                }
+            }
+        ),
+    )
+    target = _config.resolve_fabro_factory(cwd=tmp_path)
+    assert target.name == "east"
+    assert target.server == "https://east.example.test"
+
+
+def test_resolve_fabro_factory_env_unknown_does_not_fall_back_to_default(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An env-selected missing factory still wins over the configured default."""
+    monkeypatch.setenv("LIVESPEC_FABRO_FACTORY", "adhoc")
+    _write_config(
+        cwd=tmp_path,
+        body=json.dumps(
+            {
+                "livespec-orchestrator-beads-fabro": {
+                    "dispatcher": {
+                        "default_factory": "remote",
+                        "factories": {"remote": {"server": "https://remote.example.test"}},
+                    }
+                }
+            }
+        ),
+    )
+    target = _config.resolve_fabro_factory(cwd=tmp_path)
+    assert target.name == "adhoc"
+    assert target.server is None
+
+
 _WORKFLOW_WITH_IMAGE = (
     "_version = 1\n"
     "\n"
