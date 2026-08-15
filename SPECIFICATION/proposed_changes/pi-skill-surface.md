@@ -27,7 +27,10 @@ the thin-binding obligations mirroring the Codex clauses (wrapper
 dispatch for thin-transport ops, full prose reads for heavyweight ops,
 one shared plugin-root resolver, no pi extension of its own), and the
 trust-gate and non-interactive caveat BY CITATION to livespec core
-rather than by restatement.
+rather than by restatement. It also sweeps the four existing sentences
+that name Claude Code and Codex as the complete supported-runtime set,
+rewriting each runtime-neutrally so ratifying the pi surface leaves
+nothing behind contradicting it.
 
 ### Motivation
 
@@ -65,8 +68,13 @@ model-visible loading and human discoverability.
 
 ### Proposed Changes
 
-Two files change. Both edits are insertions; no existing sentence is
-replaced or deleted.
+Two files change, in two kinds of edit. The pi surface itself is ADDED
+as one new section plus one new bullet. Four existing sentences that
+enumerate this plugin's supported agent runtimes as exactly "Claude Code
+and Codex" are additionally REPLACED with runtime-neutral phrasing —
+without that sweep, ratifying the new section would leave four
+statements silently contradicting it, and each would have to be found
+again the next time a runtime is added. Nothing is deleted.
 
 ### 1. `SPECIFICATION/contracts.md` — new section
 
@@ -129,15 +137,16 @@ The mapping is DERIVED, not enumerated: the pi surface exposes one skill
 per operation this plugin ships as a Claude binding under
 `.claude-plugin/skills/`, no more and no fewer, so an operation added or
 retired there changes the pi surface in the same act rather than through
-a separately-maintained list that can silently fall behind. The longest
-name this rule can produce over the current operation set is 52
-characters, comfortably inside pi's 64-character limit; an operation
-name long enough to breach that limit MUST be resolved through a
-propose-change cycle here, never by silently abbreviating the plugin
-prefix. Each binding's directory name under
-`.claude-plugin/.pi-plugin/skills/` MUST equal its frontmatter `name`:
-pi tolerates a mismatch, the Agent Skills standard does not, and the
-tolerance is not a licence to diverge.
+a separately-maintained list that can silently fall behind. Every name
+this rule produces fits pi's 64-character limit; an operation name long
+enough to breach that limit MUST be resolved through a propose-change
+cycle here, never by silently abbreviating the plugin prefix. Each
+binding's directory name under `.claude-plugin/.pi-plugin/skills/` MUST
+equal its frontmatter `name`: pi tolerates a mismatch — observed on pi
+v0.84.1, anchored because it is a claim about an external project no
+gate here watches, and to be re-verified on any pi major-version bump —
+the Agent Skills standard does not, and the tolerance is not a licence
+to diverge.
 
 **Thin-binding obligations.** Every pi binding carries pi-runtime
 mechanics ONLY, under the same thinness discipline the Codex bindings
@@ -154,18 +163,23 @@ body. Concretely:
   binding the prose's harness-neutral vocabulary to pi's tools. It MUST
   NOT restate, summarize, or act on a partial read of that prose. The
   store-write consent discipline (§"Store-write consent discipline")
-  binds it unchanged: pi has no structured-picker tool, so a consent
-  turn is asked in plain prose, with the options stated explicitly, and
-  answered before the write executes.
+  binds it unchanged: pi has no structured-picker tool — an absence
+  observed on pi v0.84.1, anchored for the same reason and to be
+  re-verified on any pi major-version bump — so a consent turn is asked
+  in plain prose, with the options stated explicitly, and answered
+  before the write executes. Should a future pi release add a picker,
+  using it is permitted, and only through a propose-change cycle here.
 - The operator surface `drive` is a thin binding over `drive.py`, with
   the selected action executed by the shared CLI, and it composes and
   ranks nothing.
 - Plugin-root resolution is realized ONCE, by a single shared resolver
   script in the pi bindings tree that every binding invokes; the ordered
-  algorithm MUST NOT be restated inline in a SKILL.md. Eight inline
-  copies of a resolution rule in a sibling Driver were kept in agreement
-  only by copying, and one positional defect consequently came to live
-  in all eight bindings at once. The resolver's search order is: the
+  algorithm MUST NOT be restated inline in a SKILL.md. The sibling repo
+  `thewoolleyman/livespec-driver-claude` carried its core-root
+  resolution rule as one inline copy per operation binding, across all
+  eight of the operations that Driver exposes; copies kept in agreement
+  only by copying, so a single positional defect came to live in all
+  eight bindings at once. The resolver's search order is: the
   `LIVESPEC_ORCH_PLUGIN_ROOT` explicit override; the governed project's
   own `.claude-plugin/` when that checkout IS this plugin (dogfooding);
   the project-scope pi clone under
@@ -203,7 +217,46 @@ used for testing is removed afterward unless the maintainer asks to
 keep it.
 ```
 
-### 2. `SPECIFICATION/constraints.md` — new bullet in §"Skill orchestration constraints"
+### 2. `SPECIFICATION/contracts.md` — retire two two-runtime enumerations
+
+Both edits below replace an existing enumeration that names Claude Code
+and Codex as the complete set of supported runtimes. Each is rewritten
+runtime-NEUTRALLY rather than extended to a three-item list: an
+enumeration extended by hand is the same defect deferred by one runtime,
+and the concrete per-runtime packaging is already owned by the sections
+that define each surface.
+
+**2a.** In §"The skill surface" → "Heavyweight authored skills (6)",
+replace:
+
+```
+per-runtime SKILL.md bindings (one for Claude Code, one for Codex) that
+resolve the plugin root, read `prose/<op>.md` in full, and map its
+```
+
+with:
+
+```
+per-runtime SKILL.md bindings — one per supported agent runtime — that
+resolve the plugin root, read `prose/<op>.md` in full, and map its
+```
+
+**2b.** In §"Interactive dialogue ownership (orchestrator-side)",
+replace:
+
+```
+and `groom` (per §"Store-write consent discipline"), usable from the
+supported agent runtimes (Claude Code and Codex CLI). These front-ends
+```
+
+with:
+
+```
+and `groom` (per §"Store-write consent discipline"), usable from every
+supported agent runtime. These front-ends
+```
+
+### 3. `SPECIFICATION/constraints.md` — new bullet in §"Skill orchestration constraints"
 
 In `SPECIFICATION/constraints.md` §"Skill orchestration constraints",
 insert the following new bullet immediately AFTER the existing bullet
@@ -216,6 +269,40 @@ that write to the work-items store MUST`:
 - pi support is REQUIRED as a first-class agent-runtime consideration on the same terms as Codex. pi adapters MUST be thin runtime bindings over the same wrapper CLIs, prose artifacts, beads tenant semantics, and consent rules as the Claude Code skills; they MUST NOT copy Claude-specific or Codex-specific `SKILL.md` bodies. Thin-transport behavior remains zero-orchestration under pi too: ranking, listing, and formatting logic stays in the wrapper scripts. The `drive` surface is likewise a thin runtime binding over `drive.py`, and plugin-root resolution is delegated to the ONE shared resolver script rather than restated inline per binding (per `contracts.md` §"pi skill surface"). pi skill names are flat — no colon namespacing exists — so the plugin namespace is carried by the unabbreviated `livespec-orchestrator-beads-fabro-` name prefix. Claude-only hooks are NOT assumed to run under pi; the sanctioned pi footgun-guard extension belongs to the pi Driver, and this plugin ships no pi extension of its own. The human pi discovery surface MUST be verified separately from model-visible skill loading, and pi support MUST NOT be claimed until a live pi invocation has driven one of this plugin's operations through the installed package.
 ```
 
+### 4. `SPECIFICATION/constraints.md` — retire two more two-runtime enumerations
+
+Both edits are in §"Skill orchestration constraints", in bullets that
+predate this proposal, and both are rewritten runtime-neutrally for the
+same reason as edit 2.
+
+**4a.** In the heavyweight-skills bullet, replace:
+
+```
+utilities (record-formatting, schema validation); no dialogue logic is
+  duplicated across the Claude and Codex bindings.
+```
+
+with:
+
+```
+utilities (record-formatting, schema validation); no dialogue logic is
+  duplicated across the per-runtime bindings.
+```
+
+**4b.** In the operator-skill bullet, replace:
+
+```
+  in the shared `drive.py` wrapper and command module so Claude Code and
+  Codex bindings call the same logic.
+```
+
+with:
+
+```
+  in the shared `drive.py` wrapper and command module so every
+  per-runtime binding calls the same logic.
+```
+
 ### Notes for the accepting revise
 
 - **Heading-coverage co-edit.** This proposal adds exactly ONE `## `
@@ -225,6 +312,16 @@ that write to the work-items store MUST`:
   entry for that heading (`spec_root: SPECIFICATION`, `spec_file:
   contracts.md`), alongside the two spec files. Without that co-edit the
   pre-commit `check-heading-coverage` gate fails.
+- **Every replacement target was verified verbatim-unique.** Each of the
+  four replaced passages in edits 2 and 4 was matched against the live
+  file at the time this proposal was amended and occurs exactly once.
+  The accepting revise SHOULD re-confirm that before applying them, since
+  master moves between filing and ratification.
+- **The Codex-specific bullet in §"Skill orchestration constraints" is
+  deliberately left alone.** It states Codex-specific claim discipline
+  (the Codex TUI picker rendering, Codex hook assumptions), not a
+  supported-runtime enumeration, so neutralizing it would erase real
+  content. The new pi bullet is its sibling rather than its replacement.
 - **No count is introduced.** The pi mapping is stated as a derivation
   over the operations shipped under `.claude-plugin/skills/`, never as
   an enumeration or a total, so it cannot fall out of lockstep with the
