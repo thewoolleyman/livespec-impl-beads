@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.55.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.55.0...v0.55.1) (2026-08-15)
+
+
+### Bug Fixes
+
+* record dispatch factory on ledger ([b7e9de8](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/b7e9de84233e317dc350530dc5daba4307f1c0d1))
+
 ## [0.55.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.54.0...v0.55.0) (2026-08-15)
 
 
