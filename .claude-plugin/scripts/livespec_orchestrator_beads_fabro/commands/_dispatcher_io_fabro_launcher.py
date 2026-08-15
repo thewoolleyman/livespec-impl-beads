@@ -26,6 +26,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     fabro_ps_argv,
     fabro_rm_argv,
     fabro_run_argv,
+    fabro_server_env,
     parse_running_run_id,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_watchdog import (
@@ -90,10 +91,20 @@ class WatchedFabroLauncher:
         holder: dict[str, CommandResult] = {}
 
         def _run_fabro() -> None:
-            holder["result"] = runner.run(
-                argv=fabro_run_argv(plan=plan),
-                cwd=plan.repo,
-                timeout_seconds=_FABRO_TIMEOUT_SECONDS,
+            env = fabro_server_env(plan=plan)
+            holder["result"] = (
+                runner.run(
+                    argv=fabro_run_argv(plan=plan),
+                    cwd=plan.repo,
+                    timeout_seconds=_FABRO_TIMEOUT_SECONDS,
+                    env=env,
+                )
+                if env is not None
+                else runner.run(
+                    argv=fabro_run_argv(plan=plan),
+                    cwd=plan.repo,
+                    timeout_seconds=_FABRO_TIMEOUT_SECONDS,
+                )
             )
 
         thread = threading.Thread(target=_run_fabro, name=f"fabro-run-{plan.work_item_id}")

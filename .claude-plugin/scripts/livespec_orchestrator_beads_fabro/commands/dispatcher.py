@@ -354,6 +354,7 @@ def _add_reconcile_merged(*, parser: argparse.ArgumentParser) -> None:
 
 def _add_dispatch_common(*, parser: argparse.ArgumentParser) -> None:
     _ = parser.add_argument("--repo", dest="repo", required=True)
+    _ = parser.add_argument("--factory", dest="factory", default=None)
     _ = parser.add_argument("--workflow", dest="workflow", default=None)
     # Default None (NOT the bare name "fabro"): a None sentinel means "not
     # explicitly passed -> resolve from LIVESPEC_FABRO_BIN / the .livespec.jsonc

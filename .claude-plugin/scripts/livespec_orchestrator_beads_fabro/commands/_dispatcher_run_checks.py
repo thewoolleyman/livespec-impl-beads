@@ -10,7 +10,11 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import cast
 
-from livespec_orchestrator_beads_fabro.commands._config import resolve_fabro_bin
+from livespec_orchestrator_beads_fabro.commands._config import (
+    FactoryTarget,
+    resolve_fabro_bin,
+    resolve_fabro_factory,
+)
 from livespec_orchestrator_beads_fabro.commands._cross_repo import load_manifest
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import ShellCommandRunner
 from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_checks import run_janitor_checks
@@ -194,6 +198,11 @@ def _resolve_fabro_bin_for(*, args: argparse.Namespace, repo: Path) -> str:
     return resolve_fabro_bin(cwd=repo)
 
 
+def _resolve_fabro_factory_for(*, args: argparse.Namespace, repo: Path) -> FactoryTarget:
+    factory = cast("str | None", getattr(args, "factory", None))
+    return resolve_fabro_factory(cwd=repo, factory=factory)
+
+
 def _fabro_preflight_error(*, fabro_bin: str) -> str | None:
     """Return an operator-facing ERROR string when `fabro_bin` is unresolvable, else None.
 
@@ -234,6 +243,7 @@ def dispatch_preamble(
     if not janitor_ok:
         return None, _EXIT_USAGE_ERROR
     args.fabro_bin = _resolve_fabro_bin_for(args=args, repo=repo)
+    args.fabro_factory_target = _resolve_fabro_factory_for(args=args, repo=repo)
     fabro_error = _fabro_preflight_error(fabro_bin=args.fabro_bin)
     if fabro_error is not None:
         _ = write_stderr(text=fabro_error)

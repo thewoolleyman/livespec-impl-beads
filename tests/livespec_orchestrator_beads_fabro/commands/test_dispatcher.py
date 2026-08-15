@@ -923,6 +923,41 @@ def test_build_plan_derives_publish_branch_and_default_janitor(tmp_path: Path) -
     assert plan.merge_on_review_cap_outcome == "__merge_on_review_cap_disabled__"
 
 
+def test_dispatch_factory_selection_reaches_fabro_run_argv_and_env(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(SystemExit) as exc:
+        dispatcher.main(argv=["dispatch", "--help"])
+    assert exc.value.code == 0
+    assert "--factory" in capsys.readouterr().out
+
+    from livespec_orchestrator_beads_fabro.commands import _dispatcher_plan
+
+    assert hasattr(_dispatcher_plan, "fabro_server_env")
+    plan = _dispatcher_plan.build_plan(
+        repo=tmp_path,
+        work_item_id="x-1",
+        workflow_toml=tmp_path / "wf.toml",
+        goal_file=tmp_path / "goal.md",
+        fabro_bin="fabro",
+        janitor=None,
+        janitor_checkout=tmp_path / "janitor-co",
+        fabro_factory_name="remote",
+        fabro_factory_server="https://factory.example.test",
+    )
+
+    assert _dispatcher_plan.fabro_server_env(plan=plan) == {
+        "FABRO_SERVER": "https://factory.example.test",
+    }
+    assert _dispatcher_plan.fabro_run_argv(plan=plan)[:4] == [
+        "fabro",
+        "--server",
+        "https://factory.example.test",
+        "run",
+    ]
+
+
 def test_janitor_argv_with_default_passthrough_and_empty() -> None:
     assert janitor_argv_with_default(janitor=("echo", "hi")) == ("echo", "hi")
     assert janitor_argv_with_default(janitor=()) == (

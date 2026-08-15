@@ -162,17 +162,20 @@ def resolve_fabro_bin(*, cwd: Path) -> str:
     return _default_fabro_bin()
 
 
-def resolve_fabro_factory(*, cwd: Path) -> FactoryTarget:
+def resolve_fabro_factory(*, cwd: Path, factory: str | None = None) -> FactoryTarget:
     """Resolve the Dispatcher's Fabro factory target (env > config > default).
 
-    The selected factory name comes from a non-empty `LIVESPEC_FABRO_FACTORY`
-    value when present; otherwise it comes from `dispatcher.default_factory`
-    when that name exists in `dispatcher.factories`; otherwise from a configured
-    `factories.default` entry when present; otherwise from the implicit
-    single-factory `"default"` target. The implicit target has no server value
-    so downstream callers preserve today's ambient Fabro CLI behavior.
+    The selected factory name comes from an explicit CLI value when present;
+    otherwise from a non-empty `LIVESPEC_FABRO_FACTORY` value; otherwise it
+    comes from `dispatcher.default_factory` when that name exists in
+    `dispatcher.factories`; otherwise from a configured `factories.default`
+    entry when present; otherwise from the implicit single-factory `"default"`
+    target. The implicit target has no server value so downstream callers
+    preserve today's ambient Fabro CLI behavior.
     """
     block = _read_dispatcher_block(cwd=cwd)
+    if factory is not None and factory != "":
+        return _factory_target_for(name=factory, block=block)
     env_value = os.environ.get(_ENV_FABRO_FACTORY)
     if env_value is not None and env_value != "":
         return _factory_target_for(name=env_value, block=block)
