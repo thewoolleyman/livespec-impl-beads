@@ -66,6 +66,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_merge import 
     await_merge,
     confirm_pr,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_argv import (
+    fabro_auth_login_argv,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     DispatchPlan,
     fabro_inspect_argv,
@@ -86,6 +89,7 @@ __all__: list[str] = [
     "SleepFn",
     "SynchronousFabroLauncher",
     "run_dispatch",
+    "run_fabro_factory_auth_login",
 ]
 
 # Worst-case phase-graph wall clock the foreground `fabro run` subprocess
@@ -95,6 +99,7 @@ __all__: list[str] = [
 # slack. A subprocess budget below the graph's own ceiling kills the CLI
 # mid-run while the server-side engine keeps executing the graph.
 _FABRO_TIMEOUT_SECONDS = 54000.0
+_FABRO_AUTH_TIMEOUT_SECONDS = 300.0
 _FABRO_INSPECT_TIMEOUT_SECONDS = 300.0
 
 SleepFn = Callable[[float], None]
@@ -183,6 +188,16 @@ class FabroLauncher(Protocol):
         ...
 
 
+def run_fabro_factory_auth_login(*, plan: DispatchPlan, runner: CommandRunner) -> None:
+    auth_argv = fabro_auth_login_argv(plan=plan)
+    if auth_argv is not None:
+        _ = runner.run(
+            argv=auth_argv,
+            cwd=plan.repo,
+            timeout_seconds=_FABRO_AUTH_TIMEOUT_SECONDS,
+        )
+
+
 @dataclass(frozen=True, kw_only=True)
 class SynchronousFabroLauncher:
     """No-watchdog launcher: a plain blocking `fabro run` (the legacy path).
@@ -204,6 +219,7 @@ class SynchronousFabroLauncher:
         journal: JournalWriter,
     ) -> FabroRunResult:
         _ = journal
+        run_fabro_factory_auth_login(plan=plan, runner=runner)
         env = fabro_server_env(plan=plan)
         command = (
             runner.run(

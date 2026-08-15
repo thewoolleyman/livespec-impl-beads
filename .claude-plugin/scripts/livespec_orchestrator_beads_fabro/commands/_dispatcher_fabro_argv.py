@@ -233,6 +233,20 @@ def fabro_server_env(*, plan: DispatchPlan) -> dict[str, str] | None:
     return {"FABRO_SERVER": plan.fabro_factory_server}
 
 
+def fabro_auth_login_argv(*, plan: DispatchPlan) -> list[str] | None:
+    if plan.fabro_factory_server is None or plan.fabro_factory_dev_token is None:
+        return None
+    return [
+        plan.fabro_bin,
+        "auth",
+        "login",
+        "--dev-token",
+        plan.fabro_factory_dev_token,
+        "--server",
+        plan.fabro_factory_server,
+    ]
+
+
 def _fabro_command_prefix(*, plan: DispatchPlan) -> list[str]:
     if plan.fabro_factory_server is None:
         return [plan.fabro_bin]
