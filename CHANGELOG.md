@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.54.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.53.0...v0.54.0) (2026-08-15)
+
+
+### Features
+
+* resolve fabro factory target ([a0107ef](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/a0107ef9bf5348f3bb9e7d93064d39518b2c41cb))
+
 ## [0.53.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.52.4...v0.53.0) (2026-08-15)
 
 
