@@ -70,6 +70,17 @@
   //     "ratification_min_review_age_seconds": 1
   //   }
   //
+  // Cross-spec citation allowlist for doctor's no-cross-spec-reference
+  // invariant. contracts.md §"pi skill surface" cites livespec core's
+  // Driver-shipped-hooks and Plugin-distribution contracts by section
+  // rather than restating them — restating a sibling-owned contract here
+  // is exactly what the no-cross-spec-reference rule exists to prevent.
+  "external_references": {
+    "livespec": [
+      "SPECIFICATION/contracts.md §\"Driver-shipped hooks\"",
+      "SPECIFICATION/contracts.md §\"Plugin distribution\""
+    ]
+  },
   // Planning/work-item-resolution registry. These targets are the repo slugs
   // accepted by typed cross-tenant `depends_on` refs so the Dispatcher
   // readiness gate can fail closed on still-open sibling work.
