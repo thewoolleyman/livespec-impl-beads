@@ -17,7 +17,9 @@ __all__: list[str] = [
     "drive_command",
     "host_only_command",
     "plans",
+    "pr_view_command",
     "reconcile_merged_command",
+    "release_to_ready_command",
     "untriaged_backlog_command",
     "untriaged_backlog_summary_command",
 ]
@@ -111,6 +113,14 @@ def reconcile_merged_command(*, project_root: Path, work_item: str) -> str:
         f"reconcile-merged --repo {_quote(path=project_root)} "
         f"--item {shlex.quote(work_item)} --json"
     )
+
+
+def pr_view_command(*, project_root: Path, pr_number: int) -> str:
+    return f"cd {_quote(path=project_root)} && gh pr view {pr_number} --web"
+
+
+def release_to_ready_command(*, project_root: Path, work_item: str) -> str:
+    return drive_command(project_root=project_root, action_id=f"move:{work_item}:ready")
 
 
 def untriaged_backlog_command(*, project_root: Path, work_item: str) -> str:

@@ -69,6 +69,78 @@ def test_stranded_dispatch_items_render_reconcile_handoff(tmp_path: Path) -> Non
     assert "reconcile-merged" in attention[0].handoff.command
 
 
+def test_stranded_dispatch_items_render_release_handoff_for_pre_branch_death(
+    tmp_path: Path,
+) -> None:
+    _write_journal_lines(
+        tmp_path,
+        records=[
+            {"stage": "ledger-admit", "work_item_id": "bd-active"},
+            {"stage": "dispatch-id", "work_item_id": "bd-active", "dispatch_id": "dispatch-1"},
+        ],
+    )
+
+    attention = stranded_dispatch_items(
+        project_root=tmp_path,
+        repo="repo",
+        items=[_item(id_="bd-active")],
+        live_lock_lookup=_no_live_lock,
+    )
+
+    assert [item.id for item in attention] == ["host-only:stranded-dispatch:bd-active"]
+    stranded = attention[0]
+    assert "dispatch-id" in stranded.summary
+    assert "1 prior attempt" in stranded.summary
+    assert stranded.handoff.kind == "shell"
+    assert "move:bd-active:ready" in stranded.handoff.command
+    assert "reconcile-merged" not in stranded.handoff.command
+
+
+def test_stranded_dispatch_items_render_pr_handoff_for_unmerged_pr_failure(
+    tmp_path: Path,
+) -> None:
+    _write_journal_lines(
+        tmp_path,
+        records=[_outcome(stage="merge-poll", pr_number=2018, merge_sha=None)],
+    )
+
+    attention = stranded_dispatch_items(
+        project_root=tmp_path,
+        repo="repo",
+        items=[_item(id_="bd-active")],
+        live_lock_lookup=_no_live_lock,
+    )
+
+    assert [item.id for item in attention] == ["host-only:stranded-dispatch:bd-active"]
+    stranded = attention[0]
+    assert "PR #2018" in stranded.summary
+    assert "merge-poll" in stranded.summary
+    assert stranded.handoff.kind == "shell"
+    assert "gh pr view 2018" in stranded.handoff.command
+    assert "reconcile-merged" not in stranded.handoff.command
+
+
+def test_stranded_dispatch_items_ignore_watchable_run_without_lock(tmp_path: Path) -> None:
+    _write_journal_lines(
+        tmp_path,
+        records=[{"stage": "dispatch-id", "work_item_id": "bd-active"}],
+    )
+
+    def _watchable_run(*, repo: Path, work_item_id: str) -> object | None:
+        _ = (repo, work_item_id)
+        return object()
+
+    attention = stranded_dispatch_items(
+        project_root=tmp_path,
+        repo="repo",
+        items=[_item(id_="bd-active")],
+        live_lock_lookup=_no_live_lock,
+        watchable_run_lookup=_watchable_run,
+    )
+
+    assert attention == []
+
+
 def test_stranded_dispatch_items_fail_soft_when_journal_is_absent(tmp_path: Path) -> None:
     assert (
         stranded_dispatch_items(
@@ -117,7 +189,6 @@ def test_stranded_dispatch_items_ignore_malformed_or_non_merged_outcomes(tmp_pat
             _outcome(stage=""),
             _outcome(pr_number=True),
             _outcome(pr_number="836"),
-            _outcome(merge_sha=""),
             _outcome(work_item_id="bd-other"),
         ],
     )

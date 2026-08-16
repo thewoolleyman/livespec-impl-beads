@@ -12,9 +12,12 @@ from livespec_runtime.cross_repo.types import CrossRepoManifest, RefStatus
 from livespec_runtime.needs_attention import ImplNextOutput, WorkItemHumanValveLane
 from livespec_runtime.work_items.lifecycle import lane_of
 
+from livespec_orchestrator_beads_fabro.commands._config import resolve_fabro_bin
 from livespec_orchestrator_beads_fabro.commands._dispatcher_dispatch_lock import (
     live_dispatch_lock,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_io import ShellCommandRunner
+from livespec_orchestrator_beads_fabro.commands._dispatcher_run_status import parse_watchable_run
 from livespec_orchestrator_beads_fabro.commands._drive_valve_predicates import (
     awaits_dispatcher_admission,
     can_approve_item,
@@ -157,11 +160,23 @@ def stranded_dispatch_items(
         repo=repo,
         items=items,
         live_lock_lookup=_live_dispatch_lock,
+        watchable_run_lookup=_watchable_fabro_run,
     )
 
 
 def _live_dispatch_lock(*, repo: Path, work_item_id: str) -> object | None:
     return live_dispatch_lock(repo=repo, work_item_id=work_item_id)
+
+
+def _watchable_fabro_run(*, repo: Path, work_item_id: str) -> object | None:
+    result = ShellCommandRunner().run(
+        argv=[resolve_fabro_bin(cwd=repo), "ps", "--all", "--json"],
+        cwd=repo,
+        timeout_seconds=15,
+    )
+    if result.exit_code != 0:
+        return None
+    return parse_watchable_run(ps_json=result.stdout, work_item_id=work_item_id)
 
 
 def _host_only_reasons(*, project_root: Path, items: list[WorkItem]) -> dict[str, str]:
