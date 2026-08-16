@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "livespec.beads_v112_rehearsal.artifact_fetch_receipt.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "measured_at",
+    "urls",
+    "sha256",
+    "version_stdout"
+  ],
+  "properties": {
+    "schema": {
+      "const": "livespec.beads_v112_rehearsal.artifact_fetch_receipt.v1"
+    },
+    "measured_at": {
+      "type": "string"
+    },
+    "urls": {
+      "type": "object"
+    },
+    "sha256": {
+      "type": "object",
+      "required": [
+        "tarball",
+        "bd",
+        "spdx"
+      ],
+      "properties": {
+        "tarball": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "bd": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "spdx": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "version_stdout": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

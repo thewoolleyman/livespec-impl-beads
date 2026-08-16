@@ -1,0 +1,56 @@
+{
+  "schema": "livespec.beads_v112_rehearsal.topology.v1",
+  "synthetic_rehearsal_only": true,
+  "production_writes_allowed": false,
+  "designated_migrator": {
+    "principal": "single-isolated-rehearsal-migrator",
+    "requires_remote_gate_receipt": true,
+    "production_principal_allowed": false
+  },
+  "backup_identity": {
+    "principal": "single-use-isolated-backup",
+    "lifetime": "pre-migration-through-restore-verification",
+    "production_principal_allowed": false
+  },
+  "readonly_shape_sources": [
+    {
+      "name": "dense-lifecycle-policy",
+      "repo_root": "/data/projects/livespec",
+      "wrapper": "/data/projects/1password-env-wrapper/with-livespec-env.sh",
+      "bd_path": "/usr/local/bin/bd",
+      "observed_issue_count": 625,
+      "observed_dependencies_issue_count": 132,
+      "observed_comments_issue_count": 123,
+      "observed_metadata_issue_count": 479,
+      "observed_distinct_label_count": 88
+    },
+    {
+      "name": "factory-policy",
+      "repo_root": "/data/projects/livespec-orchestrator-beads-fabro",
+      "wrapper": "/data/projects/1password-env-wrapper/with-livespec-env.sh",
+      "bd_path": "/usr/local/bin/bd",
+      "observed_issue_count": 447,
+      "observed_dependencies_issue_count": 56,
+      "observed_comments_issue_count": 108,
+      "observed_metadata_issue_count": 233,
+      "observed_distinct_label_count": 55
+    },
+    {
+      "name": "sparse-closed-only",
+      "repo_root": "/data/projects/livespec-driver-codex",
+      "wrapper": "/data/projects/1password-env-wrapper/with-livespec-env.sh",
+      "bd_path": "/usr/local/bin/bd",
+      "observed_issue_count": 25,
+      "observed_dependencies_issue_count": 2,
+      "observed_comments_issue_count": 3,
+      "observed_metadata_issue_count": 13,
+      "observed_distinct_label_count": 7
+    }
+  ],
+  "restore_target": {
+    "source_database": "synthetic_v105_rehearsal_source",
+    "target_database": "synthetic_v112_restore_target",
+    "source_and_target_must_differ": true,
+    "target_must_be_absent_before_restore": true
+  }
+}

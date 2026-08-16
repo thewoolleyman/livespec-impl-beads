@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "livespec.beads_v112_rehearsal.fixture_producer_build_receipt.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "measured_at",
+    "source_archive_sha256",
+    "toolchain_version_stdout",
+    "build_command",
+    "executable_sha256",
+    "version_stdout"
+  ],
+  "properties": {
+    "schema": {
+      "const": "livespec.beads_v112_rehearsal.fixture_producer_build_receipt.v1"
+    },
+    "measured_at": {
+      "type": "string"
+    },
+    "source_archive_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "toolchain_version_stdout": {
+      "type": "string"
+    },
+    "build_command": {
+      "const": "go build -trimpath -ldflags=-buildid= -o bd ./cmd/bd"
+    },
+    "executable_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "version_stdout": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

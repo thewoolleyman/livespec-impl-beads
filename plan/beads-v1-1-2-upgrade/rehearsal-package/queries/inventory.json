@@ -1,0 +1,72 @@
+{
+  "schema": "livespec.beads_v112_rehearsal.inventory_queries.v1",
+  "bd_path": "/usr/local/bin/bd",
+  "queries": [
+    {
+      "name": "all_issues",
+      "argv": [
+        "list",
+        "--status",
+        "all",
+        "--limit",
+        "0",
+        "--json"
+      ],
+      "output_class": "json-array"
+    },
+    {
+      "name": "show_issue",
+      "argv_template": [
+        "show",
+        "{issue_id}",
+        "--json"
+      ],
+      "output_class": "json-array-envelope"
+    },
+    {
+      "name": "comments",
+      "argv_template": [
+        "comments",
+        "{issue_id}",
+        "--json"
+      ],
+      "output_class": "json-array"
+    },
+    {
+      "name": "dependencies",
+      "argv_template": [
+        "dep",
+        "list",
+        "{issue_id}",
+        "--json"
+      ],
+      "output_class": "json-array"
+    },
+    {
+      "name": "children",
+      "argv_template": [
+        "children",
+        "{issue_id}",
+        "--json"
+      ],
+      "output_class": "json-array"
+    },
+    {
+      "name": "migrate_status",
+      "argv": [
+        "migrate",
+        "status"
+      ],
+      "output_class": "text"
+    }
+  ],
+  "derived_inventory_fields": [
+    "issue_count",
+    "issues_with_dependencies",
+    "issues_with_comments",
+    "issues_with_metadata",
+    "distinct_labels",
+    "issue_id_sha256",
+    "base_table_row_counts_sha256"
+  ]
+}

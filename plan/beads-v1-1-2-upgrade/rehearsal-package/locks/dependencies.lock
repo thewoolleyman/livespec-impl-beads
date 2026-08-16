@@ -1,0 +1,22 @@
+{
+  "schema": "livespec.beads_v112_rehearsal.dependencies_lock.v1",
+  "runtime": {
+    "shell": "posix-sh",
+    "json_processor": "python3-stdlib-json",
+    "hash_tool": "sha256sum",
+    "archive_tool": "tar"
+  },
+  "network_artifacts": [
+    {
+      "name": "beads_1.1.2_linux_amd64.tar.gz",
+      "url": "https://github.com/gastownhall/beads/releases/download/v1.1.2/beads_1.1.2_linux_amd64.tar.gz",
+      "sha256": "a72d71ed374955dc9f83a0f90b54bd7b6a0016709dd1676ae2e368651ed401c2"
+    },
+    {
+      "name": "beads-v1.1.2.spdx.json",
+      "url": "https://github.com/gastownhall/beads/releases/download/v1.1.2/beads-v1.1.2.spdx.json",
+      "sha256": "b05ca7f525f05e50691a4329b13aa87f10bc93160fe8d4d1ca371867701b58e6"
+    }
+  ],
+  "no_runtime_package_dependencies": true
+}

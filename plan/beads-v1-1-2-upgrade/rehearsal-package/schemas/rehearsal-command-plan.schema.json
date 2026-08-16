@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "livespec.beads_v112_rehearsal.command_plan.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "synthetic_only",
+    "commands"
+  ],
+  "properties": {
+    "schema": {
+      "const": "livespec.beads_v112_rehearsal.command_plan.v1"
+    },
+    "synthetic_only": {
+      "const": true
+    },
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "writes_allowed",
+          "requires_isolated_tenant",
+          "argv"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "writes_allowed": {
+            "type": "boolean"
+          },
+          "requires_isolated_tenant": {
+            "type": "boolean"
+          },
+          "argv": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

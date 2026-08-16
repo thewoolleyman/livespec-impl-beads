@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "livespec.beads_v112_rehearsal.shape_survey_receipt.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "measured_at",
+    "sources"
+  ],
+  "properties": {
+    "schema": {
+      "const": "livespec.beads_v112_rehearsal.shape_survey_receipt.v1"
+    },
+    "measured_at": {
+      "type": "string"
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "repo_root",
+          "issue_count",
+          "issues_with_dependencies",
+          "issues_with_comments",
+          "issues_with_metadata",
+          "distinct_label_count"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "repo_root": {
+            "type": "string"
+          },
+          "issue_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "issues_with_dependencies": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "issues_with_comments": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "issues_with_metadata": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "distinct_label_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

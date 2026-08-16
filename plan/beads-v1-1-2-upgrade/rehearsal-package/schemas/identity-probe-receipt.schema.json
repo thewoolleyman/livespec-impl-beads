@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "livespec.beads_v112_rehearsal.identity_probe_receipt.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "measured_at",
+    "bd_version_stdout",
+    "inventory_digest",
+    "issue_count",
+    "dependency_count",
+    "comment_count",
+    "metadata_issue_count",
+    "distinct_label_count"
+  ],
+  "properties": {
+    "schema": {
+      "const": "livespec.beads_v112_rehearsal.identity_probe_receipt.v1"
+    },
+    "measured_at": {
+      "type": "string"
+    },
+    "bd_version_stdout": {
+      "type": "string"
+    },
+    "inventory_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "issue_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "dependency_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "comment_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "metadata_issue_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "distinct_label_count": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false
+}
