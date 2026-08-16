@@ -1528,15 +1528,38 @@ _SIBLINGS = SiblingClones(
     clones_root="/workspace/siblings",
 )
 
-_LIVESPEC_CLONE_STEP_LINE = (
-    'script = "mkdir -p /workspace/siblings && git clone --quiet --depth 1'
-    ' https://github.com/thewoolleyman/livespec.git /workspace/siblings/livespec"'
-)
 
-_DEV_TOOLING_CLONE_STEP_LINE = (
-    'script = "mkdir -p /workspace/siblings && git clone --quiet --depth 1'
-    " https://github.com/thewoolleyman/livespec-dev-tooling.git"
-    ' /workspace/siblings/livespec-dev-tooling"'
+def _expected_clone_script(repo_name: str) -> str:
+    """The per-member sibling-clone script the overlay MUST render.
+
+    Tolerant by construction: a member that cannot be cloned is reported
+    on stderr and skipped (`exit 0`) rather than failing the whole
+    prepare step and killing every dispatch, and `GIT_TERMINAL_PROMPT=0`
+    keeps a missing/unreachable repo from falling back to git's
+    credential prompt (which in the TTY-less sandbox surfaces as a
+    misleading `could not read Username` auth error).
+    """
+    url = f"https://github.com/thewoolleyman/{repo_name}.git"
+    prefix = (
+        "livespec-orchestrator-beads-fabro dispatcher: sibling clone skipped" f" for {repo_name}: "
+    )
+    return (
+        "mkdir -p /workspace/siblings || exit 1;"
+        f" GIT_TERMINAL_PROMPT=0 git ls-remote --exit-code {url} HEAD"
+        " >/dev/null 2>&1 ||"
+        f" {{ echo '{prefix}repository not reachable (nonexistent or no access)'"
+        " >&2; exit 0; };"
+        f" GIT_TERMINAL_PROMPT=0 git clone --quiet --depth 1 {url}"
+        f" /workspace/siblings/{repo_name} ||"
+        f" {{ echo '{prefix}clone failed after a successful reachability probe"
+        " (transient)' >&2; exit 0; }}"
+    )
+
+
+_LIVESPEC_CLONE_STEP_LINE = "script = " + json.dumps(_expected_clone_script("livespec"))
+
+_DEV_TOOLING_CLONE_STEP_LINE = "script = " + json.dumps(
+    _expected_clone_script("livespec-dev-tooling")
 )
 
 _SIBLING_ENV_LINE = 'LIVESPEC_SIBLING_CLONES_ROOT = "/workspace/siblings"'
@@ -1629,6 +1652,56 @@ def test_render_run_config_overlay_appends_sibling_clone_steps_and_env_root(
     assert rendered.index(_SIBLING_ENV_LINE) > env_table_at
     assert _FAKE_TOKEN_LINE in rendered
     assert _FAKE_GITHUB_TOKEN_LINE in rendered
+
+
+def test_render_run_config_overlay_sibling_clone_steps_tolerate_bad_members(
+    tmp_path: Path,
+) -> None:
+    """Each rendered per-member clone step MUST degrade per-member.
+
+    A manifest entry naming a repo that does not exist yet (the
+    2026-08-15 livespec-driver-pi birth race) previously failed the whole
+    prepare step and killed EVERY dispatch, after git fell back to a
+    credential prompt the TTY-less sandbox reported as
+    `could not read Username`. The rendered script therefore pins
+    `GIT_TERMINAL_PROMPT=0` on every git invocation, probes reachability
+    with `git ls-remote --exit-code` so a missing repo is named as such
+    rather than as an auth failure, and exits 0 on either failure so the
+    surviving members still clone.
+    """
+    overlay_token = "test-oauth-token"
+    rendered = render_run_config_overlay(
+        committed_text=_COMMITTED_WORKFLOW_TOML,
+        workflow_dir=tmp_path,
+        token=overlay_token,
+        github_token=_FAKE_GITHUB_TOKEN,
+        siblings=_SIBLINGS,
+    )
+    assert rendered is not None
+    for repo_name in _SIBLINGS.repos:
+        script = _expected_clone_script(repo_name)
+        assert "script = " + json.dumps(script) in rendered
+        # Never prompt: a missing/unreachable repo fails immediately.
+        assert script.count("GIT_TERMINAL_PROMPT=0 git ") == 2
+        # An explicit reachability probe separates the two diagnostics.
+        assert "git ls-remote --exit-code" in script
+        assert (
+            f"sibling clone skipped for {repo_name}:"
+            " repository not reachable (nonexistent or no access)" in script
+        )
+        assert (
+            f"sibling clone skipped for {repo_name}:"
+            " clone failed after a successful reachability probe (transient)" in script
+        )
+        # Both failure branches surface on stderr and then continue.
+        assert script.count(">&2; exit 0; }") == 2
+        # Only the mkdir may fail the step.
+        assert script.count("exit 1") == 1
+        # NON-BREAKING: the healthy path still runs the identical clone.
+        assert (
+            "git clone --quiet --depth 1 https://github.com/thewoolleyman/"
+            f"{repo_name}.git /workspace/siblings/{repo_name}" in script
+        )
 
 
 def test_render_run_config_overlay_without_siblings_appends_no_clone_steps(
