@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.57.3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.57.2...v0.57.3) (2026-08-16)
+
+
+### Bug Fixes
+
+* reap orphaned stale fabro runs ([b13f8c0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/b13f8c0ec96346e801a408efb46a1220deeeb048))
+
 ## [0.57.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.57.1...v0.57.2) (2026-08-16)
 
 
