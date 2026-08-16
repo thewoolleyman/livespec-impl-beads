@@ -1,0 +1,179 @@
+"""Plan archive-review helper coverage."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import cast
+
+from livespec_orchestrator_beads_fabro._beads_client import (
+    EDGE_BLOCKS,
+    BeadsClient,
+    FakeBeadsClient,
+    IssueDraft,
+    make_beads_client,
+    reset_fake_singleton,
+)
+from livespec_orchestrator_beads_fabro.commands._plan_archive_review import (
+    archive_completeness_review_request,
+    has_blocks_edge_to_epic,
+    is_blocks_edge_to_epic,
+    record_completeness_review_evidence,
+    undisposed_plan_child_ids,
+    valid_completeness_review_evidence_id,
+)
+from livespec_orchestrator_beads_fabro.types import StoreConfig
+
+
+def _config() -> StoreConfig:
+    return StoreConfig(
+        tenant="livespec-impl-beads",
+        prefix="bd-ib",
+        server_user="livespec-impl-beads",
+        database="livespec-impl-beads",
+        bd_path="bd",
+        fake=True,
+    )
+
+
+def _fake() -> FakeBeadsClient:
+    client = make_beads_client(config=_config())
+    assert isinstance(client, FakeBeadsClient)
+    return client
+
+
+def _draft(*, issue_id: str, parent_id: str | None) -> IssueDraft:
+    return IssueDraft(
+        issue_id=issue_id,
+        issue_type="task",
+        title="child",
+        description="child work",
+        assignee=None,
+        created_at="2026-08-11T00:00:00Z",
+        parent_id=parent_id,
+        metadata={"rank": "a1"},
+        labels=["origin:freeform"],
+    )
+
+
+def test_archive_review_request_carries_closed_children_and_research_files(
+    tmp_path: Path,
+) -> None:
+    reset_fake_singleton()
+    _ = _fake().create_issue(draft=_draft(issue_id="bd-ib-closed", parent_id="bd-ib-epic"))
+    _fake().close_issue(issue_id="bd-ib-closed", reason="completed")
+    source = tmp_path / "plan" / "archive-thread"
+    research = source / "research"
+    research.mkdir(parents=True)
+    (research / "initial.md").write_text("research\n", encoding="utf-8")
+    (research / "nested").mkdir()
+    (research / "nested" / "detail.md").write_text("detail\n", encoding="utf-8")
+
+    request = archive_completeness_review_request(
+        client=_fake(),
+        project_root=tmp_path,
+        source=source,
+        slug="archive-thread",
+        epic_id="bd-ib-epic",
+    )
+
+    assert request.child_ids == ("bd-ib-closed",)
+    assert request.research_paths == (
+        "plan/archive-thread/research/initial.md",
+        "plan/archive-thread/research/nested/detail.md",
+    )
+
+
+def test_archive_review_request_allows_missing_research_directory(tmp_path: Path) -> None:
+    reset_fake_singleton()
+
+    request = archive_completeness_review_request(
+        client=_fake(),
+        project_root=tmp_path,
+        source=tmp_path / "plan" / "archive-thread",
+        slug="archive-thread",
+        epic_id="bd-ib-epic",
+    )
+
+    assert request.child_ids == ()
+    assert request.research_paths == ()
+
+
+def test_child_disposition_detects_parent_and_blocks_edges() -> None:
+    reset_fake_singleton()
+    _ = _fake().create_issue(draft=_draft(issue_id="bd-ib-parent", parent_id="bd-ib-epic"))
+    _ = _fake().create_issue(draft=_draft(issue_id="bd-ib-blocks", parent_id=None))
+    _fake().add_dependency(
+        from_id="bd-ib-blocks",
+        to_id="bd-ib-epic",
+        edge_type=EDGE_BLOCKS,
+    )
+    _fake().update_issue(issue_id="bd-ib-parent", status="ready")
+    _fake().update_issue(issue_id="bd-ib-blocks", status="ready")
+
+    assert undisposed_plan_child_ids(client=_fake(), epic_id="bd-ib-epic") == (
+        "bd-ib-blocks",
+        "bd-ib-parent",
+    )
+
+
+def test_edge_predicates_ignore_malformed_records() -> None:
+    assert not has_blocks_edge_to_epic(record={"dependencies": "not-a-list"}, epic_id="bd-ib-epic")
+    assert not is_blocks_edge_to_epic(edge="not-an-edge", epic_id="bd-ib-epic")
+
+
+def test_review_evidence_requires_matching_durable_independent_comment() -> None:
+    reset_fake_singleton()
+    _ = _fake().create_issue(draft=_draft(issue_id="bd-ib-epic", parent_id=None))
+    _fake().seed_comment(issue_id="bd-ib-epic", text="ordinary note")
+    _fake().seed_comment(
+        issue_id="bd-ib-epic",
+        text="plan-completeness-review-evidence\nmalformed\n\nbody",
+    )
+    record_completeness_review_evidence(
+        config=_config(),
+        epic_id="bd-ib-epic",
+        evidence_id="review-evidence-1",
+        reviewer_identity="fresh-independent-reviewer",
+        separate_reviewer=True,
+        attests_complete_requirement_coverage=True,
+        body="Complete.",
+        now="2026-08-11T02:00:00Z",
+    )
+
+    assert (
+        valid_completeness_review_evidence_id(
+            client=_fake(),
+            epic_id="bd-ib-epic",
+            evidence_id="review-evidence-1",
+            archive_actor="plan-archive",
+        )
+        == "review-evidence-1"
+    )
+    assert (
+        valid_completeness_review_evidence_id(
+            client=_fake(),
+            epic_id="bd-ib-epic",
+            evidence_id="missing",
+            archive_actor="plan-archive",
+        )
+        is None
+    )
+
+
+class _NonStringCommentClient:
+    def list_comments(self, *, issue_id: str) -> list[dict[str, object]]:
+        return [{"issue_id": issue_id, "text": object()}]
+
+
+def test_review_evidence_ignores_non_string_comment_text() -> None:
+    client = cast("BeadsClient", _NonStringCommentClient())
+
+    assert (
+        valid_completeness_review_evidence_id(
+            client=client,
+            epic_id="bd-ib-epic",
+            evidence_id="review-evidence-1",
+            archive_actor="plan-archive",
+        )
+        is None
+    )

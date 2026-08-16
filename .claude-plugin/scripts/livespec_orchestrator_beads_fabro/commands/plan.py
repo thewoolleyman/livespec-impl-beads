@@ -4,12 +4,22 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING
 
 from livespec_runtime.work_items.rank import key_between
 
-from livespec_orchestrator_beads_fabro._beads_client import EDGE_BLOCKS, make_beads_client
+from livespec_orchestrator_beads_fabro._beads_client import make_beads_client
 from livespec_orchestrator_beads_fabro._ids import new_work_item_id
+from livespec_orchestrator_beads_fabro.commands._plan_archive_review import (
+    ArchiveCompletenessReviewRequest,
+    CompletenessReviewLauncher,
+    archive_completeness_review_request,
+    has_blocks_edge_to_epic,
+    is_blocks_edge_to_epic,
+    record_completeness_review_evidence,
+    undisposed_plan_child_ids,
+    valid_completeness_review_evidence_id,
+)
 from livespec_orchestrator_beads_fabro.store import append_work_item, read_work_item_comments
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
@@ -20,11 +30,14 @@ if TYPE_CHECKING:
 __all__: list[str] = [
     "PlanArchiveRefusedError",
     "PlanTimelineEntry",
+    "_has_blocks_edge_to_epic",
+    "_is_blocks_edge_to_epic",
     "append_handoff",
     "append_supervisor_handoff",
     "archive_thread",
     "create_thread",
     "read_timeline",
+    "record_completeness_review_evidence",
     "record_scope_event",
 ]
 
@@ -33,6 +46,7 @@ _ARCHIVE_DIR = "archive"
 _PLAN_HANDOFF_PREFIX = "plan-handoff-entry"
 _PLAN_SCOPE_PREFIX = "plan-scope-event"
 _RESEARCH_DIR = "research"
+_PLAN_ARCHIVE_ACTOR = "plan-archive"
 
 
 class PlanArchiveRefusedError(Exception):
@@ -177,17 +191,29 @@ def archive_thread(
     slug: str,
     epic_id: str,
     completeness_review_comment_id: str | None,
+    review_launcher: CompletenessReviewLauncher | None = None,
 ) -> dict[str, str]:
     """Archive a thread after child-disposition and completeness-review gates pass."""
-    if completeness_review_comment_id is None:
-        raise PlanArchiveRefusedError.missing_completeness_review()
     client = make_beads_client(config=config)
-    undisposed = sorted(
-        record["id"] for record in _undisposed_plan_children(client=client, epic_id=epic_id)
-    )
+    undisposed = list(undisposed_plan_child_ids(client=client, epic_id=epic_id))
     if undisposed:
         raise PlanArchiveRefusedError.undisposed_children(child_ids=undisposed)
     source = project_root / _PLAN_DIR / slug
+    evidence_id = _resolve_completeness_review_evidence(
+        client=client,
+        epic_id=epic_id,
+        completeness_review_comment_id=completeness_review_comment_id,
+        review_launcher=review_launcher,
+        request=archive_completeness_review_request(
+            client=client,
+            project_root=project_root,
+            source=source,
+            slug=slug,
+            epic_id=epic_id,
+        ),
+    )
+    if evidence_id is None:
+        raise PlanArchiveRefusedError.missing_completeness_review()
     archive = project_root / _PLAN_DIR / _ARCHIVE_DIR / slug
     archive.parent.mkdir(parents=True, exist_ok=True)
     _ = source.rename(archive)
@@ -195,13 +221,46 @@ def archive_thread(
         issue_id=epic_id,
         body=_comment_body(
             prefix=_PLAN_HANDOFF_PREFIX,
-            author="plan-archive",
-            now=completeness_review_comment_id,
-            body=f"Archived after completeness review {completeness_review_comment_id}.",
+            author=_PLAN_ARCHIVE_ACTOR,
+            now=evidence_id,
+            body=f"Archived after completeness review {evidence_id}.",
         ),
     )
     client.close_issue(issue_id=epic_id, reason="plan archived")
     return {"archive_path": archive.relative_to(project_root).as_posix(), "epic_id": epic_id}
+
+
+def _resolve_completeness_review_evidence(
+    *,
+    client: BeadsClient,
+    epic_id: str,
+    completeness_review_comment_id: str | None,
+    review_launcher: CompletenessReviewLauncher | None,
+    request: ArchiveCompletenessReviewRequest,
+) -> str | None:
+    evidence_id = valid_completeness_review_evidence_id(
+        client=client,
+        epic_id=epic_id,
+        evidence_id=completeness_review_comment_id,
+        archive_actor=_PLAN_ARCHIVE_ACTOR,
+    )
+    if evidence_id is not None or review_launcher is None:
+        return evidence_id
+    launched_id = review_launcher(request=request)
+    return valid_completeness_review_evidence_id(
+        client=client,
+        epic_id=epic_id,
+        evidence_id=launched_id,
+        archive_actor=_PLAN_ARCHIVE_ACTOR,
+    )
+
+
+def _has_blocks_edge_to_epic(*, record: BeadsRecord, epic_id: str) -> bool:
+    return has_blocks_edge_to_epic(record=record, epic_id=epic_id)
+
+
+def _is_blocks_edge_to_epic(*, edge: object, epic_id: str) -> bool:
+    return is_blocks_edge_to_epic(edge=edge, epic_id=epic_id)
 
 
 def _tag_epic_anchor(*, config: StoreConfig, epic_id: str, slug: str) -> None:
@@ -224,50 +283,6 @@ def _parse_entry(*, text: str) -> PlanTimelineEntry:
         author=lines[1].removeprefix("author: "),
         created_at=lines[2].removeprefix("timestamp: "),
     )
-
-
-def _undisposed_plan_children(*, client: BeadsClient, epic_id: str) -> list[BeadsRecord]:
-    return [
-        record
-        for record in _plan_child_records(client=client, epic_id=epic_id)
-        if _is_undisposed_plan_child(record=record, epic_id=epic_id)
-    ]
-
-
-def _plan_child_records(*, client: BeadsClient, epic_id: str) -> list[BeadsRecord]:
-    records_by_id = {
-        cast("str", record["id"]): record for record in client.children(parent_id=epic_id)
-    }
-    for record in client.list_issues():
-        issue_id = record.get("id")
-        if isinstance(issue_id, str) and _has_blocks_edge_to_epic(record=record, epic_id=epic_id):
-            _ = records_by_id.setdefault(issue_id, record)
-    return list(records_by_id.values())
-
-
-def _is_undisposed_plan_child(*, record: BeadsRecord, epic_id: str) -> bool:
-    issue_id = record.get("id")
-    if not isinstance(issue_id, str) or record.get("status") == "closed":
-        return False
-    return record.get("parent_id") == epic_id or _has_blocks_edge_to_epic(
-        record=record,
-        epic_id=epic_id,
-    )
-
-
-def _has_blocks_edge_to_epic(*, record: BeadsRecord, epic_id: str) -> bool:
-    dependencies = record.get("dependencies")
-    if not isinstance(dependencies, list):
-        return False
-    typed_dependencies = cast("list[object]", dependencies)
-    return any(_is_blocks_edge_to_epic(edge=edge, epic_id=epic_id) for edge in typed_dependencies)
-
-
-def _is_blocks_edge_to_epic(*, edge: object, epic_id: str) -> bool:
-    if not isinstance(edge, dict):
-        return False
-    typed_edge = cast("dict[str, Any]", edge)
-    return typed_edge.get("type") == EDGE_BLOCKS and typed_edge.get("depends_on_id") == epic_id
 
 
 def _scope_body(*, requirements: tuple[str, ...], deferrals: tuple[str, ...]) -> str:

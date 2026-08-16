@@ -64,8 +64,12 @@ The operation's testable package substrate is
   oldest-first.
 - `record_scope_event(...)` records requirement carriers and explicit
   deferrals before implementation children are admitted.
-- `archive_thread(...)` performs both archive gates and then moves the
-  thread directory to `plan/archive/<slug>/`.
+- `record_completeness_review_evidence(...)` appends one durable
+  independent completeness-review evidence comment to the plan epic.
+- `archive_thread(...)` performs the child-disposition gate, launches a
+  supplied fresh independent reviewer when valid review evidence is
+  absent, re-reads the ledger for durable evidence, and moves the
+  thread directory to `plan/archive/<slug>/` only after both gates pass.
 
 Use those package calls when this operation needs deterministic local
 behavior. Continue to use `list-work-items`, `next`, and
@@ -165,10 +169,16 @@ Archiving has two required legs:
 1. Mechanical child disposition. Refuse archive if any child of the plan
    epic is not disposed. Undisposed means any child work-item whose
    ledger status is not closed.
-2. Completeness-review evidence. Refuse archive unless an independent
-   completeness-review evidence id is supplied. The review itself is a
-   downstream gate; this operation records and requires the evidence
-   reference, but does not spawn the reviewer.
+2. Completeness-review evidence. If the ledger timeline lacks valid
+   independent completeness-review evidence after the mechanical leg
+   passes, commission one fresh independent adversarial reviewer. The
+   reviewer must have had no role in the plan's implementation, compare
+   every research requirement and explicit deferral against the complete
+   child set, spot-check closure evidence against the forge, and record
+   the result durably through `record_completeness_review_evidence(...)`.
+   Keep the plan live until that durable evidence exists. A self-review,
+   an unrecorded result, or a review that does not attest complete
+   requirement-carrier coverage is not evidence.
 
 After both gates pass, close the epic and move the whole directory:
 
@@ -190,7 +200,9 @@ or work-item before archiving.
 - Scope events cut requirements and explicit deferrals before
   implementation children are admitted.
 - Archive has two gates: no undisposed children, and independent
-  completeness-review evidence.
+  completeness-review evidence; the operation commissions the missing
+  reviewer only after all children are disposed and still refuses to
+  archive before valid durable evidence exists.
 - The operation never authors `handoff.md`.
 
 ## What This Operation Does Not Do
@@ -198,4 +210,5 @@ or work-item before archiving.
 - Does not write status or queues into planning files.
 - Does not create a thread from strict `<slug>` resume mode.
 - Does not implement child work inline.
-- Does not spawn the downstream completeness reviewer.
+- Does not accept a self-review, an unrecorded result, or a partial
+  coverage attestation as archive evidence.
