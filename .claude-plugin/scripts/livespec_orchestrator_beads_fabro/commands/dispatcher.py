@@ -22,6 +22,8 @@ orchestrator-PRIVATE tooling: core's contract sees only the three
   dispatcher.py claude-cred-status [--json]
   dispatcher.py spec-check [--project-root <path>] [--spec-root <path>] [--json]
   dispatcher.py janitor-check [--repo <path>] [--json]
+  dispatcher.py stale-run-sweep [--repo <path>] [--factory <name>]
+                                 [--fabro-bin <path>] [--json]
   dispatcher.py reconcile-merged --repo <path> --item <id> [--json]
   dispatcher.py dispatch --repo <path> --item <id> [common flags]
   dispatcher.py loop --repo <path> --budget <n> [--parallel <k>]
@@ -34,8 +36,11 @@ tree at `--spec-root` (default `<project-root>/SPECIFICATION`).
 `janitor-check` runs the three re-homed stale-cleanup checks
 (no-stale-merged-branch / no-stale-merged-pr-branch / no-stale-worktree;
 see `_dispatcher_janitor_checks.py`) against the repo's git/gh state.
-Both are standalone check surfaces — the pre-dispatch hard gate inside
-`dispatch`/`loop` stays the pure-Ledger dispatch-safety trio.
+`stale-run-sweep` reaps orphaned `runnable` / `running` Fabro runs whose
+Ledger item is no longer `active`, covering runs whose launching
+dispatcher process has already exited.
+The pre-dispatch hard gate inside `dispatch`/`loop` stays the pure-Ledger
+dispatch-safety trio.
 `reconcile-merged` is the guarded recovery valve for an already-merged
 active item whose dispatch process died before post-run disposition: it
 resolves the merged PR from GitHub, re-runs only the post-merge janitor,
@@ -227,6 +232,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_run_checks import (
 from livespec_orchestrator_beads_fabro.commands._dispatcher_run_commands import (
     run_dispatch_command,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_stale_run_sweep import (
+    run_stale_run_sweep_command,
+)
 
 # Keep pre-existing dispatcher mini-hub attributes available without changing __all__.
 _COMPATIBILITY_REEXPORTS: tuple[object, ...] = (
@@ -264,6 +272,7 @@ __all__: list[str] = [
     "run_ledger_normalize",
     "run_reconcile_merged_command",
     "run_spec_check",
+    "run_stale_run_sweep_command",
     "warn_item_sizing",
 ]
 
@@ -278,6 +287,7 @@ _SUBCOMMAND_HANDLERS: dict[str, Callable[..., int]] = {
     "ledger-normalize": run_ledger_normalize,
     "reconcile-merged": run_reconcile_merged_command,
     "spec-check": run_spec_check,
+    "stale-run-sweep": run_stale_run_sweep_command,
 }
 
 
@@ -310,9 +320,8 @@ def _build_parser() -> argparse.ArgumentParser:
     _ = spec.add_argument("--project-root", dest="project_root", default=None)
     _ = spec.add_argument("--spec-root", dest="spec_root", default=None)
     _ = spec.add_argument("--json", dest="as_json", action="store_true")
-    janitor = subparsers.add_parser("janitor-check")
-    _ = janitor.add_argument("--repo", dest="repo", default=None)
-    _ = janitor.add_argument("--json", dest="as_json", action="store_true")
+    _add_janitor_check(parser=subparsers.add_parser("janitor-check"))
+    _add_stale_run_sweep(parser=subparsers.add_parser("stale-run-sweep"))
     _add_reconcile_merged(parser=subparsers.add_parser("reconcile-merged"))
     dispatch = subparsers.add_parser("dispatch")
     _add_dispatch_common(parser=dispatch)
@@ -332,6 +341,18 @@ def _add_codex_cred_refresh(*, parser: argparse.ArgumentParser) -> None:
 
 
 def _add_cred_status(*, parser: argparse.ArgumentParser) -> None:
+    _ = parser.add_argument("--json", dest="as_json", action="store_true")
+
+
+def _add_janitor_check(*, parser: argparse.ArgumentParser) -> None:
+    _ = parser.add_argument("--repo", dest="repo", default=None)
+    _ = parser.add_argument("--json", dest="as_json", action="store_true")
+
+
+def _add_stale_run_sweep(*, parser: argparse.ArgumentParser) -> None:
+    _ = parser.add_argument("--repo", dest="repo", default=None)
+    _ = parser.add_argument("--factory", dest="factory", default=None)
+    _ = parser.add_argument("--fabro-bin", dest="fabro_bin", default=None)
     _ = parser.add_argument("--json", dest="as_json", action="store_true")
 
 
