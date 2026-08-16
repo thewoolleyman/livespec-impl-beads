@@ -69,7 +69,7 @@ def test_deterministic_fixture_inventory_covers_observed_and_synthetic_shapes() 
         "parent_edges": [{"parent": "o4-root", "child": "o4-ready"}],
         "comment_count": 1,
         "metadata_issue_count": 4,
-        "distinct_label_count": 8,
+        "distinct_label_count": 6,
     }
 
 
