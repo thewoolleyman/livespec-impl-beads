@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.56.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.56.1...v0.56.2) (2026-08-16)
+
+
+### Bug Fixes
+
+* commit shared vps fabro default ([61eb1bc](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/61eb1bc7b93291c5e5f36a75367f892355ecdada))
+* **dispatcher:** tolerate per-member sibling-clone failures in sandbox prepare ([89fe7ed](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/89fe7edb77375c00b0bd9833b2d01f871a4cc933))
+
 ## [0.56.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.56.0...v0.56.1) (2026-08-15)
 
 
