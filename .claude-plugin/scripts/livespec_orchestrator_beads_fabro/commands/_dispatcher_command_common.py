@@ -26,9 +26,9 @@ EXIT_BLOCKED = 4
 
 
 def dispatch_exit_code(*, outcomes: list[DispatchOutcome]) -> int:
-    if all(outcome.status == "green" for outcome in outcomes):
+    if all(outcome.status in {"green", "capacity-deferred"} for outcome in outcomes):
         return 0
-    if all(outcome.status in {"green", "blocked"} for outcome in outcomes):
+    if all(outcome.status in {"green", "blocked", "capacity-deferred"} for outcome in outcomes):
         return EXIT_BLOCKED
     return EXIT_FAILURE
 
