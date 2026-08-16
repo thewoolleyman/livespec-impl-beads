@@ -94,3 +94,38 @@ as a transient CLI argument.
 No scope event has been recorded yet (requirement carriers / explicit
 deferrals). That is Step 3's next action before any implementation
 child work-item is filed.
+
+## Regression shipped by this epic, found and fixed 2026-08-16 — bd-ib-1g01
+
+Full account: comment on `bd-ib-hvmbxd` dated 2026-08-16 (debug-fabro
+session). Summary for anyone reading this research file cold:
+
+The child `bd-ib-dje2ae` ("thread `--factory` selection into
+`dispatcher.py`'s fabro invocation", merged as `ebfc523c`) added
+`_fabro_command_prefix()` in `_dispatcher_fabro_argv.py`, which places
+`--server <url>` BEFORE the subcommand for every fabro invocation
+(`run`/`inspect`/`events`/`ps`/`rm`) whenever a factory server resolves
+to non-`None`. The pinned fabro CLI (0.254.0) only accepts `--server`
+as a per-subcommand flag — `fabro --server <url> run ...` is a hard
+clap parse error; `fabro run ... --server <url>` works. Because
+`_dispatcher_loop.py` resolves a non-`None` factory server for
+ORDINARY local dispatches by default (not only explicit `--factory`
+selections — this violated this thread's own "single-repo repos see no
+behavior change" requirement carrier), this broke **every** factory
+dispatch on this host from 2026-08-15 until the fix landed. The
+2026-08-15T23:22 independent completeness review did not catch it
+because it reviewed the diff and the credential-wiring gap, not a live
+`fabro` CLI invocation.
+
+Fixed by `bd-ib-1g01` → PR #1430 (merged `6de3a8a1`): every
+`_dispatcher_fabro_argv` function now appends `--server <url>` after
+its own subcommand token.
+
+**Before archiving this epic or dispatching the fleet-wide follow-on
+`bd-ib-ja3j5s`:** verify a live `drive.py`/`dispatcher.py` dispatch
+against a real factory target produces an actual `fabro_run_id`
+post-fix, and consider adding a smoke test that exercises the built
+argv against the REAL installed fabro CLI's arg parser (not just
+comparing the argv list to a hand-written expected list) — a
+list-equality unit test alone did not, and structurally cannot, catch
+a CLI-shape mismatch like this one.
