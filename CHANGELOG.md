@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.56.4](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.56.3...v0.56.4) (2026-08-16)
+
+
+### Bug Fixes
+
+* reject unbalanced-brace sibling-clone dispatcher setup scripts ([94956aa](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/94956aa7ba09ed50999c43a40880c0f29d7c3631))
+
 ## [0.56.3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.56.2...v0.56.3) (2026-08-16)
 
 
