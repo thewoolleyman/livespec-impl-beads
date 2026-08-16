@@ -121,10 +121,23 @@ List each finding on its own line:
     [BLOCKING] <file:line> — <defect + why it matters>
     [ADVISORY] <file:line> — <suggestion>
 
+When at least one `[BLOCKING]` finding is present, also persist the
+complete findings text for this review round in workflow context:
+
+1. Determine the round number N for the context key: count prior visible `review_findings_r*`
+   run-context keys, then use the next
+   integer. If none are visible, use `review_findings_r1`.
+2. The context value MUST be the exact finding lines you listed above,
+   preserving both `[BLOCKING]` and `[ADVISORY]` lines in their original
+   order. Do not summarize them and do not omit advisory findings from a
+   blocking review round.
+3. Include that value under `review_findings_r<N>` in the final routing
+   JSON's `context_updates`.
+
 Then end your reply with a single JSON object on the LAST line:
 
 - correct & in-scope (no blocking findings): `{"preferred_next_label": "approve"}`
-- at least one BLOCKING finding:             `{"preferred_next_label": "fix"}`
+- at least one BLOCKING finding:             `{"preferred_next_label": "fix", "context_updates": {"review_findings_r<N>": "<the exact finding lines>"}}`
 
 Use those exact lowercase tokens. An empty blocking list ⇒ approve.
 
