@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.56.3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.56.2...v0.56.3) (2026-08-16)
+
+
+### Bug Fixes
+
+* **dispatcher:** place fabro --server flag after the subcommand, not before ([6de3a8a](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/6de3a8a191ad457bfc5841a4d553142ee36fab6c))
+
 ## [0.56.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.56.1...v0.56.2) (2026-08-16)
 
 
