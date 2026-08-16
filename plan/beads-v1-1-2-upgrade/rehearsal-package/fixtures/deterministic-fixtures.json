@@ -1,0 +1,110 @@
+{
+  "schema": "livespec.beads_v112_rehearsal.fixtures.v1",
+  "id_prefix": "o4",
+  "fixtures": [
+    {
+      "id": "o4-root",
+      "type": "epic",
+      "title": "Synthetic O4 root",
+      "description": "Parent item anchoring the synthetic v1.0.5 tenant.",
+      "status": "open",
+      "priority": 1,
+      "labels": [
+        "origin:beads-v1-1-2-upgrade",
+        "admission:auto",
+        "acceptance:ai-only"
+      ],
+      "metadata": {
+        "rank": "001",
+        "policy": {
+          "factory_safety": null
+        }
+      }
+    },
+    {
+      "id": "o4-ready",
+      "type": "task",
+      "title": "Ready synthetic work",
+      "description": "Represents the factory-safe ready-policy shape.",
+      "status": "ready",
+      "priority": 2,
+      "parent": "o4-root",
+      "labels": [
+        "origin:beads-v1-1-2-upgrade",
+        "admission:auto",
+        "acceptance:ai-only",
+        "intake:triaged"
+      ],
+      "metadata": {
+        "rank": "002",
+        "policy": {
+          "factory_safety": null
+        },
+        "audit": {
+          "actor": "synthetic",
+          "action": "seed"
+        }
+      }
+    },
+    {
+      "id": "o4-blocked",
+      "type": "task",
+      "title": "Blocked synthetic work",
+      "description": "Covers blocked lifecycle labels and comment preservation.",
+      "status": "blocked",
+      "priority": 3,
+      "depends_on": [
+        "o4-ready"
+      ],
+      "labels": [
+        "blocked-reason:external",
+        "origin:beads-v1-1-2-upgrade"
+      ],
+      "comments": [
+        "synthetic comment retained across migration and restore"
+      ],
+      "metadata": {
+        "rank": "003",
+        "blocked_reason": "external"
+      }
+    },
+    {
+      "id": "o4-rig-wisp",
+      "type": "rig",
+      "title": "Synthetic rig/wisp repair fixture",
+      "description": "Synthetic coverage for migration 0053 because production surveys observed zero rig rows.",
+      "status": "open",
+      "priority": 4,
+      "labels": [
+        "origin:beads-v1-1-2-upgrade",
+        "synthetic:rig-wisp"
+      ],
+      "metadata": {
+        "rank": "004",
+        "wisp": {
+          "id": "o4-wisp",
+          "repair_case": "0053"
+        }
+      }
+    }
+  ],
+  "expected_identity": {
+    "issue_count": 4,
+    "dependency_edges": [
+      {
+        "from": "o4-blocked",
+        "to": "o4-ready",
+        "type": "blocks"
+      }
+    ],
+    "parent_edges": [
+      {
+        "parent": "o4-root",
+        "child": "o4-ready"
+      }
+    ],
+    "comment_count": 1,
+    "metadata_issue_count": 4,
+    "distinct_label_count": 8
+  }
+}
