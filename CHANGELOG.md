@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.57.4](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.57.3...v0.57.4) (2026-08-16)
+
+
+### Bug Fixes
+
+* surface stranded pre-branch dispatches ([0f7945a](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/0f7945aded14c0e403ae8ee18e87afc5b60e4f3c))
+
 ## [0.57.3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.57.2...v0.57.3) (2026-08-16)
 
 
