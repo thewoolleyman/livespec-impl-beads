@@ -46,7 +46,12 @@
     "critique_mode": "batch",
     "in_flight_alignment": "default-align",
     "revise_decision_mode": "delegated",
+    // ratification_review: "auto-spawn" is inert without a configured
+    // reviewer model (effective.py's effective_ratification_review returns
+    // requires_input=True when ratification_reviewer_model is None) — set
+    // to "fable", matching livespec core's own convention.
     "ratification_review": "auto-spawn",
+    "ratification_reviewer_model": "fable",
     "spec_pr_merge": "auto-on-green"
   },
   // Optional — spec_governance: the two levers this repo has NOT armed.
