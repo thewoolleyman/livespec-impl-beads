@@ -82,7 +82,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     FleetMembers,
     SiblingClones,
     build_plan,
+    fabro_events_argv,
     fabro_inspect_argv,
+    fabro_ps_argv,
+    fabro_rm_argv,
     fabro_run_argv,
     item_sizing_warnings,
     janitor_argv_with_default,
@@ -950,11 +953,65 @@ def test_dispatch_factory_selection_reaches_fabro_run_argv_and_env(
     assert _dispatcher_plan.fabro_server_env(plan=plan) == {
         "FABRO_SERVER": "https://factory.example.test",
     }
-    assert _dispatcher_plan.fabro_run_argv(plan=plan)[:4] == [
-        "fabro",
+    # The pinned fabro CLI (0.254.0) only accepts `--server` as a
+    # per-subcommand flag, never before the subcommand — `fabro --server
+    # <url> run ...` is a hard CLI parse error. See bd-ib-1g01.
+    assert _dispatcher_plan.fabro_run_argv(plan=plan)[:2] == ["fabro", "run"]
+    assert _dispatcher_plan.fabro_run_argv(plan=plan)[-2:] == [
         "--server",
         "https://factory.example.test",
-        "run",
+    ]
+
+
+def test_fabro_argv_builders_place_server_after_their_subcommand(tmp_path: Path) -> None:
+    """`--server` must follow the subcommand for every fabro invocation.
+
+    The pinned fabro CLI (0.254.0) rejects `fabro --server <url> <cmd>` as
+    a top-level-flag parse error; `--server` is per-subcommand only. See
+    bd-ib-1g01 for the live repro.
+    """
+    plan = build_plan(
+        repo=tmp_path,
+        work_item_id="x-1",
+        workflow_toml=tmp_path / "wf.toml",
+        goal_file=tmp_path / "goal.md",
+        fabro_bin="fabro",
+        janitor=None,
+        janitor_checkout=tmp_path / "janitor-co",
+        fabro_factory_name="remote",
+        fabro_factory_server="https://factory.example.test",
+    )
+    assert fabro_inspect_argv(plan=plan, run_id="01RUNID") == [
+        "fabro",
+        "inspect",
+        "01RUNID",
+        "--json",
+        "--server",
+        "https://factory.example.test",
+    ]
+    assert fabro_events_argv(plan=plan, run_id="01RUNID") == [
+        "fabro",
+        "events",
+        "01RUNID",
+        "--json",
+        "--server",
+        "https://factory.example.test",
+    ]
+    assert fabro_ps_argv(plan=plan) == [
+        "fabro",
+        "ps",
+        "-a",
+        "--json",
+        "--server",
+        "https://factory.example.test",
+    ]
+    assert fabro_rm_argv(plan=plan, run_id="01RUNID") == [
+        "fabro",
+        "rm",
+        "-f",
+        "01RUNID",
+        "--server",
+        "https://factory.example.test",
     ]
 
 
@@ -996,11 +1053,10 @@ def test_dispatch_logs_into_dev_token_factory_before_fabro_run(tmp_path: Path) -
         ],
         tmp_path,
     )
-    assert runner.calls[1][0][:4] == [
-        "fabro",
+    assert runner.calls[1][0][:2] == ["fabro", "run"]
+    assert runner.calls[1][0][-2:] == [
         "--server",
         "https://factory.example.test",
-        "run",
     ]
 
 
