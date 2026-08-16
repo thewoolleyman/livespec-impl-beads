@@ -22,7 +22,7 @@ Pre-existing drift noted (and deliberately not inherited) by the pi-skill-surfac
 
 ### Proposed Changes
 
-Six edits across two spec files; every replace-target exists verbatim and exactly once in its live file. Three edits retitle `###` headings and one inserts a `####` subsection — no `## ` H2 is added, changed, or removed, and this repo's tests/heading-coverage.json keys off `## ` headings only, so NO heading-coverage co-edit is required.
+Edits across three spec files; every replace-target exists verbatim and exactly once in its live file. Three edits retitle `###` headings and one inserts a `####` subsection — no `## ` H2 is added, changed, or removed, and this repo's tests/heading-coverage.json keys off `## ` headings only, so NO heading-coverage co-edit is required.
 
 **Edit 1 — `SPECIFICATION/contracts.md`, three heading retitles (counts dropped).** Replace `### Heavyweight authored skills (6)` with `### Heavyweight authored skills`; replace `### Operator skill (1)` with `### Operator skill`; replace `### Thin-transport skills (4)` with `### Thin-transport skills`. A count in a heading is a hand-maintained projection over the section's own content — exactly the projection that drifted when `needs-attention` shipped.
 
