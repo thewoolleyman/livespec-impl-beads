@@ -1608,7 +1608,7 @@ def _expected_clone_script(repo_name: str) -> str:
         f" GIT_TERMINAL_PROMPT=0 git clone --quiet --depth 1 {url}"
         f" /workspace/siblings/{repo_name} ||"
         f" {{ echo '{prefix}clone failed after a successful reachability probe"
-        " (transient)' >&2; exit 0; }}"
+        " (transient)' >&2; exit 0; }"
     )
 
 
@@ -1708,6 +1708,51 @@ def test_render_run_config_overlay_appends_sibling_clone_steps_and_env_root(
     assert rendered.index(_SIBLING_ENV_LINE) > env_table_at
     assert _FAKE_TOKEN_LINE in rendered
     assert _FAKE_GITHUB_TOKEN_LINE in rendered
+
+
+def test_render_run_config_overlay_sibling_clone_steps_are_valid_bash(
+    tmp_path: Path,
+) -> None:
+    """Every rendered sibling-clone step MUST be syntactically valid bash.
+
+    A string-equality test against a hand-written expected fixture cannot
+    catch a bug that was introduced in BOTH the implementation and the
+    fixture at once (exactly what happened: the implementation's closing
+    diagnostic clause emitted an extra literal `}` from a non-f-string
+    `}}`, and `_expected_clone_script` mirrored the same defect, so the
+    two sides always agreed with each other while both were wrong). This
+    test instead decodes each rendered step's `script` value and asks bash
+    itself whether it is well-formed — a property no fixture can
+    accidentally get wrong in lockstep with the implementation.
+    """
+    overlay_token = "test-oauth-token"
+    rendered = render_run_config_overlay(
+        committed_text=_COMMITTED_WORKFLOW_TOML,
+        workflow_dir=tmp_path,
+        token=overlay_token,
+        github_token=_FAKE_GITHUB_TOKEN,
+        siblings=_SIBLINGS,
+    )
+    assert rendered is not None
+    # Each rendered `[[run.prepare.steps]]` table's `script` value is written as
+    # `f"script = {json.dumps(script)}"` (a JSON string literal on its own
+    # line) -- decode those lines directly rather than pulling in a TOML
+    # parser dependency this repo does not otherwise need.
+    script_lines = [line for line in rendered.splitlines() if line.startswith("script = ")]
+    clone_scripts = [
+        json.loads(line.removeprefix("script = "))
+        for line in script_lines
+        if "clone --quiet --depth 1" in line
+    ]
+    assert len(clone_scripts) == len(_SIBLINGS.repos)
+    for script in clone_scripts:
+        completed = subprocess.run(
+            ["bash", "-n", "-c", script],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert completed.returncode == 0, (script, completed.stderr)
 
 
 def test_render_run_config_overlay_sibling_clone_steps_tolerate_bad_members(

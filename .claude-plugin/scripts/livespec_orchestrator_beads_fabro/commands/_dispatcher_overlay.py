@@ -396,7 +396,7 @@ def _sibling_clone_steps_block(*, siblings: SiblingClones) -> str:
             f" GIT_TERMINAL_PROMPT=0 git clone --quiet --depth 1 {url}"
             f" {siblings.clones_root}/{repo_name} ||"
             f" {{ echo '{diagnostic}clone failed after a successful"
-            " reachability probe (transient)' >&2; exit 0; }}"
+            " reachability probe (transient)' >&2; exit 0; }"
         )
         lines.append("[[run.prepare.steps]]")
         lines.append(f"script = {json.dumps(script)}")
