@@ -7,7 +7,6 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandResult,
@@ -162,7 +161,7 @@ class WatchedFabroLauncher:
             if not thread.is_alive():
                 return _WatchResult()
             run = self._discover_run(plan=plan, runner=runner)
-            run_id = run.run_id if run is not None else None
+            run_id = run.run_id if run is not None and run.status_kind == "running" else None
             known_run_id = run_id if run_id is not None else known_run_id
             if run is not None:
                 item_status = _work_item_status(repo=plan.repo, work_item_id=plan.work_item_id)
@@ -179,7 +178,7 @@ class WatchedFabroLauncher:
                         abandoned_item_status=item_status,
                     )
             samples.append(self._sample(plan=plan, runner=runner, run_id=run_id))
-            if known_run_id is None:
+            if known_run_id is None or run is None or run.status_kind != "running":
                 continue
             if decide_stall(samples=tuple(samples), stall_seconds=stall_seconds) == (
                 StallVerdict.STALLED
@@ -265,9 +264,9 @@ class WatchedFabroLauncher:
 
 def _work_item_status(*, repo: Path, work_item_id: str) -> str | None:
     config = store_config(repo=repo) if (repo / ".livespec.jsonc").is_file() else None
-    if config is None and read_work_items.__module__ == "livespec_orchestrator_beads_fabro.store":
+    if config is None:
         return None
-    for item in read_work_items(path=cast("Any", config)):
+    for item in read_work_items(path=config):
         if item.id == work_item_id:
             return item.status
     return None
