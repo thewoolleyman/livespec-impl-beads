@@ -14,6 +14,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_command_common impor
     EXIT_FAILURE,
     EXIT_PRECONDITION_ERROR,
     alarm_on_terminal_failure,
+    dispatch_exit_code,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_cost_gate import (
     cost_gate_after_verdict,
@@ -103,7 +104,7 @@ def run_loop_command(*, args: argparse.Namespace) -> int:
     # immutable by it (loop-reflection-gate best-practices §6: reflection
     # never changes a dispatch verdict). reflect() is fail-open and never
     # raises — it cannot alter `exit_code`.
-    exit_code = 0 if all(outcome.status == "green" for outcome in outcomes) else EXIT_FAILURE
+    exit_code = dispatch_exit_code(outcomes=outcomes)
     alarm_on_terminal_failure(
         outcomes=outcomes,
         include_loop_summary=True,

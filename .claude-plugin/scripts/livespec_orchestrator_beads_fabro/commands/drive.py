@@ -45,6 +45,7 @@ class CommandRunner(Protocol):
 
 _EXIT_FAILURE = 1
 _EXIT_PRECONDITION_ERROR = 3
+_EXIT_BLOCKED = 4
 
 
 def run_action(
@@ -139,7 +140,15 @@ def main(*, argv: list[str] | None = None, runner: CommandRunner | None = None) 
         return _EXIT_PRECONDITION_ERROR
     result = run_action(repo=repo, action_id=args.action, runner=runner)
     _emit_payload(payload=result, as_json=args.as_json)
-    return 0 if result["status"] == "green" else _EXIT_FAILURE
+    return _exit_code_for_status(status=str(result["status"]))
+
+
+def _exit_code_for_status(*, status: str) -> int:
+    if status == "green":
+        return 0
+    if status == "blocked":
+        return _EXIT_BLOCKED
+    return _EXIT_FAILURE
 
 
 def _resolve_repo(*, repo_arg: str | None) -> Path:

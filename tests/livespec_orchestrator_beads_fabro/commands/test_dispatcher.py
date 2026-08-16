@@ -3669,7 +3669,7 @@ def test_dispatch_blocked_outcome_marks_item_blocked_needs_human(
         argv=["dispatch", "--repo", str(repo), "--item", item.id, "--workflow", str(workflow)]
     )
 
-    assert exit_code == 1
+    assert exit_code == 4
     captured = capsys.readouterr()
     out = captured.out
     err = captured.err

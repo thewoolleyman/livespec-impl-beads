@@ -467,8 +467,7 @@ def test_loop_non_green_wave_alarms_with_loop_summary(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A non-green loop wave alarms each non-green item AND the non-green-loop
-    summary; the verdict stays 1."""
+    """A blocked-only loop wave alarms and keeps the blocked-specific verdict."""
     repo, workflow = _repo_with_workflow(tmp_path=tmp_path)
     item = _item()
     append_work_item(path=_config(), item=item)
@@ -497,7 +496,7 @@ def test_loop_non_green_wave_alarms_with_loop_summary(
             str(workflow),
         ]
     )
-    assert exit_code == 1
+    assert exit_code == 4
     _ = capsys.readouterr()
     bodies = [call["body"] for call in poster.calls]
     joined = "\n".join(b for b in bodies if isinstance(b, str))

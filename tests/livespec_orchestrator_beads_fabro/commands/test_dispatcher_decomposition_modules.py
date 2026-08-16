@@ -359,9 +359,11 @@ def test_run_commands_cluster_importable_from_new_module_and_private_names_remov
         "run_loop_command",
     }
     command_common_public_names = {
+        "EXIT_BLOCKED",
         "EXIT_FAILURE",
         "EXIT_PRECONDITION_ERROR",
         "alarm_on_terminal_failure",
+        "dispatch_exit_code",
     }
     old_dispatcher_names = {
         "_alarm_on_terminal_failure",

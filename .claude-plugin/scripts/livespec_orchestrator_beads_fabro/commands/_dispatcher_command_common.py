@@ -13,13 +13,24 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_notify import (
 )
 
 __all__: list[str] = [
+    "EXIT_BLOCKED",
     "EXIT_FAILURE",
     "EXIT_PRECONDITION_ERROR",
     "alarm_on_terminal_failure",
+    "dispatch_exit_code",
 ]
 
 EXIT_FAILURE = 1
 EXIT_PRECONDITION_ERROR = 3
+EXIT_BLOCKED = 4
+
+
+def dispatch_exit_code(*, outcomes: list[DispatchOutcome]) -> int:
+    if all(outcome.status == "green" for outcome in outcomes):
+        return 0
+    if all(outcome.status in {"green", "blocked"} for outcome in outcomes):
+        return EXIT_BLOCKED
+    return EXIT_FAILURE
 
 
 def alarm_on_terminal_failure(

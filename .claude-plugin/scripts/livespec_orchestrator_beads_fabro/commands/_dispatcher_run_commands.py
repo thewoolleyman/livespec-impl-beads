@@ -12,6 +12,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_command_common impor
     EXIT_FAILURE,
     EXIT_PRECONDITION_ERROR,
     alarm_on_terminal_failure,
+    dispatch_exit_code,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_cost_gate import (
     cost_gate_after_verdict,
@@ -88,7 +89,7 @@ def run_dispatch_command(*, args: argparse.Namespace) -> int:
     # Verdict computed BEFORE the fail-open reflection + notification
     # stages; immutable by both (loop-reflection-gate best-practices §6 /
     # 0jxs operability gate). The alarm is strictly best-effort.
-    exit_code = 0 if outcome.status == "green" else EXIT_FAILURE
+    exit_code = dispatch_exit_code(outcomes=[outcome])
     alarm_on_terminal_failure(
         outcomes=[outcome],
         include_loop_summary=False,
