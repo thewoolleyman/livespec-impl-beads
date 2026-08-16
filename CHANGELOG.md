@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.57.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.57.1...v0.57.2) (2026-08-16)
+
+
+### Bug Fixes
+
+* keep queued fabro runs out of stall watchdog ([721524a](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/721524a7196924acffd7f795f2e6ddb673cfd13f))
+* reap stale fabro queued runs ([64e38e5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/64e38e5bd1d961c8027f15fe39e1581da1778ec3))
+* tolerate item status lookup failures ([e654b1a](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/e654b1a2fef63c09dd188991e0f02d9994519d4f))
+
 ## [0.57.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.57.0...v0.57.1) (2026-08-16)
 
 
