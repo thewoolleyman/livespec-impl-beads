@@ -55,16 +55,23 @@ class Admission:
     """The outcome of the admission valve over a candidate set.
 
     `admitted` carries the items transitioned `ready -> active` (assignee
-    set) that the Dispatcher then launches; `refused` carries the
+    set) that the Dispatcher then launches; `deferred` carries
+    capacity-deferred items that remain `ready`; `refused` carries the
     non-launched terminal outcomes — host-only routing refusals plus
     admission holds (manual / unresolvable assignee) — that ride in the
     wave's outcome list so the verdict and the post-verdict alarm see them.
-    A capacity-deferred admission-eligible item appears in NEITHER list — it
-    simply waits for the next pass.
     """
 
     admitted: list[WorkItem]
+    deferred: list[DispatchOutcome]
     refused: list[DispatchOutcome]
+
+
+@dataclass(frozen=True, kw_only=True)
+class _CapacitySnapshot:
+    active_count: int
+    wip_cap: int
+    free_slots: int
 
 
 def admit_and_select(
@@ -103,6 +110,7 @@ def admit_and_select(
         wip_cap = unsafe_perform_io(resolve_wip_cap(cwd=repo).value_or(DEFAULT_WIP_CAP))
         free_slots = max(0, wip_cap - active_count)
     else:
+        wip_cap = None
         free_slots = len(admittable)
     plan = plan_admissions(
         ready_items=admittable,
@@ -111,6 +119,7 @@ def admit_and_select(
         resolve_assignee=resolve_assignee,
     )
     admitted: list[WorkItem] = []
+    deferred: list[DispatchOutcome] = []
     config = store_config(repo=repo)
     approved_ids = {item.id for item in plan.approved}
     for item in plan.approved:
@@ -139,7 +148,19 @@ def admit_and_select(
         journal.append(record={"stage": "outcome", "outcome": asdict(held)})
         _ = write_stderr(text=f"SURFACE: {admission_held_detail(item_id=item.id, reason=reason)}\n")
         refused.append(held)
-    return Admission(admitted=admitted, refused=refused)
+    if wip_cap is not None:
+        deferred = _capacity_deferred_outcomes(
+            admittable=admittable,
+            admitted=admitted,
+            held=plan.held,
+            capacity=_CapacitySnapshot(
+                active_count=active_count,
+                wip_cap=wip_cap,
+                free_slots=free_slots,
+            ),
+            journal=journal,
+        )
+    return Admission(admitted=admitted, deferred=deferred, refused=refused)
 
 
 def _filter_host_only_candidates(
@@ -197,4 +218,47 @@ def admission_held_outcome(*, item: WorkItem, reason: str) -> DispatchOutcome:
         pr_number=None,
         merge_sha=None,
         detail=admission_held_detail(item_id=item.id, reason=reason),
+    )
+
+
+def _capacity_deferred_outcomes(
+    *,
+    admittable: list[WorkItem],
+    admitted: list[WorkItem],
+    held: tuple[tuple[WorkItem, str], ...],
+    capacity: _CapacitySnapshot,
+    journal: JournalFile,
+) -> list[DispatchOutcome]:
+    admitted_ids = {item.id for item in admitted}
+    held_ids = {item.id for item, _ in held}
+    outcomes = [
+        _capacity_deferred_outcome(
+            item=item,
+            capacity=capacity,
+        )
+        for item in admittable
+        if item.id not in admitted_ids and item.id not in held_ids
+    ]
+    for outcome in outcomes:
+        journal.append(record={"stage": "outcome", "outcome": asdict(outcome)})
+    return outcomes
+
+
+def _capacity_deferred_outcome(
+    *,
+    item: WorkItem,
+    capacity: _CapacitySnapshot,
+) -> DispatchOutcome:
+    return DispatchOutcome(
+        work_item_id=item.id,
+        status="capacity-deferred",
+        stage="capacity-deferred",
+        pr_number=None,
+        merge_sha=None,
+        detail=(
+            "capacity deferred: "
+            f"active_count={capacity.active_count} "
+            f"wip_cap={capacity.wip_cap} "
+            f"free_slots={capacity.free_slots}"
+        ),
     )

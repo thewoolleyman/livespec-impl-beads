@@ -156,10 +156,11 @@ def terminal_events(
     `spend-cap` class (y0m) is not a `DispatchOutcome.status`; it will
     build its own `NotifyEvent` and call `notify_terminal` directly.
     """
+    non_alarm_statuses = {"green", "capacity-deferred"}
     events = tuple(
         NotifyEvent(work_item_id=outcome.work_item_id, outcome_class=outcome.status)
         for outcome in outcomes
-        if outcome.status != "green"
+        if outcome.status not in non_alarm_statuses
     )
     if include_loop_summary and events:
         events = (

@@ -13,6 +13,9 @@ from pathlib import Path
 
 import pytest
 from livespec_orchestrator_beads_fabro.commands import _dispatcher_loop
+from livespec_orchestrator_beads_fabro.commands._dispatcher_dispatch_lock import (
+    write_dispatch_lock,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import DispatchPlan
 from livespec_orchestrator_beads_fabro.commands.dispatcher import main
@@ -374,3 +377,54 @@ def test_loop_with_item_not_ready_exits_precondition_error(
     assert exit_code == 3
     assert "closed-item" in capsys.readouterr().err
     assert recording.calls == []
+
+
+def test_loop_with_item_at_wip_cap_emits_capacity_deferred_result(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, workflow = _repo_with_workflow(tmp_path=tmp_path)
+    _ = (repo / ".livespec.jsonc").write_text(
+        '{"livespec-orchestrator-beads-fabro": {"connection": {"prefix": "bd-ib"},'
+        ' "dispatcher": {"wip_cap": 1}}}',
+        encoding="utf-8",
+    )
+    active = _item(id="active-claim", status="active", assignee="fabro")
+    requested = _item(id="requested-ready", status="ready", rank="a1")
+    append_work_item(path=_config(), item=active)
+    append_work_item(path=_config(), item=requested)
+    _ = write_dispatch_lock(repo=repo, work_item_id=active.id, dispatch_id="live-dispatch")
+    recording = _RecordingRunDispatch()
+    monkeypatch.setattr(_dispatcher_loop, "run_dispatch", recording)
+
+    exit_code = main(
+        argv=[
+            "loop",
+            "--repo",
+            str(repo),
+            "--budget",
+            "1",
+            "--item",
+            requested.id,
+            "--json",
+            "--workflow",
+            str(workflow),
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload == [
+        {
+            "detail": "capacity deferred: active_count=1 wip_cap=1 free_slots=0",
+            "fabro_run_id": None,
+            "merge_sha": None,
+            "pr_number": None,
+            "stage": "capacity-deferred",
+            "status": "capacity-deferred",
+            "work_item_id": requested.id,
+        }
+    ]
+    assert recording.calls == []
+    assert _read_items()[requested.id].status == "ready"

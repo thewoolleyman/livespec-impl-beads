@@ -194,9 +194,10 @@ def _admit_and_dispatch_loop_wave(
             for item in admission.admitted
         ]
         dispatched = [future.result() for future in futures]
-    # Held / host-only-refused items ride in the outcomes (so the verdict and
-    # the post-verdict alarm see them); capacity-deferred items do not.
-    return admission.refused + dispatched
+    # Held / host-only-refused items ride in the outcomes so the verdict and
+    # post-verdict alarm see them; capacity-deferred items ride along too, but
+    # verdict/alarm classification treats them as non-defects.
+    return admission.refused + admission.deferred + dispatched
 
 
 def _start_loop(*, args: argparse.Namespace, repo: Path) -> _LoopStart | int:
