@@ -356,6 +356,24 @@ def test_main_run_returns_exit_failure_for_failed_dispatch(
     assert "did not report green" in capsys.readouterr().out
 
 
+def test_main_run_returns_distinct_exit_for_blocked_dispatch(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    runner = _Runner(results=[_run(stdout=json.dumps([{"status": "blocked"}]), returncode=1)])
+
+    exit_code = drive.main(
+        argv=["--repo", str(repo), "--action", "impl:bd-ib-123", "--json"],
+        runner=runner,
+    )
+
+    assert exit_code == 4
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "blocked"
+
+
 def test_red_commit_runner_helper_remains_covered() -> None:
     module = importlib.import_module("tests.livespec_orchestrator_beads_fabro.commands.test_drive")
     runner = module._Runner(  # noqa: SLF001 - cover byte-frozen Red helper.
