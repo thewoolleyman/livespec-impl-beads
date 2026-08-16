@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.57.5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.57.4...v0.57.5) (2026-08-16)
+
+
+### Bug Fixes
+
+* surface dispatcher capacity deferrals ([c0985a1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/c0985a1fb32fb43166fff9fa28b96bb1be1b6f18))
+
 ## [0.57.4](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.57.3...v0.57.4) (2026-08-16)
 
 
