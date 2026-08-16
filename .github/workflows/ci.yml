@@ -125,7 +125,7 @@ jobs:
     needs: setup
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.24.5
+      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.24.6
     env:
       MISE_DATA_DIR: /root/.local/share/mise
       MISE_NOT_FOUND_AUTO_INSTALL: "0"
@@ -320,7 +320,7 @@ jobs:
     name: check-doctor-static
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.24.5
+      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.24.6
     env:
       MISE_DATA_DIR: /root/.local/share/mise
       MISE_NOT_FOUND_AUTO_INSTALL: "0"
@@ -385,7 +385,7 @@ jobs:
     needs: setup
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.24.5
+      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.24.6
     env:
       MISE_DATA_DIR: /root/.local/share/mise
       MISE_NOT_FOUND_AUTO_INSTALL: "0"
@@ -408,6 +408,8 @@ jobs:
           - check-no-shadow-ledger-body-typechecks
           - check-plan-thread-anchor-declared
           - check-plan-thread-no-tombstone
+          - check-plan-anchor-declared
+          - check-plan-no-tombstone
           - check-primary-checkout-commit-refuse-hook-installed
           # check-red-green-replay (no-arg) validates the COMMIT RANGE
           # origin/master..HEAD — every non-merge commit touching product
@@ -593,7 +595,7 @@ jobs:
     needs: setup
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.24.5
+      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.24.6
     # SINGLE env block — this job already had a job-level `env:` carrying
     # LIVESPEC_E2E_HARNESS before the baked-image cutover, so the container
     # preamble's vars are MERGED in here rather than added as a second `env:`
@@ -650,7 +652,7 @@ jobs:
     needs: setup
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.24.5
+      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.24.6
     env:
       MISE_DATA_DIR: /root/.local/share/mise
       MISE_NOT_FOUND_AUTO_INSTALL: "0"
