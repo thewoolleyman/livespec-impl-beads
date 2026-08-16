@@ -21,8 +21,10 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+from livespec_orchestrator_beads_fabro.commands import _dispatcher_io_fabro_launcher
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandResult,
     CommandRunner,
@@ -37,6 +39,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     DispatchPlan,
     build_plan,
     parse_running_run_id,
+    parse_watchable_run,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_watchdog import (
     DEFAULT_STALL_SECONDS,
@@ -266,6 +269,33 @@ def test_parse_running_run_id_requires_a_nonempty_run_id() -> None:
     assert parse_running_run_id(ps_json=empty, work_item_id="oyg-1") is None
 
 
+def test_parse_watchable_run_matches_runnable_or_running_run_for_work_item() -> None:
+    ps = (
+        '[{"run_id": "01OTHER", "goal": "Work-item: other-1", "status": "runnable"},'
+        ' {"run_id": "01QUEUED", "goal": "Work-item: oyg-1",'
+        ' "status": {"kind": "runnable"}},'
+        ' {"run_id": "01RUNNING", "goal": "Work-item: oyg-1", "status": "running"}]'
+    )
+    run = parse_watchable_run(ps_json=ps, work_item_id="oyg-1")
+
+    assert run is not None
+    assert run.run_id == "01QUEUED"
+    assert run.status_kind == "runnable"
+
+
+def test_parse_watchable_run_skips_unwatchable_and_malformed_entries() -> None:
+    assert parse_watchable_run(ps_json="not-json", work_item_id="oyg-1") is None
+    assert parse_watchable_run(ps_json='{"runs": "nope"}', work_item_id="oyg-1") is None
+    ps = (
+        '["bad", {"run_id": "01DONE", "goal": "Work-item: oyg-1",'
+        ' "status": {"kind": "succeeded"}},'
+        ' {"run_id": "", "goal": "Work-item: oyg-1", "status": "runnable"},'
+        ' {"run_id": "01NOGOAL", "status": "runnable"},'
+        ' {"run_id": "01NOSTATUS", "goal": "Work-item: oyg-1", "status": 7}]'
+    )
+    assert parse_watchable_run(ps_json=ps, work_item_id="oyg-1") is None
+
+
 # ---------------------------------------------------------------------------
 # decide_stall — the load-bearing fail-safety matrix
 # ---------------------------------------------------------------------------
@@ -377,6 +407,23 @@ def test_run_dispatch_reports_stalled_no_progress_and_skips_pr_flow(tmp_path: Pa
     assert STALL_SECONDS_ENV_VAR in outcome.detail
     # The runner was never touched -> the PR flow was never entered (the
     # engine short-circuited on the stall).
+    assert runner.calls == []
+    stages = [record.get("stage") for record in journal.records]
+    assert stages == ["fabro-run"]
+
+
+def test_run_dispatch_reports_stale_run_reap_and_skips_pr_flow(tmp_path: Path) -> None:
+    result = FabroRunResult(
+        command=CommandResult(exit_code=1, stdout="", stderr="cancelled by stale item reaper"),
+        abandoned_run_id="01RUNSTALE",
+        abandoned_item_status="done",
+    )
+    outcome, journal, runner = _dispatch_with_launcher(repo=tmp_path, result=result)
+
+    assert outcome.status == "failed"
+    assert outcome.stage == "stale-run-reap"
+    assert outcome.fabro_run_id == "01RUNSTALE"
+    assert "livespec-impl-beads-oyg status is done" in outcome.detail
     assert runner.calls == []
     stages = [record.get("stage") for record in journal.records]
     assert stages == ["fabro-run"]
@@ -603,6 +650,36 @@ def test_watched_launcher_treats_probe_failure_as_no_signal_never_cancels(
     launcher = WatchedFabroLauncher(sleep=_sleep_then_finish, clock=_advancing_clock())
     result = launcher.launch(plan=_plan(repo=tmp_path), runner=runner, journal=journal)
     assert result.stalled_run_id is None
+    assert runner.rm_calls == []
+
+
+def test_watched_launcher_continues_when_discovered_run_item_is_absent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv(STALL_SECONDS_ENV_VAR, "1000")
+
+    def _no_items(*, path: object) -> list[object]:
+        _ = path
+        return [
+            SimpleNamespace(id="bd-ib-other-1", status="done"),
+            SimpleNamespace(id="bd-ib-other-2", status="done"),
+        ]
+
+    runner = _ScriptedFabroRunner(events_jsons=['[{"timestamp": "2026-06-13T08:00:00Z"}]'])
+    polls = {"n": 0}
+
+    def _sleep_then_finish(_seconds: float) -> None:
+        polls["n"] += 1
+        if polls["n"] >= 3:
+            runner.run_done.set()
+            assert runner.run_returned.wait(timeout=1.0)
+
+    monkeypatch.setattr(_dispatcher_io_fabro_launcher, "read_work_items", _no_items)
+    journal = _RecordingJournal()
+    launcher = WatchedFabroLauncher(sleep=_sleep_then_finish, clock=_advancing_clock())
+    result = launcher.launch(plan=_plan(repo=tmp_path), runner=runner, journal=journal)
+
+    assert result.abandoned_run_id is None
     assert runner.rm_calls == []
 
 

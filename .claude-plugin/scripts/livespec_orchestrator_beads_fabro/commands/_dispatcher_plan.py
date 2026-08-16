@@ -105,11 +105,13 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_projection import (
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_run_status import (
     PrView,
+    WatchableRun,
     parse_pr_view,
     parse_run_id,
     parse_run_id_for_work_item,
     parse_run_status,
     parse_running_run_id,
+    parse_watchable_run,
 )
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
@@ -131,6 +133,7 @@ __all__: list[str] = [
     "FleetMembers",
     "PrView",
     "SiblingClones",
+    "WatchableRun",
     "assess_codex_credential_freshness",
     "build_plan",
     "cc_otel_overlay_env",
@@ -162,6 +165,7 @@ __all__: list[str] = [
     "parse_run_id_for_work_item",
     "parse_run_status",
     "parse_running_run_id",
+    "parse_watchable_run",
     "pr_arm_argv",
     "pr_update_branch_argv",
     "pr_view_argv",

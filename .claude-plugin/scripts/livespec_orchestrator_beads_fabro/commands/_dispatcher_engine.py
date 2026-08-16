@@ -159,10 +159,14 @@ class FabroRunResult:
     `stalled-no-progress` outcome. None means the watchdog never tripped
     (the normal path, including a clean probe-failure-but-healthy run:
     fail-safe, a flaky probe is NOT a stall).
+    `abandoned_run_id` is set when the launcher reaped a queued/running run
+    whose work-item is already no longer dispatchable.
     """
 
     command: CommandResult
     stalled_run_id: str | None = None
+    abandoned_run_id: str | None = None
+    abandoned_item_status: str | None = None
 
 
 class FabroLauncher(Protocol):
@@ -279,6 +283,20 @@ def run_dispatch(
     launched = launcher.launch(plan=plan, runner=runner, journal=journal)
     fabro = launched.command
     journal_stage(journal=journal, plan=plan, stage="fabro-run", result=fabro)
+    if launched.abandoned_run_id is not None:
+        return DispatchOutcome(
+            work_item_id=plan.work_item_id,
+            status="failed",
+            stage="stale-run-reap",
+            pr_number=None,
+            merge_sha=None,
+            detail=(
+                f"run {launched.abandoned_run_id} abandoned because work-item "
+                f"{plan.work_item_id} status is {launched.abandoned_item_status}; "
+                "item is no longer dispatchable"
+            ),
+            fabro_run_id=launched.abandoned_run_id,
+        )
     if launched.stalled_run_id is not None:
         return stalled_outcome(
             outcome_type=DispatchOutcome, plan=plan, run_id=launched.stalled_run_id
