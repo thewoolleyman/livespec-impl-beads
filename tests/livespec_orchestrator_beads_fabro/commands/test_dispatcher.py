@@ -174,11 +174,13 @@ def test_dispatcher_plan_decomposition_contract() -> None:
     }
     assert set(_dispatcher_run_status.__all__) == {
         "PrView",
+        "WatchableRun",
         "parse_pr_view",
         "parse_run_id",
         "parse_run_id_for_work_item",
         "parse_run_status",
         "parse_running_run_id",
+        "parse_watchable_run",
     }
     assert set(_dispatcher_overlay.__all__) == {
         "CORE_PLUGIN_ROOT_ENV_VAR",

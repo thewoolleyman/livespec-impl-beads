@@ -7,6 +7,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, cast
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandResult,
@@ -20,15 +21,17 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_heartbeat_probe impo
     LayeredLivenessProbe,
     heartbeat_lookup_keys,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import store_config
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     DispatchPlan,
+    WatchableRun,
     fabro_events_argv,
     fabro_inspect_argv,
     fabro_ps_argv,
     fabro_rm_argv,
     fabro_run_argv,
     fabro_server_env,
-    parse_running_run_id,
+    parse_watchable_run,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_watchdog import (
     LivenessSample,
@@ -38,6 +41,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_watchdog import (
     resolve_stall_seconds,
 )
 from livespec_orchestrator_beads_fabro.commands._otel_receive import HeartbeatSink
+from livespec_orchestrator_beads_fabro.store import read_work_items
 
 __all__: list[str] = ["WatchedFabroLauncher"]
 
@@ -45,6 +49,13 @@ _FABRO_TIMEOUT_SECONDS = 54000.0
 _FABRO_PROBE_TIMEOUT_SECONDS = 60.0
 _FABRO_RM_TIMEOUT_SECONDS = 120.0
 _WATCHDOG_POLL_INTERVAL_SECONDS = 30.0
+
+
+@dataclass(frozen=True, kw_only=True)
+class _WatchResult:
+    stalled_run_id: str | None = None
+    abandoned_run_id: str | None = None
+    abandoned_item_status: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -112,15 +123,25 @@ class WatchedFabroLauncher:
         thread = threading.Thread(target=_run_fabro, name=f"fabro-run-{plan.work_item_id}")
         thread.daemon = True
         thread.start()
-        stalled_run_id = self._watch(plan=plan, runner=runner, journal=journal, thread=thread)
-        if stalled_run_id is not None:
+        watched = self._watch(plan=plan, runner=runner, journal=journal, thread=thread)
+        if watched.abandoned_run_id is not None:
+            thread.join(timeout=_FABRO_RM_TIMEOUT_SECONDS)
+            return FabroRunResult(
+                command=holder.get(
+                    "result",
+                    CommandResult(exit_code=1, stdout="", stderr="cancelled by stale item reaper"),
+                ),
+                abandoned_run_id=watched.abandoned_run_id,
+                abandoned_item_status=watched.abandoned_item_status,
+            )
+        if watched.stalled_run_id is not None:
             thread.join(timeout=_FABRO_RM_TIMEOUT_SECONDS)
             return FabroRunResult(
                 command=holder.get(
                     "result",
                     CommandResult(exit_code=124, stdout="", stderr="cancelled by stall watchdog"),
                 ),
-                stalled_run_id=stalled_run_id,
+                stalled_run_id=watched.stalled_run_id,
             )
         thread.join()
         return FabroRunResult(command=holder["result"])
@@ -132,16 +153,31 @@ class WatchedFabroLauncher:
         runner: CommandRunner,
         journal: JournalWriter,
         thread: threading.Thread,
-    ) -> str | None:
+    ) -> _WatchResult:
         stall_seconds = resolve_stall_seconds()
         samples: list[LivenessSample] = []
         known_run_id: str | None = None
         while thread.is_alive():
             self.sleep(_WATCHDOG_POLL_INTERVAL_SECONDS)
             if not thread.is_alive():
-                return None
-            run_id = self._discover_run_id(plan=plan, runner=runner)
+                return _WatchResult()
+            run = self._discover_run(plan=plan, runner=runner)
+            run_id = run.run_id if run is not None else None
             known_run_id = run_id if run_id is not None else known_run_id
+            if run is not None:
+                item_status = _work_item_status(repo=plan.repo, work_item_id=plan.work_item_id)
+                if item_status is not None and item_status != "active":
+                    self._reap_stale_run(
+                        plan=plan,
+                        runner=runner,
+                        journal=journal,
+                        run_id=run.run_id,
+                        item_status=item_status,
+                    )
+                    return _WatchResult(
+                        abandoned_run_id=run.run_id,
+                        abandoned_item_status=item_status,
+                    )
             samples.append(self._sample(plan=plan, runner=runner, run_id=run_id))
             if known_run_id is None:
                 continue
@@ -149,10 +185,10 @@ class WatchedFabroLauncher:
                 StallVerdict.STALLED
             ):
                 self._cancel(plan=plan, runner=runner, journal=journal, run_id=known_run_id)
-                return known_run_id
-        return None
+                return _WatchResult(stalled_run_id=known_run_id)
+        return _WatchResult()
 
-    def _discover_run_id(self, *, plan: DispatchPlan, runner: CommandRunner) -> str | None:
+    def _discover_run(self, *, plan: DispatchPlan, runner: CommandRunner) -> WatchableRun | None:
         ps = runner.run(
             argv=fabro_ps_argv(plan=plan),
             cwd=plan.repo,
@@ -160,7 +196,7 @@ class WatchedFabroLauncher:
         )
         if ps.exit_code != 0:
             return None
-        return parse_running_run_id(ps_json=ps.stdout, work_item_id=plan.work_item_id)
+        return parse_watchable_run(ps_json=ps.stdout, work_item_id=plan.work_item_id)
 
     def _sample(
         self,
@@ -201,3 +237,37 @@ class WatchedFabroLauncher:
                 "rm_exit_code": rm.exit_code,
             }
         )
+
+    def _reap_stale_run(
+        self,
+        *,
+        plan: DispatchPlan,
+        runner: CommandRunner,
+        journal: JournalWriter,
+        run_id: str,
+        item_status: str,
+    ) -> None:
+        rm = runner.run(
+            argv=fabro_rm_argv(plan=plan, run_id=run_id),
+            cwd=plan.repo,
+            timeout_seconds=_FABRO_RM_TIMEOUT_SECONDS,
+        )
+        journal.append(
+            record={
+                "work_item_id": plan.work_item_id,
+                "stage": "stale-run-reap",
+                "run_id": run_id,
+                "item_status": item_status,
+                "rm_exit_code": rm.exit_code,
+            }
+        )
+
+
+def _work_item_status(*, repo: Path, work_item_id: str) -> str | None:
+    config = store_config(repo=repo) if (repo / ".livespec.jsonc").is_file() else None
+    if config is None and read_work_items.__module__ == "livespec_orchestrator_beads_fabro.store":
+        return None
+    for item in read_work_items(path=cast("Any", config)):
+        if item.id == work_item_id:
+            return item.status
+    return None

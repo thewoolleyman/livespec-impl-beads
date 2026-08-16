@@ -10,11 +10,13 @@ from livespec_orchestrator_beads_fabro.effects import JsonParseFailure, parse_js
 
 __all__: list[str] = [
     "PrView",
+    "WatchableRun",
     "parse_pr_view",
     "parse_run_id",
     "parse_run_id_for_work_item",
     "parse_run_status",
     "parse_running_run_id",
+    "parse_watchable_run",
 ]
 
 
@@ -30,8 +32,17 @@ class PrView:
     terminal_required_check_failures: tuple[str, ...]
 
 
+@dataclass(frozen=True, kw_only=True)
+class WatchableRun:
+    """Run entry the watchdog may inspect or reap."""
+
+    run_id: str
+    status_kind: str
+
+
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
 _RUN_ID_RE = re.compile(r"Run:\s*([0-9A-Za-z-]+)")
+_WATCHABLE_RUN_STATUSES = frozenset({"running", "runnable"})
 
 
 def parse_running_run_id(*, ps_json: str, work_item_id: str) -> str | None:
@@ -54,6 +65,24 @@ def parse_running_run_id(*, ps_json: str, work_item_id: str) -> str | None:
         run_id = _running_run_id_for(run_raw=run_raw, work_item_id=work_item_id)
         if run_id is not None:
             return run_id
+    return None
+
+
+def parse_watchable_run(*, ps_json: str, work_item_id: str) -> WatchableRun | None:
+    """Find a running-or-runnable run for `work_item_id`.
+
+    The stale-run reaper has to see queued `runnable` runs, while the
+    liveness watchdog still needs the already-running case. None means no
+    matching watchable run exists or the `fabro ps --json` payload is not
+    usable.
+    """
+    parsed_raw = parse_json(text=ps_json)
+    if isinstance(parsed_raw, JsonParseFailure):
+        return None
+    for run_raw in _runs_list(parsed_raw=parsed_raw):
+        run = _watchable_run_for(run_raw=run_raw, work_item_id=work_item_id)
+        if run is not None:
+            return run
     return None
 
 
@@ -108,6 +137,23 @@ def _running_run_id_for(*, run_raw: object, work_item_id: str) -> str | None:
         return None
     run_id_raw: object = run.get("run_id")
     return run_id_raw if isinstance(run_id_raw, str) and run_id_raw else None
+
+
+def _watchable_run_for(*, run_raw: object, work_item_id: str) -> WatchableRun | None:
+    """Return a watchable run entry for this work item, if present."""
+    if not isinstance(run_raw, dict):
+        return None
+    run = cast("dict[str, Any]", run_raw)
+    goal_raw: object = run.get("goal")
+    if not isinstance(goal_raw, str) or work_item_id not in goal_raw:
+        return None
+    status_kind = _run_status_kind(run=run)
+    if status_kind not in _WATCHABLE_RUN_STATUSES:
+        return None
+    run_id_raw: object = run.get("run_id")
+    if not isinstance(run_id_raw, str) or not run_id_raw:
+        return None
+    return WatchableRun(run_id=run_id_raw, status_kind=status_kind)
 
 
 def _run_status_kind(*, run: dict[str, Any]) -> str | None:
