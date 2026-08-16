@@ -10,6 +10,7 @@ created_at: 2026-08-16T01:09:10Z
 
 - SPECIFICATION/contracts.md
 - SPECIFICATION/README.md
+- SPECIFICATION/constraints.md
 
 ### Summary
 
@@ -115,6 +116,80 @@ with:
   the operator skill: drive; thin-transport skills:
   detect-impl-gaps, list-plans, list-work-items, needs-attention, next —
   per `contracts.md` §"The skill surface")
+```
+
+**Edit 6 — `SPECIFICATION/contracts.md`, three dangling §-citations of the retitled heading.** Edit 1 retitles `### Heavyweight authored skills (6)` to `### Heavyweight authored skills`; three existing citations of the old title become dangling unless rewritten in the same change.
+
+6a. Replace exactly:
+
+```
+bindings read (per §"Heavyweight authored skills (6)").
+```
+
+with:
+
+```
+bindings read (per §"Heavyweight authored skills").
+```
+
+6b. Replace exactly:
+
+```
+authored skill (per §"Heavyweight authored skills (6)"), so
+```
+
+with:
+
+```
+authored skill (per §"Heavyweight authored skills"), so
+```
+
+6c. Replace exactly (the citation wraps across two lines in the live file):
+
+```
+`plan` is the SIXTH heavyweight authored skill (§"Heavyweight authored
+skills (6)"), so its orchestration follows the same shared
+```
+
+with:
+
+```
+`plan` is the SIXTH heavyweight authored skill (§"Heavyweight authored
+skills"), so its orchestration follows the same shared
+```
+
+**Edit 7 — `SPECIFICATION/contracts.md`, §"Out-of-scope surfaces" thin-transport enumeration.** `needs-attention` is genuinely query-only (verified: its implementation reads only from the work-items store and writes nothing but stdout) and belongs inside this consent-exemption clause, not outside it. Replace exactly:
+
+```
+The four thin-transport skills (`list-work-items`, `next`,
+`detect-impl-gaps`, `list-plans`) are query-only by contract (per
+`constraints.md` §"Forbidden patterns") and never write to the
+store; the consent discipline does not apply to them.
+```
+
+with:
+
+```
+The thin-transport skills (`list-work-items`, `next`,
+`detect-impl-gaps`, `list-plans`, `needs-attention`) are query-only by
+contract (per `constraints.md` §"Forbidden patterns") and never write to the
+store; the consent discipline does not apply to them.
+```
+
+**Edit 8 — `SPECIFICATION/constraints.md`, the thin-transport zero-orchestration bullet.** Replace exactly:
+
+```
+- Thin-transport skills (list-work-items, next, detect-impl-gaps,
+  list-plans) carry ZERO orchestration in SKILL.md beyond a
+  one-line invocation of the wrapper script. All logic lives in
+```
+
+with:
+
+```
+- Thin-transport skills (list-work-items, next, detect-impl-gaps,
+  list-plans, needs-attention) carry ZERO orchestration in SKILL.md beyond a
+  one-line invocation of the wrapper script. All logic lives in
 ```
 
 **Ratification ride-alongs (same PR, outside resulting_files), in the repo-root README.md:** line 8's citation of livespec core's section "Implementation-plugin contract — the 10-skill surface" and the matching See-also entry near the bottom cite a core spec section that NO LONGER EXISTS under that name (verified against livespec origin/master 2026-08-16) — rewrite both to cite this repo's own `SPECIFICATION/contracts.md` §"The skill surface"; and the "## Skill surface" section's "eleven skills — six heavyweight authored skills, one operator skill, and four thin-transport machine-query surfaces" sentence is rewritten count-free with `needs-attention` added to its bullet list if missing.
