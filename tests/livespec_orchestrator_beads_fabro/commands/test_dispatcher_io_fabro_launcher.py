@@ -21,6 +21,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_watchdog import (
     STALL_SECONDS_ENV_VAR,
     LivenessSample,
 )
+from livespec_orchestrator_beads_fabro.errors import BeadsConnectionError
 from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
 
 
@@ -319,6 +320,43 @@ def test_watched_launcher_skips_item_status_lookup_without_store_config(
     assert result.abandoned_run_id is None
     assert runner.rm_calls == []
     assert reader.call_count == 0
+
+
+def test_watched_launcher_continues_when_item_status_lookup_fails(
+    *,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    def _thread(*, target: Callable[[], None], name: str) -> _QueuedThread:
+        return _QueuedThread(target=target, name=name, runner=runner)
+
+    def _unreachable_store(*, path: StoreConfig) -> list[WorkItem]:
+        _ = path
+        raise BeadsConnectionError(detail="connection refused")
+
+    runner = _QueuedRunner(calls=[], rm_calls=[])
+    journal = _Journal(records=[])
+    _write_livespec_config(repo=tmp_path)
+    monkeypatch.setattr(_dispatcher_io_fabro_launcher.threading, "Thread", _thread)
+    monkeypatch.setattr(_dispatcher_io_fabro_launcher, "read_work_items", _unreachable_store)
+    plan = build_plan(
+        repo=tmp_path,
+        work_item_id="bd-ib-queued",
+        workflow_toml=tmp_path / "workflow.toml",
+        goal_file=tmp_path / "goal.md",
+        fabro_bin="fabro",
+        janitor=None,
+        janitor_checkout=tmp_path / "janitor",
+    )
+
+    result = WatchedFabroLauncher(sleep=lambda _seconds: None, clock=lambda: 0.0).launch(
+        plan=plan,
+        runner=runner,
+        journal=journal,
+    )
+
+    assert result.abandoned_run_id is None
+    assert runner.rm_calls == []
 
 
 def test_watched_launcher_continues_when_item_is_absent_from_configured_store(

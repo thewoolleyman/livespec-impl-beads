@@ -40,6 +40,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_watchdog import (
     resolve_stall_seconds,
 )
 from livespec_orchestrator_beads_fabro.commands._otel_receive import HeartbeatSink
+from livespec_orchestrator_beads_fabro.errors import BeadsCommandError, BeadsConnectionError
 from livespec_orchestrator_beads_fabro.store import read_work_items
 
 __all__: list[str] = ["WatchedFabroLauncher"]
@@ -266,7 +267,11 @@ def _work_item_status(*, repo: Path, work_item_id: str) -> str | None:
     config = store_config(repo=repo) if (repo / ".livespec.jsonc").is_file() else None
     if config is None:
         return None
-    for item in read_work_items(path=config):
+    try:
+        items = read_work_items(path=config)
+    except (BeadsCommandError, BeadsConnectionError):
+        return None
+    for item in items:
         if item.id == work_item_id:
             return item.status
     return None
