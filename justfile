@@ -322,9 +322,6 @@ check:
         check-partition-completeness
         check-pbt-coverage-pure-modules
         check-per-file-coverage
-        check-plan-thread-anchor-declared
-        check-plan-thread-epic-parity
-        check-plan-thread-no-tombstone
         check-plan-anchor-declared
         check-plan-epic-parity
         check-plan-no-tombstone
@@ -1020,12 +1017,6 @@ check-self-hosted-routing:
 check-shell-quality:
     uv run python -m livespec_dev_tooling.checks.shell_quality
 
-check-plan-thread-anchor-declared:
-    uv run python -m livespec_dev_tooling.checks.plan_thread_anchor_declared
-
-check-plan-thread-epic-parity:
-    uv run python -m livespec_dev_tooling.checks.plan_thread_epic_parity
-
 check-no-shadow-ledger-body-typechecks:
     uv run python -m livespec_dev_tooling.checks.no_shadow_ledger_body_typechecks
 
@@ -1034,9 +1025,6 @@ check-required-role-keys-declared:
 
 check-hook-trees-not-io-exempt:
     uv run python -m livespec_dev_tooling.checks.hook_trees_not_io_exempt
-
-check-plan-thread-no-tombstone:
-    uv run python -m livespec_dev_tooling.checks.plan_thread_no_tombstone
 
 check-plan-anchor-declared:
     uv run python -m livespec_dev_tooling.checks.plan_anchor_declared

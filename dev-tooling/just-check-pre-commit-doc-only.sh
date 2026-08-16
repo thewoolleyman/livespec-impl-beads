@@ -7,7 +7,7 @@ targets=(
     check-agents-ai-references-resolve
     check-claude-md-coverage
     check-handoff-dispatch-routing
-    check-plan-thread-anchor-declared
+    check-plan-anchor-declared
     check-vendor-manifest
     check-no-direct-tool-invocation
     check-check-tools
