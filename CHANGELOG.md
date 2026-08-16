@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.57.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.57.0...v0.57.1) (2026-08-16)
+
+
+### Bug Fixes
+
+* distinguish blocked dispatch exits ([0b235c3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/0b235c3c93d6a97748e78cf877ec04450197502b))
+
 ## [0.57.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.56.5...v0.57.0) (2026-08-16)
 
 
