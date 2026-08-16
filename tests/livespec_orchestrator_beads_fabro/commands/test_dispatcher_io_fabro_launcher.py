@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 from livespec_orchestrator_beads_fabro.commands import (
@@ -15,7 +16,11 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import Comman
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io_fabro_launcher import (
     WatchedFabroLauncher,
 )
-from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import build_plan
+from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import WatchableRun, build_plan
+from livespec_orchestrator_beads_fabro.commands._dispatcher_watchdog import (
+    STALL_SECONDS_ENV_VAR,
+    LivenessSample,
+)
 from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
 
 
@@ -166,7 +171,8 @@ def test_watched_launcher_reaps_queued_run_after_item_closes(
         return _QueuedThread(target=target, name=name, runner=runner)
 
     def _done_items(*, path: StoreConfig) -> list[WorkItem]:
-        _ = path
+        assert path.prefix == "bd-ib"
+        assert path.repo_root == tmp_path
         return [
             WorkItem(
                 id="bd-ib-queued",
@@ -189,6 +195,7 @@ def test_watched_launcher_reaps_queued_run_after_item_closes(
 
     runner = _QueuedRunner(calls=[], rm_calls=[])
     journal = _Journal(records=[])
+    _write_livespec_config(repo=tmp_path)
     monkeypatch.setattr(_dispatcher_io_fabro_launcher.threading, "Thread", _thread)
     monkeypatch.setattr(
         _dispatcher_io_fabro_launcher, "read_work_items", _done_items, raising=False
@@ -221,3 +228,165 @@ def test_watched_launcher_reaps_queued_run_after_item_closes(
             "rm_exit_code": 0,
         }
     ]
+
+
+def test_watched_launcher_does_not_stall_cancel_queued_active_run(
+    *,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    plan = build_plan(
+        repo=tmp_path,
+        work_item_id="bd-ib-queued",
+        workflow_toml=tmp_path / "workflow.toml",
+        goal_file=tmp_path / "goal.md",
+        fabro_bin="fabro",
+        janitor=None,
+        janitor_checkout=tmp_path / "janitor",
+    )
+    runner = _QueuedRunner(calls=[], rm_calls=[])
+    journal = _Journal(records=[])
+
+    samples = [
+        LivenessSample(last_event_epoch=100.0, observed_at=100.0),
+        LivenessSample(last_event_epoch=100.0, observed_at=1200.0),
+    ]
+
+    def _next_sample(
+        self: WatchedFabroLauncher,
+        *,
+        plan: object,
+        runner: object,
+        run_id: str | None,
+    ) -> LivenessSample:
+        _ = (self, plan, runner, run_id)
+        return samples.pop(0)
+
+    def _discover_runnable_run(self: WatchedFabroLauncher, **_: object) -> WatchableRun:
+        _ = self
+        return WatchableRun(run_id="01QUEUED", status_kind="runnable")
+
+    def _thread(*, target: Callable[[], None], name: str) -> _QueuedThread:
+        return _QueuedThread(
+            target=target,
+            name=name,
+            runner=runner,
+            alive_checks=-2,
+        )
+
+    launcher = WatchedFabroLauncher(sleep=lambda _seconds: None, clock=lambda: 0.0)
+    monkeypatch.setenv(STALL_SECONDS_ENV_VAR, "1000")
+    monkeypatch.setattr(_dispatcher_io_fabro_launcher.threading, "Thread", _thread)
+    monkeypatch.setattr(_dispatcher_io_fabro_launcher, "_work_item_status", lambda **_: "active")
+    monkeypatch.setattr(WatchedFabroLauncher, "_sample", _next_sample)
+    monkeypatch.setattr(WatchedFabroLauncher, "_discover_run", _discover_runnable_run)
+
+    result = launcher.launch(plan=plan, runner=runner, journal=journal)
+
+    assert result.stalled_run_id is None
+    assert runner.rm_calls == []
+
+
+def test_watched_launcher_skips_item_status_lookup_without_store_config(
+    *,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    def _thread(*, target: Callable[[], None], name: str) -> _QueuedThread:
+        return _QueuedThread(target=target, name=name, runner=runner)
+
+    runner = _QueuedRunner(calls=[], rm_calls=[])
+    journal = _Journal(records=[])
+    reader = Mock(return_value=[])
+    monkeypatch.setattr(_dispatcher_io_fabro_launcher.threading, "Thread", _thread)
+    monkeypatch.setattr(_dispatcher_io_fabro_launcher, "read_work_items", reader)
+    plan = build_plan(
+        repo=tmp_path,
+        work_item_id="bd-ib-queued",
+        workflow_toml=tmp_path / "workflow.toml",
+        goal_file=tmp_path / "goal.md",
+        fabro_bin="fabro",
+        janitor=None,
+        janitor_checkout=tmp_path / "janitor",
+    )
+
+    result = WatchedFabroLauncher(sleep=lambda _seconds: None, clock=lambda: 0.0).launch(
+        plan=plan,
+        runner=runner,
+        journal=journal,
+    )
+
+    assert result.abandoned_run_id is None
+    assert runner.rm_calls == []
+    assert reader.call_count == 0
+
+
+def test_watched_launcher_continues_when_item_is_absent_from_configured_store(
+    *,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    def _thread(*, target: Callable[[], None], name: str) -> _QueuedThread:
+        return _QueuedThread(target=target, name=name, runner=runner)
+
+    runner = _QueuedRunner(calls=[], rm_calls=[])
+    journal = _Journal(records=[])
+    reader = Mock(
+        return_value=[
+            WorkItem(
+                id="bd-ib-other",
+                type="task",
+                status="done",
+                title="done",
+                description="done",
+                origin="freeform",
+                gap_id=None,
+                rank="a0",
+                assignee=None,
+                depends_on=(),
+                captured_at="2026-08-16T00:00:00Z",
+                resolution=None,
+                reason=None,
+                audit=None,
+                superseded_by=None,
+            )
+        ]
+    )
+    _write_livespec_config(repo=tmp_path)
+    monkeypatch.setattr(_dispatcher_io_fabro_launcher.threading, "Thread", _thread)
+    monkeypatch.setattr(_dispatcher_io_fabro_launcher, "read_work_items", reader)
+    plan = build_plan(
+        repo=tmp_path,
+        work_item_id="bd-ib-queued",
+        workflow_toml=tmp_path / "workflow.toml",
+        goal_file=tmp_path / "goal.md",
+        fabro_bin="fabro",
+        janitor=None,
+        janitor_checkout=tmp_path / "janitor",
+    )
+
+    result = WatchedFabroLauncher(sleep=lambda _seconds: None, clock=lambda: 0.0).launch(
+        plan=plan,
+        runner=runner,
+        journal=journal,
+    )
+
+    assert result.abandoned_run_id is None
+    assert runner.rm_calls == []
+
+
+def _write_livespec_config(*, repo: Path) -> None:
+    _ = repo.joinpath(".livespec.jsonc").write_text(
+        """
+        {
+          "livespec-orchestrator-beads-fabro": {
+            "connection": {
+              "prefix": "bd-ib",
+              "tenant": "test-tenant",
+              "fake": true
+            }
+          }
+        }
+        """,
+        encoding="utf-8",
+    )

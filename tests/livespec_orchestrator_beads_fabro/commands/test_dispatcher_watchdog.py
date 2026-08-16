@@ -657,6 +657,20 @@ def test_watched_launcher_continues_when_discovered_run_item_is_absent(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setenv(STALL_SECONDS_ENV_VAR, "1000")
+    _ = tmp_path.joinpath(".livespec.jsonc").write_text(
+        """
+        {
+          "livespec-orchestrator-beads-fabro": {
+            "connection": {
+              "prefix": "bd-ib",
+              "tenant": "test-tenant",
+              "fake": true
+            }
+          }
+        }
+        """,
+        encoding="utf-8",
+    )
 
     def _no_items(*, path: object) -> list[object]:
         _ = path
