@@ -3,9 +3,9 @@
 The **beads/Dolt-backed implementation plugin** for
 [livespec](https://github.com/thewoolleyman/livespec), and the livespec
 family's current work-items backend. It is one realization of the
-abstract implementation-plugin contract livespec publishes in its
-`SPECIFICATION/contracts.md` §"Implementation-plugin contract — the
-10-skill surface": a Claude Code plugin exposing the
+abstract implementation-plugin contract each orchestrator plugin
+concretizes, per `SPECIFICATION/contracts.md` §"The skill surface"
+(this repo's own spec): a Claude Code plugin exposing the
 `/livespec-orchestrator-beads-fabro:*` skill surface that captures, ranks, and drives
 impl-side work, with work-items stored as rows in a per-repo
 beads tenant on a shared Dolt `sql-server`. The repo dogfoods livespec:
@@ -49,9 +49,9 @@ even though the plugin is present.
 
 ## Skill surface
 
-The plugin ships eleven skills — six heavyweight authored skills, one
-operator skill, and four thin-transport machine-query surfaces, per livespec's
-`SPECIFICATION/contracts.md`:
+The plugin ships the skills enumerated below — heavyweight authored
+skills, the operator skill, and thin-transport machine-query surfaces —
+per this repo's own `SPECIFICATION/contracts.md` §"The skill surface":
 
 - `/livespec-orchestrator-beads-fabro:capture-impl-gaps` — detect spec→impl gaps and
   file gap-tied work-items with per-gap consent
@@ -78,6 +78,10 @@ operator skill, and four thin-transport machine-query surfaces, per livespec's
 - `/livespec-orchestrator-beads-fabro:list-plans` — enumerate the open
   (unarchived) plans under `plan/` (pure read-and-emit; sibling of
   `list-work-items`)
+- `/livespec-orchestrator-beads-fabro:needs-attention` — compose the spec,
+  implementation, human-valve, plan, and hygiene gather primitives into an
+  operator attention list (peer of `drive`, coupled only by the shared
+  action-id grammar; composes and emits, executes nothing)
 
 Each skill resolves livespec core's prose and config-named CLIs at
 runtime and reads this repo's `.livespec.jsonc` for the beads tenant
@@ -180,9 +184,9 @@ The livespec family dogfoods its own telemetry. CI runs, Red→Green commit-gate
 
 - See [livespec](https://github.com/thewoolleyman/livespec) for the core
   contract, prose, and templates this plugin realizes.
-- See livespec's `SPECIFICATION/contracts.md`
-  §"Implementation-plugin contract — the 10-skill surface" for the
-  abstract contract this plugin concretizes for the beads substrate.
+- See this repo's own `SPECIFICATION/contracts.md` §"The skill
+  surface" for the concrete skill inventory realized on the beads
+  substrate.
 - See [AGENTS.md](AGENTS.md) for the commit protocol and repo orientation.
 - See [SPECIFICATION/](SPECIFICATION/) for the live (dogfooded) spec.
 </content>
