@@ -273,6 +273,154 @@ def test_archive_requires_completeness_review_evidence(tmp_path: Path) -> None:
     assert "independent completeness-review evidence is required" in str(exc.value)
 
 
+def test_archive_launches_independent_review_and_waits_for_durable_evidence(
+    tmp_path: Path,
+) -> None:
+    reset_fake_singleton()
+    plan = importlib.import_module("livespec_orchestrator_beads_fabro.commands.plan")
+    created = plan.create_thread(
+        project_root=tmp_path,
+        config=_config(),
+        slug="archive-thread",
+        title="Archive thread",
+        research_filename="initial.md",
+        research_text="research\n",
+        now="2026-08-11T00:00:00Z",
+    )
+    _ = _fake().create_issue(draft=_draft(issue_id="bd-ib-child", parent_id=None))
+    _fake().add_dependency(
+        from_id="bd-ib-child",
+        to_id=created["epic_id"],
+        edge_type=EDGE_BLOCKS,
+    )
+    _fake().close_issue(issue_id="bd-ib-child", reason="completed")
+    launched: list[object] = []
+
+    def launch_review(
+        *,
+        request: object,
+    ) -> str:
+        launched.append(request)
+        return "review-evidence-1"
+
+    with pytest.raises(plan.PlanArchiveRefusedError) as exc:
+        plan.archive_thread(
+            project_root=tmp_path,
+            config=_config(),
+            slug="archive-thread",
+            epic_id=created["epic_id"],
+            completeness_review_comment_id=None,
+            review_launcher=launch_review,
+        )
+
+    assert len(launched) == 1
+    assert "independent completeness-review evidence is required" in str(exc.value)
+    assert (tmp_path / "plan" / "archive-thread").is_dir()
+    assert not (tmp_path / "plan" / "archive").exists()
+    assert _fake().show_issue(issue_id=created["epic_id"])["status"] != "closed"
+
+
+def test_archive_after_reviewer_records_valid_durable_evidence(tmp_path: Path) -> None:
+    reset_fake_singleton()
+    plan = importlib.import_module("livespec_orchestrator_beads_fabro.commands.plan")
+    created = plan.create_thread(
+        project_root=tmp_path,
+        config=_config(),
+        slug="archive-thread",
+        title="Archive thread",
+        research_filename="initial.md",
+        research_text="research\n",
+        now="2026-08-11T00:00:00Z",
+    )
+    _ = _fake().create_issue(draft=_draft(issue_id="bd-ib-child", parent_id=None))
+    _fake().add_dependency(
+        from_id="bd-ib-child",
+        to_id=created["epic_id"],
+        edge_type=EDGE_BLOCKS,
+    )
+    _fake().close_issue(issue_id="bd-ib-child", reason="completed")
+    launched: list[object] = []
+
+    def launch_review(
+        *,
+        request: object,
+    ) -> str:
+        launched.append(request)
+        plan.record_completeness_review_evidence(
+            config=_config(),
+            epic_id=created["epic_id"],
+            evidence_id="review-evidence-1",
+            reviewer_identity="fresh-independent-reviewer",
+            separate_reviewer=True,
+            attests_complete_requirement_coverage=True,
+            body="All research requirements and deferrals have ledger carriers.",
+            now="2026-08-11T02:00:00Z",
+        )
+        return "review-evidence-1"
+
+    result = plan.archive_thread(
+        project_root=tmp_path,
+        config=_config(),
+        slug="archive-thread",
+        epic_id=created["epic_id"],
+        completeness_review_comment_id=None,
+        review_launcher=launch_review,
+    )
+
+    assert len(launched) == 1
+    assert result["archive_path"] == "plan/archive/archive-thread"
+    assert _fake().show_issue(issue_id=created["epic_id"])["status"] == "closed"
+
+
+def test_archive_rejects_self_review_and_incomplete_coverage_evidence(tmp_path: Path) -> None:
+    reset_fake_singleton()
+    plan = importlib.import_module("livespec_orchestrator_beads_fabro.commands.plan")
+    created = plan.create_thread(
+        project_root=tmp_path,
+        config=_config(),
+        slug="archive-thread",
+        title="Archive thread",
+        research_filename="initial.md",
+        research_text="research\n",
+        now="2026-08-11T00:00:00Z",
+    )
+    _fake().create_issue(draft=_draft(issue_id="bd-ib-child", parent_id=created["epic_id"]))
+    _fake().close_issue(issue_id="bd-ib-child", reason="completed")
+    plan.record_completeness_review_evidence(
+        config=_config(),
+        epic_id=created["epic_id"],
+        evidence_id="self-review",
+        reviewer_identity="plan-archive",
+        separate_reviewer=True,
+        attests_complete_requirement_coverage=True,
+        body="Self-attested complete.",
+        now="2026-08-11T02:00:00Z",
+    )
+    plan.record_completeness_review_evidence(
+        config=_config(),
+        epic_id=created["epic_id"],
+        evidence_id="partial-review",
+        reviewer_identity="fresh-independent-reviewer",
+        separate_reviewer=True,
+        attests_complete_requirement_coverage=False,
+        body="Did not attest every requirement carrier.",
+        now="2026-08-11T02:01:00Z",
+    )
+
+    for evidence_id in ("self-review", "partial-review"):
+        with pytest.raises(plan.PlanArchiveRefusedError):
+            plan.archive_thread(
+                project_root=tmp_path,
+                config=_config(),
+                slug="archive-thread",
+                epic_id=created["epic_id"],
+                completeness_review_comment_id=evidence_id,
+            )
+
+    assert (tmp_path / "plan" / "archive-thread").is_dir()
+    assert not (tmp_path / "plan" / "archive").exists()
+
+
 def test_archive_moves_thread_and_closes_epic_after_two_gates(tmp_path: Path) -> None:
     reset_fake_singleton()
     plan = importlib.import_module("livespec_orchestrator_beads_fabro.commands.plan")
@@ -292,13 +440,23 @@ def test_archive_moves_thread_and_closes_epic_after_two_gates(tmp_path: Path) ->
         edge_type=EDGE_BLOCKS,
     )
     _fake().close_issue(issue_id="bd-ib-child", reason="completed")
+    plan.record_completeness_review_evidence(
+        config=_config(),
+        epic_id=created["epic_id"],
+        evidence_id="review-evidence-1",
+        reviewer_identity="fresh-independent-reviewer",
+        separate_reviewer=True,
+        attests_complete_requirement_coverage=True,
+        body="All research requirements and deferrals have ledger carriers.",
+        now="2026-08-11T02:00:00Z",
+    )
 
     result = plan.archive_thread(
         project_root=tmp_path,
         config=_config(),
         slug="archive-thread",
         epic_id=created["epic_id"],
-        completeness_review_comment_id="bd-comment-1",
+        completeness_review_comment_id="review-evidence-1",
     )
 
     assert result == {
