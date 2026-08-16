@@ -350,6 +350,29 @@ def _sibling_clone_steps_block(*, siblings: SiblingClones) -> str:
     wiring check. Plain `git clone` over https is used (NOT `gh`): the
     sandbox clones its own workspace repo the same way, while `gh api`
     is unauthenticated there.
+
+    Each step TOLERATES its own member's failure: a member that cannot
+    be cloned is reported as a one-line stderr diagnostic and skipped
+    (`exit 0`), never failing the whole prepare step. The manifest is
+    fetched fresh from livespec master on every dispatch, so an entry
+    naming a repo that does not exist YET (registration precedes birth)
+    would otherwise kill every dispatch across the fleet — the
+    2026-08-15 livespec-driver-pi outage. Manifest consumers other than
+    the conformance check MUST degrade per-member: livespec core
+    `SPECIFICATION/non-functional-requirements.md`, Fleet membership
+    contract / Repo birth procedure, ratified v210.
+
+    `GIT_TERMINAL_PROMPT=0` on both git invocations is what makes the
+    diagnostic honest: without it, an unreachable repo makes git's https
+    backend fall back to a credential prompt, which in the TTY-less
+    sandbox surfaces as `could not read Username ... No such device or
+    address` and reads as an auth failure (it cost a real
+    misdiagnosis). The explicit `git ls-remote --exit-code` probe then
+    separates "repository not reachable (nonexistent or no access)"
+    from a "clone failed after a successful reachability probe
+    (transient)". Only the `mkdir` can fail the step. On the
+    all-members-healthy path the observable result is unchanged: the
+    same depth-1 quiet https clone into the same `<clones_root>/<repo>`.
     """
     lines: list[str] = [
         "",
@@ -359,10 +382,21 @@ def _sibling_clone_steps_block(*, siblings: SiblingClones) -> str:
         f"# --- {siblings.clones_root} inside the sandbox ---",
     ]
     for repo_name in siblings.repos:
+        url = f"https://github.com/{siblings.owner}/{repo_name}.git"
+        diagnostic = (
+            "livespec-orchestrator-beads-fabro dispatcher: sibling clone skipped"
+            f" for {repo_name}: "
+        )
         script = (
-            f"mkdir -p {siblings.clones_root} && git clone --quiet --depth 1"
-            f" https://github.com/{siblings.owner}/{repo_name}.git"
-            f" {siblings.clones_root}/{repo_name}"
+            f"mkdir -p {siblings.clones_root} || exit 1;"
+            f" GIT_TERMINAL_PROMPT=0 git ls-remote --exit-code {url} HEAD"
+            " >/dev/null 2>&1 ||"
+            f" {{ echo '{diagnostic}repository not reachable"
+            " (nonexistent or no access)' >&2; exit 0; };"
+            f" GIT_TERMINAL_PROMPT=0 git clone --quiet --depth 1 {url}"
+            f" {siblings.clones_root}/{repo_name} ||"
+            f" {{ echo '{diagnostic}clone failed after a successful"
+            " reachability probe (transient)' >&2; exit 0; }}"
         )
         lines.append("[[run.prepare.steps]]")
         lines.append(f"script = {json.dumps(script)}")
