@@ -167,6 +167,13 @@
     "reason": "Operator-procedure constraint over an EXTERNAL runtime the plugin does not own (the Fabro engine binary): it governs which Fabro build the factory may pin - the `factory-integration` carrier branch, its composition, the < 0.256 base ceiling, and the rebuild/re-pin duty - none of which is a code path the plugin executes, so there is no plugin-side behavior for a test to exercise. Per the amended file preamble, the deciding command is `fabro --version` and enforcement is review-time verification against it. A real test ID becomes bindable if the ceiling is later enforced by a dispatch-preflight engine-version gate (ledger bd-ib-j9x), which WOULD be plugin-observable behavior and would carry its own scenario."
   },
   {
+    "heading": "## Fabro factory host provisioning constraints",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "constraints.md",
+    "test": "TODO",
+    "reason": "Operator-procedure constraint over an EXTERNAL runtime the plugin does not own (the Fabro engine binary and its host operating system): it governs how a factory host must be reachable (loopback + external network name) and how it must source fleet-shared secrets, neither of which is a code path the plugin executes -- the plugin has no factory-host-provisioning code of its own to test. Per the section's Verification subsection, the deciding checks are two `curl` invocations against the host's loopback and external origins, plus a comparison of the new host's secret-sourcing invocation against the fleet's existing hosts, and enforcement is review-time verification against those, mirroring the sibling `Fabro runtime constraints` heading immediately above it."
+  },
+  {
     "heading": "## Process boundaries",
     "spec_root": "SPECIFICATION",
     "spec_file": "constraints.md",
