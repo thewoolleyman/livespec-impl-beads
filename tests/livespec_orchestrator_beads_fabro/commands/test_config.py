@@ -516,6 +516,19 @@ def test_resolve_fabro_factory_defaults_to_configured_default_entry(
     assert target.dev_token is None
 
 
+def test_committed_config_sets_shared_vps_default_factory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """This repo's committed config selects the shared VPS Fabro host by default."""
+    monkeypatch.delenv("LIVESPEC_FABRO_FACTORY", raising=False)
+    monkeypatch.delenv("FABRO_DEV_TOKEN__default", raising=False)
+    repo_root = Path(__file__).parents[3]
+    target = _config.resolve_fabro_factory(cwd=repo_root)
+    assert target.name == "default"
+    assert target.server == "https://vps.perch-rudd.ts.net:32276"
+    assert target.dev_token is None
+
+
 def test_resolve_fabro_factory_implicit_default_preserves_loopback_behavior(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
