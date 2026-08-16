@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.57.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.56.5...v0.57.0) (2026-08-16)
+
+
+### Features
+
+* orchestrate plan archive review evidence ([2a7e910](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/2a7e91076ffb4209c3b5fb2791f6dd6c89a19f71))
+
 ## [0.56.5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.56.4...v0.56.5) (2026-08-16)
 
 
