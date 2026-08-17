@@ -98,22 +98,41 @@ def test_archive_review_request_allows_missing_research_directory(tmp_path: Path
     assert request.research_paths == ()
 
 
-def test_child_disposition_detects_parent_and_blocks_edges() -> None:
+def test_child_disposition_detects_parent_and_epic_blocker_edges() -> None:
     reset_fake_singleton()
+    _ = _fake().create_issue(draft=_draft(issue_id="bd-ib-epic", parent_id=None))
     _ = _fake().create_issue(draft=_draft(issue_id="bd-ib-parent", parent_id="bd-ib-epic"))
-    _ = _fake().create_issue(draft=_draft(issue_id="bd-ib-blocks", parent_id=None))
+    _ = _fake().create_issue(draft=_draft(issue_id="bd-ib-blocker", parent_id=None))
     _fake().add_dependency(
-        from_id="bd-ib-blocks",
-        to_id="bd-ib-epic",
+        from_id="bd-ib-epic",
+        to_id="bd-ib-blocker",
         edge_type=EDGE_BLOCKS,
     )
     _fake().update_issue(issue_id="bd-ib-parent", status="ready")
-    _fake().update_issue(issue_id="bd-ib-blocks", status="ready")
+    _fake().update_issue(issue_id="bd-ib-blocker", status="ready")
 
     assert undisposed_plan_child_ids(client=_fake(), epic_id="bd-ib-epic") == (
-        "bd-ib-blocks",
+        "bd-ib-blocker",
         "bd-ib-parent",
     )
+
+
+def test_child_disposition_ignores_downstream_epic_depending_on_foundation() -> None:
+    reset_fake_singleton()
+    _ = _fake().create_issue(draft=_draft(issue_id="bd-ib-foundation", parent_id=None))
+    _ = _fake().create_issue(
+        draft=_draft(issue_id="bd-ib-finished-child", parent_id="bd-ib-foundation")
+    )
+    _fake().close_issue(issue_id="bd-ib-finished-child", reason="completed")
+    _ = _fake().create_issue(draft=_draft(issue_id="bd-ib-downstream", parent_id=None))
+    _fake().add_dependency(
+        from_id="bd-ib-downstream",
+        to_id="bd-ib-foundation",
+        edge_type=EDGE_BLOCKS,
+    )
+    _fake().update_issue(issue_id="bd-ib-downstream", status="backlog")
+
+    assert undisposed_plan_child_ids(client=_fake(), epic_id="bd-ib-foundation") == ()
 
 
 class _RawChildrenClient:

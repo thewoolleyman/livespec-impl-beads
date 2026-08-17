@@ -14,8 +14,8 @@ from livespec_orchestrator_beads_fabro.commands._plan_archive_review import (
     ArchiveCompletenessReviewRequest,
     CompletenessReviewLauncher,
     archive_completeness_review_request,
-    has_blocks_edge_to_epic,
-    is_blocks_edge_to_epic,
+    blocking_dependency_ids,
+    is_blocks_dependency_edge,
     record_completeness_review_evidence,
     undisposed_plan_child_ids,
     valid_completeness_review_evidence_id,
@@ -30,8 +30,8 @@ if TYPE_CHECKING:
 __all__: list[str] = [
     "PlanArchiveRefusedError",
     "PlanTimelineEntry",
-    "_has_blocks_edge_to_epic",
-    "_is_blocks_edge_to_epic",
+    "_blocking_dependency_ids",
+    "_is_blocks_dependency_edge",
     "append_handoff",
     "append_supervisor_handoff",
     "archive_thread",
@@ -255,12 +255,12 @@ def _resolve_completeness_review_evidence(
     )
 
 
-def _has_blocks_edge_to_epic(*, record: BeadsRecord, epic_id: str) -> bool:
-    return has_blocks_edge_to_epic(record=record, epic_id=epic_id)
+def _blocking_dependency_ids(*, record: BeadsRecord) -> frozenset[str]:
+    return blocking_dependency_ids(record=record)
 
 
-def _is_blocks_edge_to_epic(*, edge: object, epic_id: str) -> bool:
-    return is_blocks_edge_to_epic(edge=edge, epic_id=epic_id)
+def _is_blocks_dependency_edge(*, edge: object) -> str | None:
+    return is_blocks_dependency_edge(edge=edge)
 
 
 def _tag_epic_anchor(*, config: StoreConfig, epic_id: str, slug: str) -> None:
