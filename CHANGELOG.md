@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.58.3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.2...v0.58.3) (2026-08-17)
+
+
+### Bug Fixes
+
+* correct plan archive dependency direction ([3f93312](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/3f9331281ad17a5769f6b4ece63ea821ffb4eac4))
+
 ## [0.58.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.1...v0.58.2) (2026-08-17)
 
 
