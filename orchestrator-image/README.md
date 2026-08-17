@@ -296,13 +296,18 @@ span named `run_turn` in the `fabro` dataset, keyed by `work.item.id` and
 reflection window, normally seconds after the run returns and within the next
 dispatcher loop pass.
 
-This is the cheap per-dispatch layer. Keep the Honeycomb-side dead-man trigger
-separate: alert on zero `run_turn` spans in dataset `fabro` over a 10-minute
-rolling window, routed through the existing operator-alert path used by the
-adopter dead-man triggers. Breaking `OTEL_EXPORTER_OTLP_ENDPOINT` on a scratch
-run should make the dispatcher finding appear on that run and the Honeycomb
-trigger fire within the 10-minute window; restoring the endpoint should clear
-both after the next successful `run_turn` export.
+This is the cheap per-dispatch layer. It is NOT yet paired with a
+Honeycomb-side dead-man trigger: no trigger on the `fabro` dataset alerting
+on zero `run_turn` spans over a rolling window exists today (verified live
+against the Honeycomb livespec environment, 2026-08-17). The design intent,
+recorded here for whoever builds it, is to alert on zero `run_turn` spans in
+dataset `fabro` over a 10-minute rolling window, routed through the existing
+operator-alert path used by the adopter dead-man triggers, verified by
+breaking `OTEL_EXPORTER_OTLP_ENDPOINT` on a scratch run (the dispatcher
+finding should appear and the Honeycomb trigger should fire within the
+10-minute window) and restoring it (both should clear after the next
+successful `run_turn` export). Track the build as its own work-item; do not
+read this section as describing a trigger that already exists.
 
 ### Auth posture (OAuth-only)
 
