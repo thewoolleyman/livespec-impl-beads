@@ -116,6 +116,27 @@ def test_child_disposition_detects_parent_and_blocks_edges() -> None:
     )
 
 
+class _RawChildrenClient:
+    def children(self, *, parent_id: str) -> list[dict[str, object]]:
+        return [
+            {
+                "id": "bd-ib-plain",
+                "parent": parent_id,
+                "status": "backlog",
+                "dependencies": [],
+            },
+        ]
+
+    def list_issues(self) -> list[dict[str, object]]:
+        return []
+
+
+def test_child_disposition_detects_raw_parent_child_record() -> None:
+    client = cast("BeadsClient", _RawChildrenClient())
+
+    assert undisposed_plan_child_ids(client=client, epic_id="bd-ib-epic") == ("bd-ib-plain",)
+
+
 def test_edge_predicates_ignore_malformed_records() -> None:
     assert not has_blocks_edge_to_epic(record={"dependencies": "not-a-list"}, epic_id="bd-ib-epic")
     assert not is_blocks_edge_to_epic(edge="not-an-edge", epic_id="bd-ib-epic")

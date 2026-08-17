@@ -180,9 +180,13 @@ def _is_undisposed_plan_child(*, record: BeadsRecord, epic_id: str) -> bool:
     issue_id = record.get("id")
     if not isinstance(issue_id, str) or record.get("status") == "closed":
         return False
-    return record.get("parent_id") == epic_id or has_blocks_edge_to_epic(
-        record=record,
-        epic_id=epic_id,
+    return (
+        record.get("parent") == epic_id
+        or record.get("parent_id") == epic_id
+        or has_blocks_edge_to_epic(
+            record=record,
+            epic_id=epic_id,
+        )
     )
 
 
