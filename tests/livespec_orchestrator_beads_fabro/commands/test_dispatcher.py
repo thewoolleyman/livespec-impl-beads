@@ -1465,9 +1465,8 @@ _FAKE_GITHUB_TOKEN_LINE = 'GITHUB_TOKEN = "test-github-token"'
 _FAKE_GITHUB_APP_ID_LINE = 'GITHUB_APP_ID = "42"'
 _FAKE_GITHUB_PRIVATE_KEY_LINE = 'GITHUB_PRIVATE_KEY = "stub-pem"'
 _GH_REFRESH_BIN = "/workspace/.livespec-github-bin"
-_GH_REFRESH_PATH_LINE = (
-    f'PATH = "{_GH_REFRESH_BIN}:' '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"'
-)
+_FAKE_INHERITED_PATH = "/workspace/.local/bin:/workspace/.cargo/bin:/usr/local/bin"
+_GH_REFRESH_PATH_LINE = f'PATH = "{_GH_REFRESH_BIN}:{_FAKE_INHERITED_PATH}"'
 
 # The dead interpolation channel: fabro resolves {{ env.* }} in the
 # server-spawned WORKER, whose env is a fail-closed allowlist
@@ -1525,6 +1524,7 @@ def test_render_run_config_overlay_prepares_refreshing_gh_wrapper(
     """
     monkeypatch.setenv("GITHUB_APP_ID", "42")
     monkeypatch.setenv("GITHUB_PRIVATE_KEY", "stub-pem")
+    monkeypatch.setenv("PATH", _FAKE_INHERITED_PATH)
     overlay_token = "test-oauth-token"
 
     rendered = render_run_config_overlay(
@@ -1539,6 +1539,7 @@ def test_render_run_config_overlay_prepares_refreshing_gh_wrapper(
     env_table_at = rendered.index("[environments.livespec-ci.env]")
     assert "livespec-refreshing-gh-wrapper" in rendered[:env_table_at]
     assert "mint_app_token.py" in rendered[:env_table_at]
+    assert 'token="$(python3 ' in rendered[:env_table_at]
     assert _GH_REFRESH_PATH_LINE in rendered
     assert rendered.index(_GH_REFRESH_PATH_LINE) > env_table_at
     assert _FAKE_GITHUB_APP_ID_LINE in rendered
