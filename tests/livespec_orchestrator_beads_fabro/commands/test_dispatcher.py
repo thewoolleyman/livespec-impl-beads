@@ -1462,6 +1462,12 @@ _FAKE_GITHUB_TOKEN = "test-github-token"
 # gh/git prefer GH_TOKEN, so a projected GH_TOKEN would shadow Fabro's
 # fresh per-exec GITHUB_TOKEN and go stale past the ~60-min token TTL.
 _FAKE_GITHUB_TOKEN_LINE = 'GITHUB_TOKEN = "test-github-token"'
+_FAKE_GITHUB_APP_ID_LINE = 'GITHUB_APP_ID = "42"'
+_FAKE_GITHUB_PRIVATE_KEY_LINE = 'GITHUB_PRIVATE_KEY = "stub-pem"'
+_GH_REFRESH_BIN = "/workspace/.livespec-github-bin"
+_GH_REFRESH_PATH_LINE = (
+    f'PATH = "{_GH_REFRESH_BIN}:' '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"'
+)
 
 # The dead interpolation channel: fabro resolves {{ env.* }} in the
 # server-spawned WORKER, whose env is a fail-closed allowlist
@@ -1504,6 +1510,39 @@ def test_render_run_config_overlay_rewrites_graph_and_appends_env_token(
     assert _FAKE_GITHUB_TOKEN_LINE in rendered
     assert _ENV_INTERPOLATION_LITERAL not in rendered
     assert _GH_ENV_INTERPOLATION_LITERAL not in rendered
+
+
+def test_render_run_config_overlay_prepares_refreshing_gh_wrapper(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Long-lived agent sessions must not depend on the one-shot overlay token.
+
+    The sandbox receives the GitHub App inputs plus a PATH-leading `gh`
+    wrapper that mints immediately before each `gh` invocation. That
+    makes an in-session `just check` past the installation-token TTL use
+    a fresh token without waiting for a new Fabro node process.
+    """
+    monkeypatch.setenv("GITHUB_APP_ID", "42")
+    monkeypatch.setenv("GITHUB_PRIVATE_KEY", "stub-pem")
+    overlay_token = "test-oauth-token"
+
+    rendered = render_run_config_overlay(
+        committed_text=_COMMITTED_WORKFLOW_TOML,
+        workflow_dir=tmp_path,
+        token=overlay_token,
+        github_token=_FAKE_GITHUB_TOKEN,
+        siblings=None,
+    )
+
+    assert rendered is not None
+    env_table_at = rendered.index("[environments.livespec-ci.env]")
+    assert "livespec-refreshing-gh-wrapper" in rendered[:env_table_at]
+    assert "mint_app_token.py" in rendered[:env_table_at]
+    assert _GH_REFRESH_PATH_LINE in rendered
+    assert rendered.index(_GH_REFRESH_PATH_LINE) > env_table_at
+    assert _FAKE_GITHUB_APP_ID_LINE in rendered
+    assert _FAKE_GITHUB_PRIVATE_KEY_LINE in rendered
 
 
 def test_render_run_config_overlay_keeps_absolute_graph_path(tmp_path: Path) -> None:

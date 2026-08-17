@@ -8,6 +8,7 @@ future MiniJinja-templated text) routes untrusted prose through.
 from __future__ import annotations
 
 import json
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -40,6 +41,14 @@ CORE_PLUGIN_ROOT_ENV_VAR = "LIVESPEC_CORE_PLUGIN_ROOT"
 CURRENCY_GATE_ENV_VAR = "LIVESPEC_CURRENCY_GATE"
 CURRENCY_GATE_ENV_VALUE = "fail"
 _CORE_SIBLING_SLUG = "livespec"
+_GITHUB_APP_ENV_KEYS = (
+    "GITHUB_APP_ID",
+    "GITHUB_PRIVATE_KEY",
+    "GITHUB_APP_INSTALLATION_ID",
+    "GITHUB_API_URL",
+)
+_GH_REFRESH_BIN = "/workspace/.livespec-github-bin"
+_SANDBOX_DEFAULT_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 # MiniJinja's three OPENING delimiters: expression `{{`, statement `{%`,
 # comment `{#` (fabro v0.254.0 renders the run goal through MiniJinja —
 # fabro issue #124 — storing it in the graph's `goal` attribute and
@@ -205,12 +214,15 @@ def render_run_config_overlay(  # noqa: PLR0913 — kw-only pure overlay builder
     otel_env_lines = _otel_env_lines(otel_env=otel_env)
     tmux_steps = _tmux_tmpdir_prepare_steps_block()
     tmux_env_line = f"TMUX_TMPDIR = {json.dumps(_SANDBOX_TMUX_TMPDIR)}\n"
+    gh_refresh_steps = _refreshing_gh_prepare_steps_block()
+    gh_refresh_env_lines = _refreshing_gh_env_lines()
     codex_steps = _codex_auth_prepare_steps_block(codex_auth_snapshot=codex_auth_snapshot)
     codex_env_lines = _codex_auth_env_lines(codex_auth_snapshot=codex_auth_snapshot)
     return (
         rewritten
         + sibling_steps
         + tmux_steps
+        + gh_refresh_steps
         + codex_steps
         + "\n# --- Dispatcher-materialized run-scoped credential projection"
         + "\n# --- (UNCOMMITTED; mode 600; deleted when the run returns) ---\n"
@@ -218,6 +230,7 @@ def render_run_config_overlay(  # noqa: PLR0913 — kw-only pure overlay builder
         + f"CLAUDE_CODE_OAUTH_TOKEN = {token_literal}\n"
         + f"GITHUB_TOKEN = {github_token_literal}\n"
         + tmux_env_line
+        + gh_refresh_env_lines
         + sibling_env_line
         + core_plugin_env_line
         + currency_gate_env_line
@@ -254,6 +267,57 @@ def _tmux_tmpdir_prepare_steps_block() -> str:
         f"script = {json.dumps(script)}",
     ]
     return "\n".join(lines) + "\n"
+
+
+def _refreshing_gh_prepare_steps_block() -> str:
+    """Install a PATH-leading `gh` wrapper when App mint inputs are projected.
+
+    Fabro can mint a fresh token at node spawn, but a long-lived agent
+    process can still cross GitHub's installation-token TTL before it runs
+    `just check`. The wrapper mints immediately before each `gh`
+    invocation, so in-session checks do not depend on the one-shot
+    `GITHUB_TOKEN` value in the env table.
+    """
+    if not _github_app_env_present():
+        return ""
+    script = (
+        "set -eu\n"
+        f'bin="{_GH_REFRESH_BIN}"\n'
+        'mkdir -p "$bin"\n'
+        f'real_gh="$(PATH={_SANDBOX_DEFAULT_PATH} command -v gh)"\n'
+        'mint="$PWD/.claude-plugin/scripts/bin/mint_app_token.py"\n'
+        'cat > "$bin/gh" <<EOF\n'
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'token="\\$("$mint")"\n'
+        'export GH_TOKEN="\\$token"\n'
+        'export GITHUB_TOKEN="\\$token"\n'
+        'exec "$real_gh" "\\$@"\n'
+        "EOF\n"
+        'chmod 700 "$bin/gh"'
+    )
+    lines = [
+        "",
+        "# --- Dispatcher-materialized livespec-refreshing-gh-wrapper ---",
+        "[[run.prepare.steps]]",
+        f"script = {json.dumps(script)}",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def _refreshing_gh_env_lines() -> str:
+    if not _github_app_env_present():
+        return ""
+    app_env_lines = "".join(
+        f"{key} = {json.dumps(value)}\n"
+        for key in _GITHUB_APP_ENV_KEYS
+        if (value := os.environ.get(key)) not in (None, "")
+    )
+    return f"PATH = {json.dumps(f'{_GH_REFRESH_BIN}:{_SANDBOX_DEFAULT_PATH}')}\n" + app_env_lines
+
+
+def _github_app_env_present() -> bool:
+    return all(os.environ.get(key) not in (None, "") for key in _GITHUB_APP_ENV_KEYS[:2])
 
 
 def _core_plugin_env_line(*, siblings: SiblingClones | None) -> str:
