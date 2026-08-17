@@ -1,6 +1,215 @@
 {
   "schema": "livespec.beads_v112_rehearsal.inventory_queries.v1",
   "bd_path": "/usr/local/bin/bd",
+  "capture_command": {
+    "name": "capture-inventory",
+    "through_wrapper": "WITH_CLIENT",
+    "canonical_json": {
+      "encoding": "utf-8",
+      "sorted_keys": true,
+      "sorted_rows": true,
+      "per_artifact_sha256": true,
+      "combined_sha256": true
+    },
+    "capture_points": [
+      "pre-backup-v49-baseline",
+      "after-first-gate-decision",
+      "post-migration-v53",
+      "post-round-trip",
+      "post-restore-v49"
+    ]
+  },
+  "projections": [
+    {
+      "artifact": "status-type-counts.json",
+      "ordered_by": [
+        "status",
+        "issue_type"
+      ],
+      "columns": [
+        "status",
+        "issue_type",
+        "COUNT(*)"
+      ]
+    },
+    {
+      "artifact": "issues.json",
+      "ordered_by": [
+        "id"
+      ],
+      "columns": [
+        "id",
+        "title",
+        "description",
+        "design",
+        "acceptance_criteria",
+        "notes",
+        "status",
+        "priority",
+        "issue_type",
+        "assignee",
+        "owner",
+        "created_at",
+        "created_by",
+        "updated_at",
+        "closed_at",
+        "close_reason",
+        "external_ref",
+        "spec_id",
+        "due_at",
+        "defer_until",
+        "canonicalized_metadata"
+      ]
+    },
+    {
+      "artifact": "dependencies.json",
+      "ordered_by": [
+        "issue_id",
+        "depends_on_issue_id",
+        "depends_on_wisp_id",
+        "depends_on_external"
+      ],
+      "columns": [
+        "id",
+        "issue_id",
+        "depends_on_issue_id",
+        "depends_on_wisp_id",
+        "depends_on_external",
+        "type",
+        "created_at",
+        "created_by",
+        "canonicalized_metadata",
+        "thread_id"
+      ]
+    },
+    {
+      "artifact": "comments.json",
+      "ordered_by": [
+        "issue_id",
+        "id"
+      ],
+      "columns": [
+        "id",
+        "issue_id",
+        "author",
+        "text",
+        "created_at"
+      ]
+    },
+    {
+      "artifact": "labels.json",
+      "ordered_by": [
+        "issue_id",
+        "label"
+      ],
+      "columns": [
+        "issue_id",
+        "label"
+      ]
+    },
+    {
+      "artifact": "policy-metadata.json",
+      "ordered_by": [
+        "issue_id"
+      ],
+      "columns": [
+        "issue_id",
+        "complete_canonical_metadata",
+        "policy_labels"
+      ],
+      "label_prefixes": [
+        "acceptance:",
+        "admission:",
+        "intake:",
+        "origin:",
+        "factory-safety:",
+        "blocked-reason:"
+      ]
+    },
+    {
+      "artifact": "schema-migrations.json",
+      "ordered_by": [
+        "table_name",
+        "version"
+      ],
+      "contains": [
+        "discovered column manifest",
+        "schema_migrations rows",
+        "ignored_schema_migrations rows"
+      ]
+    },
+    {
+      "artifact": "schema.json",
+      "ordered_by": [
+        "object",
+        "ordinal_position"
+      ],
+      "contains": [
+        "user-table columns",
+        "indexes",
+        "unique constraints",
+        "foreign keys",
+        "view definitions"
+      ]
+    },
+    {
+      "artifact": "branches.json",
+      "ordered_by": [
+        "branch_name"
+      ],
+      "columns": [
+        "branch_name",
+        "head_hash"
+      ]
+    },
+    {
+      "artifact": "table-counts.json",
+      "ordered_by": [
+        "base_table_name"
+      ],
+      "columns": [
+        "base_table_name",
+        "row_count"
+      ]
+    },
+    {
+      "artifact": "remotes.json",
+      "ordered_by": [
+        "remote_name"
+      ],
+      "contains": [
+        "dolt_remotes rows",
+        "ACTIVE_BRANCH",
+        "local active-branch head",
+        "cached remotes/origin/${ACTIVE_BRANCH} head",
+        "local schema_migrations rows",
+        "cached-ref schema_migrations rows",
+        "migration-files-1-through-49 sha256 manifest",
+        "explicit absent-column markers"
+      ]
+    },
+    {
+      "artifact": "client-anchor.json",
+      "contains": [
+        "client key",
+        "client-directory realpath",
+        "database and SQL user",
+        "canonical pointer SHA-256",
+        "metadata presence or SHA-256",
+        "wrapper SHA-256",
+        "ANCHOR_PROBE and dependency hashes",
+        "credential byte count",
+        "exact query hash",
+        "read-only flag",
+        "statement count",
+        "probe exit and identity result",
+        "TCP peer",
+        "isolated server fingerprint",
+        "following command category and sequence number"
+      ],
+      "credential_value_recorded": false
+    }
+  ],
   "queries": [
     {
       "name": "all_issues",

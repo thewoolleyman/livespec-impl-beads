@@ -1,0 +1,220 @@
+{
+  "schema": "livespec.beads_v112_rehearsal.command_plan.v1",
+  "synthetic_only": true,
+  "run_variables": [
+    "RUN_ID",
+    "RUN_ROOT",
+    "RECEIPT_ROOT"
+  ],
+  "execution_boundary": {
+    "factory_safe_preparation_only": true,
+    "live_execution_allowed_by_this_package": false,
+    "attended_operator_required_for_all_stages": true,
+    "forbidden_fragments": [
+      "/usr/local/bin/bd-real",
+      "/var/lib/doltdb",
+      "/var/backups",
+      "127.0.0.1:3307",
+      "fabro server",
+      "systemctl",
+      "docker "
+    ]
+  },
+  "command_roots": {
+    "BD105": "${RUN_ROOT}/package/bin/bd-v1.0.5",
+    "BD112": "${RUN_ROOT}/package/bin/bd-v1.1.2",
+    "WITH_CLIENT": "${RUN_ROOT}/package/wrappers/with-client.sh",
+    "ASSERT_CLIENT_ANCHOR": "${RUN_ROOT}/package/wrappers/assert-client-anchor.sh",
+    "ANCHOR_PROBE": "${RUN_ROOT}/package/wrappers/anchor-probe.py",
+    "CAPTURE_INVENTORY": "${RUN_ROOT}/package/wrappers/capture-inventory.sh"
+  },
+  "stages": [
+    {
+      "name": "manifest-preflight",
+      "commands": [
+        "derive RUN_ID",
+        "prove RUN_ROOT and RECEIPT_ROOT are absent non-symlink paths",
+        "create owner-only RECEIPT_ROOT"
+      ],
+      "writes": "receipt-root-only"
+    },
+    {
+      "name": "artifact-fetch-and-v105-build",
+      "commands": [
+        "fetch public v1.1.2 artifacts",
+        "verify tarball, executable, and SPDX hashes",
+        "build v1.0.5 fixture producer from peeled source tag in disposable package directory"
+      ],
+      "writes": "run-root-package-only"
+    },
+    {
+      "name": "topology-preflight",
+      "commands": [
+        "prove port 13307 is unbound",
+        "prove backup namespace differs from production backup.env",
+        "prove unique database, SQL-user, and client-directory mappings"
+      ],
+      "writes": "receipt-root-only"
+    },
+    {
+      "name": "create-client-pointers",
+      "commands": [
+        "write literal seven-key pointer for every manifest client",
+        "hash canonical pointer bytes",
+        "record metadata.json as absent"
+      ],
+      "writes": "run-root-clients-only"
+    },
+    {
+      "name": "source-fixture-production",
+      "commands": [
+        "produce dense_policy v49 source",
+        "produce sparse_closed v49 source",
+        "produce rig_wisp v49 source",
+        "push each source active branch to its run-scoped local remote"
+      ],
+      "writes": "isolated-source-databases-and-remotes-only"
+    },
+    {
+      "name": "capture-v49-baseline",
+      "commands": [
+        "capture-inventory dense_policy source",
+        "capture-inventory sparse_closed source",
+        "capture-inventory rig_wisp source"
+      ],
+      "writes": "receipt-root-only"
+    },
+    {
+      "name": "single-use-backup",
+      "commands": [
+        "sync each source exactly once through isolated backup principal",
+        "record object version IDs, ETags, size inventory, branch heads, helper commit, and command digest"
+      ],
+      "writes": "isolated-backup-namespace-only"
+    },
+    {
+      "name": "clean-target-restore-to-migrated",
+      "commands": [
+        "restore dense_policy source backup to clean migrated target with verification",
+        "restore sparse_closed source backup to clean migrated target with verification",
+        "restore rig_wisp source backup to clean migrated target with verification"
+      ],
+      "writes": "isolated-migrated-databases-only"
+    },
+    {
+      "name": "target-side-remote-materialization",
+      "commands": [
+        "read restored active branch and local head with v1.0.5 client",
+        "refuse pre-existing target remote",
+        "configure exact run-scoped origin",
+        "fetch origin to materialize cached remote ref",
+        "capture local and cached migration-row comparison"
+      ],
+      "writes": "isolated-migrated-target-remote-config-only"
+    },
+    {
+      "name": "designated-migrator-record",
+      "commands": [
+        "record human or session identity",
+        "record process ID, host, candidate executable hash, start time, and ordered target database list",
+        "block any second candidate opener until migrator finishes"
+      ],
+      "writes": "receipt-root-only"
+    },
+    {
+      "name": "migration-gate-and-single-retry",
+      "commands": [
+        "prove BD_ALLOW_REMOTE_MIGRATE and BD_SMART_GATE are unset",
+        "run first bd migrate for each target through WITH_CLIENT",
+        "capture stdout, stderr, and exit code",
+        "if migrate-or-adopt refusal occurs, prove inventory unchanged and retry once with BD_ALLOW_REMOTE_MIGRATE=1",
+        "hard-stop on adopt, fork-skew, unknown classification, or changed bytes after refusal"
+      ],
+      "writes": "isolated-migrated-databases-only"
+    },
+    {
+      "name": "capture-v53-and-golden-schema",
+      "commands": [
+        "capture post-migration inventory for every migrated shape",
+        "create same-server v1.1.2 golden schema reference",
+        "prove migrated schema hash equals golden schema hash"
+      ],
+      "writes": "isolated-migrated-and-golden-databases-only"
+    },
+    {
+      "name": "round-trip-commands",
+      "commands": [
+        "create rehearsal parent",
+        "create rehearsal child",
+        "update child active bug",
+        "dep add child parent",
+        "comments add child",
+        "close child",
+        "list parent child",
+        "show child with comments"
+      ],
+      "argv_templates": [
+        "$WITH_CLIENT $CLIENT_KEY $BD112 -C $CLIENT_DIR create 'rehearsal parent' --type epic --priority 2 --labels origin:rehearsal,intake:triaged,admission:manual --metadata '{\"rank\":\"m\",\"origin\":\"rehearsal\"}' --silent",
+        "$WITH_CLIENT $CLIENT_KEY $BD112 -C $CLIENT_DIR create 'rehearsal child' --type task --priority 3 --labels acceptance:ai-then-human,factory-safety:needs-privileged-host --metadata '{\"acceptance_criteria\":\"round-trip\",\"rank\":\"n\"}' --silent",
+        "$WITH_CLIENT $CLIENT_KEY $BD112 -C $CLIENT_DIR update $child_id --status active --type bug --set-metadata origin=rehearsal-update --json",
+        "$WITH_CLIENT $CLIENT_KEY $BD112 -C $CLIENT_DIR dep add $child_id $parent_id --type discovered-from --json",
+        "$WITH_CLIENT $CLIENT_KEY $BD112 -C $CLIENT_DIR comments add $child_id 'isolated v1.1.2 round-trip comment' --json",
+        "$WITH_CLIENT $CLIENT_KEY $BD112 -C $CLIENT_DIR close $child_id --reason 'isolated v1.1.2 round-trip complete' --json",
+        "$WITH_CLIENT $CLIENT_KEY $BD112 -C $CLIENT_DIR list --all --id $parent_id,$child_id --json",
+        "$WITH_CLIENT $CLIENT_KEY $BD112 -C $CLIENT_DIR show $child_id --include-comments --json"
+      ],
+      "writes": "isolated-migrated-databases-only"
+    },
+    {
+      "name": "restore-v49-baseline-to-restored",
+      "commands": [
+        "restore unchanged dense_policy backup to clean restored target",
+        "restore unchanged sparse_closed backup to clean restored target",
+        "restore unchanged rig_wisp backup to clean restored target",
+        "capture restored target with v1.0.5 client",
+        "prove every restored artifact and combined hash equals the v49 baseline"
+      ],
+      "writes": "isolated-restored-databases-only"
+    },
+    {
+      "name": "immutable-receipts",
+      "commands": [
+        "copy complete receipt set to RECEIPT_ROOT",
+        "write top-level SHA256SUMS",
+        "prove no secret values were written"
+      ],
+      "writes": "receipt-root-only"
+    },
+    {
+      "name": "stop-boundary",
+      "commands": [
+        "stop only the manifest PID whose executable, start time, port, socket, and RUN_ROOT match",
+        "retain RECEIPT_ROOT"
+      ],
+      "writes": "isolated-server-process-only"
+    },
+    {
+      "name": "cleanup-after-acceptance",
+      "commands": [
+        "delete only RUN_ID-scoped databases, users, grants, remotes, cached refs, clients, wrappers, probe closure, and backup namespace",
+        "prove port 13307 absent and production port 3307 unchanged from pre-run observation",
+        "prove production tenant registry and backup configuration digests unchanged",
+        "prove involved checkouts clean"
+      ],
+      "writes": "run-id-scoped-resources-only"
+    }
+  ],
+  "receipt_contracts": [
+    "manifest",
+    "topology",
+    "anchor",
+    "inventory",
+    "backup",
+    "migration_gate",
+    "designated_migrator",
+    "round_trip_delta",
+    "restore_baseline_comparison",
+    "cleanup",
+    "SHA256SUMS"
+  ]
+}

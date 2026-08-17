@@ -1,0 +1,56 @@
+{
+  "schema": "livespec.beads_v112_rehearsal.run_manifest_contract.v1",
+  "run_id": {
+    "name": "RUN_ID",
+    "pattern": "^[0-9]{8}t[0-9]{6}z$",
+    "description": "Lowercase UTC token yyyymmddthhmmssz selected once by the attended operator."
+  },
+  "run_root": {
+    "name": "RUN_ROOT",
+    "template": "/var/tmp/beads112-rehearsal.${RUN_ID}",
+    "purpose": "Single-use isolated execution tree for server data, sockets, clients, remotes, wrappers, logs, and package-local binaries."
+  },
+  "receipt_root": {
+    "name": "RECEIPT_ROOT",
+    "template": "/home/ubuntu/.local/state/livespec-proof-logs/beads112-${RUN_ID}",
+    "purpose": "Separate owner-only durable evidence tree retained after cleanup."
+  },
+  "directory_preconditions": {
+    "run_root_must_not_exist": true,
+    "receipt_root_must_not_exist": true,
+    "symlink_resolution_forbidden": true,
+    "owner_only_receipt_root": true
+  },
+  "package_boundary": {
+    "factory_safe_preparation_only": true,
+    "attended_rehearsal_required": true,
+    "live_execution_allowed_by_this_package": false,
+    "only_permitted_live_database_activity": "credited read-only three-repository fixture-shape survey"
+  },
+  "receipt_set": {
+    "top_level_sha256s": "${RECEIPT_ROOT}/SHA256SUMS",
+    "immutable_after_copy": true,
+    "secret_values_recorded": false,
+    "required_receipts": [
+      "provenance",
+      "topology",
+      "fixture_sql_hashes",
+      "database_client_user_map",
+      "pointer_hashes",
+      "metadata_state",
+      "with_client_hash",
+      "anchor_probe_hashes",
+      "credential_length_probes",
+      "client_anchor_receipts",
+      "command_log",
+      "backup_identity",
+      "remote_materialization",
+      "designated_migrator",
+      "migration_gate",
+      "inventory_hashes",
+      "round_trip_delta",
+      "restore_baseline_comparison",
+      "cleanup"
+    ]
+  }
+}

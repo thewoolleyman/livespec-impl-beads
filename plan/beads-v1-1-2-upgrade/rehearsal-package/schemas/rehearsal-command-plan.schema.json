@@ -5,7 +5,11 @@
   "required": [
     "schema",
     "synthetic_only",
-    "commands"
+    "run_variables",
+    "execution_boundary",
+    "command_roots",
+    "stages",
+    "receipt_contracts"
   ],
   "properties": {
     "schema": {
@@ -14,34 +18,130 @@
     "synthetic_only": {
       "const": true
     },
-    "commands": {
+    "run_variables": {
       "type": "array",
+      "prefixItems": [
+        {
+          "const": "RUN_ID"
+        },
+        {
+          "const": "RUN_ROOT"
+        },
+        {
+          "const": "RECEIPT_ROOT"
+        }
+      ],
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "execution_boundary": {
+      "type": "object",
+      "required": [
+        "factory_safe_preparation_only",
+        "live_execution_allowed_by_this_package",
+        "attended_operator_required_for_all_stages",
+        "forbidden_fragments"
+      ],
+      "properties": {
+        "factory_safe_preparation_only": {
+          "const": true
+        },
+        "live_execution_allowed_by_this_package": {
+          "const": false
+        },
+        "attended_operator_required_for_all_stages": {
+          "const": true
+        },
+        "forbidden_fragments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "command_roots": {
+      "type": "object",
+      "required": [
+        "BD105",
+        "BD112",
+        "WITH_CLIENT",
+        "ASSERT_CLIENT_ANCHOR",
+        "ANCHOR_PROBE",
+        "CAPTURE_INVENTORY"
+      ],
+      "properties": {
+        "BD105": {
+          "type": "string"
+        },
+        "BD112": {
+          "type": "string"
+        },
+        "WITH_CLIENT": {
+          "type": "string"
+        },
+        "ASSERT_CLIENT_ANCHOR": {
+          "type": "string"
+        },
+        "ANCHOR_PROBE": {
+          "type": "string"
+        },
+        "CAPTURE_INVENTORY": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "stages": {
+      "type": "array",
+      "minItems": 17,
       "items": {
         "type": "object",
         "required": [
           "name",
-          "writes_allowed",
-          "requires_isolated_tenant",
-          "argv"
+          "commands",
+          "writes"
         ],
         "properties": {
           "name": {
             "type": "string"
           },
-          "writes_allowed": {
-            "type": "boolean"
-          },
-          "requires_isolated_tenant": {
-            "type": "boolean"
-          },
-          "argv": {
+          "commands": {
             "type": "array",
             "items": {
               "type": "string"
             }
+          },
+          "argv_templates": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "writes": {
+            "type": "string"
           }
         },
         "additionalProperties": false
+      }
+    },
+    "receipt_contracts": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "manifest",
+          "topology",
+          "anchor",
+          "inventory",
+          "backup",
+          "migration_gate",
+          "designated_migrator",
+          "round_trip_delta",
+          "restore_baseline_comparison",
+          "cleanup",
+          "SHA256SUMS"
+        ]
       }
     }
   },

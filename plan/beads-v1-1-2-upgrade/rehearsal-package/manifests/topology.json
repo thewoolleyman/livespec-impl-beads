@@ -2,6 +2,156 @@
   "schema": "livespec.beads_v112_rehearsal.topology.v1",
   "synthetic_rehearsal_only": true,
   "production_writes_allowed": false,
+  "isolated_server": {
+    "bind": "127.0.0.1:13307",
+    "host": "127.0.0.1",
+    "port": 13307,
+    "forbidden_ports": [
+      3307
+    ],
+    "all_state_under": "${RUN_ROOT}",
+    "socket": "${RUN_ROOT}/dolt/dolt.sock",
+    "data_dir": "${RUN_ROOT}/dolt/data",
+    "config_dir": "${RUN_ROOT}/dolt/config",
+    "pid_file": "${RUN_ROOT}/dolt/dolt.pid",
+    "log_dir": "${RUN_ROOT}/logs/dolt",
+    "production_config_allowed": false
+  },
+  "shape_codes": {
+    "dense_policy": "dp",
+    "sparse_closed": "sc",
+    "rig_wisp": "rw"
+  },
+  "role_codes": {
+    "source": "s",
+    "migrated": "m",
+    "restored": "r"
+  },
+  "shapes": {
+    "dense_policy": {
+      "source_evidence": [
+        "/data/projects/livespec",
+        "/data/projects/livespec-orchestrator-beads-fabro"
+      ],
+      "required_contents": [
+        "every observed lifecycle status",
+        "every observed issue type",
+        "at least two logical dependency types",
+        "comments",
+        "ordinary labels",
+        "policy-prefixed labels",
+        "acceptance_criteria metadata",
+        "non_local_depends_on metadata",
+        "notes metadata",
+        "origin metadata",
+        "rank metadata"
+      ],
+      "databases": {
+        "source": {
+          "database": "beads112_${RUN_ID}_dense_policy_source",
+          "client_dir": "${RUN_ROOT}/clients/beads112_${RUN_ID}_dense_policy_source",
+          "sql_user": "b112_${RUN_ID}_dp_s"
+        },
+        "migrated": {
+          "database": "beads112_${RUN_ID}_dense_policy_migrated",
+          "client_dir": "${RUN_ROOT}/clients/beads112_${RUN_ID}_dense_policy_migrated",
+          "sql_user": "b112_${RUN_ID}_dp_m"
+        },
+        "restored": {
+          "database": "beads112_${RUN_ID}_dense_policy_restored",
+          "client_dir": "${RUN_ROOT}/clients/beads112_${RUN_ID}_dense_policy_restored",
+          "sql_user": "b112_${RUN_ID}_dp_r"
+        }
+      },
+      "sync_remote_url": "${RUN_ROOT}/remotes/dense_policy",
+      "active_branch": "${ACTIVE_BRANCH}"
+    },
+    "sparse_closed": {
+      "source_evidence": [
+        "/data/projects/livespec-driver-codex"
+      ],
+      "required_contents": [
+        "one closed task",
+        "no open issue",
+        "no label",
+        "no dependency",
+        "no comment",
+        "empty snapshot tables"
+      ],
+      "databases": {
+        "source": {
+          "database": "beads112_${RUN_ID}_sparse_closed_source",
+          "client_dir": "${RUN_ROOT}/clients/beads112_${RUN_ID}_sparse_closed_source",
+          "sql_user": "b112_${RUN_ID}_sc_s"
+        },
+        "migrated": {
+          "database": "beads112_${RUN_ID}_sparse_closed_migrated",
+          "client_dir": "${RUN_ROOT}/clients/beads112_${RUN_ID}_sparse_closed_migrated",
+          "sql_user": "b112_${RUN_ID}_sc_m"
+        },
+        "restored": {
+          "database": "beads112_${RUN_ID}_sparse_closed_restored",
+          "client_dir": "${RUN_ROOT}/clients/beads112_${RUN_ID}_sparse_closed_restored",
+          "sql_user": "b112_${RUN_ID}_sc_r"
+        }
+      },
+      "sync_remote_url": "${RUN_ROOT}/remotes/sparse_closed",
+      "active_branch": "${ACTIVE_BRANCH}"
+    },
+    "rig_wisp": {
+      "source_evidence": [
+        "tagged upstream v1.1.2 migration 0053 and tests"
+      ],
+      "required_contents": [
+        "one v1.0.5 rig wisp",
+        "rig label",
+        "rig event",
+        "rig comment",
+        "rig dependency",
+        "rig child counter",
+        "one durable issue depending on that rig wisp",
+        "no duplicate durable rig before migration"
+      ],
+      "databases": {
+        "source": {
+          "database": "beads112_${RUN_ID}_rig_wisp_source",
+          "client_dir": "${RUN_ROOT}/clients/beads112_${RUN_ID}_rig_wisp_source",
+          "sql_user": "b112_${RUN_ID}_rw_s"
+        },
+        "migrated": {
+          "database": "beads112_${RUN_ID}_rig_wisp_migrated",
+          "client_dir": "${RUN_ROOT}/clients/beads112_${RUN_ID}_rig_wisp_migrated",
+          "sql_user": "b112_${RUN_ID}_rw_m"
+        },
+        "restored": {
+          "database": "beads112_${RUN_ID}_rig_wisp_restored",
+          "client_dir": "${RUN_ROOT}/clients/beads112_${RUN_ID}_rig_wisp_restored",
+          "sql_user": "b112_${RUN_ID}_rw_r"
+        }
+      },
+      "sync_remote_url": "${RUN_ROOT}/remotes/rig_wisp",
+      "active_branch": "${ACTIVE_BRANCH}"
+    }
+  },
+  "golden_schema_database": {
+    "database": "beads112_${RUN_ID}_golden",
+    "client_dir": "${RUN_ROOT}/clients/beads112_${RUN_ID}_golden",
+    "sql_user": "b112_${RUN_ID}_g",
+    "role": "schema-reference-only"
+  },
+  "pointer_template": "dolt.auto-start: false\ndolt.mode: server\ndolt.server-host: 127.0.0.1\ndolt.server-port: 13307\ndolt.server-user: <SQL_USER>\ndolt.database: <DATABASE>\ndolt.prefix: b112\n",
+  "topology_preflight_refusals": [
+    "duplicate client-directory realpath",
+    "duplicate SQL user",
+    "database missing exact RUN_ID",
+    "SQL user missing exact RUN_ID",
+    "name outside manifest mapping",
+    "socket key in pointer",
+    "extra dolt.* key in pointer",
+    "metadata changes pointer identity",
+    "production or family endpoint",
+    "production port 3307"
+  ],
   "designated_migrator": {
     "principal": "single-isolated-rehearsal-migrator",
     "requires_remote_gate_receipt": true,
