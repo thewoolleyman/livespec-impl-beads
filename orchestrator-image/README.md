@@ -300,9 +300,10 @@ This is the cheap per-dispatch layer. It is NOT yet paired with a
 Honeycomb-side dead-man trigger: no trigger on the `fabro` dataset alerting
 on zero `run_turn` spans over a rolling window exists today (verified live
 against the Honeycomb livespec environment, 2026-08-17). The design intent,
-recorded here for whoever builds it, is to alert on zero `run_turn` spans in
-dataset `fabro` over a 10-minute rolling window, routed through the existing
-operator-alert path used by the adopter dead-man triggers, verified by
+recorded here for whoever builds it, is to alert on
+zero `run_turn` spans in dataset `fabro` over a 10-minute rolling window,
+routed through the existing operator-alert path used by the adopter dead-man
+triggers, verified by
 breaking `OTEL_EXPORTER_OTLP_ENDPOINT` on a scratch run (the dispatcher
 finding should appear and the Honeycomb trigger should fire within the
 10-minute window) and restoring it (both should clear after the next
