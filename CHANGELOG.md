@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.58.10](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.9...v0.58.10) (2026-08-17)
+
+
+### Bug Fixes
+
+* **effects:** cross-process tenant-verification cache for one-shot CLI processes ([09dc590](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/09dc590aa65f80b39bf68bf0f1449a3dbbf9f991))
+
 ## [0.58.9](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.8...v0.58.9) (2026-08-17)
 
 
