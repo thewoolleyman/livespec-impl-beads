@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.58.4](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.3...v0.58.4) (2026-08-17)
+
+
+### Bug Fixes
+
+* guard fabro run_turn telemetry absence ([edbfca6](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/edbfca6f4a121074b47ae4636ad5fb3fd8b95f28))
+* guard real fabro run_turn export shape ([b0c6ebb](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/b0c6ebb66c02f0fe800002f1db3422f4e027419d))
+
 ## [0.58.3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.2...v0.58.3) (2026-08-17)
 
 
