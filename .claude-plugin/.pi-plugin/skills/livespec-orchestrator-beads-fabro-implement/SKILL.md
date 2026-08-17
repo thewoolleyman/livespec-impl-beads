@@ -1,6 +1,6 @@
 ---
 name: livespec-orchestrator-beads-fabro-implement
-description: Drive one work-item from a failing test to a passing implementation, verifying gap closure by re-running detection when the item is gap-tied. Use when the user asks to implement a specific work-item. Mutating: it edits code and closes the record.
+description: "Drive one work-item from a failing test to a passing implementation, verifying gap closure by re-running detection when the item is gap-tied. Use when the user asks to implement a specific work-item. Mutating: it edits code and closes the record."
 allowed-tools: bash read write edit
 ---
 

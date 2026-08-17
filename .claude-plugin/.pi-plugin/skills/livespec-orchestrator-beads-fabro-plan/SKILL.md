@@ -1,6 +1,6 @@
 ---
 name: livespec-orchestrator-beads-fabro-plan
-description: Open or resume a durable plan, route scoped work to the spec side or to ledger children, and archive only after the disposition and completeness evidence gates pass. Use when the user starts, resumes, or closes a plan. Mutating: it writes plan state and ledger entries.
+description: "Open or resume a durable plan, route scoped work to the spec side or to ledger children, and archive only after the disposition and completeness evidence gates pass. Use when the user starts, resumes, or closes a plan. Mutating: it writes plan state and ledger entries."
 allowed-tools: bash read write edit
 ---
 

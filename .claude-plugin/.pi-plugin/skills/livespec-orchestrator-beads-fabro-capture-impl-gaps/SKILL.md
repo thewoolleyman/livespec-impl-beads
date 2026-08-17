@@ -1,6 +1,6 @@
 ---
 name: livespec-orchestrator-beads-fabro-capture-impl-gaps
-description: Detect specification-to-implementation gaps, then file a gap-tied work-item per gap with per-gap user consent. Use when the user wants detected gaps turned into tracked work. Mutating: it writes one record per consented gap.
+description: "Detect specification-to-implementation gaps, then file a gap-tied work-item per gap with per-gap user consent. Use when the user wants detected gaps turned into tracked work. Mutating: it writes one record per consented gap."
 allowed-tools: bash read
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: livespec-orchestrator-beads-fabro-capture-work-item
-description: File an implementation-side work item directly from free-form user intent — a bug, a refactor, a tactical task. Use when the user wants something recorded in the work-items store that no gap or drift detection produced. Mutating: it writes a record after the user consents.
+description: "File an implementation-side work item directly from free-form user intent — a bug, a refactor, a tactical task. Use when the user wants something recorded in the work-items store that no gap or drift detection produced. Mutating: it writes a record after the user consents."
 allowed-tools: bash read
 ---
 

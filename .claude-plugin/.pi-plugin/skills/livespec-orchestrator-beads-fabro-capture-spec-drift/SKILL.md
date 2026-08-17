@@ -1,6 +1,6 @@
 ---
 name: livespec-orchestrator-beads-fabro-capture-spec-drift
-description: Detect implementation-to-specification drift and hand each finding off to the propose-change operation with user consent. Use when the implementation has moved ahead of the spec and the spec must catch up. Mutating: it files proposed changes the user approves.
+description: "Detect implementation-to-specification drift and hand each finding off to the propose-change operation with user consent. Use when the implementation has moved ahead of the spec and the spec must catch up. Mutating: it files proposed changes the user approves."
 allowed-tools: bash read
 ---
 
