@@ -10,6 +10,7 @@ from typing_extensions import Unpack
 
 from livespec_orchestrator_beads_fabro._beads_client import (
     EDGE_BLOCKS,
+    EDGE_PARENT_CHILD,
     BeadsRecord,
     make_beads_client,
 )
@@ -149,10 +150,10 @@ def _plan_child_records(*, client: BeadsClient, epic_id: str) -> list[BeadsRecor
         cast("str", record["id"]): record for record in client.children(parent_id=epic_id)
     }
     records = client.list_issues()
-    blocking_ids = _blocking_ids_for_epic(records=records, epic_id=epic_id)
+    linked_ids = _linked_child_ids_for_epic(records=records, epic_id=epic_id)
     for record in records:
         issue_id = record.get("id")
-        if isinstance(issue_id, str) and issue_id in blocking_ids:
+        if isinstance(issue_id, str) and issue_id in linked_ids:
             _ = records_by_id.setdefault(issue_id, record)
     return list(records_by_id.values())
 
@@ -190,6 +191,33 @@ def _blocking_ids_for_epic(*, records: list[BeadsRecord], epic_id: str) -> froze
         if record.get("id") == epic_id:
             return blocking_dependency_ids(record=record)
     return frozenset()
+
+
+def _linked_child_ids_for_epic(*, records: list[BeadsRecord], epic_id: str) -> frozenset[str]:
+    return frozenset(
+        issue_id
+        for record in records
+        if isinstance(issue_id := record.get("id"), str)
+        and _has_parent_child_edge_to_epic(record=record, epic_id=epic_id)
+    ) | _blocking_ids_for_epic(records=records, epic_id=epic_id)
+
+
+def _has_parent_child_edge_to_epic(*, record: BeadsRecord, epic_id: str) -> bool:
+    dependencies = record.get("dependencies")
+    if not isinstance(dependencies, list):
+        return False
+    typed_dependencies = cast("list[object]", dependencies)
+    return any(
+        _is_parent_child_edge_to_epic(edge=edge, epic_id=epic_id) for edge in typed_dependencies
+    )
+
+
+def _is_parent_child_edge_to_epic(*, edge: object, epic_id: str) -> bool:
+    if not isinstance(edge, dict):
+        return False
+    typed_edge = cast("dict[str, Any]", edge)
+    depends_on_id = typed_edge.get("depends_on_id")
+    return typed_edge.get("type") == EDGE_PARENT_CHILD and depends_on_id == epic_id
 
 
 def blocking_dependency_ids(*, record: BeadsRecord) -> frozenset[str]:

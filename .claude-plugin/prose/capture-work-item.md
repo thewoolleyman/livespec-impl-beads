@@ -60,7 +60,7 @@ Show the user the assembled record and ask "file?". On `yes`, append:
 
 ```python
 from livespec_orchestrator_beads_fabro._ids import new_work_item_id
-from livespec_orchestrator_beads_fabro._beads_client import make_beads_client
+from livespec_orchestrator_beads_fabro._beads_client import EDGE_PARENT_CHILD, make_beads_client
 from livespec_orchestrator_beads_fabro.commands._config import resolve_store_config
 from livespec_orchestrator_beads_fabro.store import append_work_item
 from livespec_orchestrator_beads_fabro.types import WorkItem
@@ -93,9 +93,10 @@ item = WorkItem(
 )
 append_work_item(path=config, item=item)
 if plan_parent_id is not None:
-    make_beads_client(config=config).update_issue(
-        issue_id=item.id,
-        parent_id=plan_parent_id,
+    make_beads_client(config=config).add_dependency(
+        from_id=item.id,
+        to_id=plan_parent_id,
+        edge_type=EDGE_PARENT_CHILD,
     )
 ```
 

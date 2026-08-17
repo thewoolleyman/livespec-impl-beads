@@ -7,6 +7,7 @@ from typing import cast
 
 from livespec_orchestrator_beads_fabro._beads_client import (
     EDGE_BLOCKS,
+    EDGE_PARENT_CHILD,
     BeadsClient,
     FakeBeadsClient,
     IssueDraft,
@@ -154,6 +155,20 @@ def test_child_disposition_detects_raw_parent_child_record() -> None:
     client = cast("BeadsClient", _RawChildrenClient())
 
     assert undisposed_plan_child_ids(client=client, epic_id="bd-ib-epic") == ("bd-ib-plain",)
+
+
+def test_child_disposition_detects_parent_child_dependency_edge_without_readiness_gate() -> None:
+    reset_fake_singleton()
+    _ = _fake().create_issue(draft=_draft(issue_id="bd-ib-epic", parent_id=None))
+    _ = _fake().create_issue(draft=_draft(issue_id="bd-ib-child", parent_id=None))
+    _fake().add_dependency(
+        from_id="bd-ib-child",
+        to_id="bd-ib-epic",
+        edge_type=EDGE_PARENT_CHILD,
+    )
+    _fake().update_issue(issue_id="bd-ib-child", status="ready")
+
+    assert undisposed_plan_child_ids(client=_fake(), epic_id="bd-ib-epic") == ("bd-ib-child",)
 
 
 def test_edge_predicates_ignore_malformed_records() -> None:
