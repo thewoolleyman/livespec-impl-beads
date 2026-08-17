@@ -1465,7 +1465,6 @@ _FAKE_GITHUB_TOKEN_LINE = 'GITHUB_TOKEN = "test-github-token"'
 _FAKE_GITHUB_APP_ID_LINE = 'GITHUB_APP_ID = "42"'
 _FAKE_GITHUB_PRIVATE_KEY_LINE = 'GITHUB_PRIVATE_KEY = "stub-pem"'
 _GH_REFRESH_BIN = "/workspace/.livespec-github-bin"
-_GH_REFRESH_PATH_LINE = f'PATH = "{_GH_REFRESH_BIN}:{{{{ env.PATH }}}}"'
 
 # The dead interpolation channel: fabro resolves {{ env.* }} in the
 # server-spawned WORKER, whose env is a fail-closed allowlist
@@ -1516,10 +1515,11 @@ def test_render_run_config_overlay_prepares_refreshing_gh_wrapper(
 ) -> None:
     """Long-lived agent sessions must not depend on the one-shot overlay token.
 
-    The sandbox receives the GitHub App inputs plus a PATH-leading `gh`
-    wrapper that mints immediately before each `gh` invocation. That
-    makes an in-session `just check` past the installation-token TTL use
-    a fresh token without waiting for a new Fabro node process.
+    The sandbox receives the GitHub App inputs plus a `gh` wrapper that
+    replaces the sandbox-local `gh` binary after reading the sandbox's
+    live PATH. That makes an in-session `just check` past the
+    installation-token TTL use a fresh token without replacing the
+    container's mise/just/uv/node/npx PATH with the Fabro worker PATH.
     """
     monkeypatch.setenv("GITHUB_APP_ID", "42")
     monkeypatch.setenv("GITHUB_PRIVATE_KEY", "stub-pem")
@@ -1538,8 +1538,11 @@ def test_render_run_config_overlay_prepares_refreshing_gh_wrapper(
     assert "livespec-refreshing-gh-wrapper" in rendered[:env_table_at]
     assert "mint_app_token.py" in rendered[:env_table_at]
     assert 'token="$(python3 ' in rendered[:env_table_at]
-    assert _GH_REFRESH_PATH_LINE in rendered
-    assert rendered.index(_GH_REFRESH_PATH_LINE) > env_table_at
+    assert 'real_gh="$(command -v gh)"' in rendered[:env_table_at]
+    assert 'mv "$real_gh" "$wrapped_gh"' in rendered[:env_table_at]
+    env_table = rendered[env_table_at:]
+    assert "\nPATH = " not in env_table
+    assert "{{ env.PATH }}" not in rendered
     assert _FAKE_GITHUB_APP_ID_LINE in rendered
     assert _FAKE_GITHUB_PRIVATE_KEY_LINE in rendered
 

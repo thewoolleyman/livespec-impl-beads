@@ -47,9 +47,6 @@ _GITHUB_APP_ENV_KEYS = (
     "GITHUB_APP_INSTALLATION_ID",
     "GITHUB_API_URL",
 )
-_GH_REFRESH_BIN = "/workspace/.livespec-github-bin"
-_SANDBOX_DEFAULT_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-_FABRO_RUNTIME_PATH_INTERPOLATION = "{{ env.PATH }}"
 # MiniJinja's three OPENING delimiters: expression `{{`, statement `{%`,
 # comment `{#` (fabro v0.254.0 renders the run goal through MiniJinja —
 # fabro issue #124 — storing it in the graph's `goal` attribute and
@@ -271,35 +268,40 @@ def _tmux_tmpdir_prepare_steps_block() -> str:
 
 
 def _refreshing_gh_prepare_steps_block() -> str:
-    """Install a PATH-leading `gh` wrapper when App mint inputs are projected.
+    """Install a sandbox-local refreshing `gh` wrapper when App inputs exist.
 
     Fabro can mint a fresh token at node spawn, but a long-lived agent
     process can still cross GitHub's installation-token TTL before it runs
-    `just check`. The wrapper mints immediately before each `gh`
-    invocation, so in-session checks do not depend on the one-shot
-    `GITHUB_TOKEN` value in the env table.
+    `just check`. The prepare step reads the sandbox's live PATH to find `gh`,
+    moves that binary aside, and writes the wrapper at the same path. That keeps
+    the container's mise/just/uv/node/npx PATH intact while making every later
+    `gh` invocation mint immediately before use.
     """
     if not _github_app_env_present():
         return ""
     script = (
         "set -eu\n"
-        f'bin="{_GH_REFRESH_BIN}"\n'
-        'mkdir -p "$bin"\n'
-        f'real_gh="$(PATH={_SANDBOX_DEFAULT_PATH} command -v gh)"\n'
+        'real_gh="$(command -v gh)"\n'
+        'case "$real_gh" in\n'
+        "  /*) ;;\n"
+        '  *) echo "gh did not resolve to an absolute path" >&2; exit 1 ;;\n'
+        "esac\n"
+        'wrapped_gh="${real_gh}.livespec-real"\n'
+        'if [ ! -x "$wrapped_gh" ]; then mv "$real_gh" "$wrapped_gh"; fi\n'
         'mint="$PWD/.claude-plugin/scripts/bin/mint_app_token.py"\n'
-        'cat > "$bin/gh" <<EOF\n'
+        'cat > "$real_gh" <<EOF\n'
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
         'mint="$mint"\n'
-        'real_gh="$real_gh"\n'
+        'real_gh="$wrapped_gh"\n'
         "EOF\n"
-        "cat >> \"$bin/gh\" <<'EOF'\n"
+        "cat >> \"$real_gh\" <<'EOF'\n"
         'token="$(python3 "$mint")"\n'
         'export GH_TOKEN="$token"\n'
         'export GITHUB_TOKEN="$token"\n'
         'exec "$real_gh" "$@"\n'
         "EOF\n"
-        'chmod 700 "$bin/gh"'
+        'chmod 755 "$real_gh"'
     )
     lines = [
         "",
@@ -313,13 +315,11 @@ def _refreshing_gh_prepare_steps_block() -> str:
 def _refreshing_gh_env_lines() -> str:
     if not _github_app_env_present():
         return ""
-    app_env_lines = "".join(
+    return "".join(
         f"{key} = {json.dumps(value)}\n"
         for key in _GITHUB_APP_ENV_KEYS
         if (value := os.environ.get(key)) not in (None, "")
     )
-    refreshed_path = f"{_GH_REFRESH_BIN}:{_FABRO_RUNTIME_PATH_INTERPOLATION}"
-    return f"PATH = {json.dumps(refreshed_path)}\n" + app_env_lines
 
 
 def _github_app_env_present() -> bool:
