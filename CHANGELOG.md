@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.58.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.1...v0.58.2) (2026-08-17)
+
+
+### Bug Fixes
+
+* surface fabro failure cause ([e7e9c58](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/e7e9c58a78603a5079bcdfe8914fdd93b35a97ce))
+
 ## [0.58.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.0...v0.58.1) (2026-08-17)
 
 
