@@ -158,9 +158,9 @@
     "dispatcher": {
       "auto_approve_ready": true,
       "acceptance_mode": "ai-only",
-      "default_factory": "default",
+      "default_factory": "hp",
       "factories": {
-        "default": {
+        "vps": {
           "server": "https://vps.perch-rudd.ts.net:32276"
         },
         "hp": {
