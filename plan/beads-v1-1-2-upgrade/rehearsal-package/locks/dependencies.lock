@@ -10,7 +10,7 @@
   "anchor_probe": {
     "implementation": "wrappers/anchor-probe.py",
     "query": "SELECT DATABASE(), CURRENT_USER(), @@hostname, @@port",
-    "query_sha256": "9308612c4a6f2f24c7c4c6f4a5a1ffc141cebc67eb0a4dc7794debcf7a6f66d4",
+    "query_sha256": "0f334703b52dea71b6c7184692f245094b4c93cbf1d61bcee36fc6c3531a5b36",
     "statement_count": 1,
     "read_only_transaction": true,
     "external_runtime_dependencies": []

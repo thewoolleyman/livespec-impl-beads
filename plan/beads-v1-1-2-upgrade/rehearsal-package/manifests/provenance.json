@@ -34,11 +34,11 @@
   },
   "anchor_probe": {
     "implementation": "wrappers/anchor-probe.py",
-    "implementation_sha256": "2610d0893d38c0228cdee09d71904c490053493fa68e41d1819d93750b409c7d",
+    "implementation_sha256": "cacd2dea1d6624749e702efca7d186d44e806c48ac317a871ce10744802671f7",
     "dependency_lock": "locks/dependencies.lock",
-    "dependency_lock_sha256": "60f1d9b0accc21fb8c35c16e3b6f2a33c973ca7b94b068650c78764fe8548d46",
+    "dependency_lock_sha256": "6246a936bb6a57ae06c0c17f7b9c05596363cc6648febbc355d3279e67523fe2",
     "query": "SELECT DATABASE(), CURRENT_USER(), @@hostname, @@port",
-    "query_sha256": "9308612c4a6f2f24c7c4c6f4a5a1ffc141cebc67eb0a4dc7794debcf7a6f66d4",
+    "query_sha256": "0f334703b52dea71b6c7184692f245094b4c93cbf1d61bcee36fc6c3531a5b36",
     "statement_count": 1,
     "read_only_transaction": true,
     "dependencies": []

@@ -12,7 +12,7 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 
 ALLOWED_QUERY = "SELECT DATABASE(), CURRENT_USER(), @@hostname, @@port"
-ALLOWED_QUERY_SHA256 = "9308612c4a6f2f24c7c4c6f4a5a1ffc141cebc67eb0a4dc7794debcf7a6f66d4"
+ALLOWED_QUERY_SHA256 = "0f334703b52dea71b6c7184692f245094b4c93cbf1d61bcee36fc6c3531a5b36"
 ERROR_QUERY_OVERRIDE = "query override surfaces are forbidden"
 READ_ONLY_TRANSACTION = True
 STATEMENT_COUNT = 1
