@@ -10,6 +10,7 @@ process-singleton fake makes the seeded writes visible to `main`.
 import json
 
 import pytest
+from livespec_orchestrator_beads_fabro.commands import list_work_items
 from livespec_orchestrator_beads_fabro.commands.list_work_items import main
 from livespec_orchestrator_beads_fabro.store import append_work_item, record_dispatch_factory
 from livespec_orchestrator_beads_fabro.types import AuditRecord, StoreConfig, WorkItem
@@ -224,6 +225,35 @@ def test_main_json_output_includes_dispatch_factory(
     assert rc == 0
     payload = json.loads(captured.out)
     assert payload[0]["dispatch_factory"] == "remote"
+
+
+def test_main_json_skips_dispatch_factory_lookup_for_closed_items(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _seed(_item(id_="li-live"))
+    _seed(_item(id_="li-closed", status="done"))
+    looked_up: list[str] = []
+
+    def fake_dispatch_factory_for(*, path: StoreConfig, work_item_id: str) -> str | None:
+        _ = path
+        looked_up.append(work_item_id)
+        return "remote"
+
+    monkeypatch.setattr(
+        list_work_items,
+        "dispatch_factory_for",
+        fake_dispatch_factory_for,
+    )
+
+    rc = main(argv=["--json"])
+    captured = capsys.readouterr()
+
+    assert rc == 0
+    payload = _by_id(json.loads(captured.out))
+    assert looked_up == ["li-live"]
+    assert payload["li-live"]["dispatch_factory"] == "remote"
+    assert payload["li-closed"]["dispatch_factory"] is None
 
 
 def test_main_json_output_depends_on_is_typed_dict_local_entry(

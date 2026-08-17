@@ -239,4 +239,9 @@ def _work_item_to_dict(
 
 
 def _dispatch_factories(*, path: StoreConfig, items: list[WorkItem]) -> dict[str, str | None]:
-    return {item.id: dispatch_factory_for(path=path, work_item_id=item.id) for item in items}
+    return {
+        item.id: None
+        if item.status == "done"
+        else dispatch_factory_for(path=path, work_item_id=item.id)
+        for item in items
+    }
