@@ -576,6 +576,44 @@ def test_receiver_records_run_turn_only_after_successful_honeycomb_export(tmp_pa
     assert sink.has_export(keys=("bd-ib-demo",)) is True
 
 
+def test_receiver_records_real_fabro_run_turn_shape_after_honeycomb_export(
+    tmp_path: Path,
+) -> None:
+    module_path = (
+        Path(".claude-plugin/scripts/livespec_orchestrator_beads_fabro/commands")
+        / "_dispatcher_run_turn_sink.py"
+    )
+    assert module_path.is_file()
+    module = importlib.import_module(
+        "livespec_orchestrator_beads_fabro.commands._dispatcher_run_turn_sink"
+    )
+    sink = module.RunTurnSink(path=tmp_path / "run-turn.json")
+    receiver = OtelReceiver(
+        config=ReceiverConfig(host="127.0.0.1", port=0),
+        exporter=_FakeExporter(),
+        heartbeat=HeartbeatSink(path=tmp_path / "hb.json"),
+        run_turn=sink,
+    )
+    receiver.start()
+    try:
+        url = f"http://127.0.0.1:{receiver.bound_port}/v1/traces"
+        body = _trace_request(
+            attrs=[
+                _attr_entry(key="node_id", string_value="node-1"),
+                _attr_entry(key="command", string_value="codex"),
+                _attr_entry(key="config_name", string_value="default"),
+                _attr_entry(key="visit", string_value="1"),
+                _attr_entry(key="stop_reason", string_value="end_turn"),
+            ],
+            service_name="fabro",
+            span_name="run_turn",
+        )
+        assert _post_json(url=url, body=body) == _HTTP_OK
+    finally:
+        receiver.stop()
+    assert sink.has_export(keys=("bd-ib-demo", "dispatch-1")) is True
+
+
 def test_receiver_does_not_record_failed_run_turn_export(tmp_path: Path) -> None:
     module_path = (
         Path(".claude-plugin/scripts/livespec_orchestrator_beads_fabro/commands")

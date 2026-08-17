@@ -3,8 +3,10 @@
 The live OTLP receiver exports sandbox spans synchronously through the
 Honeycomb exporter seam. This sink records only the cheap, non-secret fact
 that a span named `run_turn` from the `fabro` dataset was accepted by that
-exporter, keyed by the dispatch correlation ids the Dispatcher already
-projects into `OTEL_RESOURCE_ATTRIBUTES`.
+exporter. Fabro-side `run_turn` spans do not carry per-dispatch
+correlation ids, so the sink records a global last-seen signal for the
+post-dispatch guard and also indexes any correlation ids present on future
+compatible span shapes.
 """
 
 from __future__ import annotations
@@ -31,6 +33,7 @@ __all__: list[str] = [
 _FABRO_DATASET = "fabro"
 _RUN_TURN_SPAN = "run_turn"
 _CORRELATION_KEYS = ("work.item.id", "livespec.dispatch.id")
+_GLOBAL_EXPORT_KEY = "fabro.run_turn"
 
 
 @dataclass(kw_only=True)
@@ -51,9 +54,7 @@ class RunTurnSink:
         """Record one successful Honeycomb export of a Fabro `run_turn` span."""
         if dataset != _FABRO_DATASET or span.get("name") != _RUN_TURN_SPAN:
             return False
-        ids = _correlation_ids(span=span, resource_attrs=resource_attrs)
-        if not ids:
-            return False
+        ids = (_GLOBAL_EXPORT_KEY, *_correlation_ids(span=span, resource_attrs=resource_attrs))
         with self._lock:
             exported = self._read()
             for key in ids:
@@ -65,7 +66,7 @@ class RunTurnSink:
         """True when any candidate key has recorded a `run_turn` export."""
         with self._lock:
             exported = self._read()
-        return any(key in exported for key in keys if key != "")
+        return _GLOBAL_EXPORT_KEY in exported or any(key in exported for key in keys if key != "")
 
     def _read(self) -> dict[str, float]:
         if not self.path.is_file():

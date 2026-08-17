@@ -120,7 +120,7 @@ def test_append_run_turn_checks_ignores_malformed_dispatch_id_records(tmp_path: 
     assert check["run_turn_exported"] is False
 
 
-def test_run_turn_sink_skips_spans_without_correlation_ids(tmp_path: Path) -> None:
+def test_run_turn_sink_records_fabro_run_turn_without_correlation_ids(tmp_path: Path) -> None:
     sink = RunTurnSink(path=tmp_path / "run-turn.json")
     assert (
         sink.record_export(
@@ -129,9 +129,9 @@ def test_run_turn_sink_skips_spans_without_correlation_ids(tmp_path: Path) -> No
             dataset="fabro",
             at=10.0,
         )
-        is False
+        is True
     )
-    assert sink.has_export(keys=("",)) is False
+    assert sink.has_export(keys=("",)) is True
 
 
 @pytest.mark.parametrize("raw", ["not-json", "[]", json.dumps({"key": True, "other": "text"})])
@@ -201,5 +201,7 @@ def test_run_turn_sink_skips_malformed_span_attrs(tmp_path: Path) -> None:
         at=10.0,
     )
     assert recorded is True
-    assert sink.has_export(keys=("ignored", "7")) is False
+    stored = json.loads((tmp_path / "run-turn.json").read_text(encoding="utf-8"))
+    assert "ignored" not in stored
+    assert "7" not in stored
     assert sink.has_export(keys=("dispatch-1",)) is True

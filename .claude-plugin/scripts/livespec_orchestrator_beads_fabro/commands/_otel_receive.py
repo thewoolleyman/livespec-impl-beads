@@ -273,7 +273,7 @@ class OtelReceiver:
             self.join.observe(keys=correlation_keys_from_attrs(span=ingested.span))
             if self.cost is not None:
                 self.cost.accumulate_span(span=ingested.span, default_model=self.default_model)
-        per_dataset: dict[str, list[dict[str, object]]] = {}
+        per_dataset: dict[str, list[tuple[dict[str, object], dict[str, str]]]] = {}
         for ingested in spans:
             keys = correlation_keys_from_attrs(span=ingested.span)
             triple = self.join.backfill(keys=keys)
@@ -281,25 +281,27 @@ class OtelReceiver:
             if enriched is None:
                 continue
             dataset = honeycomb_dataset_for(resource_attrs=ingested.resource_attrs)
-            per_dataset.setdefault(dataset, []).append(enriched)
-        for dataset, batch in per_dataset.items():
-            exported = self.exporter.export(spans=tuple(batch), dataset=dataset)
+            per_dataset.setdefault(dataset, []).append((enriched, ingested.resource_attrs))
+        for dataset, records in per_dataset.items():
+            exported = self.exporter.export(
+                spans=tuple(span for span, _resource_attrs in records), dataset=dataset
+            )
             if exported and self.run_turn is not None:
-                self._record_run_turn_exports(dataset=dataset, batch=tuple(batch))
+                self._record_run_turn_exports(dataset=dataset, records=tuple(records))
         reply(handler=handler, status=HTTPStatus.OK)
 
     def _record_run_turn_exports(
         self,
         *,
         dataset: str,
-        batch: tuple[dict[str, object], ...],
+        records: tuple[tuple[dict[str, object], dict[str, str]], ...],
     ) -> None:
         run_turn = cast("RunTurnSink", self.run_turn)
         now = time.time()
-        for span in batch:
+        for span, resource_attrs in records:
             _ = run_turn.record_export(
                 span=span,
-                resource_attrs={},
+                resource_attrs=resource_attrs,
                 dataset=dataset,
                 at=now,
             )
