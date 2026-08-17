@@ -28,6 +28,19 @@ from livespec_orchestrator_beads_fabro.errors import ConnectionPrefixMissingErro
 from livespec_orchestrator_beads_fabro.types import StoreConfig
 
 _CONFIG_NAME = ".livespec.jsonc"
+_GITHUB_APP_ENV_KEYS = (
+    "GITHUB_APP_ID",
+    "GITHUB_PRIVATE_KEY",
+    "GITHUB_APP_INSTALLATION_ID",
+    "GITHUB_API_URL",
+)
+
+
+@pytest.fixture(autouse=True)
+def _clear_github_app_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep overlay assertions independent from factory credential injection."""
+    for key in _GITHUB_APP_ENV_KEYS:
+        monkeypatch.delenv(key, raising=False)
 
 
 def _write_config(*, cwd: Path, body: str) -> None:

@@ -132,6 +132,20 @@ from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
 from livespec_runtime.cross_repo.types import CrossRepoManifest
 from livespec_runtime.github_auth.errors import GithubAppAuthError
 
+_GITHUB_APP_ENV_KEYS = (
+    "GITHUB_APP_ID",
+    "GITHUB_PRIVATE_KEY",
+    "GITHUB_APP_INSTALLATION_ID",
+    "GITHUB_API_URL",
+)
+
+
+@pytest.fixture(autouse=True)
+def _clear_github_app_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep overlay assertions independent from factory credential injection."""
+    for key in _GITHUB_APP_ENV_KEYS:
+        monkeypatch.delenv(key, raising=False)
+
 
 def test_dispatcher_plan_decomposition_contract() -> None:
     base = Path(".claude-plugin/scripts/livespec_orchestrator_beads_fabro/commands")
