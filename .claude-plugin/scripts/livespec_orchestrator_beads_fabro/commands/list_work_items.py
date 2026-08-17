@@ -53,7 +53,7 @@ from livespec_orchestrator_beads_fabro.commands._sibling_status_lookup import (
 )
 from livespec_orchestrator_beads_fabro.io import write_stdout
 from livespec_orchestrator_beads_fabro.store import (
-    dispatch_factory_for,
+    dispatch_factories_for,
     materialize_work_items,
     read_work_items,
 )
@@ -239,9 +239,5 @@ def _work_item_to_dict(
 
 
 def _dispatch_factories(*, path: StoreConfig, items: list[WorkItem]) -> dict[str, str | None]:
-    return {
-        item.id: None
-        if item.status == "done"
-        else dispatch_factory_for(path=path, work_item_id=item.id)
-        for item in items
-    }
+    factories = dispatch_factories_for(path=path)
+    return {item.id: None if item.status == "done" else factories.get(item.id) for item in items}

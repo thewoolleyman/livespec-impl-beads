@@ -9,7 +9,11 @@ the public command once and verifies both bootstrap steps.
 from pathlib import Path
 
 import pytest
-from livespec_orchestrator_beads_fabro._beads_client import IssueDraft, make_beads_client
+from livespec_orchestrator_beads_fabro._beads_client import (
+    FakeBeadsClient,
+    IssueDraft,
+    make_beads_client,
+)
 from livespec_orchestrator_beads_fabro.commands.migrate_tenant import main
 from livespec_orchestrator_beads_fabro.store import materialize_work_items, read_work_items
 from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
@@ -25,6 +29,12 @@ def _config() -> StoreConfig:
         bd_path="bd",
         fake=True,
     )
+
+
+def _fake() -> FakeBeadsClient:
+    client = make_beads_client(config=_config())
+    assert isinstance(client, FakeBeadsClient)
+    return client
 
 
 @pytest.fixture(autouse=True)
@@ -87,3 +97,26 @@ def test_main_registers_statuses_and_backfills_legacy_rank_order(
     assert rc == 0
     assert "re-keyed 0 live work-item(s)" in captured.out
     assert _stored() == stored
+
+
+def test_main_backfills_dispatch_factory_metadata_from_legacy_comments(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _legacy_head(id_="live", priority=0, captured_at="2026-01-01T00:00:00Z")
+    _legacy_head(id_="closed", priority=0, captured_at="2026-01-01T00:00:00Z", status="closed")
+    _fake().seed_comment(issue_id="live", text="livespec-dispatch-factory: hp")
+    _fake().seed_comment(issue_id="closed", text="livespec-dispatch-factory: remote")
+
+    rc = main(argv=[])
+    captured = capsys.readouterr()
+
+    assert rc == 0
+    assert "dispatch factories backfilled: 1" in captured.out
+    assert _fake().show_issue(issue_id="live")["metadata"]["dispatch_factory"] == "hp"
+    assert "dispatch_factory" not in _fake().show_issue(issue_id="closed")["metadata"]
+
+    rc = main(argv=[])
+    captured = capsys.readouterr()
+
+    assert rc == 0
+    assert "dispatch factories backfilled: 0" in captured.out

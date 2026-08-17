@@ -22,6 +22,7 @@ from livespec_orchestrator_beads_fabro.commands._config import resolve_store_con
 from livespec_orchestrator_beads_fabro.commands.rebalance_ranks import LegacySeedRow, legacy_seed
 from livespec_orchestrator_beads_fabro.io import write_stdout
 from livespec_orchestrator_beads_fabro.store import (
+    backfill_dispatch_factory_metadata,
     materialize_work_items,
     read_work_item_native_priorities,
     read_work_items,
@@ -35,15 +36,19 @@ __all__: list[str] = ["main", "migrate_tenant"]
 _LIVESPEC_DONE = "done"
 
 
-def migrate_tenant(*, config: StoreConfig) -> int:
+def migrate_tenant(*, config: StoreConfig) -> tuple[int, int]:
     """Register custom statuses and backfill live-head ranks.
 
-    Returns the number of live heads whose rank changed. Re-running after a
+    Returns the number of live heads whose rank changed and the number of
+    legacy dispatch-factory comments moved into metadata. Re-running after a
     successful migration is a no-op because the same legacy seed order
-    produces the same evenly spaced keys.
+    produces the same evenly spaced keys, and already-metadata-backed factory
+    markers are skipped.
     """
     register_custom_statuses(path=config)
-    return _backfill_legacy_ranks(config=config)
+    rekeyed = _backfill_legacy_ranks(config=config)
+    factories = backfill_dispatch_factory_metadata(path=config)
+    return rekeyed, factories
 
 
 def _backfill_legacy_ranks(*, config: StoreConfig) -> int:
@@ -86,8 +91,12 @@ def main(*, argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     project_root = Path(args.project_root) if args.project_root is not None else Path.cwd()
     config = resolve_store_config(cwd=project_root, work_items_arg=args.work_items_path)
-    rekeyed = migrate_tenant(config=config)
+    rekeyed, factories = migrate_tenant(config=config)
     _ = write_stdout(
-        text=f"migrate-tenant: statuses registered; re-keyed {rekeyed} live work-item(s)\n"
+        text=(
+            "migrate-tenant: statuses registered; "
+            f"re-keyed {rekeyed} live work-item(s); "
+            f"dispatch factories backfilled: {factories}\n"
+        )
     )
     return 0

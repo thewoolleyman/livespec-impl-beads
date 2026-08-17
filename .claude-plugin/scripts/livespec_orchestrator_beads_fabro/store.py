@@ -19,7 +19,10 @@ from livespec_orchestrator_beads_fabro._store_comments import (
     read_work_item_comments,
 )
 from livespec_orchestrator_beads_fabro._store_dispatch_factory import (
+    backfill_dispatch_factory_metadata,
+    dispatch_factories_for,
     dispatch_factory_for,
+    dispatch_factory_from_record,
     record_dispatch_factory,
 )
 from livespec_orchestrator_beads_fabro._store_intake_triage import (
@@ -62,7 +65,10 @@ __all__: list[str] = [
     "IntakeTriageRecord",
     "WorkItemComment",
     "append_work_item",
+    "backfill_dispatch_factory_metadata",
+    "dispatch_factories_for",
     "dispatch_factory_for",
+    "dispatch_factory_from_record",
     "materialize_work_items",
     "read_intake_triage_records",
     "read_work_item_comments",

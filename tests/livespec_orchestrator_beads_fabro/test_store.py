@@ -879,6 +879,7 @@ def test_dispatch_factory_marker_uses_latest_non_empty_marker_and_deduplicates()
 
     comments = read_work_item_comments(path=_config(), work_item_id="li-aaa111")
     assert dispatch_factory_for(path=_config(), work_item_id="li-aaa111") == "remote"
+    assert _fake().show_issue(issue_id="li-aaa111")["metadata"]["dispatch_factory"] == "remote"
     assert [comment.text for comment in comments].count("livespec-dispatch-factory: remote") == 1
 
 
