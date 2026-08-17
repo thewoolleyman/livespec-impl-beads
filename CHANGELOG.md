@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.58.5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.4...v0.58.5) (2026-08-17)
+
+
+### Bug Fixes
+
+* recognize plan parent-child edges ([1f62a25](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/1f62a25871d1524117b8e85b4134afa30f683c73))
+
 ## [0.58.4](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.3...v0.58.4) (2026-08-17)
 
 
