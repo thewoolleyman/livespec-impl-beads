@@ -3119,8 +3119,9 @@ def test_dispatch_green_closes_item_and_journals(
     # test; its fail-open behavior is covered in the mirrored cost-gate tests.
     # Then ddu's staged-self-update gate runs (here `self-update-skipped`
     # because the running release already matches the provisioned payload),
-    # then the mechanical reflection stage at the default `observe` lever
-    # (work-item 29f.2).
+    # then the run_turn telemetry assertion journals the absence/presence
+    # signal for reflection to scan, then the mechanical reflection stage at
+    # the default `observe` lever (work-item 29f.2).
     assert stages == [
         "ledger-admit",
         "dispatch-id",
@@ -3132,6 +3133,7 @@ def test_dispatch_green_closes_item_and_journals(
         "calibration",
         "review-gate-telemetry-skipped",
         "self-update-skipped",
+        "run-turn-telemetry-check",
         "reflection",
     ]
     poll = fake.seen[0]["poll"]

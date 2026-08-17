@@ -16,6 +16,7 @@ __all__: list[str] = [
     "journal_path",
     "plugin_root",
     "reflector_oob_spans_path",
+    "run_turn_sink_path",
     "spans_path",
     "store_config",
     "workflow_toml",
@@ -110,6 +111,12 @@ def cost_sink_path(*, args: argparse.Namespace, repo: Path) -> Path:
     """
     journal = journal_path(args=args, repo=repo)
     return journal.with_name(f"{journal.stem}-otel-cost.json")
+
+
+def run_turn_sink_path(*, args: argparse.Namespace, repo: Path) -> Path:
+    """Where the live receiver records successful Fabro `run_turn` exports."""
+    journal = journal_path(args=args, repo=repo)
+    return journal.with_name(f"{journal.stem}-run-turn-exports.json")
 
 
 def cost_report_spans_path(*, args: argparse.Namespace, repo: Path) -> Path:

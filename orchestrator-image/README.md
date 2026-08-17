@@ -285,6 +285,25 @@ Then run `sudo systemctl restart fabro-server` in a quiet window.
   (`plan/codex-factory-telemetry/o1-worker-exporter-plan.md`) for the full
   two-lever design.
 
+### Fabro `run_turn` absence guard
+
+The Dispatcher records a post-verdict assertion for every green dispatch before
+mechanical reflection runs: the host-local OTLP receiver writes
+`<journal-stem>-run-turn-exports.json` only after Honeycomb export succeeds for a
+span named `run_turn` in the `fabro` dataset, keyed by `work.item.id` and
+`livespec.dispatch.id`. A green dispatch with no matching export emits a
+`run-turn-telemetry-absent` critical reflection finding in the same loop-exit
+reflection window, normally seconds after the run returns and within the next
+dispatcher loop pass.
+
+This is the cheap per-dispatch layer. Keep the Honeycomb-side dead-man trigger
+separate: alert on zero `run_turn` spans in dataset `fabro` over a 10-minute
+rolling window, routed through the existing operator-alert path used by the
+adopter dead-man triggers. Breaking `OTEL_EXPORTER_OTLP_ENDPOINT` on a scratch
+run should make the dispatcher finding appear on that run and the Honeycomb
+trigger fire within the 10-minute window; restoring the endpoint should clear
+both after the next successful `run_turn` export.
+
 ### Auth posture (OAuth-only)
 
 - **Never put `ANTHROPIC_API_KEY` in the server's env.** It bills API cost and

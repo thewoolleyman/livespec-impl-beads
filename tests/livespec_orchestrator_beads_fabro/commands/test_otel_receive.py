@@ -42,6 +42,7 @@ Load-bearing invariants under test:
 from __future__ import annotations
 
 import http.client
+import importlib
 import json
 import urllib.error
 import urllib.request
@@ -125,6 +126,7 @@ def _trace_request(
     *,
     attrs: list[dict[str, object]],
     service_name: str = "cc-sandbox",
+    span_name: str = "agent.turn",
 ) -> dict[str, object]:
     """One OTLP/HTTP-JSON ExportTraceServiceRequest with a single span."""
     return {
@@ -136,7 +138,7 @@ def _trace_request(
                         "scope": {"name": "claude-code", "version": "1.0"},
                         "spans": [
                             {
-                                "name": "agent.turn",
+                                "name": span_name,
                                 "traceId": "0af7651916cd43dd8448eb211c80319c",
                                 "spanId": "b7ad6b7169203331",
                                 "attributes": attrs,
@@ -487,6 +489,121 @@ def test_receiver_traces_missing_resource_spans_is_ok(
     _receiver, exporter, _heartbeat, base = receiver_factory
     assert _post_json(url=f"{base}/v1/traces", body={"resourceSpans": "nope"}) == _HTTP_OK
     assert exporter.calls == []
+
+
+def test_run_turn_sink_records_successful_fabro_run_turn_exports(tmp_path: Path) -> None:
+    module_path = (
+        Path(".claude-plugin/scripts/livespec_orchestrator_beads_fabro/commands")
+        / "_dispatcher_run_turn_sink.py"
+    )
+    assert module_path.is_file()
+    module = importlib.import_module(
+        "livespec_orchestrator_beads_fabro.commands._dispatcher_run_turn_sink"
+    )
+    sink = module.RunTurnSink(path=tmp_path / "run-turn.json")
+    recorded = sink.record_export(
+        span={
+            "name": "run_turn",
+            "attributes": [_attr_entry(key="work.item.id", string_value="bd-ib-demo")],
+        },
+        resource_attrs={"service.name": "fabro", "livespec.dispatch.id": "dispatch-1"},
+        dataset="fabro",
+        at=10.0,
+    )
+    assert recorded is True
+    assert sink.has_export(keys=("bd-ib-demo",)) is True
+    assert sink.has_export(keys=("dispatch-1",)) is True
+
+
+def test_run_turn_sink_ignores_non_fabro_or_non_run_turn(tmp_path: Path) -> None:
+    module_path = (
+        Path(".claude-plugin/scripts/livespec_orchestrator_beads_fabro/commands")
+        / "_dispatcher_run_turn_sink.py"
+    )
+    assert module_path.is_file()
+    module = importlib.import_module(
+        "livespec_orchestrator_beads_fabro.commands._dispatcher_run_turn_sink"
+    )
+    sink = module.RunTurnSink(path=tmp_path / "run-turn.json")
+    assert (
+        sink.record_export(
+            span={"name": "agent.turn"},
+            resource_attrs={"work.item.id": "bd-ib-demo"},
+            dataset="fabro",
+            at=10.0,
+        )
+        is False
+    )
+    assert (
+        sink.record_export(
+            span={"name": "run_turn"},
+            resource_attrs={"work.item.id": "bd-ib-demo"},
+            dataset="cc-sandbox",
+            at=10.0,
+        )
+        is False
+    )
+    assert sink.has_export(keys=("bd-ib-demo",)) is False
+
+
+def test_receiver_records_run_turn_only_after_successful_honeycomb_export(tmp_path: Path) -> None:
+    module_path = (
+        Path(".claude-plugin/scripts/livespec_orchestrator_beads_fabro/commands")
+        / "_dispatcher_run_turn_sink.py"
+    )
+    assert module_path.is_file()
+    module = importlib.import_module(
+        "livespec_orchestrator_beads_fabro.commands._dispatcher_run_turn_sink"
+    )
+    sink = module.RunTurnSink(path=tmp_path / "run-turn.json")
+    receiver = OtelReceiver(
+        config=ReceiverConfig(host="127.0.0.1", port=0),
+        exporter=_FakeExporter(),
+        heartbeat=HeartbeatSink(path=tmp_path / "hb.json"),
+        run_turn=sink,
+    )
+    receiver.start()
+    try:
+        url = f"http://127.0.0.1:{receiver.bound_port}/v1/traces"
+        body = _trace_request(
+            attrs=[_attr_entry(key="work.item.id", string_value="bd-ib-demo")],
+            service_name="fabro",
+            span_name="run_turn",
+        )
+        assert _post_json(url=url, body=body) == _HTTP_OK
+    finally:
+        receiver.stop()
+    assert sink.has_export(keys=("bd-ib-demo",)) is True
+
+
+def test_receiver_does_not_record_failed_run_turn_export(tmp_path: Path) -> None:
+    module_path = (
+        Path(".claude-plugin/scripts/livespec_orchestrator_beads_fabro/commands")
+        / "_dispatcher_run_turn_sink.py"
+    )
+    assert module_path.is_file()
+    module = importlib.import_module(
+        "livespec_orchestrator_beads_fabro.commands._dispatcher_run_turn_sink"
+    )
+    sink = module.RunTurnSink(path=tmp_path / "run-turn.json")
+    receiver = OtelReceiver(
+        config=ReceiverConfig(host="127.0.0.1", port=0),
+        exporter=_FakeExporter(succeed=False),
+        heartbeat=HeartbeatSink(path=tmp_path / "hb.json"),
+        run_turn=sink,
+    )
+    receiver.start()
+    try:
+        url = f"http://127.0.0.1:{receiver.bound_port}/v1/traces"
+        body = _trace_request(
+            attrs=[_attr_entry(key="work.item.id", string_value="bd-ib-demo")],
+            service_name="fabro",
+            span_name="run_turn",
+        )
+        assert _post_json(url=url, body=body) == _HTTP_OK
+    finally:
+        receiver.stop()
+    assert sink.has_export(keys=("bd-ib-demo",)) is False
 
 
 # --------------------------------------------------------------------------

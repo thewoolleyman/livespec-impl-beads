@@ -73,6 +73,7 @@ from typing import Protocol
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
 from livespec_orchestrator_beads_fabro.commands._dispatcher_reflection_journal import (
     items_with_retries,
+    items_with_run_turn_absence,
     items_with_sizing_warn,
     items_with_timeout,
     trailing_green_streak,
@@ -273,6 +274,16 @@ def scan_outcomes(
                 severity="info",
                 count=len(sizing_items),
                 subject=f"item-sizing warnings (bn4) for: {join_ids(ids=sizing_items)}",
+            )
+        )
+    missing_run_turn = items_with_run_turn_absence(records=records)
+    if missing_run_turn:
+        findings.append(
+            ReflectionFinding(
+                category="run-turn-telemetry-absent",
+                severity="critical",
+                count=len(missing_run_turn),
+                subject=f"Fabro run_turn span did not land for: {join_ids(ids=missing_run_turn)}",
             )
         )
 

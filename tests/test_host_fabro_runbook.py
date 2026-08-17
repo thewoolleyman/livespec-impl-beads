@@ -17,3 +17,11 @@ def test_host_fabro_runbooks_require_supervised_web_console() -> None:
     assert "cargo dev build --release -p fabro-cli" in _IMAGE_RUNBOOK
     assert "ExecStartPost" in _IMAGE_RUNBOOK
     assert "Never invoke `fabro server start`" in _IMAGE_RUNBOOK
+
+
+def test_host_fabro_runbook_documents_run_turn_absence_guard() -> None:
+    assert "### Fabro `run_turn` absence guard" in _IMAGE_RUNBOOK
+    assert "`run-turn-telemetry-absent` critical reflection finding" in _IMAGE_RUNBOOK
+    assert "zero `run_turn` spans in dataset `fabro`" in _IMAGE_RUNBOOK
+    assert "10-minute" in _IMAGE_RUNBOOK
+    assert "rolling window" in _IMAGE_RUNBOOK

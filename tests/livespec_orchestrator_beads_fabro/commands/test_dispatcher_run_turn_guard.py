@@ -1,0 +1,205 @@
+"""Tests for the post-dispatch Fabro `run_turn` telemetry assertion."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import cast
+
+import pytest
+from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
+from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
+from livespec_orchestrator_beads_fabro.commands._dispatcher_run_turn_guard import (
+    append_run_turn_checks,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_run_turn_sink import RunTurnSink
+
+
+def _outcome(*, work_item_id: str, status: str = "green") -> DispatchOutcome:
+    return DispatchOutcome(
+        work_item_id=work_item_id,
+        status=status,
+        stage="done",
+        pr_number=7,
+        merge_sha="abc123",
+        detail="merged",
+    )
+
+
+def _records(*, path: Path) -> list[dict[str, object]]:
+    records: list[dict[str, object]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        parsed = json.loads(line)
+        assert isinstance(parsed, dict)
+        records.append(cast("dict[str, object]", parsed))
+    return records
+
+
+def test_append_run_turn_checks_journals_green_outcome_presence(tmp_path: Path) -> None:
+    journal_path = tmp_path / "journal.jsonl"
+    journal = JournalFile(path=journal_path)
+    journal.append(
+        record={"stage": "dispatch-id", "work_item_id": "bd-ib-demo", "dispatch_id": "disp-1"}
+    )
+    sink = RunTurnSink(path=tmp_path / "run-turn.json")
+    _ = sink.record_export(
+        span={"name": "run_turn"},
+        resource_attrs={"livespec.dispatch.id": "disp-1"},
+        dataset="fabro",
+        at=10.0,
+    )
+
+    append_run_turn_checks(
+        outcomes=(_outcome(work_item_id="bd-ib-demo"),),
+        journal=journal,
+        journal_path=journal_path,
+        sink=sink,
+    )
+
+    check = _records(path=journal_path)[-1]
+    assert {
+        key: check[key] for key in ("dispatch_id", "run_turn_exported", "stage", "work_item_id")
+    } == {
+        "dispatch_id": "disp-1",
+        "run_turn_exported": True,
+        "stage": "run-turn-telemetry-check",
+        "work_item_id": "bd-ib-demo",
+    }
+
+
+def test_append_run_turn_checks_journals_absence_and_skips_failed(tmp_path: Path) -> None:
+    journal_path = tmp_path / "journal.jsonl"
+    journal = JournalFile(path=journal_path)
+    journal.append(
+        record={"stage": "dispatch-id", "work_item_id": "bd-ib-demo", "dispatch_id": "disp-1"}
+    )
+
+    append_run_turn_checks(
+        outcomes=(
+            _outcome(work_item_id="bd-ib-demo"),
+            _outcome(work_item_id="bd-ib-failed", status="failed"),
+        ),
+        journal=journal,
+        journal_path=journal_path,
+        sink=RunTurnSink(path=tmp_path / "run-turn.json"),
+    )
+
+    checks = [
+        record
+        for record in _records(path=journal_path)
+        if record.get("stage") == "run-turn-telemetry-check"
+    ]
+    assert [
+        {key: check[key] for key in ("dispatch_id", "run_turn_exported", "stage", "work_item_id")}
+        for check in checks
+    ] == [
+        {
+            "dispatch_id": "disp-1",
+            "run_turn_exported": False,
+            "stage": "run-turn-telemetry-check",
+            "work_item_id": "bd-ib-demo",
+        }
+    ]
+
+
+def test_append_run_turn_checks_ignores_malformed_dispatch_id_records(tmp_path: Path) -> None:
+    journal_path = tmp_path / "journal.jsonl"
+    journal = JournalFile(path=journal_path)
+    journal.append(record={"stage": "dispatch-id", "work_item_id": 7, "dispatch_id": "bad"})
+    journal.append(record={"stage": "other", "work_item_id": "bd-ib-demo", "dispatch_id": "bad"})
+
+    append_run_turn_checks(
+        outcomes=(_outcome(work_item_id="bd-ib-demo"),),
+        journal=journal,
+        journal_path=journal_path,
+        sink=RunTurnSink(path=tmp_path / "run-turn.json"),
+    )
+
+    check = _records(path=journal_path)[-1]
+    assert check["dispatch_id"] == ""
+    assert check["run_turn_exported"] is False
+
+
+def test_run_turn_sink_skips_spans_without_correlation_ids(tmp_path: Path) -> None:
+    sink = RunTurnSink(path=tmp_path / "run-turn.json")
+    assert (
+        sink.record_export(
+            span={"name": "run_turn"},
+            resource_attrs={},
+            dataset="fabro",
+            at=10.0,
+        )
+        is False
+    )
+    assert sink.has_export(keys=("",)) is False
+
+
+@pytest.mark.parametrize("raw", ["not-json", "[]", json.dumps({"key": True, "other": "text"})])
+def test_run_turn_sink_reads_malformed_files_as_empty(tmp_path: Path, raw: str) -> None:
+    path = tmp_path / "run-turn.json"
+    _ = path.write_text(raw, encoding="utf-8")
+    assert RunTurnSink(path=path).has_export(keys=("key", "other")) is False
+
+
+def test_run_turn_sink_read_failure_is_empty(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "run-turn.json"
+    _ = path.write_text("{}", encoding="utf-8")
+
+    def _raise_read_text(self: Path, encoding: str | None = None) -> str:
+        _ = (self, encoding)
+        raise OSError("unreadable")
+
+    monkeypatch.setattr(Path, "read_text", _raise_read_text)
+    assert RunTurnSink(path=path).has_export(keys=("key",)) is False
+
+
+def test_run_turn_sink_scrubs_persisted_keys(tmp_path: Path) -> None:
+    path = tmp_path / "run-turn.json"
+    _ = path.write_text(
+        json.dumps({"https://x-access-token:ghp_SECRET@github.com/o/r": 10.0}),
+        encoding="utf-8",
+    )
+    assert RunTurnSink(path=path).has_export(keys=("[redacted-credential-shaped-value]",)) is True
+
+
+def test_run_turn_sink_write_failure_is_fail_open(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "run-turn.json"
+
+    def _raise_write_text(self: Path, text: str, encoding: str | None = None) -> int:
+        _ = (self, text, encoding)
+        raise OSError("disk full")
+
+    monkeypatch.setattr(Path, "write_text", _raise_write_text)
+    recorded = RunTurnSink(path=path).record_export(
+        span={"name": "run_turn"},
+        resource_attrs={"work.item.id": "bd-ib-demo"},
+        dataset="fabro",
+        at=10.0,
+    )
+    assert recorded is True
+    assert path.exists() is False
+
+
+def test_run_turn_sink_skips_malformed_span_attrs(tmp_path: Path) -> None:
+    sink = RunTurnSink(path=tmp_path / "run-turn.json")
+    recorded = sink.record_export(
+        span={
+            "name": "run_turn",
+            "attributes": [
+                "not-a-dict",
+                {"key": 7, "value": {"stringValue": "ignored"}},
+                {"key": "work.item.id", "value": "not-a-dict"},
+                {"key": "work.item.id", "value": {"intValue": "7"}},
+            ],
+        },
+        resource_attrs={"livespec.dispatch.id": "dispatch-1"},
+        dataset="fabro",
+        at=10.0,
+    )
+    assert recorded is True
+    assert sink.has_export(keys=("ignored", "7")) is False
+    assert sink.has_export(keys=("dispatch-1",)) is True

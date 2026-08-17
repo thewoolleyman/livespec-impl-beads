@@ -161,6 +161,26 @@ def test_scan_reports_journal_signals_timeout_retry_sizing() -> None:
     assert retry.count == 2
 
 
+def test_scan_reports_missing_run_turn_telemetry_as_critical() -> None:
+    records = _records(
+        {
+            "stage": "run-turn-telemetry-check",
+            "work_item_id": "a-1",
+            "run_turn_exported": False,
+        },
+        {
+            "stage": "run-turn-telemetry-check",
+            "work_item_id": "b-2",
+            "run_turn_exported": True,
+        },
+    )
+    report = reflection.scan_outcomes(outcomes=(_outcome(),), records=records, mode="observe")
+    finding = next(f for f in report.findings if f.category == "run-turn-telemetry-absent")
+    assert finding.severity == "critical"
+    assert finding.count == 1
+    assert "a-1" in finding.subject
+
+
 def test_scan_no_signals_yields_no_findings() -> None:
     report = reflection.scan_outcomes(outcomes=(_outcome(),), records=(), mode="observe")
     assert report.findings == ()

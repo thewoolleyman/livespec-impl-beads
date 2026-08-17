@@ -38,6 +38,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_selection impor
 from livespec_orchestrator_beads_fabro.commands._dispatcher_otel_wiring import arm_otel_egress
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
     journal_path,
+    run_turn_sink_path,
     spans_path,
     store_config,
 )
@@ -49,6 +50,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_run_checks import (
     dispatch_preamble,
     requested_items_preflight_error,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_run_turn_guard import (
+    append_run_turn_checks,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_run_turn_sink import RunTurnSink
 from livespec_orchestrator_beads_fabro.commands._dispatcher_self_update import (
     post_verdict_runner,
     self_update_after_verdict,
@@ -123,10 +128,17 @@ def run_loop_command(*, args: argparse.Namespace) -> int:
         journal=journal,
         runner=post_verdict_runner(runner=None),
     )
+    dispatch_journal_path = journal_path(args=args, repo=repo)
+    append_run_turn_checks(
+        outcomes=tuple(outcomes),
+        journal=journal,
+        journal_path=dispatch_journal_path,
+        sink=RunTurnSink(path=run_turn_sink_path(args=args, repo=repo)),
+    )
     reflect(
         outcomes=outcomes,
         journal=journal,
-        journal_path=journal_path(args=args, repo=repo),
+        journal_path=dispatch_journal_path,
         spans_path=spans_path(args=args, repo=repo),
     )
     reflector_oob_after_verdict(args=args, repo=repo, journal=journal)
