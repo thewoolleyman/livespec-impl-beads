@@ -9,6 +9,7 @@ from livespec_orchestrator_beads_fabro.effects import JsonParseFailure, parse_js
 
 __all__: list[str] = [
     "items_with_retries",
+    "items_with_run_turn_absence",
     "items_with_sizing_warn",
     "items_with_timeout",
     "read_journal_records",
@@ -76,6 +77,19 @@ def items_with_sizing_warn(*, records: tuple[dict[str, object], ...]) -> tuple[s
             item = rec.get("work_item_id")
             if isinstance(item, str) and item not in ids:
                 ids.append(item)
+    return tuple(ids)
+
+
+def items_with_run_turn_absence(*, records: tuple[dict[str, object], ...]) -> tuple[str, ...]:
+    ids: list[str] = []
+    for rec in records:
+        if rec.get("stage") != "run-turn-telemetry-check":
+            continue
+        if rec.get("run_turn_exported") is not False:
+            continue
+        item = rec.get("work_item_id")
+        if isinstance(item, str) and item not in ids:
+            ids.append(item)
     return tuple(ids)
 
 

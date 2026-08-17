@@ -17,8 +17,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
     cost_sink_path,
     heartbeat_path,
     reflector_oob_spans_path,
+    run_turn_sink_path,
     spans_path,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_run_turn_sink import RunTurnSink
 from livespec_orchestrator_beads_fabro.commands._otel_receive import (
     HeartbeatSink,
     OtelReceiver,
@@ -72,12 +74,14 @@ def _build_otel_receiver(*, args: argparse.Namespace, repo: Path) -> StartableSe
     exporter = HoneycombHttpExporter(ingest_key=os.environ.get(_HONEYCOMB_INGEST_KEY_ENV, ""))
     heartbeat = HeartbeatSink(path=heartbeat_path(args=args, repo=repo))
     cost = CostSink(path=cost_sink_path(args=args, repo=repo))
+    run_turn = RunTurnSink(path=run_turn_sink_path(args=args, repo=repo))
     default_model = os.environ.get(DEFAULT_DISPATCH_COST_MODEL_ENV, "").strip() or None
     return OtelReceiver(
         config=config,
         exporter=exporter,
         heartbeat=heartbeat,
         cost=cost,
+        run_turn=run_turn,
         default_model=default_model,
     )
 

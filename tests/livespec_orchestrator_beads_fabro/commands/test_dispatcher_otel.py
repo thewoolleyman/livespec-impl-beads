@@ -134,6 +134,8 @@ def test_default_otel_receiver_factory_builds_without_starting(
     assert receiver.config.port == 0
     assert receiver.is_running() is False
     assert receiver.heartbeat.path == tmp_path / "j-otel-heartbeat.json"
+    assert receiver.run_turn is not None
+    assert receiver.run_turn.path == tmp_path / "j-run-turn-exports.json"
 
 
 @dataclass(kw_only=True)

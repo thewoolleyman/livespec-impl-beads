@@ -13,6 +13,7 @@ def test_dispatcher_paths_exports_promoted_public_helpers() -> None:
         "journal_path",
         "plugin_root",
         "reflector_oob_spans_path",
+        "run_turn_sink_path",
         "spans_path",
         "store_config",
         "workflow_toml",

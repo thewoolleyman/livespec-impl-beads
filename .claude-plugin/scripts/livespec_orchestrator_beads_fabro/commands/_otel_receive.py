@@ -19,6 +19,7 @@ from socket import AF_INET, SHUT_RDWR, SO_REUSEADDR, SOCK_STREAM, SOL_SOCKET, so
 from typing import Protocol, cast
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_cost_sink import CostSink
+from livespec_orchestrator_beads_fabro.commands._dispatcher_run_turn_sink import RunTurnSink
 from livespec_orchestrator_beads_fabro.commands._otel_enrich import (
     CorrelationJoin,
     correlation_keys_from_attrs,
@@ -43,6 +44,7 @@ __all__: list[str] = [
     "HeartbeatSink",
     "OtelReceiver",
     "ReceiverConfig",
+    "RunTurnSink",
     "SpanExporter",
     "StartableServer",
     "ensure_receiver_started",
@@ -197,6 +199,7 @@ class OtelReceiver:
     exporter: SpanExporter
     heartbeat: HeartbeatSink
     cost: CostSink | None = None
+    run_turn: RunTurnSink | None = None
     join: CorrelationJoin = field(default_factory=CorrelationJoin)
     default_model: str | None = None
     bound_port: int = 0
@@ -280,8 +283,26 @@ class OtelReceiver:
             dataset = honeycomb_dataset_for(resource_attrs=ingested.resource_attrs)
             per_dataset.setdefault(dataset, []).append(enriched)
         for dataset, batch in per_dataset.items():
-            _ = self.exporter.export(spans=tuple(batch), dataset=dataset)
+            exported = self.exporter.export(spans=tuple(batch), dataset=dataset)
+            if exported and self.run_turn is not None:
+                self._record_run_turn_exports(dataset=dataset, batch=tuple(batch))
         reply(handler=handler, status=HTTPStatus.OK)
+
+    def _record_run_turn_exports(
+        self,
+        *,
+        dataset: str,
+        batch: tuple[dict[str, object], ...],
+    ) -> None:
+        run_turn = cast("RunTurnSink", self.run_turn)
+        now = time.time()
+        for span in batch:
+            _ = run_turn.record_export(
+                span=span,
+                resource_attrs={},
+                dataset=dataset,
+                at=now,
+            )
 
     def _handle_metrics(self, *, handler: HttpPostHandler) -> None:
         parsed = read_json_body(handler=handler)
