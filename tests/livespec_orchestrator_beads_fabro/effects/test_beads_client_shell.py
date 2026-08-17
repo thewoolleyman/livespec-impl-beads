@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 from pathlib import Path
@@ -44,6 +45,127 @@ def _fake_bd_config_get(counter: list[str]) -> object:
         return subprocess.CompletedProcess(args=argv, returncode=0, stdout=value + "\n", stderr="")
 
     return run
+
+
+def _server_mode_repo(*, tmp_path: Path) -> tuple[Path, Path]:
+    """A repo root whose `.beads/config.yaml` declares server mode."""
+    repo_root = tmp_path / "repo"
+    config_path = repo_root / ".beads" / "config.yaml"
+    config_path.parent.mkdir(parents=True)
+    _ = config_path.write_text("dolt:\n  mode: server\n", encoding="utf-8")
+    return repo_root, config_path
+
+
+def _cache_path(*, repo_root: Path) -> Path:
+    return repo_root / ".beads" / "tenant-verification-cache.json"
+
+
+def test_fresh_process_reuses_the_file_cached_tenant_verification(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A one-shot CLI process must not re-spawn `bd config get`.
+
+    Clearing the in-process memo stands in for a brand-new wrapper process
+    (scripts/bin/list_work_items.py and friends spawn, make one or two bd calls,
+    and exit). The tier-2 file cache in `.beads/` must satisfy the verification
+    with zero new subprocess spawns.
+    """
+    repo_root, _ = _server_mode_repo(tmp_path=tmp_path)
+    config = _tenant_config(repo_root=repo_root)
+    calls: list[str] = []
+    monkeypatch.setattr(shell.subprocess, "run", _fake_bd_config_get(calls))
+    shell.reset_tenant_verification_memo()
+
+    shell.assert_repo_root_matches_config(config=config, repo_root=repo_root)
+    assert len(calls) == 2
+
+    shell.reset_tenant_verification_memo()
+    shell.assert_repo_root_matches_config(config=config, repo_root=repo_root)
+
+    assert len(calls) == 2
+    assert _cache_path(repo_root=repo_root).exists()
+
+
+def test_config_file_change_invalidates_the_file_cached_verification(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo_root, config_path = _server_mode_repo(tmp_path=tmp_path)
+    config = _tenant_config(repo_root=repo_root)
+    calls: list[str] = []
+    monkeypatch.setattr(shell.subprocess, "run", _fake_bd_config_get(calls))
+    shell.reset_tenant_verification_memo()
+    shell.assert_repo_root_matches_config(config=config, repo_root=repo_root)
+
+    shell.reset_tenant_verification_memo()
+    stat = config_path.stat()
+    os.utime(config_path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
+    shell.assert_repo_root_matches_config(config=config, repo_root=repo_root)
+
+    assert len(calls) == 4
+
+
+def test_expired_file_cache_entries_are_reverified(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The TTL bounds a positive whose config identity never changed."""
+    repo_root, _ = _server_mode_repo(tmp_path=tmp_path)
+    config = _tenant_config(repo_root=repo_root)
+    calls: list[str] = []
+    monkeypatch.setattr(shell.subprocess, "run", _fake_bd_config_get(calls))
+    shell.reset_tenant_verification_memo()
+    shell.assert_repo_root_matches_config(config=config, repo_root=repo_root)
+
+    cache_path = _cache_path(repo_root=repo_root)
+    cached: dict[str, float] = json.loads(cache_path.read_text(encoding="utf-8"))
+    _ = cache_path.write_text(json.dumps({key: 0.0 for key in cached}), encoding="utf-8")
+    shell.reset_tenant_verification_memo()
+    shell.assert_repo_root_matches_config(config=config, repo_root=repo_root)
+
+    assert len(calls) == 4
+
+
+def test_corrupt_file_cache_is_treated_as_a_miss_and_overwritten(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo_root, _ = _server_mode_repo(tmp_path=tmp_path)
+    config = _tenant_config(repo_root=repo_root)
+    cache_path = _cache_path(repo_root=repo_root)
+    _ = cache_path.write_text("{ not json at all", encoding="utf-8")
+    calls: list[str] = []
+    monkeypatch.setattr(shell.subprocess, "run", _fake_bd_config_get(calls))
+    shell.reset_tenant_verification_memo()
+
+    shell.assert_repo_root_matches_config(config=config, repo_root=repo_root)
+    assert len(calls) == 2
+
+    shell.reset_tenant_verification_memo()
+    shell.assert_repo_root_matches_config(config=config, repo_root=repo_root)
+
+    assert len(calls) == 2
+    rewritten: dict[str, float] = json.loads(cache_path.read_text(encoding="utf-8"))
+    assert len(rewritten) == 1
+
+
+def test_tenant_mismatch_without_a_config_file_is_never_file_cached(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only POSITIVE verifications are cached; a mismatch keeps raising."""
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    config = _tenant_config(repo_root=repo_root)
+
+    def run(argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            args=argv, returncode=0, stdout="other-tenant\n", stderr=""
+        )
+
+    monkeypatch.setattr(shell.subprocess, "run", run)
+    shell.reset_tenant_verification_memo()
+
+    with pytest.raises(BeadsConnectionError):
+        shell.assert_repo_root_matches_config(config=config, repo_root=repo_root)
+
+    assert not _cache_path(repo_root=repo_root).exists()
 
 
 def test_repeat_tenant_verification_reuses_memo_for_process_lifetime(
