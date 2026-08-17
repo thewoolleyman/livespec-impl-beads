@@ -289,10 +289,14 @@ def _refreshing_gh_prepare_steps_block() -> str:
         'cat > "$bin/gh" <<EOF\n'
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
-        'token="\\$("$mint")"\n'
-        'export GH_TOKEN="\\$token"\n'
-        'export GITHUB_TOKEN="\\$token"\n'
-        'exec "$real_gh" "\\$@"\n'
+        'mint="$mint"\n'
+        'real_gh="$real_gh"\n'
+        "EOF\n"
+        "cat >> \"$bin/gh\" <<'EOF'\n"
+        'token="$(python3 "$mint")"\n'
+        'export GH_TOKEN="$token"\n'
+        'export GITHUB_TOKEN="$token"\n'
+        'exec "$real_gh" "$@"\n'
         "EOF\n"
         'chmod 700 "$bin/gh"'
     )
@@ -300,7 +304,7 @@ def _refreshing_gh_prepare_steps_block() -> str:
         "",
         "# --- Dispatcher-materialized livespec-refreshing-gh-wrapper ---",
         "[[run.prepare.steps]]",
-        f"script = {json.dumps(script)}",
+        f"script = '''\n{script}\n'''",
     ]
     return "\n".join(lines) + "\n"
 
@@ -313,7 +317,8 @@ def _refreshing_gh_env_lines() -> str:
         for key in _GITHUB_APP_ENV_KEYS
         if (value := os.environ.get(key)) not in (None, "")
     )
-    return f"PATH = {json.dumps(f'{_GH_REFRESH_BIN}:{_SANDBOX_DEFAULT_PATH}')}\n" + app_env_lines
+    inherited_path = os.environ.get("PATH") or _SANDBOX_DEFAULT_PATH
+    return f"PATH = {json.dumps(f'{_GH_REFRESH_BIN}:{inherited_path}')}\n" + app_env_lines
 
 
 def _github_app_env_present() -> bool:
