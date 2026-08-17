@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.57.7](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.57.6...v0.57.7) (2026-08-17)
+
+
+### Bug Fixes
+
+* **pre-commit:** wire repo-state checks into the doc-only subset ([93d5f5a](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/93d5f5af7999673d1626647efe621a188e593751))
+
 ## [0.57.6](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.57.5...v0.57.6) (2026-08-17)
 
 
