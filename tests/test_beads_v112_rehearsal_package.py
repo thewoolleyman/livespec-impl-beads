@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import runpy
 import sys
@@ -262,9 +263,7 @@ def test_anchor_probe_contract_is_single_statement_and_refuses_query_surface(
 ) -> None:
     module = _anchor_probe_module()
     assert module.ALLOWED_QUERY == "SELECT DATABASE(), CURRENT_USER(), @@hostname, @@port"
-    assert module.ALLOWED_QUERY_SHA256 == (
-        "9308612c4a6f2f24c7c4c6f4a5a1ffc141cebc67eb0a4dc7794debcf7a6f66d4"
-    )
+    assert hashlib.sha256(module.ALLOWED_QUERY.encode()).hexdigest() == module.ALLOWED_QUERY_SHA256
     assert module.statement_count() == 1
     assert module.is_query_allowed(query=module.ALLOWED_QUERY) is True
     for query in [
