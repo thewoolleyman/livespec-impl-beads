@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.58.8](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.7...v0.58.8) (2026-08-17)
+
+
+### Bug Fixes
+
+* reject pi-incompatible skill frontmatter ([fcf3e86](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/fcf3e86d938ceb8655909d372bb9fe91409a1981))
+
 ## [0.58.7](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.6...v0.58.7) (2026-08-17)
 
 
