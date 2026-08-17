@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.57.6](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.57.5...v0.57.6) (2026-08-17)
+
+
+### Bug Fixes
+
+* **check:** harden the coverage dedup — clean-env producer + consume-once consumer ([23aaf21](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/23aaf21b3347e80ba547c9d00e8151019518322c))
+* correct rehearsal fixture label identity ([c426a43](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/c426a432b75db86dd8369983dadca5627cc921d2))
+* **dispatcher:** widen review-gate verdicts to not-reached and blocked ([88f2276](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/88f2276eb99d1231fa224f330d38dad65cf1c5eb))
+* **effects:** memoize repo tenant verification between bd invocations ([80bf7d6](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/80bf7d68ce55e44d4a4526819489f42b72d5dd3f))
+
 ## [0.57.5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.57.4...v0.57.5) (2026-08-16)
 
 
