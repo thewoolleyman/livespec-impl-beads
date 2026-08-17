@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.58.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.0...v0.58.1) (2026-08-17)
+
+
+### Bug Fixes
+
+* persist dispatch factory metadata ([1485021](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/148502170719ddc0278f4503ec0ab09c49c44b30))
+
 ## [0.58.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.57.7...v0.58.0) (2026-08-17)
 
 
