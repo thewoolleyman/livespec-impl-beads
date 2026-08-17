@@ -63,7 +63,7 @@ from livespec_orchestrator_beads_fabro.commands._sibling_status_lookup import (
 )
 from livespec_orchestrator_beads_fabro.io import write_stderr, write_stdout
 from livespec_orchestrator_beads_fabro.store import (
-    dispatch_factory_for,
+    dispatch_factories_for,
     materialize_work_items,
     read_work_items,
 )
@@ -231,7 +231,8 @@ def _load_work_items(*, path: StoreConfig) -> list[WorkItem]:
 
 
 def _dispatch_factories(*, path: StoreConfig, items: list[WorkItem]) -> dict[str, str | None]:
-    return {item.id: dispatch_factory_for(path=path, work_item_id=item.id) for item in items}
+    factories = dispatch_factories_for(path=path)
+    return {item.id: factories.get(item.id) for item in items}
 
 
 def _parse_positive_int(*, raw: str, flag: str) -> int | None:

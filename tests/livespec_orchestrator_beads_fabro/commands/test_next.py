@@ -13,8 +13,10 @@ fixture) via `append_work_item` with a `fake=True` connection descriptor.
 """
 
 import json
+from unittest.mock import Mock
 
 import pytest
+from livespec_orchestrator_beads_fabro import _store_dispatch_factory
 from livespec_orchestrator_beads_fabro.commands.next import (
     build_envelope,
     main,
@@ -302,9 +304,17 @@ def test_main_json_output_envelope_shape(
 
 def test_main_json_output_includes_dispatch_factory(
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _seed(_item(id_="li-x"))
     record_dispatch_factory(path=_config(), work_item_id="li-x", factory="remote")
+
+    monkeypatch.setattr(
+        _store_dispatch_factory,
+        "read_work_item_comments",
+        Mock(side_effect=AssertionError("next must not read dispatch-factory comments")),
+    )
+
     rc = main(argv=["--json"])
     captured = capsys.readouterr()
     assert rc == 0

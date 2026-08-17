@@ -8,9 +8,10 @@ process-singleton fake makes the seeded writes visible to `main`.
 """
 
 import json
+from unittest.mock import Mock
 
 import pytest
-from livespec_orchestrator_beads_fabro.commands import list_work_items
+from livespec_orchestrator_beads_fabro import _store_dispatch_factory
 from livespec_orchestrator_beads_fabro.commands.list_work_items import main
 from livespec_orchestrator_beads_fabro.store import append_work_item, record_dispatch_factory
 from livespec_orchestrator_beads_fabro.types import AuditRecord, StoreConfig, WorkItem
@@ -232,18 +233,13 @@ def test_main_json_skips_dispatch_factory_lookup_for_closed_items(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _seed(_item(id_="li-live"))
+    record_dispatch_factory(path=_config(), work_item_id="li-live", factory="remote")
     _seed(_item(id_="li-closed", status="done"))
-    looked_up: list[str] = []
-
-    def fake_dispatch_factory_for(*, path: StoreConfig, work_item_id: str) -> str | None:
-        _ = path
-        looked_up.append(work_item_id)
-        return "remote"
 
     monkeypatch.setattr(
-        list_work_items,
-        "dispatch_factory_for",
-        fake_dispatch_factory_for,
+        _store_dispatch_factory,
+        "read_work_item_comments",
+        Mock(side_effect=AssertionError("list-work-items must not read dispatch-factory comments")),
     )
 
     rc = main(argv=["--json"])
@@ -251,7 +247,6 @@ def test_main_json_skips_dispatch_factory_lookup_for_closed_items(
 
     assert rc == 0
     payload = _by_id(json.loads(captured.out))
-    assert looked_up == ["li-live"]
     assert payload["li-live"]["dispatch_factory"] == "remote"
     assert payload["li-closed"]["dispatch_factory"] is None
 
