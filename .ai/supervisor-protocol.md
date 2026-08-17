@@ -1,9 +1,12 @@
 # Supervisor Protocol
 
 Shared role-level instructions for every generated supervisor handoff in this
-repository. A per-thread binder at
-`plan/<topic>/supervisor-handoff.md` supplies concrete startup bindings,
-thread-specific valves, and its own Corrections log.
+repository. The per-thread binder supplies concrete startup bindings,
+thread-specific valves, and its own Corrections log, and is published as
+supervisor handoff entries appended to the governed plan's ledger epic — never
+as a file under `plan/<topic>/`. A pre-existing
+`plan/<topic>/supervisor-handoff.md` from before this change stays where it
+is; only new authorship moved to the ledger.
 
 ## HALT-first preconditions
 
@@ -193,6 +196,56 @@ or close the sender's obligation while either confirmation is absent. A
 `wake_mechanism` of `NONE ARMED` is permitted only with an explicit timeout and
 timeout-and-escalate action.
 
+## Supervisor completion gate
+
+The marker at `<repo-primary>/tmp/overseer/<topic>/.supervisor-state` is
+structured supervisor state for the Driver-owned Stop/completion gate. It is
+not the worker's own `.overseer-state`, never authorizes a daemon restart, and
+is not the overseer daemon's semantic judgment.
+
+Emit and preserve this schema:
+
+```yaml
+supervision_active: <true|false>
+topic: <topic>
+updated_at: <iso8601-utc>
+objective: <current supervisor objective>
+open_obligations: []
+completion_disposition:
+  kind: <plan-complete|maintainer-blocking|none>
+  question: <exactly one genuine maintainer-blocking question, or none>
+wake_producer:
+  kind: <pane-watcher|overseer-daemon|forge-ci|ledger|none>
+  live_pid: <pid for pane watcher or daemon, or none>
+  expected_command: <expected process command, or none>
+  identity: <expected pane, daemon, check, ledger, or producer identity>
+  registered_producer_identity: <authoritative registered producer identity, or none>
+  cold_reentry: <how the producer cold-opens from this marker and re-queries fresh state>
+```
+
+The gate MUST fail closed while `supervision_active` is true. Missing,
+malformed, stale, or unreadable state; any open obligation; an unknown
+completion disposition; a non-terminal disposition; or unknown wake-producer
+evidence MUST refuse completion. The gate may permit completion only for an
+explicit `plan-complete`, or for exactly one genuine maintainer-blocking
+question. It MUST NOT infer either disposition from assistant final-response
+text or pane text; neither is ever completion evidence. A second or
+non-maintainer blocking question refuses completion.
+
+A permitted end that leaves supervision active also requires an independently
+verifiable wake producer. A pane watcher or overseer daemon is proved by
+`live_pid`, `expected_command`, and `identity`; a forge/CI or ledger watcher is
+proved by its authoritative registered producer identity. A prose claim is
+never proof. The verified producer must cold-open the supervisor from this
+marker and re-query fresh ledger and forge state; the ended turn is never the
+wake mechanism.
+
+Ordinary user messages are additive while `supervision_active` is true: add
+them to the recorded objective and obligations without clearing either. Only
+the literal command `stop supervising <topic>` clears supervision, and only
+the literal command `replace supervision objective` replaces the recorded
+objective.
+
 ## Never end a turn without an armed re-entry
 
 Any open obligation triggers this rule, whoever holds it. A tmux worker is
@@ -243,12 +296,60 @@ state first. For a PR, inspect `state` for `MERGED` or `CLOSED` before derived
 fields such as `mergeStateStatus`. Treat an unknown value as a wake requiring
 inspection, never as permission to wait silently.
 
+## Supervisor scratch discipline
+
+Only JSON may live under `tmp/supervisor/`. The only place prose may live is
+`tmp/supervisor/briefs/`, which holds briefs for the supervised session to
+read, and only that. A brief may cite but never contain: anything
+load-bearing must first land as a ledger item, research note, or charter
+Corrections entry, and the brief then points at it. A changeset is never an
+artifact: a staged set of file changes with diffs and intent held for review
+is a branch and a pull request, never a hand-rolled directory.
+
 ## AskUserQuestion presentation rules
 
 Every maintainer-facing action uses one `AskUserQuestion` call containing all
 ripe valves for the turn. Put the recommended option first and label it
 Recommended. State each option's cost, use full repository and work-item names,
 and place `---` on the final line before the picker.
+
+## An empty result is not a finding. Run a positive control first.
+
+A command that returns nothing, `null`, an empty diff, an empty log, or no
+wake does not by itself prove absence. Some tools return exit 0 for a
+pathspec that matches no tracked file, for a query pointed at the wrong
+field, or for a watcher polling a signal the real gate never reads. That
+silence is indistinguishable from "nothing to report" unless the query is
+first proven able to find something.
+
+Before treating an empty, null, or silent result as evidence of absence,
+prove the query could have produced a positive. Run a positive control
+against the same command shape: a file you know differs, a field you know is
+populated, a state you know is present, or a gate input you know is
+non-zero. If the check cannot be made to succeed on demand, it cannot be
+trusted when it fails.
+
+When a worker contradicts a supervisor assertion, start from the assumption
+that the supervisor is wrong until the exact command has been re-run with a
+positive control. The worker may have run the real command while the
+supervisor ran only a paraphrase of it.
+
+## A wait is not a question. A mechanical unblock is not a question.
+
+Waiting on a shared resource is work, not a maintainer decision. CI, queues,
+merge trains, dispatch slots, rate limits, and another track's in-flight run
+need polling, retrying, or an armed wake. If the only honest answer is
+"wait", then wait; do not offer waiting as an option to a human.
+
+If the supervisor can perform the unblock, perform it. Before surfacing any
+block, ask whether it can be handled from the supervisor pane: sending a
+slash command, reading a file, fetching the forge, querying the ledger,
+measuring a gate, or driving a retry is supervisor work.
+
+Never end a turn on a report while a mechanical unblock is available. A
+status report is not a work product. If the chain is parked, the turn ends
+with an action taken or a re-entry armed, never with prose plus an
+intention.
 
 ## Standing safety clauses
 
