@@ -180,6 +180,32 @@ def test_a_missing_description_is_reported(surface: Path) -> None:
     )
 
 
+def test_an_unquoted_frontmatter_value_with_colon_space_is_reported(surface: Path) -> None:
+    path = _binding(root=surface, operation="next")
+    path.write_text(
+        path.read_text(encoding="utf-8").replace(
+            "description: Thin pi binding of next.",
+            "description: Thin pi binding of next. Mutating: it writes records.",
+        ),
+        encoding="utf-8",
+    )
+    assert any(
+        "carries no description" in violation for violation in _CHECK.violations(root=surface)
+    )
+
+
+def test_a_quoted_frontmatter_value_with_colon_space_is_accepted(surface: Path) -> None:
+    path = _binding(root=surface, operation="next")
+    path.write_text(
+        path.read_text(encoding="utf-8").replace(
+            "description: Thin pi binding of next.",
+            'description: "Thin pi binding of next. Mutating: it writes records."',
+        ),
+        encoding="utf-8",
+    )
+    assert _CHECK.violations(root=surface) == []
+
+
 def test_missing_allowed_tools_is_reported(surface: Path) -> None:
     path = _binding(root=surface, operation="next")
     path.write_text(

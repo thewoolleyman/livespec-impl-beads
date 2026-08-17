@@ -90,7 +90,10 @@ _NAME_RULES = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _NAME_LIMIT = 64
 _FENCE = "```"
 _WRAPPER_INVOCATION_RE = re.compile(r"bin/[a-z_]+\.py\b")
-_FRONTMATTER_FIELD_RE = re.compile(r"^([a-z-]+):\s*(\S.*?)\s*$", re.MULTILINE)
+_FRONTMATTER_FIELD_RE = re.compile(
+    r"""^([a-z-]+):\s*(?:(["'])(.*?)\2|((?=\S)(?!.*:\s).*?))\s*$""",
+    re.MULTILINE,
+)
 # Assembled from parts so this checker file itself never contains the literal
 # placeholder token it bans.
 _CLAUDE_ROOT_TOKEN = "${CLAUDE_PLUGIN" + "_ROOT}"
@@ -117,7 +120,7 @@ def _frontmatter(*, text: str) -> dict[str, str]:
             break
         matched = _FRONTMATTER_FIELD_RE.match(line)
         if matched:
-            fields[matched.group(1)] = matched.group(2)
+            fields[matched.group(1)] = matched.group(3) or matched.group(4)
     return fields
 
 

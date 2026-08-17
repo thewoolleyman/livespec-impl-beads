@@ -1,6 +1,6 @@
 ---
 name: livespec-orchestrator-beads-fabro-drive
-description: Execute exactly one operator action id against the target repository — a dispatch action, a human valve or policy action, or a config action. Use when the user has selected an action id from the attention surface and wants it executed. Mutating: it drives dispatch and policy writes.
+description: "Execute exactly one operator action id against the target repository — a dispatch action, a human valve or policy action, or a config action. Use when the user has selected an action id from the attention surface and wants it executed. Mutating: it drives dispatch and policy writes."
 allowed-tools: bash
 ---
 
