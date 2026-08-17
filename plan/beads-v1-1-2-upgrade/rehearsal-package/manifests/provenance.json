@@ -20,6 +20,7 @@
     "annotated_tag": "fa78674f17071fd9de6d44a77e5e13b460e5fd24",
     "tag_peel_commit": "6a3f515ced18406c189c55fff789a4925bfaa35c",
     "source_archive_url": "https://github.com/gastownhall/beads/archive/6a3f515ced18406c189c55fff789a4925bfaa35c.tar.gz",
+    "source_archive_sha256": "f358da9f2db1dcf189fdd6d4c95f95cd40b82c82854471deb4c9969feb2dc9e3",
     "missing_linux_amd64_asset_status": 404,
     "required_toolchain": "go1.26.2",
     "build_command": "go build -trimpath -ldflags=-buildid= -o bd ./cmd/bd",
@@ -30,5 +31,21 @@
       "executable_sha256",
       "version_stdout"
     ]
+  },
+  "anchor_probe": {
+    "implementation": "wrappers/anchor-probe.py",
+    "implementation_sha256": "2610d0893d38c0228cdee09d71904c490053493fa68e41d1819d93750b409c7d",
+    "dependency_lock": "locks/dependencies.lock",
+    "dependency_lock_sha256": "60f1d9b0accc21fb8c35c16e3b6f2a33c973ca7b94b068650c78764fe8548d46",
+    "query": "SELECT DATABASE(), CURRENT_USER(), @@hostname, @@port",
+    "query_sha256": "9308612c4a6f2f24c7c4c6f4a5a1ffc141cebc67eb0a4dc7794debcf7a6f66d4",
+    "statement_count": 1,
+    "read_only_transaction": true,
+    "dependencies": []
+  },
+  "wrappers": {
+    "with_client_sha256": "ed1b67dc04997186b865ca28f4188079b0eef67ddd4a918d315ae1a637e13496",
+    "assert_client_anchor_sha256": "91d93db8cef1eaae00cf9e7f70e50506eee1b383759f0e3b044388ada91d5a9e",
+    "capture_inventory_sha256": "16d320d32d008aa7f0fde1047b3cbe39126143b8770bd4cacc5a8d88ebf2f3ba"
   }
 }

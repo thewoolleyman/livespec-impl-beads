@@ -12,6 +12,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "plan" / "beads-v1-1-2-upgrade" / "rehearsal-package"
 IDENTITY_PROBE = PACKAGE / "wrappers" / "identity-probe.py"
+ANCHOR_PROBE = PACKAGE / "wrappers" / "anchor-probe.py"
 
 
 def _json(path: Path) -> object:
@@ -25,6 +26,51 @@ def _identity_probe_module() -> ModuleType:
     module = util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _anchor_probe_module() -> ModuleType:
+    assert ANCHOR_PROBE.is_file()
+    spec = util.spec_from_file_location("beads_v112_anchor_probe", ANCHOR_PROBE)
+    assert spec is not None
+    assert spec.loader is not None
+    module = util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _assert_three_shape_topology(*, topology: dict[str, object]) -> None:
+    assert topology["isolated_server"]["bind"] == "127.0.0.1:13307"
+    assert topology["isolated_server"]["forbidden_ports"] == [3307]
+    assert topology["shape_codes"] == {
+        "dense_policy": "dp",
+        "sparse_closed": "sc",
+        "rig_wisp": "rw",
+    }
+    assert topology["role_codes"] == {"source": "s", "migrated": "m", "restored": "r"}
+
+    database_names: set[str] = set()
+    client_dirs: set[str] = set()
+    sql_users: set[str] = set()
+    for shape in ("dense_policy", "sparse_closed", "rig_wisp"):
+        shape_row = topology["shapes"][shape]
+        assert set(shape_row["databases"]) == {"source", "migrated", "restored"}
+        for role, row in shape_row["databases"].items():
+            database_names.add(row["database"])
+            client_dirs.add(row["client_dir"])
+            sql_users.add(row["sql_user"])
+            assert "${RUN_ID}" in row["database"]
+            assert row["client_dir"] == "${RUN_ROOT}/clients/" + row["database"]
+            assert row["sql_user"].startswith("b112_${RUN_ID}_")
+            assert row["sql_user"].endswith("_" + topology["role_codes"][role])
+    assert len(database_names) == 9
+    assert len(client_dirs) == 9
+    assert len(sql_users) == 9
+    assert topology["golden_schema_database"] == {
+        "database": "beads112_${RUN_ID}_golden",
+        "client_dir": "${RUN_ROOT}/clients/beads112_${RUN_ID}_golden",
+        "sql_user": "b112_${RUN_ID}_g",
+        "role": "schema-reference-only",
+    }
 
 
 def test_rehearsal_package_declares_only_the_allowed_production_surface() -> None:
@@ -185,3 +231,199 @@ def test_identity_probe_requires_input_path(monkeypatch) -> None:
     with pytest.raises(SystemExit) as error:
         module.main()
     assert str(error.value) == "usage: identity-probe.py ISSUES_JSON"
+
+
+def test_manifest_declares_run_roots_and_isolated_three_shape_topology() -> None:
+    manifest_path = PACKAGE / "manifests" / "run-manifest.contract.json"
+    assert manifest_path.is_file()
+    manifest = _json(manifest_path)
+    topology = _json(PACKAGE / "manifests" / "topology.json")
+    assert isinstance(manifest, dict)
+    assert manifest["run_id"]["name"] == "RUN_ID"
+    assert manifest["run_id"]["pattern"] == "^[0-9]{8}t[0-9]{6}z$"
+    assert manifest["run_root"]["template"] == "/var/tmp/beads112-rehearsal.${RUN_ID}"
+    assert (
+        manifest["receipt_root"]["template"]
+        == "/home/ubuntu/.local/state/livespec-proof-logs/beads112-${RUN_ID}"
+    )
+    assert manifest["directory_preconditions"] == {
+        "run_root_must_not_exist": True,
+        "receipt_root_must_not_exist": True,
+        "symlink_resolution_forbidden": True,
+        "owner_only_receipt_root": True,
+    }
+
+    assert isinstance(topology, dict)
+    _assert_three_shape_topology(topology=topology)
+
+
+def test_anchor_probe_contract_is_single_statement_and_refuses_query_surface(
+    monkeypatch,
+) -> None:
+    module = _anchor_probe_module()
+    assert module.ALLOWED_QUERY == "SELECT DATABASE(), CURRENT_USER(), @@hostname, @@port"
+    assert module.ALLOWED_QUERY_SHA256 == (
+        "9308612c4a6f2f24c7c4c6f4a5a1ffc141cebc67eb0a4dc7794debcf7a6f66d4"
+    )
+    assert module.statement_count() == 1
+    assert module.is_query_allowed(query=module.ALLOWED_QUERY) is True
+    for query in [
+        module.ALLOWED_QUERY + "; SELECT 1",
+        "SELECT DATABASE();",
+        "INSERT INTO issues (id) VALUES ('x')",
+        "UPDATE issues SET title = 'x'",
+        "DELETE FROM issues",
+        "CREATE TABLE x (id int)",
+        "DROP TABLE x",
+        "CALL migrate()",
+    ]:
+        assert module.is_query_allowed(query=query) is False
+
+    socket_calls: list[tuple[str, int, str, str]] = []
+
+    def fake_connect(
+        *,
+        host: str,
+        port: int,
+        user: str,
+        password: str,
+    ) -> tuple[str, int, str, str]:
+        socket_calls.append((host, port, user, password))
+        return (host, port, user, password)
+
+    fake_password = "credential-present"
+    monkeypatch.setenv("ANCHOR_PROBE_QUERY", "SELECT 1")
+    with pytest.raises(SystemExit) as error:
+        module.probe_identity(
+            host="127.0.0.1",
+            port=13307,
+            user="b112_20260817t010203z_dp_s",
+            password=fake_password,
+            database="beads112_20260817t010203z_dense_policy_source",
+            connect=fake_connect,
+        )
+    assert str(error.value) == "query override surfaces are forbidden"
+    assert socket_calls == []
+
+    monkeypatch.delenv("ANCHOR_PROBE_QUERY")
+    result = module.probe_identity(
+        host="127.0.0.1",
+        port=13307,
+        user="b112_20260817t010203z_dp_s",
+        password=fake_password,
+        database="beads112_20260817t010203z_dense_policy_source",
+        connect=fake_connect,
+    )
+    assert socket_calls == [
+        ("127.0.0.1", 13307, "b112_20260817t010203z_dp_s", fake_password),
+    ]
+    assert result["statement_count"] == 1
+    assert result["read_only_transaction"] is True
+    assert result["query_sha256"] == module.ALLOWED_QUERY_SHA256
+
+
+def test_inventory_queries_cover_all_required_rehearsal_projections() -> None:
+    inventory = _json(PACKAGE / "queries" / "inventory.json")
+    assert isinstance(inventory, dict)
+    assert inventory["capture_command"]["name"] == "capture-inventory"
+    assert inventory["capture_command"]["through_wrapper"] == "WITH_CLIENT"
+    assert inventory["capture_command"]["canonical_json"] == {
+        "encoding": "utf-8",
+        "sorted_keys": True,
+        "sorted_rows": True,
+        "per_artifact_sha256": True,
+        "combined_sha256": True,
+    }
+    projection_names = {projection["artifact"] for projection in inventory["projections"]}
+    assert projection_names == {
+        "status-type-counts.json",
+        "issues.json",
+        "dependencies.json",
+        "comments.json",
+        "labels.json",
+        "policy-metadata.json",
+        "schema-migrations.json",
+        "schema.json",
+        "branches.json",
+        "table-counts.json",
+        "remotes.json",
+        "client-anchor.json",
+    }
+    policy = next(
+        projection
+        for projection in inventory["projections"]
+        if projection["artifact"] == "policy-metadata.json"
+    )
+    assert policy["label_prefixes"] == [
+        "acceptance:",
+        "admission:",
+        "intake:",
+        "origin:",
+        "factory-safety:",
+        "blocked-reason:",
+    ]
+
+
+def test_command_plan_instance_covers_attended_gates_without_live_execution() -> None:
+    plan_path = PACKAGE / "command-plans" / "beads112-rehearsal.command-plan.json"
+    assert plan_path.is_file()
+    plan = _json(plan_path)
+    schema = _json(PACKAGE / "schemas" / "rehearsal-command-plan.schema.json")
+    assert isinstance(plan, dict)
+    assert isinstance(schema, dict)
+    assert plan["schema"] == schema["$id"]
+    assert plan["run_variables"] == ["RUN_ID", "RUN_ROOT", "RECEIPT_ROOT"]
+    assert plan["execution_boundary"]["factory_safe_preparation_only"] is True
+    assert plan["execution_boundary"]["live_execution_allowed_by_this_package"] is False
+    assert plan["execution_boundary"]["forbidden_fragments"] == [
+        "/usr/local/bin/bd-real",
+        "/var/lib/doltdb",
+        "/var/backups",
+        "127.0.0.1:3307",
+        "fabro server",
+        "systemctl",
+        "docker ",
+    ]
+    stage_names = [stage["name"] for stage in plan["stages"]]
+    assert stage_names == [
+        "manifest-preflight",
+        "artifact-fetch-and-v105-build",
+        "topology-preflight",
+        "create-client-pointers",
+        "source-fixture-production",
+        "capture-v49-baseline",
+        "single-use-backup",
+        "clean-target-restore-to-migrated",
+        "target-side-remote-materialization",
+        "designated-migrator-record",
+        "migration-gate-and-single-retry",
+        "capture-v53-and-golden-schema",
+        "round-trip-commands",
+        "restore-v49-baseline-to-restored",
+        "immutable-receipts",
+        "stop-boundary",
+        "cleanup-after-acceptance",
+    ]
+    assert plan["stages"][12]["commands"] == [
+        "create rehearsal parent",
+        "create rehearsal child",
+        "update child active bug",
+        "dep add child parent",
+        "comments add child",
+        "close child",
+        "list parent child",
+        "show child with comments",
+    ]
+    assert plan["receipt_contracts"] == [
+        "manifest",
+        "topology",
+        "anchor",
+        "inventory",
+        "backup",
+        "migration_gate",
+        "designated_migrator",
+        "round_trip_delta",
+        "restore_baseline_comparison",
+        "cleanup",
+        "SHA256SUMS",
+    ]

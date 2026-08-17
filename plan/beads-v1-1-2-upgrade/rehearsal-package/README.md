@@ -33,11 +33,14 @@ from each target root through its configured wrapper and public
 | Path | Purpose |
 |---|---|
 | `manifests/provenance.json` | Reviewed public artifact hashes, upstream tag anchors, and fixture-producer build receipt inputs. |
+| `manifests/run-manifest.contract.json` | `RUN_ID`, `RUN_ROOT`, `RECEIPT_ROOT`, immutable-receipt, and directory-preflight contracts. |
 | `manifests/topology.json` | Synthetic-only rehearsal topology and the three read-only production shape sources. |
 | `fixtures/deterministic-fixtures.json` | Canonical v1.0.5 fixture definitions, including the synthetic rig/wisp shape that production did not contain. |
 | `queries/inventory.json` | Canonical read-only inventory commands and expected JSON output classes. |
+| `command-plans/beads112-rehearsal.command-plan.json` | Concrete attended rehearsal command-plan instance, including migration gate, round trip, restore, receipt, stop, and cleanup boundaries. |
 | `schemas/*.schema.json` | Receipt schemas for artifact fetch, v1.0.5 producer build, shape survey, identity probe, and rehearsal command plans. |
 | `wrappers/*.sh` | Bounded command wrappers. They default to printing planned commands and require explicit output directories for receipts. |
+| `wrappers/anchor-probe.py` | Hermetic version-neutral anchor-probe contract with one compile-time read-only identity statement and pre-socket refusal tests. |
 | `locks/dependencies.lock` | Tool and dependency lock for this preparation package. |
 
 ## Later attended use
