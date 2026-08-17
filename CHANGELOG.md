@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.58.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.57.7...v0.58.0) (2026-08-17)
+
+
+### Features
+
+* **ci:** batch the cheap checks — ~90 matrix jobs become ~11 gating jobs ([55a16c5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/55a16c5b071e71f9c8f4dd321305d8608a1669c2))
+
+
+### Bug Fixes
+
+* catch raw plan child records ([232392e](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/232392ed21a2b27a1f7c3139aa413dfa5b041458))
+* memoize bd tenant validation per invoke key ([4238d55](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/4238d553fc0de062ec48117f29e8a25376f96973))
+* skip closed dispatch factory lookups ([a01bdd8](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/a01bdd8a3e564fdcaefba6526853238c2cc97911))
+
 ## [0.57.7](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.57.6...v0.57.7) (2026-08-17)
 
 
