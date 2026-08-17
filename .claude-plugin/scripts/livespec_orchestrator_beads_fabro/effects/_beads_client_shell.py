@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
+import time
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from livespec_orchestrator_beads_fabro.errors import (
     BeadsCommandError,
@@ -26,7 +28,7 @@ __all__: list[str] = [
 ]
 
 
-# Positive tenant verifications, memoized for process lifetime per
+# Tier 1: positive tenant verifications, memoized for process lifetime per
 # (repo root, expected server user, expected database). Every bd invocation used
 # to re-prove the tenant with two fresh `bd config get` subprocesses, which made
 # those config reads most of the fleet's bd traffic. Only POSITIVE results are
@@ -35,13 +37,64 @@ _VERIFIED_TENANTS: set[tuple[str, str, str]] = set()
 
 
 def reset_tenant_verification_memo() -> None:
-    """Forget every memoized tenant verification (test seam)."""
+    """Forget the in-process (tier 1) verifications — the fresh-process seam."""
     _VERIFIED_TENANTS.clear()
 
 
 def _tenant_memo_key(*, config: StoreConfig, repo_root: Path) -> tuple[str, str, str]:
     """Memo key for one process-lifetime tenant verification."""
     return (str(repo_root), config.server_user, config.database)
+
+
+# Tier 2: the same positive verifications, cached ACROSS processes. ~82% of the
+# fleet's observed `bd config` traffic comes from one-shot CLI wrapper processes
+# (scripts/bin/*.py) that spawn, make one or two bd calls, and exit, so the
+# in-process memo above never gets a second hit there. The cache lives in the
+# repo's already-private `.beads/` state, keyed by tenant identity PLUS the
+# `.beads/config.yaml` mtime+size, so any config edit forces a fresh
+# verification. A short TTL bounds the one case the key cannot see: a config
+# rotation that preserves both mtime and size.
+_CACHE_RELATIVE_PATH = Path(".beads") / "tenant-verification-cache.json"
+_CACHE_TTL_SECONDS = 300.0
+
+
+def _tenant_cache_key(*, config: StoreConfig, repo_root: Path) -> str:
+    """Cross-process cache key: tenant identity plus config-file identity."""
+    try:
+        stat = (repo_root / ".beads" / "config.yaml").stat()
+    except OSError:
+        identity = "absent"
+    else:
+        identity = f"{stat.st_mtime_ns}:{stat.st_size}"
+    return "|".join((str(repo_root), config.server_user, config.database, identity))
+
+
+def _load_cache_entries(*, cache_path: Path) -> dict[str, float]:
+    """Read the unexpired cached verifications; a corrupt file reads as empty."""
+    try:
+        payload: Any = json.loads(cache_path.read_text(encoding="utf-8"))
+        items: list[tuple[Any, Any]] = list(payload.items())
+    except (OSError, ValueError, AttributeError):
+        return {}
+    now = time.time()
+    return {
+        str(key): float(value)
+        for key, value in items
+        if isinstance(value, int | float) and now - float(value) < _CACHE_TTL_SECONDS
+    }
+
+
+def _store_cache_entry(*, cache_path: Path, cache_key: str) -> None:
+    """Record one positive verification, replacing the cache file atomically."""
+    entries = _load_cache_entries(cache_path=cache_path)
+    entries[cache_key] = time.time()
+    staging_path = cache_path.with_name(f"{cache_path.name}.{os.getpid()}.tmp")
+    try:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        _ = staging_path.write_text(json.dumps(entries), encoding="utf-8")
+        _ = staging_path.replace(cache_path)
+    except OSError:  # pragma: no cover  — an unwritable `.beads/` degrades to no cache.
+        return
 
 
 # A server-mode tenant's `.beads/config.yaml` declares this flat-dotted marker
@@ -99,6 +152,11 @@ def assert_repo_root_matches_config(*, config: StoreConfig, repo_root: Path) -> 
     memo_key = _tenant_memo_key(config=config, repo_root=repo_root)
     if memo_key in _VERIFIED_TENANTS:
         return
+    cache_path = repo_root / _CACHE_RELATIVE_PATH
+    cache_key = _tenant_cache_key(config=config, repo_root=repo_root)
+    if cache_key in _load_cache_entries(cache_path=cache_path):
+        _VERIFIED_TENANTS.add(memo_key)
+        return
     expected = {
         "dolt.server-user": config.server_user,
         "dolt.database": config.database,
@@ -108,6 +166,7 @@ def assert_repo_root_matches_config(*, config: StoreConfig, repo_root: Path) -> 
     }
     if observed == expected:
         _VERIFIED_TENANTS.add(memo_key)
+        _store_cache_entry(cache_path=cache_path, cache_key=cache_key)
         return
     observed_text = ", ".join(f"{key}={observed[key]}" for key in sorted(observed))
     expected_text = ", ".join(f"{key}={expected[key]}" for key in sorted(expected))

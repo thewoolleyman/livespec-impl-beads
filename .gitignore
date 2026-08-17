@@ -61,5 +61,10 @@ livespec_orchestrator_beads_fabro.egg-info/
 # per-machine project_id, no password) and .beads/.gitignore are
 # committed, matching the family-wide per-repo tenant cutover policy.
 .beads-credential-key
+# Cross-process tenant-verification cache (per-clone runtime state written by
+# the beads client's tier-2 cache). Declared HERE, not in the bd-managed
+# .beads/.gitignore, which this repo does not hand-edit.
+.beads/tenant-verification-cache.json
+.beads/tenant-verification-cache.json.*.tmp
 secrets.env.local
 *.env.local
