@@ -76,7 +76,12 @@ from livespec_orchestrator_beads_fabro.commands._otel_enrich_tail import (
     TailResult,
     tail_spans,
 )
-from livespec_orchestrator_beads_fabro.commands._otel_scrub import attr, is_allowed_attr, scrub
+from livespec_orchestrator_beads_fabro.commands._otel_scrub import (
+    REDACTION_MARKER,
+    attr,
+    is_allowed_attr,
+    scrub,
+)
 
 __all__: list[str] = [
     "CorrelationJoin",
@@ -213,7 +218,7 @@ def enrich_span(
             if not isinstance(key, str) or not is_allowed_attr(key=key):
                 continue
             scalar = _scalar_value(entry=entry)
-            if isinstance(scalar, str) and scrub(value=scalar) != scalar:
+            if isinstance(scalar, str) and scrub(value=scalar) == REDACTION_MARKER:
                 # A credential-shaped value in an allowlisted attribute:
                 # reject the whole span (fail closed), do not partially ship.
                 return None

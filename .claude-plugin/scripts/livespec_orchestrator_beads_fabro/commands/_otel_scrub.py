@@ -128,6 +128,13 @@ ATTRIBUTE_ALLOWLIST: frozenset[str] = frozenset(
         "review.fix_rounds",
         "review.hit_cap",
         "pr.shipped_on_cap",
+        # Dispatcher-side Fabro failure detail read from `fabro inspect --json`.
+        # These are bounded string scalars forwarded through the same
+        # credential-shape scrub + ATTR_MAX_LEN truncation as every other
+        # allowlisted string.
+        "fabro.failure.cause",
+        "fabro.failure.category",
+        "fabro.failure.signature",
         # O4 (bd-ib-98c.7) fabro-side `run_turn` SPAN scalars — which command an
         # ACP agent turn ran, under which config, on which visit, and how it
         # ended. Span EVENTS (e.g. "Stage started/completed") bypass this

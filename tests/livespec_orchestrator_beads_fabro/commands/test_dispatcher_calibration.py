@@ -128,6 +128,9 @@ def _outcome(
     pr_number: int | None = 7,
     merge_sha: str | None = "abc123",
     detail: str = "merged, post-merge janitor green",
+    fabro_failure_cause: str | None = None,
+    fabro_failure_category: str | None = None,
+    fabro_failure_signature: str | None = None,
 ) -> DispatchOutcome:
     return DispatchOutcome(
         work_item_id=work_item_id,
@@ -136,6 +139,9 @@ def _outcome(
         pr_number=pr_number,
         merge_sha=merge_sha,
         detail=detail,
+        fabro_failure_cause=fabro_failure_cause,
+        fabro_failure_category=fabro_failure_category,
+        fabro_failure_signature=fabro_failure_signature,
     )
 
 
@@ -204,7 +210,15 @@ def test_build_calibration_record_unobservable_proxies_are_none() -> None:
     """Unobservable cost / diff size record as None, never a false zero."""
     record = build_calibration_record(
         item=_item(),
-        outcome=_outcome(status="failed", stage="fabro-run", pr_number=None, merge_sha=None),
+        outcome=_outcome(
+            status="failed",
+            stage="fabro-run",
+            pr_number=None,
+            merge_sha=None,
+            fabro_failure_cause="script failed with exit 2",
+            fabro_failure_category="deterministic",
+            fabro_failure_signature="fix|deterministic|script failed",
+        ),
         repo_name="repo",
         journal_records=(),
         wall_clock_seconds=None,
@@ -219,6 +233,9 @@ def test_build_calibration_record_unobservable_proxies_are_none() -> None:
     assert record.fix_loop_count == 0
     assert record.acceptance_count == 0
     assert record.spec_surface_touched is False
+    assert record.fabro_failure_cause == "script failed with exit 2"
+    assert record.fabro_failure_category == "deterministic"
+    assert record.fabro_failure_signature == "fix|deterministic|script failed"
 
 
 def test_outcome_class_green_collapses_to_status() -> None:
@@ -310,6 +327,9 @@ def test_calibration_journal_record_flattens_every_field() -> None:
     assert journal["dispatch_context_size"] == 40
     assert journal["archetype"] == "task"
     assert journal["repo"] == "repo"
+    assert journal["fabro.failure.cause"] is None
+    assert journal["fabro.failure.category"] is None
+    assert journal["fabro.failure.signature"] is None
 
 
 # --- the diff-size probe parse ------------------------------------------

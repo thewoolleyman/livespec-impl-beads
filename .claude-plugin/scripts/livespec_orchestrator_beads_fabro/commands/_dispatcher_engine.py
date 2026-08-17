@@ -60,7 +60,6 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_journal impor
     failed_outcome,
     journal_stage,
     stalled_outcome,
-    tail,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_merge import (
     await_merge,
@@ -69,13 +68,15 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_merge import 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_argv import (
     fabro_auth_login_argv,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_terminal import (
+    fabro_run_terminal_outcome,
+    inspect_run,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     DispatchPlan,
-    fabro_inspect_argv,
     fabro_run_argv,
     fabro_server_env,
     parse_run_id,
-    parse_run_status,
 )
 
 __all__: list[str] = [
@@ -100,8 +101,6 @@ __all__: list[str] = [
 # mid-run while the server-side engine keeps executing the graph.
 _FABRO_TIMEOUT_SECONDS = 54000.0
 _FABRO_AUTH_TIMEOUT_SECONDS = 300.0
-_FABRO_INSPECT_TIMEOUT_SECONDS = 300.0
-
 SleepFn = Callable[[float], None]
 
 
@@ -258,6 +257,9 @@ class DispatchOutcome:
     merge_sha: str | None
     detail: str
     fabro_run_id: str | None = None
+    fabro_failure_cause: str | None = None
+    fabro_failure_category: str | None = None
+    fabro_failure_signature: str | None = None
 
 
 def run_dispatch(
@@ -302,17 +304,17 @@ def run_dispatch(
             outcome_type=DispatchOutcome, plan=plan, run_id=launched.stalled_run_id
         )
     run_id = parse_run_id(output=fabro.stdout + "\n" + fabro.stderr)
-    blocked = _blocked_outcome(plan=plan, runner=runner, journal=journal, run_id=run_id)
-    if blocked is not None:
-        return blocked
-    if fabro.exit_code != 0:
-        return failed_outcome(
-            outcome_type=DispatchOutcome,
-            plan=plan,
-            stage="fabro-run",
-            detail=tail(text=fabro.stderr),
-            fabro_run_id=run_id,
-        )
+    inspect = inspect_run(plan=plan, runner=runner, journal=journal, run_id=run_id)
+    terminal = fabro_run_terminal_outcome(
+        outcome_type=DispatchOutcome,
+        plan=plan,
+        run_id=run_id,
+        inspect=inspect,
+        exit_code=fabro.exit_code,
+        stderr=fabro.stderr,
+    )
+    if terminal is not None:
+        return terminal
     view = confirm_pr(plan=plan, runner=runner, journal=journal)
     if view is None:
         return failed_outcome(
@@ -353,46 +355,3 @@ def run_dispatch(
     if run_id is not None and outcome.fabro_run_id is None:
         outcome = replace(outcome, fabro_run_id=run_id)
     return outcome
-
-
-def _blocked_outcome(
-    *,
-    plan: DispatchPlan,
-    runner: CommandRunner,
-    journal: JournalWriter,
-    run_id: str | None,
-) -> DispatchOutcome | None:
-    """Detect a run parked at the in-loop human gate (third terminal state).
-
-    A foreground `fabro run` exits non-zero when it returns at a human
-    gate, so the exit code alone cannot distinguish blocked from failed:
-    the engine parses the run id from the CLI output and reads the
-    authoritative status via `fabro inspect --json`. Anything other
-    than a confirmed blocked status falls back to exit-code routing.
-    """
-    if run_id is None:
-        return None
-    inspect = runner.run(
-        argv=fabro_inspect_argv(plan=plan, run_id=run_id),
-        cwd=plan.repo,
-        timeout_seconds=_FABRO_INSPECT_TIMEOUT_SECONDS,
-    )
-    journal_stage(journal=journal, plan=plan, stage="fabro-inspect", result=inspect)
-    if inspect.exit_code != 0:
-        return None
-    if parse_run_status(stdout=inspect.stdout) not in {"blocked", "human_input_required"}:
-        return None
-    return DispatchOutcome(
-        work_item_id=plan.work_item_id,
-        status="blocked",
-        stage="fabro-run",
-        pr_number=None,
-        merge_sha=None,
-        detail=(
-            f"run {run_id} parked at the in-loop human gate (needs-human); "
-            f"answer with `fabro attach {run_id}` while the engine lives, "
-            f"`fabro resume {run_id}` only if the engine died; "
-            "not auto-resumed, item left open"
-        ),
-        fabro_run_id=run_id,
-    )

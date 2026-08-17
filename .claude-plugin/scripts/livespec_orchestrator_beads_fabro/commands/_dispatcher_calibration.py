@@ -98,6 +98,9 @@ class CalibrationRecord:
     dispatch_context_size: int
     archetype: str
     repo: str
+    fabro_failure_cause: str | None = None
+    fabro_failure_category: str | None = None
+    fabro_failure_signature: str | None = None
 
 
 def build_calibration_record(  # noqa: PLR0913 — kw-only pure builder; each field is an independent observed input.
@@ -141,6 +144,9 @@ def build_calibration_record(  # noqa: PLR0913 — kw-only pure builder; each fi
         dispatch_context_size=dispatch_context_size,
         archetype=item.type,
         repo=repo_name,
+        fabro_failure_cause=outcome.fabro_failure_cause,
+        fabro_failure_category=outcome.fabro_failure_category,
+        fabro_failure_signature=outcome.fabro_failure_signature,
     )
 
 
@@ -241,4 +247,7 @@ def calibration_journal_record(*, record: CalibrationRecord) -> dict[str, object
         "dispatch_context_size": record.dispatch_context_size,
         "archetype": record.archetype,
         "repo": record.repo,
+        "fabro.failure.cause": record.fabro_failure_cause,
+        "fabro.failure.category": record.fabro_failure_category,
+        "fabro.failure.signature": record.fabro_failure_signature,
     }
