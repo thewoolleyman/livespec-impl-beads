@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.58.7](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.6...v0.58.7) (2026-08-17)
+
+
+### Bug Fixes
+
+* preserve sandbox gh path refresh ([0eb97d3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/0eb97d371e4d183fb369eb30b066c5ad7580cce8))
+
 ## [0.58.6](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.5...v0.58.6) (2026-08-17)
 
 
