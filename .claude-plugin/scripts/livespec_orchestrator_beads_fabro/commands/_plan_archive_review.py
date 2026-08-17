@@ -22,7 +22,9 @@ __all__: list[str] = [
     "ArchiveCompletenessReviewRequest",
     "CompletenessReviewLauncher",
     "archive_completeness_review_request",
+    "blocking_dependency_ids",
     "has_blocks_edge_to_epic",
+    "is_blocks_dependency_edge",
     "is_blocks_edge_to_epic",
     "record_completeness_review_evidence",
     "undisposed_plan_child_ids",
@@ -138,7 +140,7 @@ def _undisposed_plan_children(*, client: BeadsClient, epic_id: str) -> list[Bead
     return [
         record
         for record in _plan_child_records(client=client, epic_id=epic_id)
-        if _is_undisposed_plan_child(record=record, epic_id=epic_id)
+        if _is_undisposed_plan_child(record=record)
     ]
 
 
@@ -146,9 +148,11 @@ def _plan_child_records(*, client: BeadsClient, epic_id: str) -> list[BeadsRecor
     records_by_id = {
         cast("str", record["id"]): record for record in client.children(parent_id=epic_id)
     }
-    for record in client.list_issues():
+    records = client.list_issues()
+    blocking_ids = _blocking_ids_for_epic(records=records, epic_id=epic_id)
+    for record in records:
         issue_id = record.get("id")
-        if isinstance(issue_id, str) and has_blocks_edge_to_epic(record=record, epic_id=epic_id):
+        if isinstance(issue_id, str) and issue_id in blocking_ids:
             _ = records_by_id.setdefault(issue_id, record)
     return list(records_by_id.values())
 
@@ -176,35 +180,50 @@ def _research_paths(*, project_root: Path, source: Path) -> tuple[str, ...]:
     )
 
 
-def _is_undisposed_plan_child(*, record: BeadsRecord, epic_id: str) -> bool:
+def _is_undisposed_plan_child(*, record: BeadsRecord) -> bool:
     issue_id = record.get("id")
-    if not isinstance(issue_id, str) or record.get("status") == "closed":
-        return False
-    return (
-        record.get("parent") == epic_id
-        or record.get("parent_id") == epic_id
-        or has_blocks_edge_to_epic(
-            record=record,
-            epic_id=epic_id,
-        )
+    return isinstance(issue_id, str) and record.get("status") != "closed"
+
+
+def _blocking_ids_for_epic(*, records: list[BeadsRecord], epic_id: str) -> frozenset[str]:
+    for record in records:
+        if record.get("id") == epic_id:
+            return blocking_dependency_ids(record=record)
+    return frozenset()
+
+
+def blocking_dependency_ids(*, record: BeadsRecord) -> frozenset[str]:
+    """Return ids of records that block `record` through `blocks` dependencies."""
+    dependencies = record.get("dependencies")
+    if not isinstance(dependencies, list):
+        return frozenset()
+    typed_dependencies = cast("list[object]", dependencies)
+    return frozenset(
+        dependency_id
+        for edge in typed_dependencies
+        if (dependency_id := is_blocks_dependency_edge(edge=edge)) is not None
     )
 
 
+def is_blocks_dependency_edge(*, edge: object) -> str | None:
+    """Return the dependency id when one edge is a `blocks` dependency."""
+    if not isinstance(edge, dict):
+        return None
+    typed_edge = cast("dict[str, Any]", edge)
+    depends_on_id = typed_edge.get("depends_on_id")
+    if typed_edge.get("type") != EDGE_BLOCKS or not isinstance(depends_on_id, str):
+        return None
+    return depends_on_id
+
+
 def has_blocks_edge_to_epic(*, record: BeadsRecord, epic_id: str) -> bool:
-    """Return whether `record` carries a blocks edge to the plan epic."""
-    dependencies = record.get("dependencies")
-    if not isinstance(dependencies, list):
-        return False
-    typed_dependencies = cast("list[object]", dependencies)
-    return any(is_blocks_edge_to_epic(edge=edge, epic_id=epic_id) for edge in typed_dependencies)
+    """Return whether `record` carries a legacy-shaped dependency on `epic_id`."""
+    return epic_id in blocking_dependency_ids(record=record)
 
 
 def is_blocks_edge_to_epic(*, edge: object, epic_id: str) -> bool:
-    """Return whether one dependency edge blocks the plan epic."""
-    if not isinstance(edge, dict):
-        return False
-    typed_edge = cast("dict[str, Any]", edge)
-    return typed_edge.get("type") == EDGE_BLOCKS and typed_edge.get("depends_on_id") == epic_id
+    """Return whether one legacy-shaped dependency edge points at `epic_id`."""
+    return is_blocks_dependency_edge(edge=edge) == epic_id
 
 
 def _evidence_comment_body(

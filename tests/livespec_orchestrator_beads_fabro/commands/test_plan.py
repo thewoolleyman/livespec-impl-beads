@@ -189,11 +189,7 @@ def test_archive_refuses_undisposed_children(tmp_path: Path) -> None:
         now="2026-08-11T00:00:00Z",
     )
     _ = _fake().create_issue(draft=_draft(issue_id="bd-ib-child", parent_id=None))
-    _fake().add_dependency(
-        from_id="bd-ib-child",
-        to_id=created["epic_id"],
-        edge_type=EDGE_BLOCKS,
-    )
+    _fake().add_dependency(from_id=created["epic_id"], to_id="bd-ib-child", edge_type=EDGE_BLOCKS)
     _fake().update_issue(issue_id="bd-ib-child", status="ready")
 
     with pytest.raises(plan.PlanArchiveRefusedError) as exc:
@@ -238,13 +234,23 @@ def test_archive_refuses_undisposed_parent_child_children(tmp_path: Path) -> Non
 def test_archive_edge_predicate_ignores_malformed_dependency_records() -> None:
     plan = importlib.import_module("livespec_orchestrator_beads_fabro.commands.plan")
 
-    assert not plan._has_blocks_edge_to_epic(  # noqa: SLF001 - malformed ledger-record coverage.
-        record={"dependencies": "not-a-list"},
-        epic_id="bd-ib-epic",
+    assert (
+        plan._blocking_dependency_ids(  # noqa: SLF001 - malformed ledger-record coverage.
+            record={"dependencies": "not-a-list"},
+        )
+        == frozenset()
     )
-    assert not plan._is_blocks_edge_to_epic(  # noqa: SLF001 - malformed ledger-edge coverage.
-        edge="not-an-edge",
-        epic_id="bd-ib-epic",
+    assert (
+        plan._is_blocks_dependency_edge(  # noqa: SLF001 - malformed ledger-edge coverage.
+            edge="not-an-edge",
+        )
+        is None
+    )
+    assert (
+        plan._is_blocks_dependency_edge(  # noqa: SLF001 - malformed ledger-edge coverage.
+            edge={"type": "blocks", "depends_on_id": 7},
+        )
+        is None
     )
 
 
