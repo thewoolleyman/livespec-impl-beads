@@ -49,6 +49,7 @@ _GITHUB_APP_ENV_KEYS = (
 )
 _GH_REFRESH_BIN = "/workspace/.livespec-github-bin"
 _SANDBOX_DEFAULT_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+_FABRO_RUNTIME_PATH_INTERPOLATION = "{{ env.PATH }}"
 # MiniJinja's three OPENING delimiters: expression `{{`, statement `{%`,
 # comment `{#` (fabro v0.254.0 renders the run goal through MiniJinja —
 # fabro issue #124 — storing it in the graph's `goal` attribute and
@@ -317,8 +318,8 @@ def _refreshing_gh_env_lines() -> str:
         for key in _GITHUB_APP_ENV_KEYS
         if (value := os.environ.get(key)) not in (None, "")
     )
-    inherited_path = os.environ.get("PATH") or _SANDBOX_DEFAULT_PATH
-    return f"PATH = {json.dumps(f'{_GH_REFRESH_BIN}:{inherited_path}')}\n" + app_env_lines
+    refreshed_path = f"{_GH_REFRESH_BIN}:{_FABRO_RUNTIME_PATH_INTERPOLATION}"
+    return f"PATH = {json.dumps(refreshed_path)}\n" + app_env_lines
 
 
 def _github_app_env_present() -> bool:
