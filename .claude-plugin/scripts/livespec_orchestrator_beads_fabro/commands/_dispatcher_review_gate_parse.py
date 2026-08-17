@@ -29,6 +29,7 @@ class _ReviewEdge:
     to_node: str
     reason: str
     preferred_label: str | None
+    stage_status: str | None
 
 
 def parse_review_gate_events(
@@ -68,6 +69,7 @@ def _review_edges(*, events_jsonl: str) -> list[_ReviewEdge]:
         to_node = properties.get("to_node")
         reason = properties.get("reason")
         preferred_label = properties.get("preferred_label")
+        stage_status = properties.get("stage_status")
         if not isinstance(to_node, str) or not isinstance(reason, str):
             continue
         edges.append(
@@ -76,6 +78,7 @@ def _review_edges(*, events_jsonl: str) -> list[_ReviewEdge]:
                 to_node=to_node,
                 reason=reason,
                 preferred_label=preferred_label if isinstance(preferred_label, str) else None,
+                stage_status=stage_status if isinstance(stage_status, str) else None,
             )
         )
     return edges
@@ -109,6 +112,17 @@ def _properties(*, event: dict[str, Any]) -> dict[str, object]:
 
 
 def _terminal_verdict(*, edge: _ReviewEdge | None) -> str:
-    if edge is None or edge.preferred_label not in {"approve", "fix"}:
+    """Map the terminal review edge onto a verdict that names what happened.
+
+    Measured on live runs (work-item livespec-dev-tooling-yilyxr.4), the
+    former flattened `unknown` was overwhelmingly runs that never REACHED
+    review; naming that (`not-reached`) and the review-stage-failed shape
+    (`blocked`) reserves `unknown` for a genuinely unmapped label.
+    """
+    if edge is None:
+        return "not-reached"
+    if edge.stage_status == "failed":
+        return "blocked"
+    if edge.preferred_label not in {"approve", "fix"}:
         return "unknown"
     return edge.preferred_label

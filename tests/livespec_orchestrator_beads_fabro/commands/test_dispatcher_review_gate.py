@@ -43,6 +43,67 @@ def test_parse_review_gate_events_approved_on_first_visit() -> None:
     )
 
 
+def test_parse_review_gate_events_reports_not_reached_when_review_never_entered() -> None:
+    """A run whose graph produced no review edge is `not-reached`, not `unknown`.
+
+    Measured on live fabro data (work-item livespec-dev-tooling-yilyxr.4):
+    13/70 sampled runs had NO `from_node="review"` edge at all — sandbox setup
+    died or implement escalated before review — and the flattened `unknown`
+    hid that population inside the review-verdict rollup.
+    """
+    events = _jsonl(
+        _stage(node_id="implement", timestamp="2026-08-16T00:00:01Z"),
+        _edge(
+            from_node="implement",
+            to_node="escalate",
+            reason="condition",
+            preferred_label=None,
+            timestamp="2026-08-16T00:00:02Z",
+        ),
+    )
+
+    telemetry = parse_review_gate_events(events_jsonl=events)
+
+    assert telemetry == ReviewGateTelemetry(
+        verdict="not-reached",
+        fix_rounds=0,
+        hit_cap=False,
+        shipped_on_cap=False,
+    )
+
+
+def test_parse_review_gate_events_reports_blocked_when_review_stage_failed() -> None:
+    """A terminal review edge with `stage_status="failed"` is `blocked`.
+
+    Mirrors the observed real-run shape (run 01KZ86XQ61JXSTW75NS4M8WHCV): the
+    review stage itself failed and escalated, which is a different fact from
+    an unlabeled ship and must not read as `unknown`.
+    """
+    events = _jsonl(
+        {
+            "event": "edge.selected",
+            "timestamp": "2026-08-16T00:01:00Z",
+            "properties": {
+                "condition": "outcome=failed",
+                "from_node": "review",
+                "label": "Blocked",
+                "reason": "condition",
+                "stage_status": "failed",
+                "to_node": "escalate",
+            },
+        }
+    )
+
+    telemetry = parse_review_gate_events(events_jsonl=events)
+
+    assert telemetry == ReviewGateTelemetry(
+        verdict="blocked",
+        fix_rounds=0,
+        hit_cap=False,
+        shipped_on_cap=False,
+    )
+
+
 def test_parse_review_gate_events_counts_fix_rounds_and_ship_on_cap_order_robust() -> None:
     events = _jsonl(
         _edge(
@@ -201,7 +262,7 @@ def test_parse_review_gate_events_ignores_malformed_lines_and_edges() -> None:
     telemetry = parse_review_gate_events(events_jsonl=events)
 
     assert telemetry == ReviewGateTelemetry(
-        verdict="unknown",
+        verdict="not-reached",
         fix_rounds=0,
         hit_cap=False,
         shipped_on_cap=False,
