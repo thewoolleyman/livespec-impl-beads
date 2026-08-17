@@ -174,7 +174,7 @@ def load_items(*, repo: Path) -> list[WorkItem]:
 
 def emit_outcomes(*, outcomes: list[DispatchOutcome], as_json: bool) -> None:
     if as_json:
-        payload = [asdict(outcome) for outcome in outcomes]
+        payload = [_outcome_payload(outcome=outcome) for outcome in outcomes]
         _ = write_stdout(text=json.dumps(payload, indent=2, sort_keys=True) + "\n")
         return
     if not outcomes:
@@ -184,3 +184,14 @@ def emit_outcomes(*, outcomes: list[DispatchOutcome], as_json: bool) -> None:
         pr_part = f" PR#{outcome.pr_number}" if outcome.pr_number is not None else ""
         line = f"{outcome.work_item_id}  {outcome.status} at {outcome.stage}{pr_part}"
         _ = write_stdout(text=f"{line}  {outcome.detail}\n")
+
+
+def _outcome_payload(*, outcome: DispatchOutcome) -> dict[str, object]:
+    payload = asdict(outcome)
+    if outcome.fabro_failure_cause is None:
+        _ = payload.pop("fabro_failure_cause")
+    if outcome.fabro_failure_category is None:
+        _ = payload.pop("fabro_failure_category")
+    if outcome.fabro_failure_signature is None:
+        _ = payload.pop("fabro_failure_signature")
+    return payload

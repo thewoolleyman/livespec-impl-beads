@@ -2028,6 +2028,38 @@ def test_engine_fails_when_fabro_run_fails_and_trims_detail(tmp_path: Path) -> N
     assert len(outcome.detail) == 2000
 
 
+def test_engine_fabro_run_failure_surfaces_inspect_failure_detail(tmp_path: Path) -> None:
+    failed_inspect = json.dumps(
+        {
+            "status": {"kind": "failed", "reason": "workflow_error"},
+            "failure": {
+                "causes": ["script failed with exit 2: pytest fixture broke"],
+                "category": "deterministic",
+                "signature": "fix|deterministic|script failed with exit 2",
+            },
+        }
+    )
+    runner = _FakeRunner(
+        queue=[
+            CommandResult(
+                exit_code=1,
+                stdout="Run: 01RUNCAUSE\n",
+                stderr="ACP turn failed",
+            ),
+            _ok(stdout=failed_inspect),
+        ]
+    )
+
+    outcome, journal, _ = _dispatch(runner=runner, repo=tmp_path)
+
+    assert (outcome.status, outcome.stage) == ("failed", "fabro-run")
+    assert outcome.fabro_run_id == "01RUNCAUSE"
+    assert "script failed with exit 2: pytest fixture broke" in outcome.detail
+    assert "category=deterministic" in outcome.detail
+    assert "signature=fix|deterministic|script failed with exit 2" in outcome.detail
+    assert [record["stage"] for record in journal.records] == ["fabro-run", "fabro-inspect"]
+
+
 def test_engine_blocked_run_is_a_third_terminal_state(tmp_path: Path) -> None:
     parked = CommandResult(
         exit_code=1,

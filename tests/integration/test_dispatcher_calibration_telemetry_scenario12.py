@@ -75,6 +75,9 @@ _OUTCOME_SIGNAL_FIELDS = (
     "wall_clock_seconds",
     "token_cost_micros",
     "bounced_to_regroom",
+    "fabro.failure.cause",
+    "fabro.failure.category",
+    "fabro.failure.signature",
 )
 _SIZE_PROXY_FIELDS = (
     "acceptance_count",

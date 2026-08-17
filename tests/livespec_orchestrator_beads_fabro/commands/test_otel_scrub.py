@@ -116,6 +116,44 @@ def test_review_gate_keys_survive_enrich_while_prompt_io_drops() -> None:
     assert "agent.acp.completed.stdout" not in keys
 
 
+def test_fabro_failure_keys_survive_enrich_with_existing_attr_cap() -> None:
+    for key in (
+        "fabro.failure.cause",
+        "fabro.failure.category",
+        "fabro.failure.signature",
+    ):
+        assert key in ATTRIBUTE_ALLOWLIST
+        assert is_allowed_attr(key=key) is True
+    long_cause = "script failed " + ("x" * (ATTR_MAX_LEN + 50))
+    span: dict[str, object] = {
+        "name": "livespec.dispatch.calibration",
+        "attributes": [
+            {"key": "fabro.failure.cause", "value": {"stringValue": long_cause}},
+            {"key": "fabro.failure.category", "value": {"stringValue": "deterministic"}},
+            {
+                "key": "fabro.failure.signature",
+                "value": {"stringValue": "fix|deterministic|script failed"},
+            },
+            {"key": "agent.acp.completed.stderr", "value": {"stringValue": "ACP turn failed"}},
+        ],
+    }
+
+    enriched = enrich_span(span=span, triple={"work.item.id": "bd-1"})
+
+    assert enriched is not None
+    attrs = {
+        str(entry["key"]): entry["value"]
+        for entry in enriched["attributes"]
+        if isinstance(entry, dict) and isinstance(entry.get("key"), str)
+    }
+    assert "agent.acp.completed.stderr" not in attrs
+    cause_value = attrs["fabro.failure.cause"]
+    assert isinstance(cause_value, dict)
+    assert cause_value["stringValue"] == long_cause[:ATTR_MAX_LEN]
+    assert attrs["fabro.failure.category"] == {"stringValue": "deterministic"}
+    assert attrs["fabro.failure.signature"] == {"stringValue": "fix|deterministic|script failed"}
+
+
 @given(value=st.text(alphabet=st.characters(blacklist_characters="@"), max_size=400))
 def test_scrub_at_credential_free_value_never_exceeds_max_len(*, value: str) -> None:
     # A value with no '@' cannot match the credential-URL shape, so scrub
