@@ -26,14 +26,12 @@ __all__: list[str] = [
 ]
 
 
-# Positive tenant verifications, memoized per (repo root, expected identity,
-# config-file stamp) and invalidated precisely when `.beads/config.yaml`
-# changes (work-item livespec-dev-tooling-yilyxr.6): every bd invocation used
-# to re-prove the tenant with two fresh `bd config get` subprocesses — 52,854
-# config reads/14d at P50 349ms fleet-wide — for an identity that cannot
-# change unless that file does. Only POSITIVE results are memoized; a
-# mismatch keeps raising on every call.
-_VERIFIED_TENANTS: set[tuple[str, str, str, int, int]] = set()
+# Positive tenant verifications, memoized for process lifetime per
+# (repo root, expected server user, expected database). Every bd invocation used
+# to re-prove the tenant with two fresh `bd config get` subprocesses, which made
+# those config reads most of the fleet's bd traffic. Only POSITIVE results are
+# memoized; a mismatch keeps raising on every call.
+_VERIFIED_TENANTS: set[tuple[str, str, str]] = set()
 
 
 def reset_tenant_verification_memo() -> None:
@@ -41,20 +39,9 @@ def reset_tenant_verification_memo() -> None:
     _VERIFIED_TENANTS.clear()
 
 
-def _tenant_memo_key(
-    *, config: StoreConfig, repo_root: Path
-) -> tuple[str, str, str, int, int] | None:
-    """Memo key for one verified tenant, or None when the config is unstattable.
-
-    The mtime+size stamp of `.beads/config.yaml` is what scopes a memoized
-    verification to the file contents it proved; an unstattable file yields no
-    key, so those calls take the full verification path unconditionally.
-    """
-    try:
-        stat = (repo_root / ".beads" / "config.yaml").stat()
-    except OSError:
-        return None
-    return (str(repo_root), config.server_user, config.database, stat.st_mtime_ns, stat.st_size)
+def _tenant_memo_key(*, config: StoreConfig, repo_root: Path) -> tuple[str, str, str]:
+    """Memo key for one process-lifetime tenant verification."""
+    return (str(repo_root), config.server_user, config.database)
 
 
 # A server-mode tenant's `.beads/config.yaml` declares this flat-dotted marker
@@ -110,7 +97,7 @@ def _is_embedded_ledger(*, repo_root: Path) -> bool:
 def assert_repo_root_matches_config(*, config: StoreConfig, repo_root: Path) -> None:
     """Raise when `.beads/config.yaml` points at a different tenant."""
     memo_key = _tenant_memo_key(config=config, repo_root=repo_root)
-    if memo_key is not None and memo_key in _VERIFIED_TENANTS:
+    if memo_key in _VERIFIED_TENANTS:
         return
     expected = {
         "dolt.server-user": config.server_user,
@@ -120,8 +107,7 @@ def assert_repo_root_matches_config(*, config: StoreConfig, repo_root: Path) -> 
         key: read_bd_config_value(config=config, repo_root=repo_root, key=key) for key in expected
     }
     if observed == expected:
-        if memo_key is not None:
-            _VERIFIED_TENANTS.add(memo_key)
+        _VERIFIED_TENANTS.add(memo_key)
         return
     observed_text = ", ".join(f"{key}={observed[key]}" for key in sorted(observed))
     expected_text = ", ".join(f"{key}={expected[key]}" for key in sorted(expected))
