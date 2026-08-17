@@ -22,7 +22,7 @@ embeds a local database and never speaks SQL directly. The `compat`
 pin against livespec is still `master` during bootstrap; the next
 bump-pin PR will set a real release tag.
 
-## Install
+## Install For Claude Code
 
 This is a Claude Code plugin distributed via a marketplace. It composes
 with livespec core and the Claude Code Driver, so install all three:
@@ -46,6 +46,35 @@ reachable over TCP `127.0.0.1:3307`, the per-tenant password supplied
 via environment at `bd`-call time (never committed), and the `.beads/`
 pointer files. Without these, `bd` reports "no beads database found"
 even though the plugin is present.
+
+## Install For pi
+
+This repository also ships a pi package for
+`@earendil-works/pi-coding-agent`. It composes with livespec core and the
+pi Driver, so install all three git packages in the governed project:
+
+```bash
+pi install git:github.com/thewoolleyman/livespec@release -l --approve
+pi install git:github.com/thewoolleyman/livespec-driver-pi@release -l --approve
+pi install git:github.com/thewoolleyman/livespec-orchestrator-beads-fabro@release -l --approve
+```
+
+The pi package is declared by this repo's `package.json` and exposes the
+bindings under `.claude-plugin/.pi-plugin/skills/`. pi skill names are
+flat, so the Claude/Codex skill `/livespec-orchestrator-beads-fabro:<op>`
+is registered as `livespec-orchestrator-beads-fabro-<op>` in pi; for
+example, `drive` becomes `livespec-orchestrator-beads-fabro-drive`.
+
+Each pi binding directory name must match its frontmatter `name`, and
+frontmatter values containing `: ` must be quoted. pi can tolerate some
+frontmatter mistakes that the Agent Skills standard rejects, so this
+repo's `check-pi-plugin-structure` gate treats those mismatches as hard
+failures.
+
+For dogfooding and acceptance evidence, use a live interactive pi session.
+Non-interactive pi modes (`-p`, `--mode json`, `--mode rpc`) can silently
+ignore project-local packages unless trust is already seeded, so they are
+not sufficient proof that the package registered.
 
 ## Skill surface
 
