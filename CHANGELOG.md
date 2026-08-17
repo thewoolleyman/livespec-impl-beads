@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.58.9](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.8...v0.58.9) (2026-08-17)
+
+
+### Bug Fixes
+
+* recompute anchor probe query hash in rehearsal tests ([9a59859](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/9a598594b1425d5ed18cc7bb15a66751a1390598))
+
 ## [0.58.8](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.7...v0.58.8) (2026-08-17)
 
 
