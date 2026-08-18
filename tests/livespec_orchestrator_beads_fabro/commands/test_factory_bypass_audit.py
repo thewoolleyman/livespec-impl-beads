@@ -11,6 +11,7 @@ import json
 
 import pytest
 from livespec_orchestrator_beads_fabro.commands.factory_bypass_audit import (
+    DEFAULT_FACTORY_APP_LOGIN,
     AuditPolicy,
     BypassFinding,
     GhSeam,
@@ -335,3 +336,7 @@ def test_main_threads_limit_and_since_to_gh(capsys: pytest.CaptureFixture[str]) 
     assert args[args.index("--search") + 1] == "merged:>=2026-07-01"
     assert args[args.index("--repo") + 1] == "o/r"
     assert "No factory bypasses found" in capsys.readouterr().out
+
+
+def test_default_factory_app_login_tracks_renamed_fleet_app() -> None:
+    assert DEFAULT_FACTORY_APP_LOGIN == "app/thewoolleyman-factory-bot"

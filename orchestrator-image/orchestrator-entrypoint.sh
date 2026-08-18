@@ -24,7 +24,7 @@
 # never prints `git remote -v`, env, or URLs containing tokens.
 #
 # Injected externals (env — see README.md "Injectable externals"):
-#   GITHUB_APP_ID + GITHUB_PRIVATE_KEY  GitHub App (livespec-pr-bot; adopters set
+#   GITHUB_APP_ID + GITHUB_PRIVATE_KEY  GitHub App (thewoolleyman-factory-bot; adopters set
 #                                  their own) — the SOLE GitHub credential
 #                                  source, injected by the dispatch target's
 #                                  credential_wrapper on the host and forwarded
