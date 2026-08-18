@@ -13,11 +13,11 @@ Placement: a standalone bin wrapper + the `just factory-bypass-audit` recipe
 network dependency rules out the network-free `needs-attention` surface and
 would require SPECIFICATION/ changes there.
 
-Factory App identity: `app/livespec-pr-bot` — the login `gh pr list --json
+Factory App identity: `app/thewoolleyman-factory-bot` — the login `gh pr list --json
 author` reports for this repo's GitHub App. That single App authors BOTH the
 factory Dispatcher's work-item PRs AND the release-please / bump-pin PRs
 (discovered from merged-PR history + `.github/workflows/`, where the
-Dispatcher and release-please both mint the `livespec-pr-bot` App token via
+Dispatcher and release-please both mint the `thewoolleyman-factory-bot` App token via
 `APP_ID`/`APP_PRIVATE_KEY`). Exempting that login therefore covers both
 "went through the factory" and "the release-please bot". Configurable via
 `--factory-app-login`; extend with `--allow-author` / `--allow-label` for
@@ -50,7 +50,7 @@ __all__: list[str] = [
 ]
 
 # The discovered factory App login as `gh pr list --json author` renders it.
-DEFAULT_FACTORY_APP_LOGIN = "app/livespec-pr-bot"
+DEFAULT_FACTORY_APP_LOGIN = "app/thewoolleyman-factory-bot"
 DEFAULT_LIMIT = 100
 _GH_TIMEOUT_SECONDS = 60
 
