@@ -8,6 +8,8 @@ from pathlib import Path
 
 from livespec_orchestrator_beads_fabro.commands._config import (
     FactoryTarget,
+    has_fabro_factories,
+    has_fabro_factory,
     resolve_fabro_factory,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import store_config
@@ -34,7 +36,8 @@ def resolve_dispatch_factory_target(
     config = store_config(repo=repo)
     explicit = _explicit_factory(args=args)
     recorded = dispatch_factory_for(path=config, work_item_id=work_item_id)
-    target = resolve_fabro_factory(cwd=repo, factory=explicit or recorded)
+    factory = explicit or _usable_recorded_factory(repo=repo, recorded=recorded)
+    target = resolve_fabro_factory(cwd=repo, factory=factory)
     record_dispatch_factory(path=config, work_item_id=work_item_id, factory=target.name)
     return target
 
@@ -62,4 +65,14 @@ def _explicit_factory(*, args: argparse.Namespace) -> str | None:
     env_value = os.environ.get(_ENV_FABRO_FACTORY)
     if env_value is not None and env_value != "":
         return env_value
+    return None
+
+
+def _usable_recorded_factory(*, repo: Path, recorded: str | None) -> str | None:
+    if recorded is None:
+        return None
+    if not has_fabro_factories(cwd=repo):
+        return recorded
+    if has_fabro_factory(cwd=repo, factory=recorded):
+        return recorded
     return None

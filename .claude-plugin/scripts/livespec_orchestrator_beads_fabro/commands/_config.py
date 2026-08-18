@@ -71,6 +71,8 @@ from livespec_orchestrator_beads_fabro.types import StoreConfig
 
 __all__: list[str] = [
     "FactoryTarget",
+    "has_fabro_factories",
+    "has_fabro_factory",
     "resolve_credential_wrapper",
     "resolve_fabro_bin",
     "resolve_fabro_factory",
@@ -183,6 +185,22 @@ def resolve_fabro_factory(*, cwd: Path, factory: str | None = None) -> FactoryTa
         name=_resolve_configured_factory_name(block=block),
         block=block,
     )
+
+
+def has_fabro_factory(*, cwd: Path, factory: str) -> bool:
+    """Return whether the current dispatcher config defines a named factory."""
+    block = _read_dispatcher_block(cwd=cwd)
+    factories_raw = block.get("factories")
+    if not isinstance(factories_raw, dict):
+        return False
+    return factory in cast("dict[str, Any]", factories_raw)
+
+
+def has_fabro_factories(*, cwd: Path) -> bool:
+    """Return whether dispatcher config constrains factory names."""
+    block = _read_dispatcher_block(cwd=cwd)
+    factories_raw = block.get("factories")
+    return isinstance(factories_raw, dict)
 
 
 def resolve_fabro_sandbox_image(*, cwd: Path) -> str | None:
