@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -56,7 +57,18 @@ def _server_mode_repo(*, tmp_path: Path) -> tuple[Path, Path]:
     return repo_root, config_path
 
 
-def _cache_path(*, repo_root: Path) -> Path:
+def _tmp_xdg_cache_dir(*, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Redirect XDG_CACHE_HOME into tmp_path; return the cache's own directory."""
+    xdg_home = tmp_path / "xdg"
+    monkeypatch.setenv("XDG_CACHE_HOME", str(xdg_home))
+    return xdg_home / "livespec-orchestrator-beads-fabro" / "tenant-verification"
+
+
+def _cache_files(*, cache_dir: Path) -> list[Path]:
+    return sorted(cache_dir.glob("*.json"))
+
+
+def _legacy_cache_path(*, repo_root: Path) -> Path:
     return repo_root / ".beads" / "tenant-verification-cache.json"
 
 
@@ -67,10 +79,11 @@ def test_fresh_process_reuses_the_file_cached_tenant_verification(
 
     Clearing the in-process memo stands in for a brand-new wrapper process
     (scripts/bin/list_work_items.py and friends spawn, make one or two bd calls,
-    and exit). The tier-2 file cache in `.beads/` must satisfy the verification
-    with zero new subprocess spawns.
+    and exit). The tier-2 file cache must satisfy the verification with zero new
+    subprocess spawns, from a file OUTSIDE the governed repo.
     """
     repo_root, _ = _server_mode_repo(tmp_path=tmp_path)
+    cache_dir = _tmp_xdg_cache_dir(tmp_path=tmp_path, monkeypatch=monkeypatch)
     config = _tenant_config(repo_root=repo_root)
     calls: list[str] = []
     monkeypatch.setattr(shell.subprocess, "run", _fake_bd_config_get(calls))
@@ -83,13 +96,63 @@ def test_fresh_process_reuses_the_file_cached_tenant_verification(
     shell.assert_repo_root_matches_config(config=config, repo_root=repo_root)
 
     assert len(calls) == 2
-    assert _cache_path(repo_root=repo_root).exists()
+    assert len(_cache_files(cache_dir=cache_dir)) == 1
+    assert not _legacy_cache_path(repo_root=repo_root).exists()
+    assert list((repo_root / ".beads").iterdir()) == [repo_root / ".beads" / "config.yaml"]
+
+
+def test_cache_falls_back_to_home_cache_without_xdg_cache_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo_root, _ = _server_mode_repo(tmp_path=tmp_path)
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
+    monkeypatch.setenv("HOME", str(home))
+    config = _tenant_config(repo_root=repo_root)
+    calls: list[str] = []
+    monkeypatch.setattr(shell.subprocess, "run", _fake_bd_config_get(calls))
+    shell.reset_tenant_verification_memo()
+
+    shell.assert_repo_root_matches_config(config=config, repo_root=repo_root)
+
+    cache_dir = home / ".cache" / "livespec-orchestrator-beads-fabro" / "tenant-verification"
+    assert len(_cache_files(cache_dir=cache_dir)) == 1
+
+
+def test_legacy_in_repo_cache_is_ignored_and_removed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The old `.beads/` cache file must never be read, and must be swept away.
+
+    It predates the XDG relocation and `.beads/.gitignore` never covered it, so
+    every repo the orchestrator touched grew a permanently untracked file.
+    """
+    repo_root, config_path = _server_mode_repo(tmp_path=tmp_path)
+    cache_dir = _tmp_xdg_cache_dir(tmp_path=tmp_path, monkeypatch=monkeypatch)
+    config = _tenant_config(repo_root=repo_root)
+    legacy_path = _legacy_cache_path(repo_root=repo_root)
+    stat = config_path.stat()
+    live_key = "|".join(
+        (str(repo_root), "tenant-db", "tenant-db", f"{stat.st_mtime_ns}:{stat.st_size}")
+    )
+    _ = legacy_path.write_text(json.dumps({live_key: time.time()}), encoding="utf-8")
+    calls: list[str] = []
+    monkeypatch.setattr(shell.subprocess, "run", _fake_bd_config_get(calls))
+    shell.reset_tenant_verification_memo()
+
+    shell.assert_repo_root_matches_config(config=config, repo_root=repo_root)
+
+    assert len(calls) == 2
+    assert not legacy_path.exists()
+    assert len(_cache_files(cache_dir=cache_dir)) == 1
 
 
 def test_config_file_change_invalidates_the_file_cached_verification(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     repo_root, config_path = _server_mode_repo(tmp_path=tmp_path)
+    _ = _tmp_xdg_cache_dir(tmp_path=tmp_path, monkeypatch=monkeypatch)
     config = _tenant_config(repo_root=repo_root)
     calls: list[str] = []
     monkeypatch.setattr(shell.subprocess, "run", _fake_bd_config_get(calls))
@@ -109,13 +172,14 @@ def test_expired_file_cache_entries_are_reverified(
 ) -> None:
     """The TTL bounds a positive whose config identity never changed."""
     repo_root, _ = _server_mode_repo(tmp_path=tmp_path)
+    cache_dir = _tmp_xdg_cache_dir(tmp_path=tmp_path, monkeypatch=monkeypatch)
     config = _tenant_config(repo_root=repo_root)
     calls: list[str] = []
     monkeypatch.setattr(shell.subprocess, "run", _fake_bd_config_get(calls))
     shell.reset_tenant_verification_memo()
     shell.assert_repo_root_matches_config(config=config, repo_root=repo_root)
 
-    cache_path = _cache_path(repo_root=repo_root)
+    cache_path = _cache_files(cache_dir=cache_dir)[0]
     cached: dict[str, float] = json.loads(cache_path.read_text(encoding="utf-8"))
     _ = cache_path.write_text(json.dumps({key: 0.0 for key in cached}), encoding="utf-8")
     shell.reset_tenant_verification_memo()
@@ -128,20 +192,23 @@ def test_corrupt_file_cache_is_treated_as_a_miss_and_overwritten(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     repo_root, _ = _server_mode_repo(tmp_path=tmp_path)
+    cache_dir = _tmp_xdg_cache_dir(tmp_path=tmp_path, monkeypatch=monkeypatch)
     config = _tenant_config(repo_root=repo_root)
-    cache_path = _cache_path(repo_root=repo_root)
-    _ = cache_path.write_text("{ not json at all", encoding="utf-8")
     calls: list[str] = []
     monkeypatch.setattr(shell.subprocess, "run", _fake_bd_config_get(calls))
     shell.reset_tenant_verification_memo()
-
     shell.assert_repo_root_matches_config(config=config, repo_root=repo_root)
-    assert len(calls) == 2
+
+    cache_path = _cache_files(cache_dir=cache_dir)[0]
+    _ = cache_path.write_text("{ not json at all", encoding="utf-8")
+    shell.reset_tenant_verification_memo()
+    shell.assert_repo_root_matches_config(config=config, repo_root=repo_root)
+    assert len(calls) == 4
 
     shell.reset_tenant_verification_memo()
     shell.assert_repo_root_matches_config(config=config, repo_root=repo_root)
 
-    assert len(calls) == 2
+    assert len(calls) == 4
     rewritten: dict[str, float] = json.loads(cache_path.read_text(encoding="utf-8"))
     assert len(rewritten) == 1
 
@@ -152,6 +219,7 @@ def test_tenant_mismatch_without_a_config_file_is_never_file_cached(
     """Only POSITIVE verifications are cached; a mismatch keeps raising."""
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
+    cache_dir = _tmp_xdg_cache_dir(tmp_path=tmp_path, monkeypatch=monkeypatch)
     config = _tenant_config(repo_root=repo_root)
 
     def run(argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
@@ -165,7 +233,7 @@ def test_tenant_mismatch_without_a_config_file_is_never_file_cached(
     with pytest.raises(BeadsConnectionError):
         shell.assert_repo_root_matches_config(config=config, repo_root=repo_root)
 
-    assert not _cache_path(repo_root=repo_root).exists()
+    assert not cache_dir.exists()
 
 
 def test_repeat_tenant_verification_reuses_memo_for_process_lifetime(
@@ -181,6 +249,7 @@ def test_repeat_tenant_verification_reuses_memo_for_process_lifetime(
     config_path = repo_root / ".beads" / "config.yaml"
     config_path.parent.mkdir(parents=True)
     _ = config_path.write_text("dolt:\n  mode: server\n", encoding="utf-8")
+    _ = _tmp_xdg_cache_dir(tmp_path=tmp_path, monkeypatch=monkeypatch)
     config = _tenant_config(repo_root=repo_root)
     calls: list[str] = []
     monkeypatch.setattr(shell.subprocess, "run", _fake_bd_config_get(calls))
@@ -233,6 +302,7 @@ def test_invoke_memoizes_tenant_validation_per_process_key(
         return subprocess.CompletedProcess(args=argv, returncode=0, stdout="[]\n", stderr="")
 
     monkeypatch.setenv("BEADS_DOLT_PASSWORD", "present")
+    _ = _tmp_xdg_cache_dir(tmp_path=tmp_path, monkeypatch=monkeypatch)
     monkeypatch.setattr(shell.subprocess, "run", run)
     shell.reset_tenant_verification_memo()
 
