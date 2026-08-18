@@ -1,0 +1,11 @@
+{
+  "//": "Plugin cache completeness manifest, consumed by livespec_dev_tooling.fleet ensure-plugins verification (livespec-dev-tooling-7c4c). Every path is relative to the installed plugin cache root; a cache copy missing any of them is INCOMPLETE and must be re-materialized, never trusted. Motivated by bd-ib-dbqb: a Fabro sandbox cache of this plugin at ref becb27fc76c4 landed without scripts/bin and passed the plugin.json-only verification, failing the worker's pre-push checks hours later.",
+  "required_paths": [
+    "plugin.json",
+    "hooks/hooks.json",
+    "prose",
+    "skills",
+    "scripts/bin",
+    "scripts/livespec_orchestrator_beads_fabro"
+  ]
+}
