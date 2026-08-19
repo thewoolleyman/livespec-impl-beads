@@ -28,6 +28,27 @@ That gate is stricter than reachability: it requires `/runs` **and** the
 unauthenticated `/login` shell to load, **and** the embedded SPA
 JavaScript asset to fetch. Tailscale ping to hp: 63ms, direct.
 
+### Shell access to hp works — use the `cwoolley` account
+
+`tailscale ssh cwoolley@hp-xubuntu` **works** and is the way in.
+Verified 2026-08-19:
+
+```bash
+tailscale ssh cwoolley@hp-xubuntu 'fabro --version'
+# fabro 0.254.0 (8de6611 2026-08-16)
+```
+
+`001` §"Blocker #1" says both `ssh` and `tailscale ssh` failed. That was
+true on 2026-08-16, and it is the section a successor reads first — but
+the scope event recorded on the epic that same day already noted, in its
+*third deferral*, that "Tailscale SSH already provides working access via
+the cwoolley account". Two records of one thread disagreed; the more
+recent and more specific one was right.
+
+**The operative detail is the account.** Probes that use the default
+user fail; `cwoolley@` succeeds. Re-test a recorded blocker before
+honouring it.
+
 hp is also *serving*, not merely up — `fabro ps` against it listed two
 live `ImplementWorkItem` runs from this repo on the same date. The host
 fabro binary is `0.254.0 (8de6611 2026-07-30)`, exactly the pin
