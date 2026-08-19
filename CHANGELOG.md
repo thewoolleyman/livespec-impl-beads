@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.58.15](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.14...v0.58.15) (2026-08-19)
+
+
+### Bug Fixes
+
+* route sandbox otel to owned receiver ([721c581](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/721c5818737e941e18214b0241f49bd045d94dce))
+
 ## [0.58.14](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.13...v0.58.14) (2026-08-19)
 
 
