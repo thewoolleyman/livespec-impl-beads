@@ -168,16 +168,17 @@ jobs:
           # Batched-CI shape (work-item livespec-dev-tooling-yilyxr.9,
           # porting dev-tooling PR #1469): tool-backed slugs must be
           # LITERAL matrix members (check-tool-backed-check-completeness)
-          # and the suite-running coverage targets are wall-dominant, so
-          # they keep legs; the cheap .py-scanning targets moved to
+          # and the cheap .py-scanning targets moved to
           # check-python-batch below, which keeps the SAME uid matrix so
           # the bd-ib-sfa2 both-uids invariant holds for every target
-          # (slug drift stays policed by ci-matrix-completeness).
+          # (slug drift stays policed by ci-matrix-completeness). The
+          # coverage PAIR left this matrix entirely (work-item
+          # livespec-dev-tooling-yilyxr.8, porting dev-tooling PRs #1504
+          # + #1511) for the producer/consumer chain below — which keeps
+          # the uid dimension, so bd-ib-sfa2's argument is untouched.
           - check-lint
           - check-format
           - check-types
-          - check-coverage
-          - check-per-file-coverage
     steps:
       # Per-step `if:` (not job-level) so each matrix entry still reports a
       # status check named `${{ matrix.target }} (${{ matrix.uid }})`. With
@@ -277,6 +278,200 @@ jobs:
       # advisory, warn-only, or gated behind an env lever — a failure here
       # fails the job, and `ci-green` (the sole required context) fails if any
       # matrix leg fails.
+      - name: just ${{ matrix.target }} (uid 1000)
+        if: needs.setup.outputs.py_changed == 'true' && matrix.uid == 'nonroot'
+        run: |
+          setpriv --reuid=1000 --regid=1000 --clear-groups \
+            env HOME=/home/ci \
+                MISE_DATA_DIR=/root/.local/share/mise \
+                MISE_GLOBAL_CONFIG_FILE=/root/.config/mise/config.toml \
+                MISE_NOT_FOUND_AUTO_INSTALL=0 \
+                MISE_TRUSTED_CONFIG_PATHS="$GITHUB_WORKSPACE" \
+                PATH=/root/.local/share/mise/shims:/root/.local/bin:/usr/local/bin:/usr/bin:/bin \
+                GITHUB_TOKEN="$GITHUB_TOKEN" \
+                GH_TOKEN="$GH_TOKEN" \
+              just ${{ matrix.target }}
+
+  # Coverage-pair PRODUCER (work-item livespec-dev-tooling-yilyxr.8, porting
+  # dev-tooling PRs #1504 + #1511). Direction is fixed by this repo's own
+  # scripts, not by convention: dev-tooling/just-check-per-file-coverage.sh
+  # unconditionally runs `pytest --cov` with COVERAGE_FILE unset and leaves the
+  # repo-root `.coverage` behind, while dev-tooling/just-check-coverage.sh
+  # branches on `[[ -f .coverage ]]` and only runs the suite when the file is
+  # ABSENT. So per-file is the producer and coverage is the consumer, the same
+  # way `just check` already dedups them locally. Before this chain existed
+  # both legs ran the full suite on separate runners, under BOTH uids — four
+  # suite runs per CI run; now it is two.
+  #
+  # THE uid DIMENSION IS LOAD-BEARING HERE AND IS KEPT. bd-ib-sfa2's argument
+  # (see check-python) is that the 100% coverage gate itself converts a
+  # root/non-root divergence into a failure, because a line reachable only
+  # under one uid misses 100% under the other. That argument lives in THESE
+  # two targets, so collapsing them to a single uid would silently retire it.
+  # Each uid produces its OWN `.coverage` under its own artifact name, and the
+  # consumer leg for a uid reads only the artifact its own uid produced — so
+  # the two legs stay independently gated exactly as before.
+  check-per-file-coverage:
+    name: check-per-file-coverage (${{ matrix.uid }})
+    needs: setup
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.28.9
+    env:
+      MISE_DATA_DIR: /root/.local/share/mise
+      MISE_NOT_FOUND_AUTO_INSTALL: "0"
+      GITHUB_TOKEN: ${{ github.token }}
+      GH_TOKEN: ${{ github.token }}
+    strategy:
+      fail-fast: false
+      matrix:
+        uid:
+          - root
+          - nonroot
+    steps:
+      # Per-step `if:` (not job-level) so the job still reports its own status
+      # check name when skipped — same pattern as the check-python matrix.
+      - name: Skip when no .py changes
+        if: needs.setup.outputs.py_changed != 'true'
+        run: echo "::notice::skipped check-per-file-coverage (${{ matrix.uid }}) — no .py changes in this PR"
+
+      - name: Checkout
+        if: needs.setup.outputs.py_changed == 'true'
+        uses: actions/checkout@v4
+
+      - name: Trust workspace for git (container root-vs-checkout uid)
+        if: needs.setup.outputs.py_changed == 'true'
+        run: git config --global --add safe.directory '*'
+
+      - name: mise trust + install (baked tools — install is a near-no-op)
+        if: needs.setup.outputs.py_changed == 'true'
+        run: |
+          mise trust
+          mise install
+
+      - name: Install Python dev deps via uv
+        if: needs.setup.outputs.py_changed == 'true'
+        run: uv sync --all-groups
+
+      # Same narrow route as check-python's non-root leg — see that job for the
+      # /root-mode rationale and its stated limitation. Runs AFTER `uv sync` so
+      # the chown covers the venv root just created.
+      - name: Prepare non-root leg (open baked toolchain to uid 1000)
+        if: needs.setup.outputs.py_changed == 'true' && matrix.uid == 'nonroot'
+        run: |
+          chmod 0755 /root
+          chmod -R a+rX /root/.config /root/.local
+          mkdir -p /home/ci
+          chown -R 1000:1000 /home/ci "$GITHUB_WORKSPACE"
+          setpriv --reuid=1000 --regid=1000 --clear-groups \
+            env HOME=/home/ci git config --global --add safe.directory '*'
+
+      - name: just check-per-file-coverage (root)
+        if: needs.setup.outputs.py_changed == 'true' && matrix.uid == 'root'
+        run: just check-per-file-coverage
+
+      - name: just check-per-file-coverage (uid 1000)
+        if: needs.setup.outputs.py_changed == 'true' && matrix.uid == 'nonroot'
+        run: |
+          setpriv --reuid=1000 --regid=1000 --clear-groups \
+            env HOME=/home/ci \
+                MISE_DATA_DIR=/root/.local/share/mise \
+                MISE_GLOBAL_CONFIG_FILE=/root/.config/mise/config.toml \
+                MISE_NOT_FOUND_AUTO_INSTALL=0 \
+                MISE_TRUSTED_CONFIG_PATHS="$GITHUB_WORKSPACE" \
+                PATH=/root/.local/share/mise/shims:/root/.local/bin:/usr/local/bin:/usr/bin:/bin \
+                GITHUB_TOKEN="$GITHUB_TOKEN" \
+                GH_TOKEN="$GH_TOKEN" \
+              just check-per-file-coverage
+
+      # include-hidden-files is REQUIRED: upload-artifact@v4 excludes dotfiles
+      # by default and `.coverage` is one; without it the upload silently ships
+      # nothing and the consumer falls back to a full duplicate suite run. The
+      # name carries the uid so the two legs never overwrite each other.
+      - name: Publish .coverage for the check-coverage consumer
+        if: needs.setup.outputs.py_changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-data-${{ matrix.uid }}
+          path: .coverage
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
+  # Coverage-pair CONSUMER. Kept as a matrix with a literal `check-coverage`
+  # target entry (NOT a plain job) because check-coverage is a tool-backed slug
+  # and check-tool-backed-check-completeness requires every tool-backed slug to
+  # be a LITERAL matrix.target member. `needs` the producer so the downloaded
+  # `.coverage` is present and just-check-coverage.sh takes its consume-once
+  # branch (read + delete, no suite run). Paths inside the data file match
+  # because both jobs run in the same container workspace mount. If the
+  # download ever regresses, the script's else-branch runs the suite
+  # standalone — slower, never wrong.
+  check-coverage:
+    name: ${{ matrix.target }} (${{ matrix.uid }})
+    needs: [setup, check-per-file-coverage]
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.28.9
+    env:
+      MISE_DATA_DIR: /root/.local/share/mise
+      MISE_NOT_FOUND_AUTO_INSTALL: "0"
+      GITHUB_TOKEN: ${{ github.token }}
+      GH_TOKEN: ${{ github.token }}
+    strategy:
+      fail-fast: false
+      matrix:
+        uid:
+          - root
+          - nonroot
+        target:
+          - check-coverage
+    steps:
+      - name: Skip when no .py changes
+        if: needs.setup.outputs.py_changed != 'true'
+        run: echo "::notice::skipped ${{ matrix.target }} (${{ matrix.uid }}) — no .py changes in this PR"
+
+      - name: Checkout
+        if: needs.setup.outputs.py_changed == 'true'
+        uses: actions/checkout@v4
+
+      - name: Trust workspace for git (container root-vs-checkout uid)
+        if: needs.setup.outputs.py_changed == 'true'
+        run: git config --global --add safe.directory '*'
+
+      - name: mise trust + install (baked tools — install is a near-no-op)
+        if: needs.setup.outputs.py_changed == 'true'
+        run: |
+          mise trust
+          mise install
+
+      - name: Install Python dev deps via uv
+        if: needs.setup.outputs.py_changed == 'true'
+        run: uv sync --all-groups
+
+      # Downloaded BEFORE the non-root prep below, so that step's
+      # `chown -R 1000:1000 "$GITHUB_WORKSPACE"` covers the `.coverage` the
+      # uid-1000 leg has to read AND delete (consume-once).
+      - name: Download this uid's .coverage from the producer
+        if: needs.setup.outputs.py_changed == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-data-${{ matrix.uid }}
+
+      - name: Prepare non-root leg (open baked toolchain to uid 1000)
+        if: needs.setup.outputs.py_changed == 'true' && matrix.uid == 'nonroot'
+        run: |
+          chmod 0755 /root
+          chmod -R a+rX /root/.config /root/.local
+          mkdir -p /home/ci
+          chown -R 1000:1000 /home/ci "$GITHUB_WORKSPACE"
+          setpriv --reuid=1000 --regid=1000 --clear-groups \
+            env HOME=/home/ci git config --global --add safe.directory '*'
+
+      - name: just ${{ matrix.target }} (root)
+        if: needs.setup.outputs.py_changed == 'true' && matrix.uid == 'root'
+        run: just ${{ matrix.target }}
+
       - name: just ${{ matrix.target }} (uid 1000)
         if: needs.setup.outputs.py_changed == 'true' && matrix.uid == 'nonroot'
         run: |
@@ -784,7 +979,7 @@ jobs:
   # repo-agnostic, driven by $REPO/$RUN_ID from the workflow env.
   export-telemetry:
     name: export-telemetry
-    needs: [setup, check-python, check-python-batch, check-doctor-static, check-metadata, check-metadata-batch, e2e-cli, acceptance]
+    needs: [setup, check-python, check-per-file-coverage, check-coverage, check-python-batch, check-doctor-static, check-metadata, check-metadata-batch, e2e-cli, acceptance]
     if: ${{ !cancelled() && github.event_name == 'push' }}
     runs-on: ubuntu-latest
     permissions:
@@ -814,7 +1009,7 @@ jobs:
   # (push-only, not a gate) are intentionally absent from `needs:`.
   ci-green:
     name: ci-green
-    needs: [check-python, check-python-batch, check-doctor-static, check-metadata, check-metadata-batch, e2e-cli, acceptance]
+    needs: [check-python, check-per-file-coverage, check-coverage, check-python-batch, check-doctor-static, check-metadata, check-metadata-batch, e2e-cli, acceptance]
     if: always()
     runs-on: ubuntu-latest
     steps:
