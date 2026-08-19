@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.59.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.16...v0.59.0) (2026-08-19)
+
+
+### Features
+
+* add fabro port facade ([a37cae1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/a37cae1151b3c3360cd632494c73e1cfbe0e03d5))
+
 ## [0.58.16](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.15...v0.58.16) (2026-08-19)
 
 
