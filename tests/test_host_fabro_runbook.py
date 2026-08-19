@@ -32,8 +32,9 @@ def test_host_fabro_runbook_documents_run_turn_absence_guard() -> None:
     assert "if a future span shape carries them" in _IMAGE_RUNBOOK
     assert "zero `run_turn` spans over the" in _IMAGE_RUNBOOK
     assert "orchestrator-image/provision-honeycomb-run-turn-trigger.sh" in _IMAGE_RUNBOOK
-    assert "`COUNT` filtered to `name = run_turn`" in _IMAGE_RUNBOOK
+    assert "filtered to `name = run_turn`" in _IMAGE_RUNBOOK
     assert "threshold `<= 0`" in _IMAGE_RUNBOOK
-    assert "`operator-alert` recipient" in _IMAGE_RUNBOOK
+    assert "Honeycomb recipient selected by" in _IMAGE_RUNBOOK
+    assert "redacted email addresses" in _IMAGE_RUNBOOK
     assert "10-minute" in _IMAGE_RUNBOOK
     assert "DRY_RUN=1" in _IMAGE_RUNBOOK
