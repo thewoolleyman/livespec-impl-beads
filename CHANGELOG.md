@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.59.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.59.0...v0.59.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* count tracked plan children ([e83370f](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/e83370f2517da0cf6a0b2b273a113a7acf922a29))
+
 ## [0.59.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.16...v0.59.0) (2026-08-19)
 
 
