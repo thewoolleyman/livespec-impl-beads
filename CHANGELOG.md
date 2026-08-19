@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.58.16](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.15...v0.58.16) (2026-08-19)
+
+
+### Bug Fixes
+
+* instrument otel trace receiver diagnostics ([8344d72](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/8344d722ab56406007c8fb514d8b1a8208b09706))
+
 ## [0.58.15](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.14...v0.58.15) (2026-08-19)
 
 
