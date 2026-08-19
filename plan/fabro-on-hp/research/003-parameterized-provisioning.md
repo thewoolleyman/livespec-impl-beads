@@ -114,3 +114,53 @@ unexercised; landing `.14` must include one real run on hp. It does not choose
 `.16`'s number: `hosts/hp-xubuntu.settings.expected` records the observed `5`,
 not a chosen value. And it does not create the destination repository, which
 remains the maintainer's call.
+
+## Correction to Finding 1, measured the same day
+
+Finding 1 above is left as written, because the record of what I believed
+matters. Two steps of its reasoning were wrong, in opposite directions, and
+the remedy it implied was unsupported. All of it was caught by measuring the
+running host instead of reasoning from configured numbers.
+
+**Measured on hp while four runs were executing:** 16 cores, 30Gi RAM, 23Gi
+available. The per-run plan is *enforced*, not advisory — `workflow.toml`
+sets `cpu = 4` / `memory = "8GB"` and `docker inspect` shows
+`Memory=8000000000` on every live sandbox. Actual usage per container was
+**245MiB–659MiB against the 7.451GiB cap (3–9%)**, about 1.7GiB across all
+four. CPU was the busier axis: 403%, 161%, 102%, 2% — roughly 6.7 of 16
+cores. Zero OOM kills in 24 hours.
+
+**Error 1 — the finding reads as "match vps's 10".** At nominal reservation
+that would demand 40 cores and 80GB on a 16-core / 30Gi machine. vps's 10 was
+chosen for 18 cores and 94Gi. Not a defensible target on resources alone.
+
+**Error 2 — the opposite overcorrection, which I also briefly believed.** The
+same nominal arithmetic run the other way says hp at 5 slots reserves 40GB on
+a 30Gi host and is *already* unsafe. Also wrong: the 8GB is a per-container
+**cap, not a reservation**, nothing bounds the sum, and measured usage is
+~0.5GB per run. Nominal arithmetic overstates memory risk here by more than
+an order of magnitude.
+
+**What survives.** hp's `5` is an **unchosen default**, not a decision — that
+is the entire defect, and it is unchanged. The number may even be roughly
+right; the finding implied it was clearly wrong, which I could not have known
+without measuring.
+
+**A defensible target, on correct evidence.** Cores divided by the per-run
+`cpu = 4` gives a nominal 4 slots for hp and 4.5 for vps. vps is set to 10,
+i.e. deliberately over-subscribed ~2.2x — sound and clearly intentional,
+since these runs are mostly idle waiting on the model, which is exactly what
+the measurements show. The same convention puts hp near 8–10. So the original
+conclusion (hp should be higher) stands, but it rests on measured idleness
+and a consistent over-subscription factor, **not** on the nominal-reservation
+arithmetic the finding implied. CPU, not memory, is the axis to watch: five
+simultaneously-busy runs would demand ~20 cores on 16.
+
+`bd-ib-l3nptz.16` has been **downgraded p1 → p2** accordingly. It is an
+unrecorded configuration decision with no measured harm, not a live hazard
+like `.15` — which is a non-self-healing loop that has already killed a run.
+
+**Method note.** Both wrong intermediate answers came from reasoning about
+configured numbers rather than measuring running ones, and both were
+internally consistent and confidently wrong. `docker stats` and the kernel
+journal settled in one command what two rounds of arithmetic could not.
