@@ -1,0 +1,15 @@
+# Expected RESOLVED fabro server settings for hp-xubuntu, as reported by
+# GET /api/v1/settings. Measured live 2026-08-19.
+#
+# max_concurrent_runs: hp currently resolves 5 -- the fabro built-in default
+# (lib/crates/fabro-config/src/defaults.toml:44 at the pinned build 8de6611),
+# because hp's settings.toml has no [server.scheduler] table at all. vps runs
+# 10. That divergence is bd-ib-l3nptz.16 and is UNRESOLVED: the value below is
+# deliberately left at the observed 5 so this file records what IS, not what
+# someone hopes. Change it in the same commit that changes the host.
+server.scheduler.max_concurrent_runs=5
+server.web.enabled=true
+server.web.url=https://hp-xubuntu.perch-rudd.ts.net:32276
+server.api.url=https://hp-xubuntu.perch-rudd.ts.net:32276/api/v1
+server.listen.address=127.0.0.1:32276
+server.integrations.github.app_id=3668528
