@@ -22,6 +22,10 @@ def test_host_fabro_runbooks_require_supervised_web_console() -> None:
 def test_host_fabro_runbook_documents_run_turn_absence_guard() -> None:
     assert "### Fabro `run_turn` absence guard" in _IMAGE_RUNBOOK
     assert "`run-turn-telemetry-absent` critical reflection finding" in _IMAGE_RUNBOOK
-    assert "zero `run_turn` spans in dataset `fabro`" in _IMAGE_RUNBOOK
+    assert "zero `run_turn` spans over the" in _IMAGE_RUNBOOK
+    assert "orchestrator-image/provision-honeycomb-run-turn-trigger.sh" in _IMAGE_RUNBOOK
+    assert "`COUNT` filtered to `name = run_turn`" in _IMAGE_RUNBOOK
+    assert "threshold `<= 0`" in _IMAGE_RUNBOOK
+    assert "`operator-alert` recipient" in _IMAGE_RUNBOOK
     assert "10-minute" in _IMAGE_RUNBOOK
-    assert "rolling window" in _IMAGE_RUNBOOK
+    assert "DRY_RUN=1" in _IMAGE_RUNBOOK

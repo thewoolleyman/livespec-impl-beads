@@ -302,19 +302,27 @@ span named `run_turn` in the `fabro` dataset, keyed by `work.item.id` and
 reflection window, normally seconds after the run returns and within the next
 dispatcher loop pass.
 
-This is the cheap per-dispatch layer. It is NOT yet paired with a
-Honeycomb-side dead-man trigger: no trigger on the `fabro` dataset alerting
-on zero `run_turn` spans over a rolling window exists today (verified live
-against the Honeycomb livespec environment, 2026-08-17). The design intent,
-recorded here for whoever builds it, is to alert on
-zero `run_turn` spans in dataset `fabro` over a 10-minute rolling window,
-routed through the existing operator-alert path used by the adopter dead-man
-triggers, verified by
-breaking `OTEL_EXPORTER_OTLP_ENDPOINT` on a scratch run (the dispatcher
-finding should appear and the Honeycomb trigger should fire within the
-10-minute window) and restoring it (both should clear after the next
-successful `run_turn` export). Track the build as its own work-item; do not
-read this section as describing a trigger that already exists.
+This is the cheap per-dispatch layer. It is paired with a Honeycomb-side
+dead-man trigger on the `fabro` dataset: zero `run_turn` spans over the
+trailing 10 minutes fires an `on_change` alert through the same
+`operator-alert` recipient path used by the adopter dead-man triggers.
+
+Provision or repair that trigger with the livespec Honeycomb configuration key:
+
+```bash
+HONEYCOMB_CONFIG_KEY_LIVESPEC=... \
+  bash orchestrator-image/provision-honeycomb-run-turn-trigger.sh
+```
+
+The script is idempotent by trigger name (`Fabro run_turn dead-man`), resolves
+the existing `operator-alert` recipient, and creates or updates the `fabro`
+dataset trigger with `COUNT` filtered to `name = run_turn`, `time_range = 600`,
+`frequency = 600`, and threshold `<= 0`. Set `DRY_RUN=1` to print the exact
+payload without changing Honeycomb. Verification is still live: break
+`OTEL_EXPORTER_OTLP_ENDPOINT` on a scratch run and confirm the dispatcher
+finding appears and the Honeycomb trigger fires within the 10-minute window;
+restore the endpoint and confirm both clear after the next successful
+`run_turn` export.
 
 ### Auth posture (OAuth-only)
 
