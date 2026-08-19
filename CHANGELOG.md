@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.58.14](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.13...v0.58.14) (2026-08-19)
+
+
+### Bug Fixes
+
+* keep sandbox otel service identity ([a08c448](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/a08c448f802b75c566d97efb91fad86bb5138253))
+* project fabro service name for sandbox otel ([5cf21cb](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/5cf21cb8427ae455215391c8102771b45ee21bdf))
+
 ## [0.58.13](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.12...v0.58.13) (2026-08-19)
 
 
