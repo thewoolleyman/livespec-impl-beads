@@ -469,6 +469,28 @@ config) use `chore(...)` / `docs(...)` / `chore(spec):` subjects and skip the
 ritual entirely. Always use `mise exec -- git ...` so the hooks fire; never
 pass `--no-verify`.
 
+## Progressive guidance (repo-additive)
+
+Repo-specific operational notes live under `.ai/`, loaded on demand rather
+than inlined here (livespec core contracts §"Fleet agent-instruction core"
+— the progressive-disclosure convention; every reference below MUST
+resolve, which `check-agents-ai-references-resolve` enforces).
+
+Both files below existed before this section did, and neither was reachable
+from this file — an agent following AGENTS.md as its entry point was never
+routed to them. That is the failure mode the resolve check structurally
+cannot catch: it verifies that references RESOLVE, so a repo that makes no
+references passes with its guidance orphaned.
+
+- Read `.ai/cross-tenant-execution-mirror.md` BEFORE working a work-item
+  whose tenant repo differs from the repo that must receive the
+  implementation. The Dispatcher sandboxes the `--repo` tenant repo and has
+  no per-item repo targeting, so the mirror convention is the only correct
+  route; guessing at it is how a change lands in the wrong repo.
+- Read `.ai/supervisor-protocol.md` before driving a worker as supervisor —
+  the HALT-first preconditions, and the rule that new supervisor handoffs
+  are ledger epic entries, never files under `plan/<topic>/`.
+
 ## Working with the maintainer (repo-additive)
 
 - **Spell out "Definition-of-Ready" in full** — the acronym "DoR" is BANNED
