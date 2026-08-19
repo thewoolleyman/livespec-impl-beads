@@ -55,7 +55,6 @@ def cc_otel_overlay_env(
     resource_attributes = ",".join(
         (
             "service.namespace=livespec-family",
-            "service.name=fabro",
             f"work.item.id={work_item_id}",
             f"livespec.dispatch.id={dispatch_id}",
         )
@@ -68,7 +67,6 @@ def cc_otel_overlay_env(
         "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA": "1",
         "OTEL_EXPORTER_OTLP_ENDPOINT": endpoint,
         "OTEL_EXPORTER_OTLP_PROTOCOL": "http/json",
-        "OTEL_SERVICE_NAME": "fabro",
         "OTEL_RESOURCE_ATTRIBUTES": resource_attributes,
         "OTEL_METRIC_EXPORT_INTERVAL": "10000",
         "OTEL_LOGS_EXPORT_INTERVAL": "5000",
