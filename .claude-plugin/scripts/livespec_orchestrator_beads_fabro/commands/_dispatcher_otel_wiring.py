@@ -23,6 +23,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
 from livespec_orchestrator_beads_fabro.commands._dispatcher_projection import (
     SANDBOX_OTEL_ENDPOINT_ENV_VAR,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_run_turn_diagnostics import (
+    run_turn_diagnostic_path,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_run_turn_sink import RunTurnSink
 from livespec_orchestrator_beads_fabro.commands._otel_receive import (
     HeartbeatSink,
@@ -80,7 +83,8 @@ def _build_otel_receiver(
     exporter = HoneycombHttpExporter(ingest_key=os.environ.get(_HONEYCOMB_INGEST_KEY_ENV, ""))
     heartbeat = HeartbeatSink(path=heartbeat_path(args=args, repo=repo))
     cost = CostSink(path=cost_sink_path(args=args, repo=repo))
-    run_turn = RunTurnSink(path=run_turn_sink_path(args=args, repo=repo))
+    run_turn_path = run_turn_sink_path(args=args, repo=repo)
+    run_turn = RunTurnSink(path=run_turn_path)
     default_model = os.environ.get(DEFAULT_DISPATCH_COST_MODEL_ENV, "").strip() or None
     return OtelReceiver(
         config=resolved_config,
@@ -88,6 +92,7 @@ def _build_otel_receiver(
         heartbeat=heartbeat,
         cost=cost,
         run_turn=run_turn,
+        run_turn_diagnostics_path=run_turn_diagnostic_path(path=run_turn_path),
         default_model=default_model,
     )
 

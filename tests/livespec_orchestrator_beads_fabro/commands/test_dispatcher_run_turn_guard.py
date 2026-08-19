@@ -11,6 +11,9 @@ import pytest
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import run_turn_sink_path
+from livespec_orchestrator_beads_fabro.commands._dispatcher_run_turn_diagnostics import (
+    RunTurnTraceRequest,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_run_turn_guard import (
     append_run_turn_checks,
 )
@@ -154,6 +157,80 @@ def test_append_run_turn_checks_ignores_stale_global_run_turn_exports(tmp_path: 
 
     check = _records(path=journal_path)[-1]
     assert check["work_item_id"] == "bd-ib-old"
+    assert check["run_turn_exported"] is False
+
+
+def test_append_run_turn_checks_accepts_receiver_observed_run_turn_export(
+    tmp_path: Path,
+) -> None:
+    journal_path = tmp_path / "journal.jsonl"
+    journal = JournalFile(path=journal_path)
+    journal.append(
+        record={
+            "stage": "dispatch-id",
+            "work_item_id": "bd-ib-demo",
+            "dispatch_id": "disp-1",
+            "started_at_epoch": 20.0,
+        }
+    )
+    sink = RunTurnSink(path=tmp_path / "run-turn.json")
+    sink.record_trace_request(
+        request=RunTurnTraceRequest(
+            ingested_spans=1,
+            enriched_spans=1,
+            dataset_batch_sizes={"fabro": 1},
+            export_results={"fabro": True},
+            run_turn_sink_missing=False,
+            successful_run_turn_exports=1,
+            at=30.0,
+        )
+    )
+
+    append_run_turn_checks(
+        outcomes=(_outcome(work_item_id="bd-ib-demo"),),
+        journal=journal,
+        journal_path=journal_path,
+        sink=sink,
+    )
+
+    check = _records(path=journal_path)[-1]
+    assert check["run_turn_exported"] is True
+
+
+def test_append_run_turn_checks_rejects_receiver_export_without_run_turn(
+    tmp_path: Path,
+) -> None:
+    journal_path = tmp_path / "journal.jsonl"
+    journal = JournalFile(path=journal_path)
+    journal.append(
+        record={
+            "stage": "dispatch-id",
+            "work_item_id": "bd-ib-demo",
+            "dispatch_id": "disp-1",
+            "started_at_epoch": 20.0,
+        }
+    )
+    sink = RunTurnSink(path=tmp_path / "run-turn.json")
+    sink.record_trace_request(
+        request=RunTurnTraceRequest(
+            ingested_spans=1,
+            enriched_spans=1,
+            dataset_batch_sizes={"fabro": 1},
+            export_results={"fabro": True},
+            run_turn_sink_missing=False,
+            successful_run_turn_exports=0,
+            at=30.0,
+        )
+    )
+
+    append_run_turn_checks(
+        outcomes=(_outcome(work_item_id="bd-ib-demo"),),
+        journal=journal,
+        journal_path=journal_path,
+        sink=sink,
+    )
+
+    check = _records(path=journal_path)[-1]
     assert check["run_turn_exported"] is False
 
 
