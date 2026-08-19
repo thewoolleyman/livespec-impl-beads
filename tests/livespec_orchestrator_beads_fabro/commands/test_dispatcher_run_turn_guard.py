@@ -224,6 +224,41 @@ def test_run_turn_sink_records_fabro_run_turn_without_correlation_ids(tmp_path: 
     assert sink.has_export(keys=("",)) is True
 
 
+def test_run_turn_sink_writes_non_secret_diagnostics_for_record_attempts(tmp_path: Path) -> None:
+    sink = RunTurnSink(path=tmp_path / "run-turn.json")
+    assert (
+        sink.record_export(
+            span={"name": "agent.turn"},
+            resource_attrs={"work.item.id": "bd-ib-demo"},
+            dataset="fabro",
+            at=10.0,
+        )
+        is False
+    )
+    assert (
+        sink.record_export(
+            span={"name": "run_turn"},
+            resource_attrs={"work.item.id": "bd-ib-demo"},
+            dataset="fabro",
+            at=11.0,
+        )
+        is True
+    )
+
+    diagnostic = json.loads((tmp_path / "run-turn-diagnostics.json").read_text(encoding="utf-8"))
+    assert diagnostic == {
+        "accepted": 1,
+        "last": {
+            "at": 11.0,
+            "dataset": "fabro",
+            "reason": "accepted",
+            "span_name": "run_turn",
+        },
+        "rejected": {"span-name": 1},
+        "write_failures": 0,
+    }
+
+
 @pytest.mark.parametrize("raw", ["not-json", "[]", json.dumps({"key": True, "other": "text"})])
 def test_run_turn_sink_reads_malformed_files_as_empty(tmp_path: Path, raw: str) -> None:
     path = tmp_path / "run-turn.json"
