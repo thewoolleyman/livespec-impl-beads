@@ -22,7 +22,10 @@ def test_host_fabro_runbooks_require_supervised_web_console() -> None:
 def test_host_fabro_runbook_documents_run_turn_absence_guard() -> None:
     assert "### Fabro `run_turn` absence guard" in _IMAGE_RUNBOOK
     assert "`run-turn-telemetry-absent` critical reflection finding" in _IMAGE_RUNBOOK
-    assert "zero `run_turn` spans over the" in _IMAGE_RUNBOOK
+    assert "not yet provisioned in the livespec" in _IMAGE_RUNBOOK
+    assert "Honeycomb environment" in _IMAGE_RUNBOOK
+    assert "bd-ib-jb7rzr.3" in _IMAGE_RUNBOOK
+    assert "only the per-dispatch guard layer exists" in _IMAGE_RUNBOOK
     assert "orchestrator-image/provision-honeycomb-run-turn-trigger.sh" in _IMAGE_RUNBOOK
     assert "`COUNT` filtered to `name = run_turn`" in _IMAGE_RUNBOOK
     assert "threshold `<= 0`" in _IMAGE_RUNBOOK

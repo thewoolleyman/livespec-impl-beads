@@ -302,10 +302,15 @@ span named `run_turn` in the `fabro` dataset, keyed by `work.item.id` and
 reflection window, normally seconds after the run returns and within the next
 dispatcher loop pass.
 
-This is the cheap per-dispatch layer. It is paired with a Honeycomb-side
-dead-man trigger on the `fabro` dataset: zero `run_turn` spans over the
-trailing 10 minutes fires an `on_change` alert through the same
-`operator-alert` recipient path used by the adopter dead-man triggers.
+This is the cheap per-dispatch layer. The paired Honeycomb-side dead-man
+trigger is designed and scripted, but it is not yet provisioned in the livespec
+Honeycomb environment. The trigger goes live only after someone runs
+`orchestrator-image/provision-honeycomb-run-turn-trigger.sh` with
+`HONEYCOMB_CONFIG_KEY_LIVESPEC`; that provisioning credential is tracked by
+bd-ib-jb7rzr.3. Until then, only the per-dispatch guard layer exists. Once
+provisioned, zero `run_turn` spans over the trailing 10 minutes fire an
+`on_change` alert through the same `operator-alert` recipient path used by the
+adopter dead-man triggers.
 
 Provision or repair that trigger with the livespec Honeycomb configuration key:
 
