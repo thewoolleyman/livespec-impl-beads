@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.58.11](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.10...v0.58.11) (2026-08-19)
+
+
+### Bug Fixes
+
+* **audit:** track the renamed fleet factory App login ([00e864f](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/00e864fae1a3732838483e4d123bd4137e52c0d1))
+* bound run_turn guard to dispatch window ([95d017a](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/95d017aa425e609522f4de5cbb04d9b4e4566bad))
+* **effects:** move the tenant-verification cache out of the repo to XDG ([21de9c7](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/21de9c7a4e465cf0285d8c151b9517a9f5471956))
+* prevent stale factory retry fallthrough ([4b6e45f](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/4b6e45f35b2d781c2d63258ea0eb4793c347eaf6))
+
 ## [0.58.10](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.9...v0.58.10) (2026-08-17)
 
 
