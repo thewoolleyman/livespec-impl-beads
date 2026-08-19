@@ -5,7 +5,7 @@ api_key="${HONEYCOMB_CONFIG_KEY_LIVESPEC:-${HONEYCOMB_TEAM_KEY_LIVESPEC:-}}"
 api_base="${HONEYCOMB_API_BASE:-https://api.honeycomb.io}"
 dataset="${HONEYCOMB_FABRO_DATASET:-fabro}"
 trigger_name="${HONEYCOMB_FABRO_RUN_TURN_TRIGGER_NAME:-Fabro run_turn dead-man}"
-recipient_selector="${HONEYCOMB_OPERATOR_ALERT_RECIPIENT:-operator-alert}"
+recipient_selector="${HONEYCOMB_OPERATOR_ALERT_RECIPIENT:-}"
 dry_run="${DRY_RUN:-0}"
 
 if [[ -z "${api_key}" ]]; then
@@ -46,11 +46,55 @@ path, selector = sys.argv[1:]
 with open(path, encoding="utf-8") as handle:
     recipients = json.load(handle)
 
+
+def redact(value):
+    if not value:
+        return None
+    if "@" not in value:
+        return value
+    local, domain = value.split("@", maxsplit=1)
+    if len(local) <= 2:
+        redacted_local = local[0] + "***" if local else "***"
+    else:
+        redacted_local = f"{local[0]}***{local[-1]}"
+    return f"{redacted_local}@{domain}"
+
+
+def describe(recipient):
+    details = recipient.get("details") or {}
+    parts = [
+        f"id={recipient.get('id', '<missing>')}",
+        f"type={recipient.get('type', '<missing>')}",
+    ]
+    for key in ("email_address", "name", "webhook_name", "slack_channel"):
+        value = details.get(key)
+        if value:
+            display = redact(value) if key == "email_address" else value
+            parts.append(f"{key}={display}")
+    target = recipient.get("target")
+    if target:
+        parts.append(f"target={target}")
+    return " ".join(parts)
+
+
+def print_available():
+    print("available Honeycomb recipients:", file=sys.stderr)
+    for recipient in recipients:
+        print(f"  - {describe(recipient)}", file=sys.stderr)
+
+
+if not selector:
+    print("HONEYCOMB_OPERATOR_ALERT_RECIPIENT is required.", file=sys.stderr)
+    print("Set it to a Honeycomb recipient id, name, email address, webhook name, or Slack channel.", file=sys.stderr)
+    print_available()
+    raise SystemExit(1)
+
 for recipient in recipients:
     details = recipient.get("details") or {}
     candidates = {
         recipient.get("id"),
         recipient.get("target"),
+        details.get("email_address"),
         details.get("name"),
         details.get("webhook_name"),
         details.get("slack_channel"),
@@ -60,6 +104,7 @@ for recipient in recipients:
         raise SystemExit(0)
 
 print(f"no Honeycomb recipient matched {selector!r}", file=sys.stderr)
+print_available()
 raise SystemExit(1)
 PY
 )"
