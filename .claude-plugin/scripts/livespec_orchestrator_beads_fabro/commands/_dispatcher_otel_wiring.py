@@ -20,10 +20,14 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
     run_turn_sink_path,
     spans_path,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_projection import (
+    SANDBOX_OTEL_ENDPOINT_ENV_VAR,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_run_turn_sink import RunTurnSink
 from livespec_orchestrator_beads_fabro.commands._otel_receive import (
     HeartbeatSink,
     OtelReceiver,
+    ReceiverConfig,
     StartableServer,
     ensure_receiver_started,
     resolve_receiver_config,
@@ -56,7 +60,9 @@ _OTEL_RECEIVER_HOLDER: dict[str, object] = {}
 _OTEL_ENRICH_DRIVER_HOLDER: dict[str, object] = {}
 
 
-def _build_otel_receiver(*, args: argparse.Namespace, repo: Path) -> StartableServer:
+def _build_otel_receiver(
+    *, args: argparse.Namespace, repo: Path, config: ReceiverConfig | None = None
+) -> StartableServer:
     """Build (but do NOT start) the single host-local live OTLP receiver.
 
     Resolves the bound loopback addr/port from the `LIVESPEC_OTEL_RECEIVER_*`
@@ -70,14 +76,14 @@ def _build_otel_receiver(*, args: argparse.Namespace, repo: Path) -> StartableSe
     """
     from livespec_orchestrator_beads_fabro.commands._otel_enrich import HoneycombHttpExporter
 
-    config = resolve_receiver_config(environ=dict(os.environ))
+    resolved_config = config or resolve_receiver_config(environ=dict(os.environ))
     exporter = HoneycombHttpExporter(ingest_key=os.environ.get(_HONEYCOMB_INGEST_KEY_ENV, ""))
     heartbeat = HeartbeatSink(path=heartbeat_path(args=args, repo=repo))
     cost = CostSink(path=cost_sink_path(args=args, repo=repo))
     run_turn = RunTurnSink(path=run_turn_sink_path(args=args, repo=repo))
     default_model = os.environ.get(DEFAULT_DISPATCH_COST_MODEL_ENV, "").strip() or None
     return OtelReceiver(
-        config=config,
+        config=resolved_config,
         exporter=exporter,
         heartbeat=heartbeat,
         cost=cost,
@@ -105,7 +111,30 @@ def ensure_otel_receiver(
     resolved_factory = (
         (lambda: _build_otel_receiver(args=args, repo=repo)) if factory is None else factory
     )
-    return ensure_receiver_started(holder=target_holder, factory=resolved_factory)
+    server = ensure_receiver_started(holder=target_holder, factory=resolved_factory)
+    if server is None and factory is None:
+        server = _ensure_fallback_otel_receiver(args=args, repo=repo, holder=target_holder)
+    _project_owned_receiver_endpoint(server=server)
+    return server
+
+
+def _ensure_fallback_otel_receiver(
+    *, args: argparse.Namespace, repo: Path, holder: dict[str, object]
+) -> StartableServer | None:
+    config = resolve_receiver_config(environ=dict(os.environ))
+    fallback = ReceiverConfig(host=config.host, port=0)
+    return ensure_receiver_started(
+        holder=holder,
+        factory=lambda: _build_otel_receiver(args=args, repo=repo, config=fallback),
+    )
+
+
+def _project_owned_receiver_endpoint(*, server: StartableServer | None) -> None:
+    if not isinstance(server, OtelReceiver):
+        return
+    if server.bound_port <= 0:
+        return
+    os.environ[SANDBOX_OTEL_ENDPOINT_ENV_VAR] = f"http://{server.config.host}:{server.bound_port}"
 
 
 def _driver_span_paths(*, args: argparse.Namespace, repo: Path) -> tuple[Path, ...]:

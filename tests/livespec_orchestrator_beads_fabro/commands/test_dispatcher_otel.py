@@ -20,6 +20,8 @@ ever binds, no real fabro run, no real Honeycomb call:
 from __future__ import annotations
 
 import argparse
+import os
+import socket
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -141,6 +143,38 @@ def test_default_otel_receiver_factory_builds_without_starting(
         receiver.run_turn.path
         == state_home / "livespec-orchestrator-beads-fabro" / "run-turn-exports" / "fabro.json"
     )
+
+
+def test_ensure_otel_receiver_falls_back_to_local_port_and_projects_endpoint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    blocker = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    blocker.bind(("127.0.0.1", 0))
+    blocker.listen()
+    busy_port = blocker.getsockname()[1]
+    monkeypatch.setenv("LIVESPEC_OTEL_RECEIVER_HOST", "127.0.0.1")
+    monkeypatch.setenv("LIVESPEC_OTEL_RECEIVER_PORT", str(busy_port))
+    monkeypatch.delenv("LIVESPEC_SANDBOX_OTEL_ENDPOINT", raising=False)
+
+    try:
+        receiver = ensure_otel_receiver(
+            args=_args(repo=tmp_path, journal=tmp_path / "j.jsonl"),
+            repo=tmp_path,
+            holder={},
+        )
+    finally:
+        blocker.close()
+
+    assert isinstance(receiver, OtelReceiver)
+    try:
+        assert receiver.is_running() is True
+        assert receiver.bound_port != busy_port
+        assert (
+            os.environ["LIVESPEC_SANDBOX_OTEL_ENDPOINT"]
+            == f"http://127.0.0.1:{receiver.bound_port}"
+        )
+    finally:
+        receiver.stop()
 
 
 @dataclass(kw_only=True)
