@@ -314,21 +314,25 @@ Honeycomb environment. The trigger goes live only after someone runs
 `HONEYCOMB_CONFIG_KEY_LIVESPEC`; that provisioning credential is tracked by
 bd-ib-jb7rzr.3. Until then, only the per-dispatch guard layer exists. Once
 provisioned, zero `run_turn` spans over the trailing 10 minutes fire an
-`on_change` alert through the same `operator-alert` recipient path used by the
-adopter dead-man triggers.
+`on_change` alert through the Honeycomb recipient selected by
+`HONEYCOMB_OPERATOR_ALERT_RECIPIENT`.
 
 Provision or repair that trigger with the livespec Honeycomb configuration key:
 
 ```bash
 HONEYCOMB_CONFIG_KEY_LIVESPEC=... \
+HONEYCOMB_OPERATOR_ALERT_RECIPIENT=operator@example.com \
   bash orchestrator-image/provision-honeycomb-run-turn-trigger.sh
 ```
 
 The script is idempotent by trigger name (`Fabro run_turn dead-man`), resolves
-the existing `operator-alert` recipient, and creates or updates the `fabro`
-dataset trigger with `COUNT` filtered to `name = run_turn`, `time_range = 600`,
-`frequency = 600`, and threshold `<= 0`. Set `DRY_RUN=1` to print the exact
-payload without changing Honeycomb. Verification is still live: break
+the configured recipient by id, email address, name, webhook name, or Slack
+channel, and creates or updates the `fabro` dataset trigger with `COUNT`
+filtered to `name = run_turn`, `time_range = 600`, `frequency = 600`, and
+threshold `<= 0`. If the selector is missing or does not match, the script lists
+the available recipient ids, types, and redacted email addresses. Set
+`DRY_RUN=1` to print the exact payload without changing Honeycomb. Verification
+is still live: break
 `OTEL_EXPORTER_OTLP_ENDPOINT` on a scratch run and confirm the dispatcher
 finding appears and the Honeycomb trigger fires within the 10-minute window;
 restore the endpoint and confirm both clear after the next successful
