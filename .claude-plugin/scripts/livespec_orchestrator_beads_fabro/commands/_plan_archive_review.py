@@ -1,4 +1,12 @@
-"""Plan archive completeness-review evidence helpers."""
+"""Plan archive completeness-review evidence helpers.
+
+The archive completeness gate refuses disposal while any linked plan member is
+undisposed. Membership comes from `parent-child` and `tracks` edges pointing to
+the epic. The same gate also counts upstream `blocks` dependencies carried by
+the epic as blockers that must be disposed before archive; `supersedes` edges
+are deliberately ignored because supersession is not plan membership or a
+blocking prerequisite.
+"""
 
 from __future__ import annotations
 
@@ -11,6 +19,7 @@ from typing_extensions import Unpack
 from livespec_orchestrator_beads_fabro._beads_client import (
     EDGE_BLOCKS,
     EDGE_PARENT_CHILD,
+    EDGE_TRACKS,
     BeadsRecord,
     make_beads_client,
 )
@@ -140,17 +149,17 @@ def valid_completeness_review_evidence_id(
 def _undisposed_plan_children(*, client: BeadsClient, epic_id: str) -> list[BeadsRecord]:
     return [
         record
-        for record in _plan_child_records(client=client, epic_id=epic_id)
+        for record in _plan_archive_gate_records(client=client, epic_id=epic_id)
         if _is_undisposed_plan_child(record=record)
     ]
 
 
-def _plan_child_records(*, client: BeadsClient, epic_id: str) -> list[BeadsRecord]:
+def _plan_archive_gate_records(*, client: BeadsClient, epic_id: str) -> list[BeadsRecord]:
     records_by_id = {
         cast("str", record["id"]): record for record in client.children(parent_id=epic_id)
     }
     records = client.list_issues()
-    linked_ids = _linked_child_ids_for_epic(records=records, epic_id=epic_id)
+    linked_ids = _linked_plan_gate_ids_for_epic(records=records, epic_id=epic_id)
     for record in records:
         issue_id = record.get("id")
         if isinstance(issue_id, str) and issue_id in linked_ids:
@@ -162,7 +171,7 @@ def _disposed_child_ids(*, client: BeadsClient, epic_id: str) -> tuple[str, ...]
     return tuple(
         sorted(
             record["id"]
-            for record in _plan_child_records(client=client, epic_id=epic_id)
+            for record in _plan_archive_gate_records(client=client, epic_id=epic_id)
             if isinstance(record.get("id"), str) and record.get("status") == "closed"
         )
     )
@@ -193,31 +202,35 @@ def _blocking_ids_for_epic(*, records: list[BeadsRecord], epic_id: str) -> froze
     return frozenset()
 
 
-def _linked_child_ids_for_epic(*, records: list[BeadsRecord], epic_id: str) -> frozenset[str]:
+def _linked_plan_gate_ids_for_epic(
+    *,
+    records: list[BeadsRecord],
+    epic_id: str,
+) -> frozenset[str]:
     return frozenset(
         issue_id
         for record in records
         if isinstance(issue_id := record.get("id"), str)
-        and _has_parent_child_edge_to_epic(record=record, epic_id=epic_id)
+        and _has_plan_child_edge_to_epic(record=record, epic_id=epic_id)
     ) | _blocking_ids_for_epic(records=records, epic_id=epic_id)
 
 
-def _has_parent_child_edge_to_epic(*, record: BeadsRecord, epic_id: str) -> bool:
+def _has_plan_child_edge_to_epic(*, record: BeadsRecord, epic_id: str) -> bool:
     dependencies = record.get("dependencies")
     if not isinstance(dependencies, list):
         return False
     typed_dependencies = cast("list[object]", dependencies)
     return any(
-        _is_parent_child_edge_to_epic(edge=edge, epic_id=epic_id) for edge in typed_dependencies
+        _is_plan_child_edge_to_epic(edge=edge, epic_id=epic_id) for edge in typed_dependencies
     )
 
 
-def _is_parent_child_edge_to_epic(*, edge: object, epic_id: str) -> bool:
+def _is_plan_child_edge_to_epic(*, edge: object, epic_id: str) -> bool:
     if not isinstance(edge, dict):
         return False
     typed_edge = cast("dict[str, Any]", edge)
     depends_on_id = typed_edge.get("depends_on_id")
-    return typed_edge.get("type") == EDGE_PARENT_CHILD and depends_on_id == epic_id
+    return typed_edge.get("type") in (EDGE_PARENT_CHILD, EDGE_TRACKS) and depends_on_id == epic_id
 
 
 def blocking_dependency_ids(*, record: BeadsRecord) -> frozenset[str]:

@@ -28,6 +28,10 @@ if TYPE_CHECKING:
     from livespec_orchestrator_beads_fabro.types import StoreConfig
 
 __all__: list[str] = [
+    "EDGE_BLOCKS",
+    "EDGE_PARENT_CHILD",
+    "EDGE_SUPERSEDES",
+    "EDGE_TRACKS",
     "BeadsClient",
     "BeadsRecord",
     "DependencyEdge",
@@ -40,7 +44,8 @@ __all__: list[str] = [
 
 # A beads issue as it crosses the seam: the parsed `bd ... --json` object.
 BeadsRecord = dict[str, Any]
-# A dependency edge: `{"depends_on_id": <id>, "type": <blocks|supersedes|parent-child>}`.
+# A dependency edge:
+# `{"depends_on_id": <id>, "type": <blocks|supersedes|parent-child|tracks>}`.
 DependencyEdge = dict[str, Any]
 
 
@@ -161,6 +166,7 @@ class BeadsClient(Protocol):
 EDGE_BLOCKS = "blocks"
 EDGE_SUPERSEDES = "supersedes"
 EDGE_PARENT_CHILD = "parent-child"
+EDGE_TRACKS = "tracks"
 
 # `["update", <id>]` is the bare verb+id with no mutating flags; an argv of
 # this length carries nothing to update, so the shell client skips the call.
