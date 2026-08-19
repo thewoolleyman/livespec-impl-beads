@@ -39,6 +39,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
     journal_path,
     store_config,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_readiness_diagnostics import (
+    not_ready_requested_items_error,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_source_preflight import (
     journal_source_checkout_refusal,
     source_checkout_preflight_refusal,
@@ -291,6 +294,5 @@ def requested_items_preflight_error(
     ready_ids = {item.id for item in ready_items(items=items, repo=repo)}
     not_ready = requested_ids - ready_ids
     if not_ready:
-        missing = ", ".join(sorted(not_ready))
-        return f"ERROR: requested work-item(s) not in the ready set: {missing}\n"
+        return not_ready_requested_items_error(requested_ids=not_ready, items=items, repo=repo)
     return None

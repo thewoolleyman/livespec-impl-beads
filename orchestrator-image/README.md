@@ -170,6 +170,14 @@ span attributes. Filter the separate failure-event span in the same trace as
 and carries `category`, `signature`, and `cause_count` (for example, a
 `Pipeline cancelled` span with `category=canceled` and `cause_count=0`).
 
+### Dispatch Traps
+
+If a consumer is refused as `not in the ready set` while its only dependency is
+verifiably closed in a sibling tenant, suspect a sibling-read failure. Targeted
+dispatcher refusals now include the sibling lookup diagnostic; check for messages
+such as `sibling tenant read failed for <repo>:<id>`, `no clone configured for
+<repo>:<id>`, or `<id> not found in <repo>`.
+
 **Base is pinned to 0.254 — do NOT modernize.** The factory MUST NOT pin any fabro
 build ≥ 0.256 until the `workflow.fabro` migration lands: fabro #474 de-templates
 `acp.command`, so our `acp.command="{{ inputs.acp_adapter }}"` node goes through

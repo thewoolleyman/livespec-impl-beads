@@ -43,6 +43,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
 from livespec_orchestrator_beads_fabro.commands._dispatcher_post_verdict import (
     reflector_oob_after_verdict,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_readiness_diagnostics import (
+    not_ready_requested_items_error,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_reflection import reflect
 from livespec_orchestrator_beads_fabro.commands._dispatcher_run_checks import (
     dispatch_preamble,
@@ -143,7 +146,13 @@ def _target_item(*, args: argparse.Namespace, repo: Path, items: list[WorkItem])
         )
         _ = write_stderr(text=msg)
     else:
-        _ = write_stderr(text=f"ERROR: work-item {args.item} is not in the ready set\n")
+        _ = write_stderr(
+            text=not_ready_requested_items_error(
+                requested_ids={args.item},
+                items=items,
+                repo=repo,
+            )
+        )
     return None
 
 

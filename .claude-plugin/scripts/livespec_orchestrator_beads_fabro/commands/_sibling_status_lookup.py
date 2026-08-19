@@ -38,9 +38,9 @@ over many items reads each sibling tenant at most once.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Protocol
 
 from livespec_runtime.cross_repo.types import CrossRepoManifest, CrossRepoTarget, RefStatus
 
@@ -61,7 +61,11 @@ from livespec_orchestrator_beads_fabro.errors import (
 )
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
-__all__: list[str] = ["make_sibling_status_lookup"]
+__all__: list[str] = [
+    "SiblingStatusLookup",
+    "make_sibling_status_lookup",
+    "sibling_dependency_diagnostics",
+]
 
 
 # The EXPECTED-error surface a single sibling-tenant read (`store_config` +
@@ -87,7 +91,13 @@ _CLOSED_STATUSES: frozenset[str] = frozenset({"done", "closed"})
 _MEMBERS_KEY = "members"
 
 
-def make_sibling_status_lookup(*, project_root: Path) -> Callable[[str, str], RefStatus]:
+class SiblingStatusLookup(Protocol):
+    def __call__(self, repo: str, work_item_id: str) -> RefStatus: ...
+
+    def diagnostic(self, *, repo: str, work_item_id: str) -> str | None: ...
+
+
+def make_sibling_status_lookup(*, project_root: Path) -> SiblingStatusLookup:
     """Build the orchestrator-side `sibling_status_lookup` for the readiness gate.
 
     `project_root` is the governed project's own checkout (each command resolves
@@ -122,18 +132,47 @@ class _SiblingStatusLookup:
     manifest: CrossRepoManifest
     _members_cache: dict[str, dict[str, Path]] = field(default_factory=dict)
     _index_cache: dict[str, dict[str, WorkItem] | None] = field(default_factory=dict)
+    _diagnostic_cache: dict[tuple[str, str], str] = field(default_factory=dict)
 
     def __call__(self, repo: str, work_item_id: str) -> RefStatus:
         clone = self._member_clones().get(repo)
         if clone is None:
+            self._record_diagnostic(
+                repo=repo,
+                work_item_id=work_item_id,
+                message=f"no clone configured for {repo}:{work_item_id}",
+            )
             return RefStatus.UNKNOWN
         index = self._sibling_index(repo=repo, clone=clone)
         if index is None:
+            self._record_diagnostic(
+                repo=repo,
+                work_item_id=work_item_id,
+                message=f"sibling tenant read failed for {repo}:{work_item_id}",
+            )
             return RefStatus.UNKNOWN
         item = index.get(work_item_id)
         if item is None:
+            self._record_diagnostic(
+                repo=repo,
+                work_item_id=work_item_id,
+                message=f"{work_item_id} not found in {repo}",
+            )
             return RefStatus.UNKNOWN
+        self._clear_diagnostic(repo=repo, work_item_id=work_item_id)
         return RefStatus.CLOSED if item.status in _CLOSED_STATUSES else RefStatus.OPEN
+
+    def diagnostic(self, *, repo: str, work_item_id: str) -> str | None:
+        key = (repo, work_item_id)
+        if key not in self._diagnostic_cache:
+            _ = self(repo, work_item_id)
+        return self._diagnostic_cache.get(key)
+
+    def _record_diagnostic(self, *, repo: str, work_item_id: str, message: str) -> None:
+        self._diagnostic_cache[(repo, work_item_id)] = message
+
+    def _clear_diagnostic(self, *, repo: str, work_item_id: str) -> None:
+        _ = self._diagnostic_cache.pop((repo, work_item_id), None)
 
     def _member_clones(self) -> dict[str, Path]:
         if _MEMBERS_KEY not in self._members_cache:
@@ -191,3 +230,24 @@ def _configured_clone(
     if target.local_clone.is_absolute():
         return target.local_clone
     return project_root / target.local_clone
+
+
+def sibling_dependency_diagnostics(
+    *,
+    item: WorkItem,
+    sibling_status_lookup: SiblingStatusLookup,
+) -> tuple[str, ...]:
+    diagnostics: list[str] = []
+    for raw in item.depends_on:
+        if not isinstance(raw, dict) or raw.get("kind") != "sibling_work_item":
+            continue
+        repo = raw.get("repo")
+        work_item_id = raw.get("work_item_id")
+        if not isinstance(repo, str) or not isinstance(work_item_id, str):
+            continue
+        if sibling_status_lookup(repo, work_item_id) != RefStatus.UNKNOWN:
+            continue
+        diagnostic = sibling_status_lookup.diagnostic(repo=repo, work_item_id=work_item_id)
+        if diagnostic is not None:
+            diagnostics.append(diagnostic)
+    return tuple(diagnostics)
