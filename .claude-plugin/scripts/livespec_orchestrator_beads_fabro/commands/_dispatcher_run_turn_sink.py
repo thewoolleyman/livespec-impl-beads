@@ -12,12 +12,18 @@ compatible span shapes.
 from __future__ import annotations
 
 import json
-import logging
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import cast
 
+from livespec_orchestrator_beads_fabro.commands._dispatcher_run_turn_diagnostics import (
+    RunTurnTraceRequest,
+    record_run_turn_export_diagnostic,
+    record_run_turn_trace_request,
+    run_turn_diagnostic_has_export,
+    run_turn_diagnostic_path,
+)
 from livespec_orchestrator_beads_fabro.commands._otel_scrub import scrub
 from livespec_orchestrator_beads_fabro.effects import (
     AttemptFailure,
@@ -38,9 +44,6 @@ _GLOBAL_EXPORT_KEY = "fabro.run_turn"
 _REASON_ACCEPTED = "accepted"
 _REASON_DATASET = "dataset"
 _REASON_SPAN_NAME = "span-name"
-_DIAGNOSTIC_SUFFIX = "-diagnostics.json"
-
-_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(kw_only=True)
@@ -104,6 +107,21 @@ class RunTurnSink:
             if key != ""
         )
 
+    def has_receiver_export(self, *, exported_at_or_after: float | None = None) -> bool:
+        """True when `_handle_traces` observed a successful Fabro `run_turn` export."""
+        with self._lock:
+            return run_turn_diagnostic_has_export(
+                path=run_turn_diagnostic_path(path=self.path),
+                exported_at_or_after=exported_at_or_after,
+            )
+
+    def record_trace_request(self, *, request: RunTurnTraceRequest) -> None:
+        """Persist one `_handle_traces` request diagnostic."""
+        with self._lock:
+            record_run_turn_trace_request(
+                path=run_turn_diagnostic_path(path=self.path), request=request
+            )
+
     def _read(self) -> dict[str, float]:
         if not self.path.is_file():
             return {}
@@ -130,10 +148,7 @@ class RunTurnSink:
             action=lambda: _write_atomic(path=self.path, tmp=tmp, text=text),
             exceptions=(OSError,),
         )
-        if isinstance(written, AttemptFailure):
-            _LOGGER.warning("run_turn export marker write failed: path=%s", self.path)
-            return False
-        return True
+        return not isinstance(written, AttemptFailure)
 
     def _record_diagnostic(
         self,
@@ -145,24 +160,14 @@ class RunTurnSink:
         write_failed: bool = False,
     ) -> None:
         with self._lock:
-            diagnostic = _read_diagnostic(path=_diagnostic_path(path=self.path))
-            if reason == _REASON_ACCEPTED:
-                diagnostic["accepted"] = _int_value(raw=diagnostic.get("accepted")) + 1
-            else:
-                rejected = _rejected_counts(raw=diagnostic.get("rejected"))
-                rejected[reason] = rejected.get(reason, 0) + 1
-                diagnostic["rejected"] = rejected
-            if write_failed:
-                diagnostic["write_failures"] = _int_value(raw=diagnostic.get("write_failures")) + 1
-            else:
-                _ = diagnostic.setdefault("write_failures", 0)
-            diagnostic["last"] = {
-                "at": at,
-                "dataset": scrub(value=dataset),
-                "reason": reason,
-                "span_name": scrub(value=span_name),
-            }
-            _write_diagnostic(path=_diagnostic_path(path=self.path), diagnostic=diagnostic)
+            record_run_turn_export_diagnostic(
+                path=run_turn_diagnostic_path(path=self.path),
+                reason=reason,
+                dataset=dataset,
+                span_name=span_name,
+                at=at,
+                write_failed=write_failed,
+            )
 
 
 def run_turn_check_record(
@@ -174,11 +179,13 @@ def run_turn_check_record(
 ) -> dict[str, object]:
     """Build the post-dispatch telemetry assertion journal record."""
     keys = (work_item_id, dispatch_id)
+    exported = sink.has_export(keys=keys, exported_at_or_after=started_at_epoch)
     return {
         "stage": "run-turn-telemetry-check",
         "work_item_id": work_item_id,
         "dispatch_id": dispatch_id,
-        "run_turn_exported": sink.has_export(keys=keys, exported_at_or_after=started_at_epoch),
+        "run_turn_exported": exported
+        or sink.has_receiver_export(exported_at_or_after=started_at_epoch),
     }
 
 
@@ -187,59 +194,6 @@ def _span_name(*, span: dict[str, object]) -> str:
     if isinstance(raw, str):
         return raw
     return ""
-
-
-def _diagnostic_path(*, path: Path) -> Path:
-    return path.with_name(f"{path.stem}{_DIAGNOSTIC_SUFFIX}")
-
-
-def _read_diagnostic(*, path: Path) -> dict[str, object]:
-    diagnostic: dict[str, object] = {
-        "accepted": 0,
-        "rejected": {},
-        "write_failures": 0,
-    }
-    if not path.is_file():
-        return diagnostic
-    stored = attempt(action=lambda: path.read_text(encoding="utf-8"), exceptions=(OSError,))
-    if isinstance(stored, AttemptFailure):
-        return diagnostic
-    raw = parse_json(text=stored)
-    if isinstance(raw, JsonParseFailure) or not isinstance(raw, dict):
-        return diagnostic
-    parsed = cast("dict[str, object]", raw)
-    diagnostic["accepted"] = _int_value(raw=parsed.get("accepted"))
-    diagnostic["rejected"] = _rejected_counts(raw=parsed.get("rejected"))
-    diagnostic["write_failures"] = _int_value(raw=parsed.get("write_failures"))
-    return diagnostic
-
-
-def _write_diagnostic(*, path: Path, diagnostic: dict[str, object]) -> None:
-    text = json.dumps(diagnostic, separators=(",", ":"), sort_keys=True)
-    tmp = path.with_name(f"{path.name}.tmp")
-    written = attempt(
-        action=lambda: _write_atomic(path=path, tmp=tmp, text=text),
-        exceptions=(OSError,),
-    )
-    if isinstance(written, AttemptFailure):
-        _LOGGER.warning("run_turn export diagnostic write failed: path=%s", path)
-
-
-def _int_value(*, raw: object) -> int:
-    if isinstance(raw, bool):
-        return 0
-    if isinstance(raw, int):
-        return raw
-    return 0
-
-
-def _rejected_counts(*, raw: object) -> dict[str, int]:
-    if not isinstance(raw, dict):
-        return {}
-    counts: dict[str, int] = {}
-    for key, value in cast("dict[str, object]", raw).items():
-        counts[key] = _int_value(raw=value)
-    return counts
 
 
 def _is_fresh_export(*, at: float | None, exported_at_or_after: float | None) -> bool:

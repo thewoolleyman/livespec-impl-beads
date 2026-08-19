@@ -614,6 +614,53 @@ def test_receiver_records_real_fabro_run_turn_shape_after_honeycomb_export(
     assert sink.has_export(keys=("bd-ib-demo", "dispatch-1")) is True
 
 
+def test_receiver_records_handle_traces_request_diagnostics(tmp_path: Path) -> None:
+    module_path = (
+        Path(".claude-plugin/scripts/livespec_orchestrator_beads_fabro/commands")
+        / "_dispatcher_run_turn_sink.py"
+    )
+    assert module_path.is_file()
+    module = importlib.import_module(
+        "livespec_orchestrator_beads_fabro.commands._dispatcher_run_turn_sink"
+    )
+    sink = module.RunTurnSink(path=tmp_path / "run-turn.json")
+    exporter = _FakeExporter()
+    receiver = OtelReceiver(
+        config=ReceiverConfig(host="127.0.0.1", port=0),
+        exporter=exporter,
+        heartbeat=HeartbeatSink(path=tmp_path / "hb.json"),
+        run_turn=sink,
+    )
+    receiver.start()
+    try:
+        url = f"http://127.0.0.1:{receiver.bound_port}/v1/traces"
+        body = _trace_request(
+            attrs=[
+                _attr_entry(key="node_id", string_value="node-1"),
+                _attr_entry(key="command", string_value="codex"),
+                _attr_entry(key="config_name", string_value="default"),
+                _attr_entry(key="visit", string_value="1"),
+                _attr_entry(key="stop_reason", string_value="end_turn"),
+            ],
+            service_name="fabro",
+            span_name="run_turn",
+        )
+        assert _post_json(url=url, body=body) == _HTTP_OK
+    finally:
+        receiver.stop()
+
+    diagnostic = json.loads((tmp_path / "run-turn-diagnostics.json").read_text(encoding="utf-8"))
+    assert diagnostic["receiver"]["requests"] == 1
+    assert diagnostic["receiver"]["last"] == {
+        "dataset_batch_sizes": {"fabro": 1},
+        "enriched_spans": 1,
+        "export_results": {"fabro": True},
+        "ingested_spans": 1,
+        "run_turn_sink_missing": False,
+        "successful_run_turn_exports": 1,
+    }
+
+
 def test_receiver_does_not_record_failed_run_turn_export(tmp_path: Path) -> None:
     module_path = (
         Path(".claude-plugin/scripts/livespec_orchestrator_beads_fabro/commands")

@@ -19,6 +19,11 @@ from socket import AF_INET, SHUT_RDWR, SO_REUSEADDR, SOCK_STREAM, SOL_SOCKET, so
 from typing import Protocol, cast
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_cost_sink import CostSink
+from livespec_orchestrator_beads_fabro.commands._dispatcher_run_turn_diagnostics import (
+    RunTurnTraceRequest,
+    record_run_turn_receiver_diagnostic,
+    successful_run_turn_export_count,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_run_turn_sink import RunTurnSink
 from livespec_orchestrator_beads_fabro.commands._otel_enrich import (
     CorrelationJoin,
@@ -200,6 +205,7 @@ class OtelReceiver:
     heartbeat: HeartbeatSink
     cost: CostSink | None = None
     run_turn: RunTurnSink | None = None
+    run_turn_diagnostics_path: Path | None = None
     join: CorrelationJoin = field(default_factory=CorrelationJoin)
     default_model: str | None = None
     bound_port: int = 0
@@ -282,12 +288,34 @@ class OtelReceiver:
                 continue
             dataset = honeycomb_dataset_for(resource_attrs=ingested.resource_attrs)
             per_dataset.setdefault(dataset, []).append((enriched, ingested.resource_attrs))
+        export_results: dict[str, bool] = {}
+        successful_run_turn_exports = 0
         for dataset, records in per_dataset.items():
             exported = self.exporter.export(
                 spans=tuple(span for span, _resource_attrs in records), dataset=dataset
             )
+            export_results[dataset] = exported
+            if exported:
+                successful_run_turn_exports += successful_run_turn_export_count(
+                    dataset=dataset, records=tuple(records)
+                )
             if exported and self.run_turn is not None:
                 self._record_run_turn_exports(dataset=dataset, records=tuple(records))
+        record_run_turn_receiver_diagnostic(
+            sink=self.run_turn,
+            diagnostics_path=self.run_turn_diagnostics_path,
+            request=RunTurnTraceRequest(
+                ingested_spans=len(spans),
+                enriched_spans=sum(len(records) for records in per_dataset.values()),
+                dataset_batch_sizes={
+                    dataset: len(records) for dataset, records in per_dataset.items()
+                },
+                export_results=export_results,
+                run_turn_sink_missing=self.run_turn is None,
+                successful_run_turn_exports=successful_run_turn_exports,
+                at=time.time(),
+            ),
+        )
         reply(handler=handler, status=HTTPStatus.OK)
 
     def _record_run_turn_exports(
