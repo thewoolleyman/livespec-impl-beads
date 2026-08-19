@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.59.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.59.1...v0.59.2) (2026-08-19)
+
+
+### Bug Fixes
+
+* distinguish sibling-status lookup failure causes and kill the omission trap ([5f9a082](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/5f9a082216f9b6f3e73d7d2a3114a4db1bb5de86))
+
 ## [0.59.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.59.0...v0.59.1) (2026-08-19)
 
 
