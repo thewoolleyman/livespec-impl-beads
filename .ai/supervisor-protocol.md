@@ -367,8 +367,10 @@ Repeat these in every instruction sent to the worker:
 - Gate commands run in the foreground.
 - Establish outcomes from artifacts, not command exit codes alone.
 - Query the ledger through the configured environment wrapper from the target
-  repository, use `bd list --limit 0 --json`, and include `acceptance` and
-  `blocked` items in prior-art surveys.
+  repository, use `bd list --status all --limit 0 --json`, and include
+  `acceptance`, `blocked`, and `closed` items in prior-art surveys. `--status
+  all` is load-bearing: the bare `bd list` form hides every closed item and
+  reports the truncated set as a normal non-empty result, with no warning.
 
 ## Corrections
 
