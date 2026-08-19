@@ -296,11 +296,13 @@ Then run `sudo systemctl restart fabro-server` in a quiet window.
 The Dispatcher records a post-verdict assertion for every green dispatch before
 mechanical reflection runs: the host-local OTLP receiver writes
 `<journal-stem>-run-turn-exports.json` only after Honeycomb export succeeds for a
-span named `run_turn` in the `fabro` dataset, keyed by `work.item.id` and
-`livespec.dispatch.id`. A green dispatch with no matching export emits a
-`run-turn-telemetry-absent` critical reflection finding in the same loop-exit
-reflection window, normally seconds after the run returns and within the next
-dispatcher loop pass.
+span named `run_turn` in the `fabro` dataset. Real Fabro `run_turn` spans do not
+carry `work.item.id` or `livespec.dispatch.id`, so the guard accepts the
+timestamp-bounded global Fabro `run_turn` marker for the dispatch window and
+also indexes those correlation ids if a future span shape carries them. A green
+dispatch with no matching export emits a `run-turn-telemetry-absent` critical
+reflection finding in the same loop-exit reflection window, normally seconds
+after the run returns and within the next dispatcher loop pass.
 
 This is the cheap per-dispatch layer. The paired Honeycomb-side dead-man
 trigger is designed and scripted, but it is not yet provisioned in the livespec

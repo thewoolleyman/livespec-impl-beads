@@ -33,27 +33,37 @@ def append_run_turn_checks(
     sink: RunTurnSink,
 ) -> None:
     """Append one non-blocking `run_turn` export assertion per green dispatch."""
-    dispatch_ids = _dispatch_ids_by_item(records=read_journal_records(journal_path=journal_path))
+    dispatches = _dispatches_by_item(records=read_journal_records(journal_path=journal_path))
     for outcome in outcomes:
         if outcome.status != "green":
             continue
-        dispatch_id = dispatch_ids.get(outcome.work_item_id, "")
+        dispatch_id, started_at_epoch = dispatches.get(outcome.work_item_id, ("", None))
         journal.append(
             record=run_turn_check_record(
                 sink=sink,
                 work_item_id=outcome.work_item_id,
                 dispatch_id=dispatch_id,
+                started_at_epoch=started_at_epoch,
             )
         )
 
 
-def _dispatch_ids_by_item(*, records: tuple[dict[str, object], ...]) -> dict[str, str]:
-    dispatch_ids: dict[str, str] = {}
+def _dispatches_by_item(
+    *, records: tuple[dict[str, object], ...]
+) -> dict[str, tuple[str, float | None]]:
+    dispatches: dict[str, tuple[str, float | None]] = {}
     for record in records:
         if record.get("stage") != "dispatch-id":
             continue
         work_item_id = record.get("work_item_id")
         dispatch_id = record.get("dispatch_id")
         if isinstance(work_item_id, str) and isinstance(dispatch_id, str):
-            dispatch_ids[work_item_id] = dispatch_id
-    return dispatch_ids
+            dispatches[work_item_id] = (dispatch_id, _epoch(record=record))
+    return dispatches
+
+
+def _epoch(*, record: dict[str, object]) -> float | None:
+    value = record.get("started_at_epoch")
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    return float(value)

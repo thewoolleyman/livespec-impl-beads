@@ -67,6 +67,32 @@ def test_append_run_turn_checks_journals_green_outcome_presence(tmp_path: Path) 
     }
 
 
+def test_append_run_turn_checks_ignores_stale_global_run_turn_exports(tmp_path: Path) -> None:
+    journal_path = tmp_path / "journal.jsonl"
+    journal = JournalFile(path=journal_path)
+    journal.append(
+        record={
+            "stage": "dispatch-id",
+            "work_item_id": "bd-ib-old",
+            "dispatch_id": "disp-old",
+            "started_at_epoch": 20.0,
+        }
+    )
+    sink = RunTurnSink(path=tmp_path / "run-turn.json")
+    _ = sink.record_export(span={"name": "run_turn"}, resource_attrs={}, dataset="fabro", at=10.0)
+
+    append_run_turn_checks(
+        outcomes=(_outcome(work_item_id="bd-ib-old"),),
+        journal=journal,
+        journal_path=journal_path,
+        sink=sink,
+    )
+
+    check = _records(path=journal_path)[-1]
+    assert check["work_item_id"] == "bd-ib-old"
+    assert check["run_turn_exported"] is False
+
+
 def test_append_run_turn_checks_journals_absence_and_skips_failed(tmp_path: Path) -> None:
     journal_path = tmp_path / "journal.jsonl"
     journal = JournalFile(path=journal_path)

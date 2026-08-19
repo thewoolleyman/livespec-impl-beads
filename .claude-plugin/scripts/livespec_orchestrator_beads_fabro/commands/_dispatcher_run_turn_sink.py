@@ -62,11 +62,18 @@ class RunTurnSink:
             self._write(exported=exported)
         return True
 
-    def has_export(self, *, keys: tuple[str, ...]) -> bool:
+    def has_export(
+        self, *, keys: tuple[str, ...], exported_at_or_after: float | None = None
+    ) -> bool:
         """True when any candidate key has recorded a `run_turn` export."""
         with self._lock:
             exported = self._read()
-        return _GLOBAL_EXPORT_KEY in exported or any(key in exported for key in keys if key != "")
+        candidates = (_GLOBAL_EXPORT_KEY, *keys)
+        return any(
+            _is_fresh_export(at=exported.get(key), exported_at_or_after=exported_at_or_after)
+            for key in candidates
+            if key != ""
+        )
 
     def _read(self) -> dict[str, float]:
         if not self.path.is_file():
@@ -103,6 +110,7 @@ def run_turn_check_record(
     sink: RunTurnSink,
     work_item_id: str,
     dispatch_id: str,
+    started_at_epoch: float | None = None,
 ) -> dict[str, object]:
     """Build the post-dispatch telemetry assertion journal record."""
     keys = (work_item_id, dispatch_id)
@@ -110,8 +118,16 @@ def run_turn_check_record(
         "stage": "run-turn-telemetry-check",
         "work_item_id": work_item_id,
         "dispatch_id": dispatch_id,
-        "run_turn_exported": sink.has_export(keys=keys),
+        "run_turn_exported": sink.has_export(keys=keys, exported_at_or_after=started_at_epoch),
     }
+
+
+def _is_fresh_export(*, at: float | None, exported_at_or_after: float | None) -> bool:
+    if at is None:
+        return False
+    if exported_at_or_after is None:
+        return True
+    return at >= exported_at_or_after
 
 
 def _correlation_ids(*, span: dict[str, object], resource_attrs: dict[str, str]) -> tuple[str, ...]:
