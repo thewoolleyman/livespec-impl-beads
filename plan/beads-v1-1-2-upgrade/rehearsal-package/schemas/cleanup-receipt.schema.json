@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "livespec.beads_v112_rehearsal.cleanup_receipt.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "run_id",
+    "pid_absent",
+    "port_13307_absent",
+    "receipt_root_retained",
+    "production_port_3307_unchanged",
+    "production_registry_digest_unchanged",
+    "production_backup_config_digest_unchanged",
+    "sql_users_absent",
+    "client_directories_absent",
+    "run_root_absent",
+    "removed_manifest_scoped_resources"
+  ],
+  "properties": {
+    "schema": {
+      "const": "livespec.beads_v112_rehearsal.cleanup_receipt.v1"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "pid_absent": {
+      "const": true
+    },
+    "port_13307_absent": {
+      "const": true
+    },
+    "receipt_root_retained": {
+      "const": true
+    },
+    "production_port_3307_unchanged": {
+      "const": true
+    },
+    "production_registry_digest_unchanged": {
+      "const": true
+    },
+    "production_backup_config_digest_unchanged": {
+      "const": true
+    },
+    "sql_users_absent": {
+      "const": true
+    },
+    "client_directories_absent": {
+      "const": true
+    },
+    "run_root_absent": {
+      "const": true
+    },
+    "removed_manifest_scoped_resources": {
+      "type": "array"
+    }
+  },
+  "additionalProperties": false
+}

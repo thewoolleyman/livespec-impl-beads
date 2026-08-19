@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "livespec.beads_v112_rehearsal.anchor_receipt.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "client_key",
+    "client_dir_realpath",
+    "database",
+    "sql_user",
+    "pointer",
+    "metadata",
+    "wrapper_sha256",
+    "anchor_probe_sha256",
+    "dependency_lock_sha256",
+    "credential_byte_count",
+    "query",
+    "query_sha256",
+    "read_only_transaction",
+    "statement_count",
+    "started_at",
+    "finished_at",
+    "probe_exit",
+    "identity",
+    "tcp_peer",
+    "server_fingerprint",
+    "following_command"
+  ],
+  "properties": {
+    "schema": {
+      "const": "livespec.beads_v112_rehearsal.anchor_receipt.v1"
+    },
+    "client_key": {
+      "type": "string"
+    },
+    "client_dir_realpath": {
+      "type": "string"
+    },
+    "database": {
+      "type": "string"
+    },
+    "sql_user": {
+      "type": "string"
+    },
+    "pointer": {
+      "type": "object"
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "wrapper_sha256": {
+      "type": "string"
+    },
+    "anchor_probe_sha256": {
+      "type": "string"
+    },
+    "dependency_lock_sha256": {
+      "type": "string"
+    },
+    "credential_byte_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "query": {
+      "const": "SELECT DATABASE(), CURRENT_USER(), @@hostname, @@port"
+    },
+    "query_sha256": {
+      "type": "string"
+    },
+    "read_only_transaction": {
+      "const": true
+    },
+    "statement_count": {
+      "const": 1
+    },
+    "started_at": {
+      "type": "string"
+    },
+    "finished_at": {
+      "type": "string"
+    },
+    "probe_exit": {
+      "type": "integer"
+    },
+    "identity": {
+      "type": "object"
+    },
+    "tcp_peer": {
+      "const": "127.0.0.1:13307"
+    },
+    "server_fingerprint": {
+      "type": "string"
+    },
+    "following_command": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false
+}

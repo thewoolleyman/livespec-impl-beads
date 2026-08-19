@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "livespec.beads_v112_rehearsal.inventory_receipt.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "client_key",
+    "capture_point",
+    "artifacts",
+    "per_artifact_sha256",
+    "combined_sha256"
+  ],
+  "properties": {
+    "schema": {
+      "const": "livespec.beads_v112_rehearsal.inventory_receipt.v1"
+    },
+    "client_key": {
+      "type": "string"
+    },
+    "capture_point": {
+      "enum": [
+        "pre-backup-v49-baseline",
+        "after-first-gate-decision",
+        "post-migration-v53",
+        "post-round-trip",
+        "post-restore-v49"
+      ]
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "per_artifact_sha256": {
+      "type": "object"
+    },
+    "combined_sha256": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}
