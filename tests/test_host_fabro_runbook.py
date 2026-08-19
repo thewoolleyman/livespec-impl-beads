@@ -21,7 +21,8 @@ def test_host_fabro_runbooks_require_supervised_web_console() -> None:
 
 def test_host_fabro_runbook_documents_run_turn_absence_guard() -> None:
     assert "### Fabro `run_turn` absence guard" in _IMAGE_RUNBOOK
-    assert "`run-turn-telemetry-absent` critical reflection finding" in _IMAGE_RUNBOOK
+    assert "`run-turn-telemetry-absent`" in _IMAGE_RUNBOOK
+    assert "critical\nreflection finding" in _IMAGE_RUNBOOK
     assert "not yet provisioned in the livespec" in _IMAGE_RUNBOOK
     assert "Honeycomb environment" in _IMAGE_RUNBOOK
     assert "bd-ib-jb7rzr.3" in _IMAGE_RUNBOOK
