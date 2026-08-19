@@ -263,6 +263,23 @@ closed set; on the `dolt-server` tenant it returned 4 against 72, i.e. **6% of
 the ledger**. `BeadsClient.list_issues` already emits the `--status all` form,
 so code and operators otherwise survey different ledgers.
 
+**Enumerating an epic's children: NEITHER the id-prefix form NOR the `parent`
+field is complete on its own.** The store links children two ways, and each
+hand-rolled filter is blind to one of them. An explicit `parent-child`
+dependency edge populates `parent` in `bd list --json`; the implicit dotted-id
+hierarchy does NOT — `bd` honours it (it refuses to add a redundant edge,
+saying "already a child of `<epic>` … would create a deadlock") while the JSON
+listing still reports `parent: null`. Measured 2026-08-19 on `bd-ib-l3nptz`:
+filtering on `parent == "bd-ib-l3nptz"` returned **22** children and silently
+omitted `bd-ib-l3nptz.16`, which exists and is `backlog`; the prefix form has
+the mirror-image blind spot, catching `.16` but missing **seven** children
+whose ids are not dotted. Both forms return a plausible non-empty set, so
+neither announces the omission. Use the package primitive —
+`undisposed_plan_child_ids` / `client.children()`, which unions both linkage
+mechanisms — and never a `bd list --json` filter of either shape. (The plan
+archive gate already uses the union and is therefore correct; the exposure is
+to humans and agents surveying by hand.)
+
 **Query the ledger for prior art BEFORE designing a fix — reading the source is
 not sufficient.** Scan every item — **including `closed` ones** — for the defect
 class you are about to
