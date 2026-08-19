@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+from argparse import Namespace
 from pathlib import Path
 from typing import cast
 
 import pytest
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
+from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import run_turn_sink_path
 from livespec_orchestrator_beads_fabro.commands._dispatcher_run_turn_guard import (
     append_run_turn_checks,
 )
@@ -33,6 +35,68 @@ def _records(*, path: Path) -> list[dict[str, object]]:
         assert isinstance(parsed, dict)
         records.append(cast("dict[str, object]", parsed))
     return records
+
+
+def _args(*, journal: Path) -> Namespace:
+    return Namespace(journal=journal)
+
+
+def test_run_turn_sink_path_is_host_global_for_the_fabro_dataset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state_home = tmp_path / "state"
+    monkeypatch.setenv("XDG_STATE_HOME", str(state_home))
+    first = run_turn_sink_path(
+        args=_args(journal=tmp_path / "repo-a" / "tmp" / "journal.jsonl"),
+        repo=tmp_path / "repo-a",
+    )
+    second = run_turn_sink_path(
+        args=_args(journal=tmp_path / "repo-b" / "tmp" / "journal.jsonl"),
+        repo=tmp_path / "repo-b",
+    )
+
+    expected = state_home / "livespec-orchestrator-beads-fabro" / "run-turn-exports" / "fabro.json"
+    assert first == expected
+    assert second == expected
+
+
+def test_append_run_turn_checks_accepts_foreign_host_global_marker_since_start(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    local_repo = tmp_path / "local-repo"
+    foreign_repo = tmp_path / "foreign-repo"
+    journal_path = local_repo / "tmp" / "journal.jsonl"
+    journal = JournalFile(path=journal_path)
+    journal.append(
+        record={
+            "stage": "dispatch-id",
+            "work_item_id": "bd-ib-demo",
+            "dispatch_id": "disp-1",
+            "started_at_epoch": 20.0,
+        }
+    )
+    foreign_sink = RunTurnSink(
+        path=run_turn_sink_path(
+            args=_args(journal=foreign_repo / "tmp" / "journal.jsonl"),
+            repo=foreign_repo,
+        )
+    )
+    _ = foreign_sink.record_export(
+        span={"name": "run_turn"}, resource_attrs={}, dataset="fabro", at=30.0
+    )
+
+    append_run_turn_checks(
+        outcomes=(_outcome(work_item_id="bd-ib-demo"),),
+        journal=journal,
+        journal_path=journal_path,
+        sink=RunTurnSink(
+            path=run_turn_sink_path(args=_args(journal=journal_path), repo=local_repo)
+        ),
+    )
+
+    check = _records(path=journal_path)[-1]
+    assert check["run_turn_exported"] is True
 
 
 def test_append_run_turn_checks_journals_green_outcome_presence(tmp_path: Path) -> None:
