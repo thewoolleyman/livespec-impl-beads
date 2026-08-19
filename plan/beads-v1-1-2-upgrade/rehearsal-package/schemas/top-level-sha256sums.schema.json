@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "livespec.beads_v112_rehearsal.top_level_sha256sums.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "receipt_root",
+    "entries",
+    "sha256sums_sha256"
+  ],
+  "properties": {
+    "schema": {
+      "const": "livespec.beads_v112_rehearsal.top_level_sha256sums.v1"
+    },
+    "receipt_root": {
+      "type": "string"
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "sha256sums_sha256": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

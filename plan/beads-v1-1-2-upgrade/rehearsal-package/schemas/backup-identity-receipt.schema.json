@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "livespec.beads_v112_rehearsal.backup_identity_receipt.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "run_id",
+    "source_database",
+    "backup_url",
+    "bucket_prefix",
+    "manifest_namespace",
+    "object_version_id",
+    "etag",
+    "size_inventory",
+    "branch_heads",
+    "v49_baseline_digest",
+    "start_time",
+    "finish_time",
+    "helper_commit",
+    "command_digest",
+    "single_sync_only",
+    "exit_status"
+  ],
+  "properties": {
+    "schema": {
+      "const": "livespec.beads_v112_rehearsal.backup_identity_receipt.v1"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "source_database": {
+      "type": "string"
+    },
+    "backup_url": {
+      "type": "string"
+    },
+    "bucket_prefix": {
+      "type": "string"
+    },
+    "manifest_namespace": {
+      "type": "string"
+    },
+    "object_version_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "etag": {
+      "type": "string"
+    },
+    "size_inventory": {
+      "type": "object"
+    },
+    "branch_heads": {
+      "type": "object"
+    },
+    "v49_baseline_digest": {
+      "type": "string"
+    },
+    "start_time": {
+      "type": "string"
+    },
+    "finish_time": {
+      "type": "string"
+    },
+    "helper_commit": {
+      "type": "string"
+    },
+    "command_digest": {
+      "type": "string"
+    },
+    "single_sync_only": {
+      "const": true
+    },
+    "exit_status": {
+      "type": "integer"
+    }
+  },
+  "additionalProperties": false
+}

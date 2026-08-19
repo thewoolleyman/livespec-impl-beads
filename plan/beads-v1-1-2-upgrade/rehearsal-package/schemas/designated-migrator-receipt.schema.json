@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "livespec.beads_v112_rehearsal.designated_migrator_receipt.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "human_or_session_identity",
+    "process_id",
+    "candidate_executable_sha256",
+    "host",
+    "start_time",
+    "ordered_database_list"
+  ],
+  "properties": {
+    "schema": {
+      "const": "livespec.beads_v112_rehearsal.designated_migrator_receipt.v1"
+    },
+    "human_or_session_identity": {
+      "type": "string"
+    },
+    "process_id": {
+      "type": "integer"
+    },
+    "candidate_executable_sha256": {
+      "type": "string"
+    },
+    "host": {
+      "type": "string"
+    },
+    "start_time": {
+      "type": "string"
+    },
+    "ordered_database_list": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false
+}

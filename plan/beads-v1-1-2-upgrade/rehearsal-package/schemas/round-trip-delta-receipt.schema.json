@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "livespec.beads_v112_rehearsal.round_trip_delta_receipt.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "client_key",
+    "json_outputs_parse",
+    "expected_issue_delta",
+    "expected_dependency_delta",
+    "expected_comment_delta",
+    "unexpected_changes"
+  ],
+  "properties": {
+    "schema": {
+      "const": "livespec.beads_v112_rehearsal.round_trip_delta_receipt.v1"
+    },
+    "client_key": {
+      "type": "string"
+    },
+    "json_outputs_parse": {
+      "const": true
+    },
+    "expected_issue_delta": {
+      "const": 2
+    },
+    "expected_dependency_delta": {
+      "const": 1
+    },
+    "expected_comment_delta": {
+      "const": 1
+    },
+    "unexpected_changes": {
+      "const": 0
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "livespec.beads_v112_rehearsal.migration_gate_receipt.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "client_key",
+    "database",
+    "armed_before_process_start",
+    "environment_preflight",
+    "first_attempt",
+    "gate_decision",
+    "inventory_unchanged_after_refusal",
+    "retry"
+  ],
+  "properties": {
+    "schema": {
+      "const": "livespec.beads_v112_rehearsal.migration_gate_receipt.v1"
+    },
+    "client_key": {
+      "type": "string"
+    },
+    "database": {
+      "type": "string"
+    },
+    "armed_before_process_start": {
+      "const": true
+    },
+    "environment_preflight": {
+      "type": "object",
+      "required": [
+        "BD_ALLOW_REMOTE_MIGRATE_unset",
+        "BD_SMART_GATE_unset"
+      ],
+      "properties": {
+        "BD_ALLOW_REMOTE_MIGRATE_unset": {
+          "const": true
+        },
+        "BD_SMART_GATE_unset": {
+          "const": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "first_attempt": {
+      "type": "object"
+    },
+    "gate_decision": {
+      "enum": [
+        "smart-first-mover",
+        "migrate-or-adopt-refusal"
+      ]
+    },
+    "inventory_unchanged_after_refusal": {
+      "type": "boolean"
+    },
+    "retry": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false
+}

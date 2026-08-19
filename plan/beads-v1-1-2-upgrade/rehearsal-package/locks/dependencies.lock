@@ -13,6 +13,11 @@
     "query_sha256": "0f334703b52dea71b6c7184692f245094b4c93cbf1d61bcee36fc6c3531a5b36",
     "statement_count": 1,
     "read_only_transaction": true,
+    "driver_closure": {
+      "module": "anchor_driver.py",
+      "sha256": "d9a7bd2fe853161cc38d4717245db06bd27d32cff71dafd4e8a7c676d592ebc0",
+      "source": "reviewed package root"
+    },
     "external_runtime_dependencies": []
   },
   "network_artifacts": [

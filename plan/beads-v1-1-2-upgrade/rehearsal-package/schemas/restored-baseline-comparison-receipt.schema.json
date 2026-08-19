@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "livespec.beads_v112_rehearsal.restored_baseline_comparison_receipt.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "shape",
+    "source_baseline_combined_sha256",
+    "restored_combined_sha256",
+    "all_artifacts_match"
+  ],
+  "properties": {
+    "schema": {
+      "const": "livespec.beads_v112_rehearsal.restored_baseline_comparison_receipt.v1"
+    },
+    "shape": {
+      "enum": [
+        "dense_policy",
+        "sparse_closed",
+        "rig_wisp"
+      ]
+    },
+    "source_baseline_combined_sha256": {
+      "type": "string"
+    },
+    "restored_combined_sha256": {
+      "type": "string"
+    },
+    "all_artifacts_match": {
+      "const": true
+    }
+  },
+  "additionalProperties": false
+}

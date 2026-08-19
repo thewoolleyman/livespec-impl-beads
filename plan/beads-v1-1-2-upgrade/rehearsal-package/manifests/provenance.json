@@ -34,18 +34,25 @@
   },
   "anchor_probe": {
     "implementation": "wrappers/anchor-probe.py",
-    "implementation_sha256": "cacd2dea1d6624749e702efca7d186d44e806c48ac317a871ce10744802671f7",
+    "implementation_sha256": "04fe7ea25b981c1d496adeb34ac07dd88096f17546f592474e7075a1c58a7c78",
     "dependency_lock": "locks/dependencies.lock",
-    "dependency_lock_sha256": "6246a936bb6a57ae06c0c17f7b9c05596363cc6648febbc355d3279e67523fe2",
+    "dependency_lock_sha256": "7c569c2bc9f828c30d57edc26db6dddced4788995a69bba2ff30f0e094881067",
     "query": "SELECT DATABASE(), CURRENT_USER(), @@hostname, @@port",
     "query_sha256": "0f334703b52dea71b6c7184692f245094b4c93cbf1d61bcee36fc6c3531a5b36",
     "statement_count": 1,
     "read_only_transaction": true,
-    "dependencies": []
+    "dependencies": [
+      {
+        "name": "anchor_driver.py",
+        "version": "reviewed-package-local",
+        "source": "reviewed package root",
+        "sha256": "d9a7bd2fe853161cc38d4717245db06bd27d32cff71dafd4e8a7c676d592ebc0"
+      }
+    ]
   },
   "wrappers": {
-    "with_client_sha256": "ed1b67dc04997186b865ca28f4188079b0eef67ddd4a918d315ae1a637e13496",
-    "assert_client_anchor_sha256": "91d93db8cef1eaae00cf9e7f70e50506eee1b383759f0e3b044388ada91d5a9e",
-    "capture_inventory_sha256": "16d320d32d008aa7f0fde1047b3cbe39126143b8770bd4cacc5a8d88ebf2f3ba"
+    "with_client_sha256": "936d32847b77cc574f603aa29bf0917b255ee0f756ac34ab1d615ea91ca024c9",
+    "assert_client_anchor_sha256": "9c77ea89c2674c81ac9f9769d65b9d047ae81e57af4f753b97c97578e1a4459f",
+    "capture_inventory_sha256": "f454b499a7f05b65bb868710d6f131992a6370a23141dc31311b28eaafb6af17"
   }
 }
