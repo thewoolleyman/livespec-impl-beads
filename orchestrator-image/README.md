@@ -164,6 +164,12 @@ needs (never a subset, so the branch is always the whole truth about what runs):
 | fork-local **P2** — decouple OTLP export from `FABRO_LOG` (`bd-ib-98c.12`) | `FABRO_LOG` was a GLOBAL registry filter gating the otel layer too; the fix filters per-layer (`FABRO_LOG` on the fmt layers, a fixed `INFO` floor on the otel layer) | otherwise raising the log level silently zeroes ALL telemetry at both ends (the server injects its level into the worker), with no error — an operator quieting logs could kill the Honeycomb dataset |
 | fork-local **O4** — `run_turn` ACP turn span (`bd-ib-98c.7`) | a `tracing::info_span!("run_turn", …)` at the ACP seam (`fabro-workflow/src/handler/llm/acp.rs::run_turn`) carrying `node_id` / `command` / `config_name` / `visit` plus a deferred `stop_reason`; it nests under the worker `run` span (fabro-workflow has no spans of its own, so the `Stage started/completed` telemetry — which are EVENTS, not spans — is not the parent) | without it the finest per-agent granularity is the `handler_type=agent` Stage telemetry, which never records WHICH command an agent turn ran or HOW it ended; O4 is what makes per-turn command/stop-reason queryable in Honeycomb |
 
+Failure-cause attributes are queryable in Honeycomb, but not as `run_turn`
+span attributes. Filter the separate failure-event span in the same trace as
+`run_turn` instead: the failure-event span has `error=true` and `level=ERROR`
+and carries `category`, `signature`, and `cause_count` (for example, a
+`Pipeline cancelled` span with `category=canceled` and `cause_count=0`).
+
 **Base is pinned to 0.254 — do NOT modernize.** The factory MUST NOT pin any fabro
 build ≥ 0.256 until the `workflow.fabro` migration lands: fabro #474 de-templates
 `acp.command`, so our `acp.command="{{ inputs.acp_adapter }}"` node goes through
