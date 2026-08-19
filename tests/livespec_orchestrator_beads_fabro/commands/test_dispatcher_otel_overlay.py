@@ -124,10 +124,10 @@ def test_cc_otel_overlay_env_carries_the_correlation_triple() -> None:
     attrs = _parse_resource_attributes(env["OTEL_RESOURCE_ATTRIBUTES"])
     assert attrs["work.item.id"] == "livespec-impl-beads-29f.3"
     assert attrs["livespec.dispatch.id"] == "abc123def456"
-    # Single dataset for all sandbox CC telemetry, sliced by work.item.id;
-    # service.name stays CC's own `claude-code` (NOT overridden here).
+    # The sandbox Fabro worker emits the `run_turn` span. The host receiver
+    # routes Honeycomb datasets from service.name, so this must be explicit.
     assert attrs["service.namespace"] == "livespec-family"
-    assert "service.name" not in attrs
+    assert attrs["service.name"] == "fabro"
 
 
 def test_cc_otel_overlay_env_leaves_all_content_flags_off() -> None:
@@ -174,6 +174,7 @@ def test_render_run_config_overlay_projects_otel_env(tmp_path: Path) -> None:
     assert 'CLAUDE_CODE_ENABLE_TELEMETRY = "1"' in env_table
     assert 'OTEL_EXPORTER_OTLP_ENDPOINT = "http://172.17.0.1:4318"' in env_table
     assert 'OTEL_EXPORTER_OTLP_PROTOCOL = "http/json"' in env_table
+    assert 'OTEL_SERVICE_NAME = "fabro"' in env_table
     assert "OTEL_RESOURCE_ATTRIBUTES = " in env_table
     assert "work.item.id=livespec-impl-beads-29f.3" in env_table
     assert "livespec.dispatch.id=abc123" in env_table
