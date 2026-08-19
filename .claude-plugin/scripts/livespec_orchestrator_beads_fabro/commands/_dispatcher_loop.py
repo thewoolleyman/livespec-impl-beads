@@ -166,13 +166,13 @@ def _dispatch_one_locked(
     # target's OWN committed workflow over the plugin's bundled default, and
     # that config carries the sandbox image pin — so which file won is the
     # first thing to read when a dispatch dies on a missing toolchain.
-    committed_workflow = workflow_toml(args=args)
     journal.append(
         record={
             "stage": "dispatch-id",
             "work_item_id": item.id,
             "dispatch_id": dispatch_id,
-            "workflow_toml": str(committed_workflow),
+            "started_at_epoch": time.time(),
+            "workflow_toml": str(committed_workflow := workflow_toml(args=args)),
         }
     )
     token_supplier = selfup.github_token_supplier()
