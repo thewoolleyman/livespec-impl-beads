@@ -242,15 +242,34 @@ normalized away (`_NATIVE_STATUS_REMAP` in
 `commands/_dispatcher_ledger_close.py` maps `open`→`backlog`,
 `in_progress`→`active`), so a native-name filter silently returns an empty set
 rather than erroring. To survey the ledger, list everything and filter
-client-side: `bd list --limit 0 --json`.
+client-side: `bd list --status all --limit 0 --json`.
+
+**`--status all` is load-bearing: without it `bd list` HIDES EVERY CLOSED
+ITEM.** A bare `bd list --limit 0 --json` returns only non-closed work, and it
+reports that truncated set as a normal, plausible, non-empty result — there is
+no warning and no error. Measured 2026-08-19: on this repo's tenant the bare
+form returned 173 items against 588 with `--status all`, hiding a 415-item
+closed set; on the `dolt-server` tenant it returned 4 against 72, i.e. **6% of
+the ledger**. `BeadsClient.list_issues` already emits the `--status all` form,
+so code and operators otherwise survey different ledgers.
 
 **Query the ledger for prior art BEFORE designing a fix — reading the source is
-not sufficient.** Scan every non-closed item for the defect class you are about to
+not sufficient.** Scan every item — **including `closed` ones** — for the defect
+class you are about to
 design for, and read the FULL description of anything that overlaps: maintainer
 rulings and explicitly rejected options are recorded there and are binding
 context. **Include `acceptance` and `blocked` items, not just `backlog`** —
 parked items are where shipped-but-unaccepted work hides, which is precisely what
-a source-only reading cannot see. Treat each filed item as a claim with a
+a source-only reading cannot see. **`closed` items matter just as much**, because
+that is where "this was already built" and "the maintainer already ruled on this"
+live; a prior-art scan that skips them re-litigates settled work. This means the
+scan MUST use `--status all` per the survey note above — the bare `bd list` form
+cannot see closed items at all. (Cost of skipping THIS, 2026-08-19: a session
+filed a restore-test finding against `dolt-server` reporting "no prior art",
+having surveyed 4 of that tenant's 72 items with the bare form. The real prior
+art — `dolt-server-ckue2g`, a closed Phase 2 item recording an end-to-end
+validated restore pipeline — was invisible to the command it had been told to
+use, and the filed item had to be corrected after the fact.) Treat each filed item as a claim with a
 timestamp, not as fact; verify its specifics against the forge before relying on
 them. (Cost of skipping this, 2026-07-26: the `dispatch-claim-liveness` thread
 verified the code exhaustively, published two design recommendations to a durable
