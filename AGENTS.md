@@ -244,6 +244,16 @@ normalized away (`_NATIVE_STATUS_REMAP` in
 rather than erroring. To survey the ledger, list everything and filter
 client-side: `bd list --status all --limit 0 --json`.
 
+**`bd ready` is DEAD here for the same reason — it returns an empty set while
+ready work exists.** It filters on the beads-native `open` status this store
+never uses, so it reports `✨ No open issues` and exits 0. Measured 2026-08-19
+on this tenant: `bd ready --json` returned `[]` while **18** items sat at
+`status == ready`, including one with an empty dependency list. `--limit 0`
+changes nothing; this is the status filter, not the row cap and not blocker
+filtering. Do not use it to choose work. Use this plugin's `next` operation, or
+`bd list --status all --limit 0 --json` filtered client-side on
+`status == ready`.
+
 **`--status all` is load-bearing: without it `bd list` HIDES EVERY CLOSED
 ITEM.** A bare `bd list --limit 0 --json` returns only non-closed work, and it
 reports that truncated set as a normal, plausible, non-empty result — there is
