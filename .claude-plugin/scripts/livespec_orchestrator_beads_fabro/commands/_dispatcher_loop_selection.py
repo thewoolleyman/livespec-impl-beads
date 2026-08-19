@@ -131,8 +131,16 @@ def is_dispatch_candidate(
     manifest: CrossRepoManifest,
     sibling_status_lookup: Callable[[str, str], RefStatus] | None = None,
 ) -> bool:
+    effective_sibling_status_lookup = (
+        sibling_status_lookup
+        if sibling_status_lookup is not None
+        else make_sibling_status_lookup(project_root=Path.cwd())
+    )
     if is_item_ready(
-        item=item, index=index, manifest=manifest, sibling_status_lookup=sibling_status_lookup
+        item=item,
+        index=index,
+        manifest=manifest,
+        sibling_status_lookup=effective_sibling_status_lookup,
     ):
         return True
     if item.status != "pending-approval":
@@ -142,7 +150,7 @@ def is_dispatch_candidate(
         item=ready_projection,
         index=index,
         manifest=manifest,
-        sibling_status_lookup=sibling_status_lookup,
+        sibling_status_lookup=effective_sibling_status_lookup,
     )
 
 

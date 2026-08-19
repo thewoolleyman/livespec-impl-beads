@@ -12,18 +12,38 @@ cannot silently flip to fail-open.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 import pytest
 from livespec_orchestrator_beads_fabro.commands import _sibling_status_lookup as sut
+from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_selection import (
+    is_dispatch_candidate,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_run_checks import (
+    requested_items_preflight_error,
+)
 from livespec_orchestrator_beads_fabro.commands._sibling_status_lookup import (
     make_sibling_status_lookup,
 )
 from livespec_orchestrator_beads_fabro.errors import BeadsConnectionError
-from livespec_orchestrator_beads_fabro.types import WorkItem
-from livespec_runtime.cross_repo.types import RefStatus
+from livespec_orchestrator_beads_fabro.types import DependsOnRaw, WorkItem
+from livespec_runtime.cross_repo.types import CrossRepoManifest, CrossRepoTarget, RefStatus
 
 _SIBLING_REPO = "sibling-repo"
 _MANIFEST = '{"owner": "someowner", "fleet": [{"repo": "sibling-repo"}]}'
+_SIBLING_DEP: DependsOnRaw = {
+    "kind": "sibling_work_item",
+    "repo": _SIBLING_REPO,
+    "work_item_id": "sib-1",
+}
+
+
+def _cross_repo_manifest() -> CrossRepoManifest:
+    return CrossRepoManifest(
+        targets={
+            _SIBLING_REPO: CrossRepoTarget(github_url="https://github.com/someowner/sibling-repo")
+        }
+    )
 
 
 def _item(*, id_: str, status: str) -> WorkItem:
@@ -165,6 +185,9 @@ def test_missing_clone_dir_fails_closed(tmp_path: Path, monkeypatch: pytest.Monk
     )
     lookup = make_sibling_status_lookup(project_root=project_root)
     assert lookup(_SIBLING_REPO, "sib-1") == RefStatus.UNKNOWN
+    assert lookup.diagnostic(repo=_SIBLING_REPO, work_item_id="sib-1") == (
+        "sibling tenant read failed for sibling-repo:sib-1"
+    )
 
 
 def test_load_items_raising_fails_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -180,6 +203,9 @@ def test_load_items_raising_fails_closed(tmp_path: Path, monkeypatch: pytest.Mon
     monkeypatch.setattr(sut, "load_items", _load)
     lookup = make_sibling_status_lookup(project_root=project_root)
     assert lookup(_SIBLING_REPO, "sib-1") == RefStatus.UNKNOWN
+    assert lookup.diagnostic(repo=_SIBLING_REPO, work_item_id="sib-1") == (
+        "sibling tenant read failed for sibling-repo:sib-1"
+    )
 
 
 def test_item_absent_fails_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -189,6 +215,9 @@ def test_item_absent_fails_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     )
     lookup = make_sibling_status_lookup(project_root=project_root)
     assert lookup(_SIBLING_REPO, "sib-1") == RefStatus.UNKNOWN
+    assert lookup.diagnostic(repo=_SIBLING_REPO, work_item_id="sib-1") == (
+        "sib-1 not found in sibling-repo"
+    )
 
 
 def test_repo_not_fleet_member_fails_closed(
@@ -200,6 +229,166 @@ def test_repo_not_fleet_member_fails_closed(
     )
     lookup = make_sibling_status_lookup(project_root=project_root)
     assert lookup("not-a-fleet-member", "sib-1") == RefStatus.UNKNOWN
+    assert lookup.diagnostic(repo="not-a-fleet-member", work_item_id="sib-1") == (
+        "no clone configured for not-a-fleet-member:sib-1"
+    )
+
+
+@pytest.mark.parametrize(
+    ("manifest_text", "clone_state", "items", "diagnostic"),
+    [
+        (
+            _MANIFEST,
+            "missing",
+            [_item(id_="sib-1", status="done")],
+            "sibling tenant read failed for sibling-repo:sib-1",
+        ),
+        (
+            _MANIFEST,
+            "present",
+            [_item(id_="other", status="done")],
+            "sib-1 not found in sibling-repo",
+        ),
+        (
+            None,
+            "present",
+            [_item(id_="sib-1", status="done")],
+            "no clone configured for sibling-repo:sib-1",
+        ),
+    ],
+)
+def test_unknown_sibling_causes_are_distinct_and_still_block_dispatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    manifest_text: str | None,
+    clone_state: Literal["present", "missing"],
+    items: list[WorkItem],
+    diagnostic: str,
+) -> None:
+    project_root = _project_root(tmp_path=tmp_path, make_clone_dir=clone_state == "present")
+    consumer = _item(id_="consumer", status="ready")
+    consumer = WorkItem(
+        id=consumer.id,
+        type=consumer.type,
+        status=consumer.status,
+        title=consumer.title,
+        description=consumer.description,
+        origin=consumer.origin,
+        gap_id=consumer.gap_id,
+        rank=consumer.rank,
+        assignee=consumer.assignee,
+        depends_on=(_SIBLING_DEP,),
+        captured_at=consumer.captured_at,
+        resolution=consumer.resolution,
+        reason=consumer.reason,
+        audit=consumer.audit,
+        superseded_by=consumer.superseded_by,
+    )
+    _install_fleet(monkeypatch=monkeypatch, manifest_text=manifest_text, items=items)
+
+    lookup = make_sibling_status_lookup(project_root=project_root)
+
+    assert lookup(_SIBLING_REPO, "sib-1") == RefStatus.UNKNOWN
+    assert lookup.diagnostic(repo=_SIBLING_REPO, work_item_id="sib-1") == diagnostic
+    assert (
+        is_dispatch_candidate(
+            item=consumer,
+            index={consumer.id: consumer},
+            manifest=_cross_repo_manifest(),
+            sibling_status_lookup=lookup,
+        )
+        is False
+    )
+
+
+def test_is_dispatch_candidate_default_matches_explicit_real_resolver(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = _project_root(tmp_path=tmp_path, make_clone_dir=True)
+    item = _item(id_="consumer", status="ready")
+    item = WorkItem(
+        id=item.id,
+        type=item.type,
+        status=item.status,
+        title=item.title,
+        description=item.description,
+        origin=item.origin,
+        gap_id=item.gap_id,
+        rank=item.rank,
+        assignee=item.assignee,
+        depends_on=(_SIBLING_DEP,),
+        captured_at=item.captured_at,
+        resolution=item.resolution,
+        reason=item.reason,
+        audit=item.audit,
+        superseded_by=item.superseded_by,
+    )
+    _install_fleet(
+        monkeypatch=monkeypatch,
+        manifest_text=_MANIFEST,
+        items=[_item(id_="sib-1", status="done")],
+    )
+    explicit = make_sibling_status_lookup(project_root=project_root)
+    monkeypatch.chdir(project_root)
+
+    assert (
+        is_dispatch_candidate(
+            item=item,
+            index={item.id: item},
+            manifest=_cross_repo_manifest(),
+            sibling_status_lookup=explicit,
+        )
+        is True
+    )
+    assert (
+        is_dispatch_candidate(item=item, index={item.id: item}, manifest=_cross_repo_manifest())
+        is True
+    )
+
+
+def test_requested_item_refusal_reports_sibling_lookup_diagnostic(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = _project_root(tmp_path=tmp_path, make_clone_dir=True)
+    item = _item(id_="consumer", status="ready")
+    item = WorkItem(
+        id=item.id,
+        type=item.type,
+        status=item.status,
+        title=item.title,
+        description=item.description,
+        origin=item.origin,
+        gap_id=item.gap_id,
+        rank=item.rank,
+        assignee=item.assignee,
+        depends_on=(_SIBLING_DEP,),
+        captured_at=item.captured_at,
+        resolution=item.resolution,
+        reason=item.reason,
+        audit=item.audit,
+        superseded_by=item.superseded_by,
+    )
+
+    def _fetch() -> str:
+        return _MANIFEST
+
+    def _load(**_kwargs: object) -> list[WorkItem]:
+        raise BeadsConnectionError(detail="unreachable sibling tenant")
+
+    monkeypatch.setattr(sut, "fetch_fleet_manifest_text", _fetch)
+    monkeypatch.setattr(sut, "load_items", _load)
+    error = requested_items_preflight_error(
+        requested_ids={"consumer"},
+        items=[item],
+        repo=project_root,
+    )
+
+    assert error is not None
+    assert "consumer" in error
+    assert "sibling tenant read failed for sibling-repo:sib-1" in error
+    assert "not in the ready set: consumer" not in error
 
 
 def test_unfetchable_manifest_fails_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
