@@ -26,6 +26,7 @@ __all__: list[str] = [
 # plugin root for the bundled default, or a dispatch target's own checkout
 # for the repo-local override.
 _WORKFLOW_SUBPATH = (".fabro", "workflows", "implement-work-item", "workflow.toml")
+_RUN_TURN_DATASET = "fabro"
 
 
 def store_config(*, repo: Path) -> StoreConfig:
@@ -114,9 +115,22 @@ def cost_sink_path(*, args: argparse.Namespace, repo: Path) -> Path:
 
 
 def run_turn_sink_path(*, args: argparse.Namespace, repo: Path) -> Path:
-    """Where the live receiver records successful Fabro `run_turn` exports."""
-    journal = journal_path(args=args, repo=repo)
-    return journal.with_name(f"{journal.stem}-run-turn-exports.json")
+    """Where any host receiver records successful Fabro `run_turn` exports.
+
+    The OTLP receiver binds one host-global port, so a different repo's
+    dispatcher may own the live receiver that successfully exports this repo's
+    Fabro spans. Keep the marker host-global and dataset-scoped so the
+    timestamp-bounded guard reads the same signal whichever repo owns :4318.
+    """
+    _ = (args, repo)
+    state_home = os.environ.get("XDG_STATE_HOME")
+    base = Path(state_home) if state_home else Path.home() / ".local" / "state"
+    return (
+        base
+        / "livespec-orchestrator-beads-fabro"
+        / "run-turn-exports"
+        / f"{_RUN_TURN_DATASET}.json"
+    )
 
 
 def cost_report_spans_path(*, args: argparse.Namespace, repo: Path) -> Path:

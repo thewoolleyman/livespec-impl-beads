@@ -117,6 +117,8 @@ def test_default_otel_receiver_factory_builds_without_starting(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The default factory returns a configured, UNSTARTED OtelReceiver."""
+    state_home = tmp_path / "state"
+    monkeypatch.setenv("XDG_STATE_HOME", str(state_home))
     monkeypatch.setenv("LIVESPEC_OTEL_RECEIVER_PORT", "0")
     monkeypatch.setenv("HONEYCOMB_INGEST_KEY_LIVESPEC", "ingest-xyz")
 
@@ -135,7 +137,10 @@ def test_default_otel_receiver_factory_builds_without_starting(
     assert receiver.is_running() is False
     assert receiver.heartbeat.path == tmp_path / "j-otel-heartbeat.json"
     assert receiver.run_turn is not None
-    assert receiver.run_turn.path == tmp_path / "j-run-turn-exports.json"
+    assert (
+        receiver.run_turn.path
+        == state_home / "livespec-orchestrator-beads-fabro" / "run-turn-exports" / "fabro.json"
+    )
 
 
 @dataclass(kw_only=True)
