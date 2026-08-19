@@ -232,7 +232,12 @@ the image the same way. The current rollback artifact is
 
 ### Start / restart
 
-The host server is owned by the `fabro-server.service` unit distributed from
+**There are TWO factory hosts.** Everything in this section describes the
+**vps** host unless it says otherwise; the commands below act on whichever host
+you are logged into, so running them from a vps shell restarts vps, never hp.
+See "The hp factory host" below before touching hp.
+
+The vps host server is owned by the `fabro-server.service` unit distributed from
 `/data/projects/vps-info/services/fabro-server/`. Restart it through systemd:
 
 ```bash
@@ -255,12 +260,77 @@ sudo systemctl restart fabro-server
 - Never invoke `fabro server start` or `fabro server restart` directly on this
   host. Doing so bypasses supervision and the web-readiness invariant.
 
+### The hp factory host
+
+`hp-xubuntu` is the fleet's **second** factory and, since the
+`default_factory` rollout, the **primary** one: every `.livespec.jsonc` in the
+workspace that carries a `factories` block sets `default_factory: "hp"`. vps is
+the fallback. Provisioned under plan epic `bd-ib-l3nptz`.
+
+**Shell access — use the `cwoolley` account.** Probes with the default user
+fail, which is why early notes recorded hp as unreachable:
+
+```bash
+tailscale ssh cwoolley@hp-xubuntu 'fabro --version'
+```
+
+Facts verified on the host 2026-08-19:
+
+- Binary `fabro 0.254.0 (8de6611 2026-08-16)` — same version **and commit** as
+  vps, so the `constraints.md` pin holds on both. (Each host built the fork
+  independently, so their embedded SPA assets differ; that is expected and is
+  *not* evidence of a version skew.)
+- Unit is `active` + `enabled`, runs as **`cwoolley`**, `HOME=/home/cwoolley`,
+  `WorkingDirectory=/home/cwoolley/repos/livespec-orchestrator-beads-fabro`.
+  Note hp diverges from vps by service user, home, and checkout root — not just
+  the two per-host edits older notes predicted.
+- OAuth-only posture intact: the unit carries
+  `UnsetEnvironment=ANTHROPIC_API_KEY OPENAI_API_KEY` and `server.env` (mode
+  `600`) holds only `FABRO_DEV_TOKEN` and `SESSION_SECRET`.
+- Capacity: 16 CPUs, 30 GiB RAM, 302 G free disk — comfortably more than the
+  4-CPU/8 GB per-run plan needs.
+
+**Verifying hp — do NOT use `fabro doctor --server`.** Against a remote host it
+reports `[✗] Fabro server (health check failed)` for a perfectly healthy
+server; the CLI's `auth.json` entry is keyed by URL, which is also why
+`[cli.target]` stays on loopback. Use the readiness gate and `ps` instead:
+
+```bash
+FABRO_BASE_URL=https://hp-xubuntu.perch-rudd.ts.net:32276 \
+FABRO_CANONICAL_HOST=hp-xubuntu.perch-rudd.ts.net:32276 \
+  /data/projects/vps-info/services/fabro-server/fabro-server-verify-web
+
+fabro ps --server https://hp-xubuntu.perch-rudd.ts.net:32276
+```
+
+A bare `curl .../runs` returns **404 from a healthy server** — fabro 404s a
+request without `Accept: text/html` and the canonical `Host` header. Two
+identical 404s against hp *and* vps mean the probe is wrong, not that both
+factories are down.
+
+**Two known gaps, tracked:**
+
+- `bd-ib-l3nptz.14` — hp's unit, drop-in, serve proxy, and `settings.toml` URLs
+  exist **only as live host state**; nothing is in version control, and
+  `install.sh` was never deployed there. hp was stood up by hand.
+- `bd-ib-l3nptz.15` — hp does **not** carry the
+  `FABRO_WEB_VERIFY_ATTEMPTS=300` crash-loop mitigation that vps got via
+  `bd-ib-l3nptz.2`; it runs the default of 60. That fix landed in vps-info's
+  versioned unit and had no path to hp's unversioned one.
+
 ### Enabling fabro span export (O1 Lever A — opt-in)
 
 The server's tracing spans (the top-level `run` span it mints per dispatch) are
-bridged to OTLP **only when the OTLP endpoint env is present at start**; the
-default unit carries none, so export is inert. To turn it on, add a systemd
-drop-in with the three **non-secret** OTLP variables:
+bridged to OTLP **only when the OTLP endpoint env is present at start**.
+
+- On **vps** the unit carries none, so export is inert there — the default this
+  section describes. (Its only drop-in is `verify-timeout-override.conf`.)
+- On **hp** export is already **ACTIVE**: hp carries an `otel.conf` drop-in with
+  all three variables below. Do not assume a factory's export is off without
+  checking `systemctl show fabro-server -p Environment` on that host.
+
+To turn it on where it is off, add a systemd drop-in with the three
+**non-secret** OTLP variables:
 
 ```ini
 # sudo systemctl edit fabro-server
@@ -355,7 +425,16 @@ restore the endpoint and confirm both clear after the next successful
 
 ### Tailscale-served
 
-`tailscaled` holds a standing `tailscale serve` proxy
+Each factory host runs its own proxy, on the same port, terminated locally by
+that host's own `tailscaled` — hp's cannot be set from vps.
+
+| Host | Served URL | Backend |
+|---|---|---|
+| vps | `https://vps.perch-rudd.ts.net:32276` | `http://127.0.0.1:32276` |
+| hp | `https://hp-xubuntu.perch-rudd.ts.net:32276` | `http://127.0.0.1:32276` |
+
+Both are **tailnet-only** (not funneled). On vps, `tailscaled` holds a standing
+`tailscale serve` proxy
 `https://vps.perch-rudd.ts.net:32276 → http://127.0.0.1:32276`. It persists
 across server restarts and returns connection-refused while the loopback backend
 is down — so a `:32276` listener owned by `tailscaled` (not `fabro`) means the
