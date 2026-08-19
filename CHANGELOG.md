@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.58.13](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.12...v0.58.13) (2026-08-19)
+
+
+### Bug Fixes
+
+* diagnose run_turn export marker attempts ([9a8fa5c](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/9a8fa5c1f0417f2ac4315423fb6ea1505bb00bc6))
+
 ## [0.58.12](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.58.11...v0.58.12) (2026-08-19)
 
 
