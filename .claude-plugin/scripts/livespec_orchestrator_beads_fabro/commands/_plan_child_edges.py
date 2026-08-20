@@ -28,13 +28,16 @@ __all__: list[str] = [
     "is_blocks_edge_to_epic",
     "linked_plan_gate_ids_for_epic",
     "plan_child_ids_from_dependencies",
+    "plan_child_ids_from_show_dependencies",
 ]
 
 
 def bd_child_surface_mismatch_ids(*, client: BeadsClient, epic_id: str) -> tuple[str, ...]:
-    """Return ids where `bd children` disagrees with raw dependency membership."""
-    dependency_child_ids = plan_child_ids_from_dependencies(
-        records=client.list_issues(),
+    """Return ids where `bd children` disagrees with `bd show` dependencies."""
+    records = client.list_issues()
+    dependency_child_ids = plan_child_ids_from_show_dependencies(
+        client=client,
+        records=records,
         epic_id=epic_id,
     )
     children_ids = frozenset(
@@ -70,6 +73,24 @@ def plan_child_ids_from_dependencies(
         for record in records
         if isinstance(issue_id := record.get("id"), str)
         and _has_plan_child_edge_to_epic(record=record, epic_id=epic_id)
+    )
+
+
+def plan_child_ids_from_show_dependencies(
+    *,
+    client: BeadsClient,
+    records: list[BeadsRecord],
+    epic_id: str,
+) -> frozenset[str]:
+    """Return issue ids whose `bd show` record has a child edge to `epic_id`."""
+    return frozenset(
+        issue_id
+        for record in records
+        if isinstance(issue_id := record.get("id"), str)
+        and _has_plan_child_edge_to_epic(
+            record=client.show_issue(issue_id=issue_id),
+            epic_id=epic_id,
+        )
     )
 
 

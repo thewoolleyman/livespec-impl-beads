@@ -146,6 +146,22 @@ class _DivergentChildSurfaceClient:
         assert parent_id == "bd-ib-epic"
         return [{"id": "bd-ib-parent-child"}]
 
+    def show_issue(self, *, issue_id: str) -> dict[str, object]:
+        assert issue_id in {"bd-ib-parent-child", "bd-ib-older-tracks"}
+        dependencies: dict[str, list[dict[str, str]]] = {
+            "bd-ib-parent-child": [
+                {"depends_on_id": "bd-ib-epic", "type": EDGE_PARENT_CHILD},
+            ],
+            "bd-ib-older-tracks": [
+                {"depends_on_id": "bd-ib-epic", "type": EDGE_TRACKS},
+            ],
+        }
+        return {
+            "id": issue_id,
+            "status": "ready",
+            "dependencies": dependencies[issue_id],
+        }
+
     def list_issues(self) -> list[dict[str, object]]:
         return [
             {
@@ -175,3 +191,41 @@ def test_child_surface_probe_detects_children_missing_raw_dependency_child() -> 
         "bd-ib-older-tracks",
         "bd-ib-parent-child",
     )
+
+
+class _ShowOnlyDivergentChildSurfaceClient:
+    def children(self, *, parent_id: str) -> list[dict[str, object]]:
+        assert parent_id == "bd-ib-epic"
+        return [{"id": "bd-ib-parent-child"}]
+
+    def show_issue(self, *, issue_id: str) -> dict[str, object]:
+        dependencies: dict[str, list[dict[str, str]]] = {
+            "bd-ib-parent-child": [
+                {"depends_on_id": "bd-ib-epic", "type": EDGE_PARENT_CHILD},
+            ],
+            "bd-ib-older-tracks": [
+                {"depends_on_id": "bd-ib-epic", "type": EDGE_TRACKS},
+            ],
+            "bd-ib-unrelated": [
+                {"depends_on_id": "bd-ib-other", "type": EDGE_TRACKS},
+            ],
+        }
+        return {
+            "id": issue_id,
+            "status": "ready",
+            "dependencies": dependencies[issue_id],
+        }
+
+    def list_issues(self) -> list[dict[str, object]]:
+        return [
+            {"id": "bd-ib-parent-child", "status": "ready", "dependencies": []},
+            {"id": "bd-ib-older-tracks", "status": "ready", "dependencies": []},
+            {"id": "bd-ib-unrelated", "status": "ready", "dependencies": []},
+        ]
+
+
+def test_child_surface_probe_uses_bd_show_dependencies_surface() -> None:
+    probe = _plan_archive_review.bd_child_surface_mismatch_ids
+    client = cast("BeadsClient", _ShowOnlyDivergentChildSurfaceClient())
+
+    assert probe(client=client, epic_id="bd-ib-epic") == ("bd-ib-older-tracks",)
