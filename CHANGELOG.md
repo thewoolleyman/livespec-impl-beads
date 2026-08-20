@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.59.11](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.59.10...v0.59.11) (2026-08-20)
+
+
+### Bug Fixes
+
+* read the list payload fabro inspect actually returns ([c617088](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/c617088352e9da8c1b67534a49ea70f8607b0c06))
+
 ## [0.59.10](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.59.9...v0.59.10) (2026-08-20)
 
 
