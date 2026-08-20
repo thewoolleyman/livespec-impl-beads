@@ -10,6 +10,7 @@ from livespec_orchestrator_beads_fabro._beads_client import (
     EDGE_SUPERSEDES,
     BeadsClient,
 )
+from livespec_orchestrator_beads_fabro.commands import _plan_archive_review
 from livespec_orchestrator_beads_fabro.commands._plan_archive_review import (
     undisposed_plan_child_ids,
 )
@@ -138,3 +139,39 @@ def test_closed_tracked_children_are_disposed() -> None:
     client = cast("BeadsClient", _ClosedTrackedChildClient())
 
     assert undisposed_plan_child_ids(client=client, epic_id="bd-ib-closed-epic") == ()
+
+
+class _DivergentChildSurfaceClient:
+    def children(self, *, parent_id: str) -> list[dict[str, object]]:
+        assert parent_id == "bd-ib-epic"
+        return [{"id": "bd-ib-parent-child"}]
+
+    def list_issues(self) -> list[dict[str, object]]:
+        return [
+            {
+                "id": "bd-ib-parent-child",
+                "status": "ready",
+                "dependencies": [
+                    {"depends_on_id": "bd-ib-epic", "type": EDGE_PARENT_CHILD},
+                ],
+            },
+            {
+                "id": "bd-ib-older-tracks",
+                "status": "ready",
+                "dependencies": [
+                    {"depends_on_id": "bd-ib-epic", "type": EDGE_TRACKS},
+                ],
+            },
+        ]
+
+
+def test_child_surface_probe_detects_children_missing_raw_dependency_child() -> None:
+    assert hasattr(_plan_archive_review, "bd_child_surface_mismatch_ids")
+    probe = _plan_archive_review.bd_child_surface_mismatch_ids
+    client = cast("BeadsClient", _DivergentChildSurfaceClient())
+
+    assert probe(client=client, epic_id="bd-ib-epic") == ("bd-ib-older-tracks",)
+    assert undisposed_plan_child_ids(client=client, epic_id="bd-ib-epic") == (
+        "bd-ib-older-tracks",
+        "bd-ib-parent-child",
+    )

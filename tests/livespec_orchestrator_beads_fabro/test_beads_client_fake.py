@@ -125,6 +125,7 @@ def test_fake_children_filters_by_parent() -> None:
     _ = fake.create_issue(draft=_draft(issue_id="li-other", parent_id=None))
     children = fake.children(parent_id="li-epic")
     assert [record["id"] for record in children] == ["li-child"]
+    assert children[0]["dependencies"] == [{"depends_on_id": "li-epic", "type": "parent-child"}]
 
 
 def test_fake_seed_and_list_comments_roundtrip() -> None:

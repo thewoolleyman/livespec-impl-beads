@@ -19,6 +19,8 @@ __all__: list[str] = [
     "reset_fake_singleton",
 ]
 
+_EDGE_PARENT_CHILD = "parent-child"
+
 
 class FakeBeadsClient:
     """Pure in-memory `BeadsClient` — runtime fallback + hermetic test backend.
@@ -87,6 +89,9 @@ class FakeBeadsClient:
         return issue_id in self._issues
 
     def create_issue(self, *, draft: IssueDraft) -> str:
+        dependencies: list[DependencyEdge] = []
+        if draft.parent_id is not None:
+            dependencies.append({"depends_on_id": draft.parent_id, "type": _EDGE_PARENT_CHILD})
         record: BeadsRecord = {
             "id": draft.issue_id,
             "issue_type": draft.issue_type,
@@ -101,7 +106,7 @@ class FakeBeadsClient:
             "metadata": dict(draft.metadata),
             "spec_id": draft.spec_id,
             "parent_id": draft.parent_id,
-            "dependencies": [],
+            "dependencies": dependencies,
         }
         self._issues[draft.issue_id] = record
         return draft.issue_id
