@@ -151,4 +151,9 @@ main() {
     start_and_verify
 }
 
-main "$@"
+# Sourceable for testing: only run when executed directly. A test can then
+# `source` this file to exercise individual guards (e.g. require_host_matches)
+# without root and without touching a live host.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi

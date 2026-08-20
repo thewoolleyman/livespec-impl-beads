@@ -30,6 +30,7 @@ One template plus a per-host values file replaces the hand-edit step.
 | `render-unit.sh` | Renders the template for one host to stdout. No root needed. |
 | `install.sh` | Renders, installs, enables, and verifies. Host-guarded. |
 | `check-settings.sh` | Compares a host's live resolved settings against its expectations. |
+| `install.test.sh` | Exercises the installer's pure guards without root or a live host. |
 | `fabro-server-verify-web` | Unmodified copy of vps-info's verifier — shared by all hosts. |
 | `otel.conf` | The OTLP drop-in. Host-invariant. |
 
@@ -88,11 +89,40 @@ exercised (missing file → 2, missing variable → 3, unsubstituted placeholder
 4); `check-settings.sh` passes on both hosts against their own expectations and
 correctly flags the `.16` drift when hp is checked against vps's expectations.
 
+## The installer's host guard is tested
+
+`install.sh` is sourceable — `main` runs only when the file is executed
+directly — so `install.test.sh` can source it and call individual guards
+without root and without touching a host. `hostname` is stubbed through a PATH
+shim, so the shipped code path is what runs.
+
+`require_host_matches` is the guard worth covering first: installing hp's unit
+on vps fails *silently* — the wrong unit installs and starts fine, pointed at
+the wrong checkout and the wrong canonical host. Six checks pass: both hosts
+accepted against their own canonical name, both cross-host installs refused,
+and each `hosts/<name>.env` rendering a `WorkingDirectory` matching the
+`FABRO_HOST_CHECKOUT` that same file declares.
+
+Two things about the harness are worth knowing, because the obvious version
+lies:
+
+- Sourcing `install.sh` with **no** argument trips its `${1:?usage}` and exits
+  before any function is defined. A naive harness then sees a non-zero status
+  and scores every "refuses" case as a pass while never reaching the guard.
+  The first draft did exactly that — 2 real failures beside 2 false passes. It
+  is therefore sourced with a real `hosts/*.env`, and `FABRO_CANONICAL_HOST` is
+  overridden *after* sourcing. **The positive cases are what prove the harness
+  reaches the guard**; without them the negatives are worthless.
+- The negatives were mutation-checked: replacing `require_host_matches` with
+  `return 0` in a throwaway copy fails exactly the two cross-host cases and
+  nothing else.
+
 ## Known gaps before this can be called done
 
-- **Not installed anywhere.** `install.sh` has never been run from this
-  directory. Its `require_host_matches` guard and its supersede-the-old-drop-in
-  step are unexercised. Landing this must include one real run on hp.
+- **Not installed anywhere.** `install.sh` has never been run end-to-end from
+  this directory, so its supersede-the-old-drop-in step, and everything from
+  `require_inputs` onward, remain unexercised. Landing this must include one
+  real run on hp. (`require_host_matches` is now covered — see below.)
 - **`hosts/hp-xubuntu.settings.expected` records `max_concurrent_runs=5`**,
   the observed value, not a chosen one. `.16` decides the number.
 - **The tailscale serve mapping is not captured here.** Both hosts carry a
