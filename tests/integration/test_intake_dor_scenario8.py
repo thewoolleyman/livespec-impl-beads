@@ -38,7 +38,6 @@ from livespec_orchestrator_beads_fabro._beads_client import (
     make_beads_client,
     reset_fake_singleton,
 )
-from livespec_orchestrator_beads_fabro.errors import WorkItemNotFoundError
 from livespec_orchestrator_beads_fabro.intake_dor import (
     DefinitionOfReadyChecklist,
     apply_intake_dor,
@@ -51,6 +50,8 @@ from livespec_orchestrator_beads_fabro.store import (
     read_work_items,
 )
 from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
+from returns.pipeline import is_successful
+from returns.unsafe import unsafe_perform_io
 
 
 @pytest.fixture(autouse=True)
@@ -144,8 +145,10 @@ def _ready_checklist() -> DefinitionOfReadyChecklist:
 def test_single_acceptance_item_lands_pending_approval(tmp_path: Path) -> None:
     _seed_issue(issue_id="li-pending")
 
-    verdict = apply_intake_dor(
-        path=_config(repo_root=tmp_path), item_id="li-pending", checklist=_ready_checklist()
+    verdict = unsafe_perform_io(
+        apply_intake_dor(
+            path=_config(repo_root=tmp_path), item_id="li-pending", checklist=_ready_checklist()
+        ).unwrap()
     )
 
     assert verdict == "pending-approval"
@@ -164,8 +167,10 @@ def test_pending_item_without_repo_root_fails_loudly() -> None:
 def test_auto_admission_single_acceptance_item_lands_ready(tmp_path: Path) -> None:
     _seed_issue(issue_id="li-ready", labels=["admission:auto"])
 
-    verdict = apply_intake_dor(
-        path=_config(repo_root=tmp_path), item_id="li-ready", checklist=_ready_checklist()
+    verdict = unsafe_perform_io(
+        apply_intake_dor(
+            path=_config(repo_root=tmp_path), item_id="li-ready", checklist=_ready_checklist()
+        ).unwrap()
     )
 
     assert verdict == "ready"
@@ -176,10 +181,12 @@ def test_global_auto_approve_single_acceptance_item_lands_ready(tmp_path: Path) 
     _write_dispatcher_config(repo_root=tmp_path, setting='"auto_approve_ready": true')
     _seed_issue(issue_id="li-global-ready")
 
-    verdict = apply_intake_dor(
-        path=_config(repo_root=tmp_path),
-        item_id="li-global-ready",
-        checklist=_ready_checklist(),
+    verdict = unsafe_perform_io(
+        apply_intake_dor(
+            path=_config(repo_root=tmp_path),
+            item_id="li-global-ready",
+            checklist=_ready_checklist(),
+        ).unwrap()
     )
 
     assert verdict == "ready"
@@ -190,8 +197,10 @@ def test_manual_label_holds_pending_despite_global_auto_approve(tmp_path: Path) 
     _write_dispatcher_config(repo_root=tmp_path, setting='"auto_approve_ready": true')
     _seed_issue(issue_id="li-manual", labels=["admission:manual"])
 
-    verdict = apply_intake_dor(
-        path=_config(repo_root=tmp_path), item_id="li-manual", checklist=_ready_checklist()
+    verdict = unsafe_perform_io(
+        apply_intake_dor(
+            path=_config(repo_root=tmp_path), item_id="li-manual", checklist=_ready_checklist()
+        ).unwrap()
     )
 
     assert verdict == "pending-approval"
@@ -204,8 +213,10 @@ def test_spec_change_tier_holds_pending_despite_auto_label_and_global_auto(
     _write_dispatcher_config(repo_root=tmp_path, setting='"auto_approve_ready": true')
     _seed_issue(issue_id="li-spec", labels=["admission:auto"], spec_id="SC-1")
 
-    verdict = apply_intake_dor(
-        path=_config(repo_root=tmp_path), item_id="li-spec", checklist=_ready_checklist()
+    verdict = unsafe_perform_io(
+        apply_intake_dor(
+            path=_config(repo_root=tmp_path), item_id="li-spec", checklist=_ready_checklist()
+        ).unwrap()
     )
 
     assert verdict == "pending-approval"
@@ -220,18 +231,20 @@ def test_spec_change_tier_holds_pending_despite_auto_label_and_global_auto(
 def test_epic_lands_backlog() -> None:
     _seed_issue(issue_id="li-epic")
 
-    verdict = apply_intake_dor(
-        path=_config(),
-        item_id="li-epic",
-        # More than one coherent "done" — an epic.
-        checklist=DefinitionOfReadyChecklist(
-            single_coherent_done=False,
-            autonomously_verifiable=True,
-            autonomy_tiered=True,
-            dependency_linked=True,
-            repo_targeted=True,
-            above_floor=True,
-        ),
+    verdict = unsafe_perform_io(
+        apply_intake_dor(
+            path=_config(),
+            item_id="li-epic",
+            # More than one coherent "done" — an epic.
+            checklist=DefinitionOfReadyChecklist(
+                single_coherent_done=False,
+                autonomously_verifiable=True,
+                autonomy_tiered=True,
+                dependency_linked=True,
+                repo_targeted=True,
+                above_floor=True,
+            ),
+        ).unwrap()
     )
 
     assert verdict == "backlog"
@@ -246,18 +259,20 @@ def test_epic_lands_backlog() -> None:
 def test_non_autonomously_verifiable_item_is_blocked_needs_human() -> None:
     _seed_issue(issue_id="li-judgement")
 
-    verdict = apply_intake_dor(
-        path=_config(),
-        item_id="li-judgement",
-        # Acceptance needs a human judgement call.
-        checklist=DefinitionOfReadyChecklist(
-            single_coherent_done=True,
-            autonomously_verifiable=False,
-            autonomy_tiered=True,
-            dependency_linked=True,
-            repo_targeted=True,
-            above_floor=True,
-        ),
+    verdict = unsafe_perform_io(
+        apply_intake_dor(
+            path=_config(),
+            item_id="li-judgement",
+            # Acceptance needs a human judgement call.
+            checklist=DefinitionOfReadyChecklist(
+                single_coherent_done=True,
+                autonomously_verifiable=False,
+                autonomy_tiered=True,
+                dependency_linked=True,
+                repo_targeted=True,
+                above_floor=True,
+            ),
+        ).unwrap()
     )
 
     assert verdict == "blocked"
@@ -271,11 +286,13 @@ def test_linked_dependency_item_keeps_edges_and_does_not_land_ready() -> None:
     _seed_issue(issue_id="li-dependent", labels=["admission:auto"])
     _link_dependency(item_id="li-dependent", blocker_id="li-blocker")
 
-    verdict = apply_intake_dor(
-        path=_config(),
-        item_id="li-dependent",
-        # The blocker is unresolved, but its dependency edge is linked.
-        checklist=_ready_checklist(),
+    verdict = unsafe_perform_io(
+        apply_intake_dor(
+            path=_config(),
+            item_id="li-dependent",
+            # The blocker is unresolved, but its dependency edge is linked.
+            checklist=_ready_checklist(),
+        ).unwrap()
     )
 
     item = _item(issue_id="li-dependent")
@@ -326,8 +343,10 @@ def test_every_verdict_stamps_the_intake_triage_marker(
     """
     _seed_issue(issue_id=issue_id)
 
-    verdict = apply_intake_dor(
-        path=_config(repo_root=tmp_path), item_id=issue_id, checklist=checklist
+    verdict = unsafe_perform_io(
+        apply_intake_dor(
+            path=_config(repo_root=tmp_path), item_id=issue_id, checklist=checklist
+        ).unwrap()
     )
 
     assert verdict == expected_status
@@ -338,8 +357,10 @@ def test_auto_admitted_ready_item_is_also_marked_triaged(tmp_path: Path) -> None
     """The onward `ready` approval keeps the marker rather than dropping it."""
     _seed_issue(issue_id="li-mark-ready", labels=["admission:auto"])
 
-    verdict = apply_intake_dor(
-        path=_config(repo_root=tmp_path), item_id="li-mark-ready", checklist=_ready_checklist()
+    verdict = unsafe_perform_io(
+        apply_intake_dor(
+            path=_config(repo_root=tmp_path), item_id="li-mark-ready", checklist=_ready_checklist()
+        ).unwrap()
     )
 
     assert verdict == "ready"
@@ -405,7 +426,13 @@ def test_evaluate_epic_precedes_blocked() -> None:
 # --------------------------------------------------------------------------
 
 
-def test_apply_intake_dor_unknown_item_raises_not_found() -> None:
-    with pytest.raises(WorkItemNotFoundError) as excinfo:
-        apply_intake_dor(path=_config(), item_id="li-ghost", checklist=_ready_checklist())
-    assert excinfo.value.item_id == "li-ghost"
+def test_apply_intake_dor_unknown_item_is_a_failure() -> None:
+    """An unknown item is an EXPECTED failure and rides the failure track.
+
+    Contrast `test_pending_item_without_repo_root_fails_loudly`, which
+    still RAISES: a missing `repo_root` is a caller bug, not an expected
+    failure mode, so it stays a raised built-in.
+    """
+    result = apply_intake_dor(path=_config(), item_id="li-ghost", checklist=_ready_checklist())
+    assert not is_successful(result)
+    assert unsafe_perform_io(result.failure()).item_id == "li-ghost"
