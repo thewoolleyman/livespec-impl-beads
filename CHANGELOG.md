@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.59.9](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.59.8...v0.59.9) (2026-08-20)
+
+
+### Bug Fixes
+
+* model deferred ledger status ([349def5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/349def5c5bc5ae271f418e7ef969829f2083cc72))
+
 ## [0.59.8](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.59.7...v0.59.8) (2026-08-20)
 
 
