@@ -126,6 +126,8 @@ def build_create_argv(*, draft: IssueDraft) -> list[str]:
         argv.extend(["--spec-id", draft.spec_id])
     if draft.parent_id is not None:
         argv.extend(["--parent", draft.parent_id])
+    _extend_optional_pair(argv=argv, flag="--acceptance", value=draft.acceptance_criteria)
+    _extend_optional_pair(argv=argv, flag="--notes", value=draft.notes)
     for label in draft.labels:
         argv.extend(["--label", label])
     argv.extend(["--metadata", json.dumps(draft.metadata, separators=(",", ":"), sort_keys=True)])
@@ -142,6 +144,8 @@ def build_update_argv(  # noqa: PLR0913 — kw-only argv builder mirroring updat
     remove_labels: list[str] | None = None,
     assignee: str | None = None,
     clear_assignee: bool = False,
+    acceptance_criteria: str | None = None,
+    notes: str | None = None,
 ) -> list[str]:
     """Build the `bd update <id> ...` verb argv (pure; fully covered).
 
@@ -163,12 +167,22 @@ def build_update_argv(  # noqa: PLR0913 — kw-only argv builder mirroring updat
         argv.extend(["--assignee", assignee])
     if parent_id is not None:
         argv.extend(["--parent", parent_id])
-    if add_labels is not None:
-        for label in add_labels:
-            argv.extend(["--add-label", label])
-    if remove_labels is not None:
-        for label in remove_labels:
-            argv.extend(["--remove-label", label])
+    _extend_repeated_flag(argv=argv, flag="--add-label", values=add_labels)
+    _extend_repeated_flag(argv=argv, flag="--remove-label", values=remove_labels)
+    _extend_optional_pair(argv=argv, flag="--acceptance", value=acceptance_criteria)
+    _extend_optional_pair(argv=argv, flag="--notes", value=notes)
     if metadata is not None:
         argv.extend(["--metadata", json.dumps(metadata, separators=(",", ":"), sort_keys=True)])
     return argv
+
+
+def _extend_optional_pair(*, argv: list[str], flag: str, value: str | None) -> None:
+    if value is not None:
+        argv.extend([flag, value])
+
+
+def _extend_repeated_flag(*, argv: list[str], flag: str, values: list[str] | None) -> None:
+    if values is None:
+        return
+    for value in values:
+        argv.extend([flag, value])

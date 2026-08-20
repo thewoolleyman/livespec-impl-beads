@@ -36,6 +36,8 @@ def test_build_create_argv_full_field_set() -> None:
         parent_id="li-epic",
         labels=["origin:freeform", "gap-id:G1"],
         metadata={"audit": {"merge_sha": "sha"}},
+        acceptance_criteria="Run just check.",
+        notes="Keep scope narrow.",
     )
     argv = build_create_argv(draft=draft)
     assert argv[0] == "create"
@@ -53,6 +55,10 @@ def test_build_create_argv_full_field_set() -> None:
     assert "topic-x" in argv
     assert "--parent" in argv
     assert "li-epic" in argv
+    assert "--acceptance" in argv
+    assert "Run just check." in argv
+    assert "--notes" in argv
+    assert "Keep scope narrow." in argv
     assert argv.count("--label") == 2
     assert "origin:freeform" in argv
     assert "gap-id:G1" in argv
@@ -65,6 +71,8 @@ def test_build_create_argv_omits_optional_flags_when_absent() -> None:
     assert "--assignee" not in argv
     assert "--spec-id" not in argv
     assert "--parent" not in argv
+    assert "--acceptance" not in argv
+    assert "--notes" not in argv
     assert argv.count("--label") == 0
 
 
@@ -75,6 +83,8 @@ def test_build_update_argv_full() -> None:
         parent_id="li-epic",
         add_labels=["resolution:completed"],
         metadata={"audit": {"merge_sha": "sha"}},
+        acceptance_criteria="Updated acceptance.",
+        notes="Updated notes.",
     )
     assert argv[:2] == ["update", "li-a"]
     assert "--status" in argv
@@ -85,6 +95,10 @@ def test_build_update_argv_full() -> None:
     assert argv.count("--add-label") == 1
     add_index = argv.index("--add-label")
     assert argv[add_index + 1] == "resolution:completed"
+    acceptance_index = argv.index("--acceptance")
+    assert argv[acceptance_index + 1] == "Updated acceptance."
+    notes_index = argv.index("--notes")
+    assert argv[notes_index + 1] == "Updated notes."
     assert "--metadata" in argv
 
 

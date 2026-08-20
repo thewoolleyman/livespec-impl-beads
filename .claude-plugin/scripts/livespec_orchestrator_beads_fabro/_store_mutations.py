@@ -39,9 +39,7 @@ _LABEL_WORKFLOW_SCOPE_OVERRIDE = "workflow-scope-override:"
 _LABEL_AWAITS_SCOPE_OVERRIDE = "awaits-scope-override"
 
 _META_AUDIT = "audit"
-_META_ACCEPTANCE_CRITERIA = "acceptance_criteria"
 _META_NON_LOCAL_DEPENDS_ON = "non_local_depends_on"
-_META_NOTES = "notes"
 _META_RANK = "rank"
 
 _LIVESPEC_DONE = "done"
@@ -257,6 +255,8 @@ def create_work_item(*, client: BeadsClient, item: WorkItem) -> None:
             labels=_work_item_labels(item=item),
             metadata=_work_item_metadata(item=item),
             spec_id=item.spec_commitment_hint,
+            acceptance_criteria=item.acceptance_criteria,
+            notes=item.notes,
             # epic linkage is expressed via the depends_on/supersedes edges
             # below; no create-time --parent is emitted by this bridge.
             parent_id=None,
@@ -336,19 +336,19 @@ def _work_item_labels(*, item: WorkItem) -> list[str]:
 
 
 def _work_item_metadata(*, item: WorkItem) -> dict[str, Any]:
-    """Build the metadata JSON object: rank + the full AuditRecord + non-local depends_on.
+    """Build metadata: rank + AuditRecord + non-local depends_on.
 
     `rank` is the sole ordering authority and a strictly-required non-null
     field, so it is ALWAYS written into `metadata.rank` (both on create and
     on the in-place close, which re-writes metadata).
+
+    Acceptance criteria and notes are intentionally absent here. They are
+    top-level beads fields so `bd show` and dispatcher reads share one source
+    of truth; legacy metadata copies remain read-only fallback in `store.py`.
     """
     metadata: dict[str, Any] = {_META_RANK: item.rank}
     if item.audit is not None:
         metadata[_META_AUDIT] = _audit_to_dict(audit=item.audit)
-    if item.acceptance_criteria is not None:
-        metadata[_META_ACCEPTANCE_CRITERIA] = item.acceptance_criteria
-    if item.notes is not None:
-        metadata[_META_NOTES] = item.notes
     non_local = _non_local_depends_on_list(depends_on=item.depends_on)
     if non_local:
         metadata[_META_NON_LOCAL_DEPENDS_ON] = non_local

@@ -120,3 +120,49 @@ def test_main_backfills_dispatch_factory_metadata_from_legacy_comments(
 
     assert rc == 0
     assert "dispatch factories backfilled: 0" in captured.out
+
+
+def test_main_backfills_native_content_fields_and_retires_metadata_copies(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    client = _fake()
+    _legacy_head(id_="metadata-only", priority=0, captured_at="2026-01-01T00:00:00Z")
+    client.update_issue(
+        issue_id="metadata-only",
+        metadata={
+            "rank": "a0",
+            "acceptance_criteria": "Legacy acceptance.",
+            "notes": "Legacy notes.",
+        },
+    )
+    _legacy_head(id_="diverged", priority=0, captured_at="2026-01-01T00:00:01Z")
+    client.update_issue(
+        issue_id="diverged",
+        acceptance_criteria="Native acceptance.",
+        notes="Native notes.",
+        metadata={
+            "rank": "a1",
+            "acceptance_criteria": "Stale acceptance.",
+            "notes": "Stale notes.",
+        },
+    )
+
+    rc = main(argv=[])
+    captured = capsys.readouterr()
+
+    assert rc == 0
+    assert "native content fields backfilled: 2" in captured.out
+    metadata_only = client.show_issue(issue_id="metadata-only")
+    assert metadata_only["acceptance_criteria"] == "Legacy acceptance."
+    assert metadata_only["notes"] == "Legacy notes."
+    assert metadata_only["metadata"] == {"rank": "a0"}
+    diverged = client.show_issue(issue_id="diverged")
+    assert diverged["acceptance_criteria"] == "Native acceptance."
+    assert diverged["notes"] == "Native notes."
+    assert diverged["metadata"] == {"rank": "a1"}
+
+    rc = main(argv=[])
+    captured = capsys.readouterr()
+
+    assert rc == 0
+    assert "native content fields backfilled: 0" in captured.out

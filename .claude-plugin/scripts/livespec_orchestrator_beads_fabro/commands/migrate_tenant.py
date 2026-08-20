@@ -23,6 +23,7 @@ from livespec_orchestrator_beads_fabro.commands.rebalance_ranks import LegacySee
 from livespec_orchestrator_beads_fabro.io import write_stdout
 from livespec_orchestrator_beads_fabro.store import (
     backfill_dispatch_factory_metadata,
+    backfill_native_content_fields,
     materialize_work_items,
     read_work_item_native_priorities,
     read_work_items,
@@ -36,7 +37,7 @@ __all__: list[str] = ["main", "migrate_tenant"]
 _LIVESPEC_DONE = "done"
 
 
-def migrate_tenant(*, config: StoreConfig) -> tuple[int, int]:
+def migrate_tenant(*, config: StoreConfig) -> tuple[int, int, int]:
     """Register custom statuses and backfill live-head ranks.
 
     Returns the number of live heads whose rank changed and the number of
@@ -48,7 +49,8 @@ def migrate_tenant(*, config: StoreConfig) -> tuple[int, int]:
     register_custom_statuses(path=config)
     rekeyed = _backfill_legacy_ranks(config=config)
     factories = backfill_dispatch_factory_metadata(path=config)
-    return rekeyed, factories
+    content_fields = backfill_native_content_fields(path=config)
+    return rekeyed, factories, content_fields
 
 
 def _backfill_legacy_ranks(*, config: StoreConfig) -> int:
@@ -91,12 +93,13 @@ def main(*, argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     project_root = Path(args.project_root) if args.project_root is not None else Path.cwd()
     config = resolve_store_config(cwd=project_root, work_items_arg=args.work_items_path)
-    rekeyed, factories = migrate_tenant(config=config)
+    rekeyed, factories, content_fields = migrate_tenant(config=config)
     _ = write_stdout(
         text=(
             "migrate-tenant: statuses registered; "
             f"re-keyed {rekeyed} live work-item(s); "
-            f"dispatch factories backfilled: {factories}\n"
+            f"dispatch factories backfilled: {factories}; "
+            f"native content fields backfilled: {content_fields}\n"
         )
     )
     return 0
