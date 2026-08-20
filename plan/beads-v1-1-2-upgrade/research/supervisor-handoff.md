@@ -44,108 +44,100 @@ fi
 
 ## Restart checkpoint
 
-This checkpoint was written at `2026-08-07T11:22:46Z`. Re-measure every
-timestamped claim before acting. The exact worker is idle at its prompt; do not
-give it another instruction until the recorded provider-capacity wait expires
-and the marker has been re-read through its append-only end.
+This checkpoint was written at `2026-08-20T06:20:00Z`, replacing one dated
+`2026-08-07T11:22:46Z` whose obligations are all now discharged. Re-measure
+every timestamped claim before acting.
 
-Verified completed state:
+**The authoritative live record is the LEDGER TIMELINE on epic `bd-ib-3kolea`,
+now 29 entries.** Read it with
+`read_timeline(config=..., epic_id="bd-ib-3kolea")` from
+`livespec_orchestrator_beads_fabro.commands.plan`. This checkpoint is a summary
+for a cold restart; the timeline is the record.
 
-- This repository's clean primary checkout, `origin/master`, and GitHub master
-  were equal at `310c8657951e2bc1b689d6cec50b4dbe4fd0720c` when measured on
-  2026-08-07. The plan anchor `bd-ib-3kolea` remained an unassigned `backlog`
-  epic with zero dependencies, dependents, and comments. The release/CLI,
-  guard-compatibility, guarded-image code, and attended guarded-image proof
-  items are closed; the direct image overlap `bd-ib-dwv` closed at
-  `2026-08-04T02:32:41Z`. Do not reopen or duplicate any of them.
-- The external `governed-repo-bootstrap` plan is complete and archived on
-  `dolt-server` master `86e94c374d23d2f2115f7cc3785eb4e47afd5c4a`.
-  Its current-master `check` and `ci-green` checks both completed successfully.
-  That external plan is no longer a blocker. Inspect only its tracked archive,
-  public forge, and target-anchored ledger evidence; never its archived runtime.
-- Canonical restore-seam item `dolt-server-wgy` is closed. Fabro PR #46 landed
-  as `ceaa078a8652ef6309e371181a3f6e9450fd1ab2`, with its post-merge janitor
-  green. It has zero dependencies and comments and one already-recorded
-  dependent. Do not dispatch, reopen, replace, or duplicate it.
-- The governed plan's tracked archive records an attended real restore from
-  source `livespec-orch-beads-fabro` to differently named scratch target
-  `livespec-orch-beads-fabro_beads112_restore`. Source-before, target, and
-  source-after inventories share digest
-  `5f73c196716ee022ebe779cf366a5f897ab1e20b290d859e7c5b116076b4b3f6`;
-  the source remained present and the scratch target was removed exactly. This
-  is reusable evidence, not authorization to repeat a live restore.
-- That archived proof discharges only the real distinct-source/target seam and
-  cleanup portion of this plan's broader rehearsal. It does not prove a
-  v1.0.5-shaped per-tenant restore, migrations 0050 through 0053, the full
-  invariant inventory and round trips, or rollback-boundary replay. Do not call
-  the broader rehearsal or attended rollout complete from the archived proof.
+### The 2026-08-07 obligations are DISCHARGED — do not re-execute them
 
-Exact in-flight worker state:
+The previous checkpoint told a successor to honour a factory-capacity wait for
+`bd-ib-8azd` and then dispatch it. **That work is complete.** `bd-ib-8azd`
+closed `2026-08-19T03:26:02Z` (`resolution:completed`) via salvage PR #1543,
+merge `3e1251891a9e7bff9aba2f666573191f8f190a48`. Do not reopen, re-dispatch,
+or duplicate it. There is no outstanding provider-capacity wait.
 
-- The worker is on tmux target `'=beads-v1-1-2-upgrade:'`, with node PID 3254176
-  and Codex PID 3254220 at checkpoint time. Its transcript is
-  `/home/ubuntu/.codex/sessions/2026/08/06/rollout-2026-08-06T11-02-45-019fd64f-8c75-7e72-96e6-c35b784d53d7.jsonl`.
-- PR #1327 merged the reviewed residual-rehearsal filing correction at
-  `310c8657951e2bc1b689d6cec50b4dbe4fd0720c`, and its worktree and refs were
-  cleaned. The correction makes both creates target-root anchored, configured-
-  wrapper/public-guard only, selector-free, and parent-free.
-- The worker then created exactly two standalone plan rows: factory-safe
-  preparation `bd-ib-8azd` and attended rehearsal `bd-ib-ao3j`. The attended
-  row has exactly one same-tenant `blocks` dependency on the preparation row.
-  No epic linkage, cross-tenant edge, duplicate item, or automated groom was
-  used. `worker-status.log` lines 120 through 125 are the terminal receipts.
-- `bd-ib-8azd` is exactly `ready`, unassigned, parentless, and prerequisite-
-  free, with one dependent. `bd-ib-ao3j` remains exactly `backlog`, unassigned,
-  and blocked only by `bd-ib-8azd`. The first factory attempt was correctly
-  refused while the preparation was still backlog. After its single guarded
-  admission, the only ready-item attempt failed at `run-config-overlay` before
-  sandbox launch with provider HTTP 429 and no reset timestamp.
-- That provider failure created no Fabro run, branch, PR, merge, or dispatch
-  lock but temporarily claimed the item. Binding prior art `bd-ib-zp3u7y` was
-  re-read, zero target runs were proved across 544 Fabro records, and the exact
-  guarded `move:bd-ib-8azd:ready` valve released the claim once. At
-  `2026-08-07T11:22:46Z`, the item was ready and unassigned, the exact lock was
-  absent, and target branches, PRs, and Fabro runs were all zero.
-- The worker is idle at its prompt after the terminal release receipt. It has
-  no authorized in-flight action. Do not reuse the stale prompt text as an
-  assignment, and do not restart or alter any other pane.
+### Verified state
 
-Fresh-session next action:
+- `bd-ib-3kolea.1` (backup preflight) **CLOSED** `2026-08-20T01:22:01Z`,
+  `resolution:completed`, closed through
+  `.claude-plugin/scripts/bin/close_work_item.py` after the maintainer
+  exercised its `acceptance:human-only` valve. All four criteria discharged:
+  Dolt→S3 (337 runs / 14 days / zero failures, fresh objects for all 14
+  tenants), Arq (VPS half plus maintainer-confirmed Restore-view record), Contabo
+  (browser-verified, Auto Backup enabled, 10 retained), and redundant beads
+  coverage verified by inspecting snapshot CONTENTS rather than exclude lists.
+- **Restore from the S3 `DOLT_BACKUP` layer for any migration rollback.** Arq,
+  Contabo, and restic all copy the LIVE Dolt directory and are crash-consistent,
+  not quiesced; only S3 goes through the running server's stored procedure.
+- **The v1.2.1 landmine has NOT been stepped on.** No v1.1.x/v1.2.x binary
+  exists on this host (only the guard and delegate, both v1.0.5 `6a3f515ce`),
+  and all 14 live tenants still record `.beads/.local_version` = `1.0.5`. The
+  retarget starts from a uniform v1.0.5 baseline. Caveat: `.local_version` is a
+  per-clone record, not a server-side schema read; an authoritative read belongs
+  in the attended rehearsal window, NOT an ad-hoc probe, because
+  `bd migrate schema --json` is known to write.
+- Host pins re-measured `2026-08-19` and matching their 2026-07-30 values:
+  guard `/usr/local/bin/bd` sha256 `5f55fbfb…37a3`; delegate
+  `/usr/local/bin/bd-real` sha256 `463b7655…4486`, reporting v1.0.5.
+- The v1.0.5 binary is **NOT** a single point of failure — an earlier claim to
+  that effect was retracted. The Arq snapshot carries `bd-real` byte-identical,
+  and restic snapshot `8a847de1` contains it too.
 
-1. Run this binder's BOOT and all five HALT-first checks. Re-measure this repo,
-   the plan ledger anchor, both residual-rehearsal rows and their sole edge, the
-   exact worker state, and the full append-only marker. Never enter the archived
-   governed plan's runtime.
-2. Honor marker obligation `wait_for_factory_oauth_capacity_bd_ib_8azd`. Do not
-   attempt another dispatch before `2026-08-07T13:18:10Z`. The two required
-   independent escalation vetters both said not to interrupt the maintainer
-   after this single sample: wait for rolling OAuth capacity, with no fourth
-   option. Credential inspection or rotation, billing changes, hand-building,
-   and blinding the gate remain unauthorized.
-3. After that time, fetch and verify forge, then re-prove that `bd-ib-8azd` is
-   ready and unassigned with no target run, lock, branch, or PR. Open one new
-   durable dispatch obligation and send the worker at most one fresh supervised
-   `drive` action for this exact item. Run it in the foreground through the
-   configured wrapper and in-repo driver. Preserve unrelated factory runs.
-4. If the fresh attempt again returns HTTP 429 before launch, prove the no-run
-   shape, release only its partial claim through the guarded same-ID move valve,
-   append exact receipts, and extend the rolling wait. Do not use
-   `reconcile-merged`, edit the assignee directly, or retry immediately. If
-   multiple spaced attempts or a full rolling window still fail, vet and then
-   escalate the credential or billing decision to the maintainer.
-5. If the dispatch creates a run, supervise only that exact run through the
-   normal reviewed-PR, rebase-merge, post-merge, ledger, and cleanup receipts.
-   The attended rehearsal remains blocked until its preparation is genuinely
-   complete; this checkpoint authorizes no server, tenant, migration, backup,
-   restore, image, host, secret, or Fabro-server mutation.
+### Open decisions — BOTH are maintainer-side; do not self-resolve
 
-Standing safety remains unchanged: never pass `--no-verify`; halt on hook or
-gate failure; touch no other session's worktree or branch; never alter or kill
-`livespec-overseer:1.1`; fetch and then verify forge state; tracked edits use
-worktree -> reviewed PR -> rebase-merge -> refresh/cleanup with
-`mise exec -- git`; product Python uses Red-Green-Replay; gates run foreground;
-Beads never runs through mise or its private delegate; and no `/usr/local/bin`,
-production-tenant, Dolt-data, image, or Fabro-server mutation is implied.
+1. **Retarget.** `bd-ib-3kolea.4` (P1, `ready`, `admission:manual`): v1.1.2 is
+   superseded by **v1.2.2** (2026-08-15), a recovery release upstream describes
+   as "the v1.1.2 code under a higher version number". Corroborated at source:
+   the `v1.1.2...v1.2.2` compare shows **zero migration files changed** and only
+   four Go files differing, all additive apart from the version string — so the
+   schema target stays **v53** and the adapter surface cannot have changed. Not
+   yet verified: that the published BINARY was built from that tag (criterion 2's
+   checksum chain) and the behavioural EUT delta (criterion 3).
+   This item also inherited `factory-safety:mutates-host-machinery`, which is
+   **inaccurate** for a decision-and-verification item. It was **flagged, not
+   changed** — relabeling a safety class to make an item dispatchable is
+   guard-loosening and must not be done unilaterally.
+2. **EUT scope.** A standing hold instructed this thread not to start Enemy Unit
+   Test work because the `fabro-enemy-unit-tests` session dispatched
+   `bd-ib-okr5ru`. But that item is **FabroPort** (the fabro surface, epic
+   `bd-ib-bcwa6e`), whereas `bd-ib-3kolea.3` is a **BeadsPort** (the Beads CLI
+   surface, this epic). They are two applications of one technique to two
+   DIFFERENT dependencies. The hold has not been overturned and `bd-ib-3kolea.3`
+   is **unstarted**. Do not start it until the maintainer settles this.
+
+### Epic children
+
+`bd-ib-3kolea.1` closed. `bd-ib-3kolea.4` ready. `bd-ib-3kolea.3` (BeadsPort)
+and `bd-ib-ao3j` (attended rehearsal) both `backlog` with zero open blockers but
+`admission:manual`. `bd-ib-3kolea.2` (final gate) blocked by `.3`, `.4` and
+`ao3j`. **Neither unblocked item is factory-eligible** — one mutates host
+machinery, the other needs a privileged host — so factory-window timing is moot
+for this epic. Factory dispatch is separately forbidden while P1 defects
+`bd-ib-9ek4` and `bd-ib-w8sj` remain open.
+
+### Merged this session
+
+PRs #1562, #1569 (EUT usage inventory + family sweep), #1572, #1573 (ledger-survey
+and `bd ready` documentation fixes), #1601 (release-target restatement + a dated
+SUPERSEDED banner on `qualification.md`), #1607 (the v1.2.0/v1.2.1 prohibition in
+`AGENTS.md`). Findings filed in OWNING tenants: `dolt-server-b6e`,
+`dolt-server-3iv`, `livespec-console-beads-fabro-zfcp`, `livespec-lubo`,
+`livespec-cift`, plus evidence comments on `livespec-9mpc`.
+
+### Standing safety, unchanged
+
+Never pass `--no-verify`; halt on hook or gate failure; touch no other session's
+worktree or branch; fetch then verify forge state; tracked edits go worktree →
+reviewed PR → rebase-merge → refresh/cleanup with `mise exec -- git`; product
+Python uses Red-Green-Replay; gates run foreground; Beads never runs through mise
+or its private delegate; and no `/usr/local/bin`, production-tenant, Dolt-data,
+image, or Fabro-server mutation is authorized by this checkpoint.
 
 ## Bindings
 
