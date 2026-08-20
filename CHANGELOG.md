@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.59.6](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.59.5...v0.59.6) (2026-08-20)
+
+
+### Bug Fixes
+
+* route fabro callers through port ([5b82627](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/5b82627e40ece203e39794a735a5fe8260bb5d55))
+
 ## [0.59.5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.59.4...v0.59.5) (2026-08-20)
 
 
