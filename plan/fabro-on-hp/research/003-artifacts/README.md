@@ -31,6 +31,7 @@ One template plus a per-host values file replaces the hand-edit step.
 | `install.sh` | Renders, installs, enables, and verifies. Host-guarded. |
 | `check-settings.sh` | Compares a host's live resolved settings against its expectations. |
 | `install.test.sh` | Exercises the installer's pure guards without root or a live host. |
+| `check-settings.test.sh` | Fixture tests for the settings.toml reader. |
 | `fabro-server-verify-web` | Unmodified copy of vps-info's verifier — shared by all hosts. |
 | `otel.conf` | The OTLP drop-in. Host-invariant. |
 
@@ -116,6 +117,29 @@ lies:
 - The negatives were mutation-checked: replacing `require_host_matches` with
   `return 0` in a throwaway copy fails exactly the two cross-host cases and
   nothing else.
+
+## The settings.toml reader is tested
+
+`check-settings.sh` compares resolved values, with one exception: `cli.target`
+is not exposed by the API, so it is parsed out of `settings.toml` by hand. That
+parser is the only place in the artifact set that *reads* rather than
+*compares*, and the file it reads carries a `url` key in several tables —
+`[cli.target]`, `[server.api]`, `[server.web]`. Matching the wrong one would
+compare the right key against the wrong value and print `ok`.
+
+It is therefore extracted as `read_cli_target_url`, and `check-settings.sh`
+returns early when sourced so `check-settings.test.sh` can call it against
+fixtures. Eight checks cover the real layout, siblings before and after,
+missing table, missing key, whitespace, a dotted subtable, and agreement with
+whichever host's live `settings.toml` is readable from where the test runs.
+
+**Mutation-checking corrected an assumption here.** Deleting the awk's
+table-disarm rule fails exactly one case — "cli.target without a url". The case
+that *reads* as though it guards the disarm, "sibling url after cli.target",
+still passes against the mutant, because the parser `exit`s on the first match
+and never reaches the sibling. That test documents behaviour; it does not guard
+the rule. The labels in the test say which is which, because a test that cannot
+fail is not a guard.
 
 ## Known gaps before this can be called done
 
