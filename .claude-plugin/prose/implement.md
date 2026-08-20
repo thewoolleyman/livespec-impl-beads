@@ -59,6 +59,19 @@ Resolve the routing before driving anything in-session:
      judgment);
    - the **factory is unavailable** (Dispatcher/server outage, or the
      repo is not factory-wired) and the work must not wait;
+   - the item is explicitly recorded as a **master-health-restoration**
+     item and red master is the condition parking it behind the
+     Dispatcher or local commit gate. This is the blessed escape hatch:
+     drive the fix in-session through worktree -> PR -> merge, because
+     PR CI is independent of master. Do not treat `gh run rerun --failed`
+     as a remedy for repeat-flakes; repeated reruns can burn cycles while
+     master stays red. If the local pre-commit hook itself refuses every
+     commit because master is red, the sanctioned break-glass is a
+     server-side GitHub revert: fetch the offending PR's node id with a
+     `repository.pullRequest(number:)` GraphQL query, then call
+     `revertPullRequest` with that id, passing both the query and the
+     mutation body from files. Prefer re-landing the reverted change
+     paired with its fix in one PR.
    - the **maintainer explicitly directed** in-session execution for
      this item in this session.
 4. **Non-product changesets** (docs, spec prose, plans,

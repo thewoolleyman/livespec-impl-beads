@@ -235,8 +235,11 @@ def _refusal_detail(*, run_id: str, reason: str) -> str:
         "refusing dispatch before sandbox work.\n"
         f"Run databaseId: {run_id}\n"
         f"Reason: {reason}\n"
-        f"Recovery: try `gh run rerun {run_id} --failed` first; "
-        f"if that is refused, fall back to `gh run rerun {run_id}`.\n"
+        "Recovery: if this is a master-health-restoration item parked behind red "
+        "master, drive it in-session through worktree -> PR -> merge; PR CI is "
+        "independent of master. See AGENTS.md and .claude-plugin/prose/implement.md "
+        "Step 0. For repeat-flakes, rerun attempts are diagnostic only and may not "
+        "produce a green master.\n"
     )
 
 
@@ -250,7 +253,17 @@ def _refusal_record(*, run_id: str, reason: str, detail: str) -> dict[str, objec
         "required_job": _CI_GREEN_JOB,
         "detail": detail,
         "recovery": [
-            f"gh run rerun {run_id} --failed",
-            f"gh run rerun {run_id}",
+            " ".join(
+                (
+                    "For a master-health-restoration item parked behind red master, drive it",
+                    "in-session through worktree -> PR -> merge; PR CI is independent of master.",
+                )
+            ),
+            " ".join(
+                (
+                    "See AGENTS.md and .claude-plugin/prose/implement.md Step 0 for the",
+                    "documented escape hatch and the repeat-flake caveat.",
+                )
+            ),
         ],
     }
