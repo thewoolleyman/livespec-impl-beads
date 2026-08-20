@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.59.5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.59.4...v0.59.5) (2026-08-20)
+
+
+### Bug Fixes
+
+* document master-red recovery ([834bccf](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/834bccffab0f2c02f20a7652d1d20cca6bb5d7e4))
+
 ## [0.59.4](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.59.3...v0.59.4) (2026-08-20)
 
 
