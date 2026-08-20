@@ -12,16 +12,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol, TypedDict, cast
+from typing import TYPE_CHECKING, Protocol, TypedDict
 
 from typing_extensions import Unpack
 
-from livespec_orchestrator_beads_fabro._beads_client import (
-    EDGE_BLOCKS,
-    EDGE_PARENT_CHILD,
-    EDGE_TRACKS,
-    BeadsRecord,
-    make_beads_client,
+from livespec_orchestrator_beads_fabro._beads_client import BeadsRecord, make_beads_client
+from livespec_orchestrator_beads_fabro.commands._plan_child_edges import (
+    bd_child_surface_mismatch_ids,
+    blocking_dependency_ids,
+    has_blocks_edge_to_epic,
+    is_blocks_dependency_edge,
+    is_blocks_edge_to_epic,
+    linked_plan_gate_ids_for_epic,
 )
 
 if TYPE_CHECKING:
@@ -32,6 +34,7 @@ __all__: list[str] = [
     "ArchiveCompletenessReviewRequest",
     "CompletenessReviewLauncher",
     "archive_completeness_review_request",
+    "bd_child_surface_mismatch_ids",
     "blocking_dependency_ids",
     "has_blocks_edge_to_epic",
     "is_blocks_dependency_edge",
@@ -155,16 +158,13 @@ def _undisposed_plan_children(*, client: BeadsClient, epic_id: str) -> list[Bead
 
 
 def _plan_archive_gate_records(*, client: BeadsClient, epic_id: str) -> list[BeadsRecord]:
-    records_by_id = {
-        cast("str", record["id"]): record for record in client.children(parent_id=epic_id)
-    }
     records = client.list_issues()
-    linked_ids = _linked_plan_gate_ids_for_epic(records=records, epic_id=epic_id)
-    for record in records:
-        issue_id = record.get("id")
-        if isinstance(issue_id, str) and issue_id in linked_ids:
-            _ = records_by_id.setdefault(issue_id, record)
-    return list(records_by_id.values())
+    linked_ids = linked_plan_gate_ids_for_epic(records=records, epic_id=epic_id)
+    return [
+        record
+        for record in records
+        if isinstance(issue_id := record.get("id"), str) and issue_id in linked_ids
+    ]
 
 
 def _disposed_child_ids(*, client: BeadsClient, epic_id: str) -> tuple[str, ...]:
@@ -193,78 +193,6 @@ def _research_paths(*, project_root: Path, source: Path) -> tuple[str, ...]:
 def _is_undisposed_plan_child(*, record: BeadsRecord) -> bool:
     issue_id = record.get("id")
     return isinstance(issue_id, str) and record.get("status") != "closed"
-
-
-def _blocking_ids_for_epic(*, records: list[BeadsRecord], epic_id: str) -> frozenset[str]:
-    for record in records:
-        if record.get("id") == epic_id:
-            return blocking_dependency_ids(record=record)
-    return frozenset()
-
-
-def _linked_plan_gate_ids_for_epic(
-    *,
-    records: list[BeadsRecord],
-    epic_id: str,
-) -> frozenset[str]:
-    return frozenset(
-        issue_id
-        for record in records
-        if isinstance(issue_id := record.get("id"), str)
-        and _has_plan_child_edge_to_epic(record=record, epic_id=epic_id)
-    ) | _blocking_ids_for_epic(records=records, epic_id=epic_id)
-
-
-def _has_plan_child_edge_to_epic(*, record: BeadsRecord, epic_id: str) -> bool:
-    dependencies = record.get("dependencies")
-    if not isinstance(dependencies, list):
-        return False
-    typed_dependencies = cast("list[object]", dependencies)
-    return any(
-        _is_plan_child_edge_to_epic(edge=edge, epic_id=epic_id) for edge in typed_dependencies
-    )
-
-
-def _is_plan_child_edge_to_epic(*, edge: object, epic_id: str) -> bool:
-    if not isinstance(edge, dict):
-        return False
-    typed_edge = cast("dict[str, Any]", edge)
-    depends_on_id = typed_edge.get("depends_on_id")
-    return typed_edge.get("type") in (EDGE_PARENT_CHILD, EDGE_TRACKS) and depends_on_id == epic_id
-
-
-def blocking_dependency_ids(*, record: BeadsRecord) -> frozenset[str]:
-    """Return ids of records that block `record` through `blocks` dependencies."""
-    dependencies = record.get("dependencies")
-    if not isinstance(dependencies, list):
-        return frozenset()
-    typed_dependencies = cast("list[object]", dependencies)
-    return frozenset(
-        dependency_id
-        for edge in typed_dependencies
-        if (dependency_id := is_blocks_dependency_edge(edge=edge)) is not None
-    )
-
-
-def is_blocks_dependency_edge(*, edge: object) -> str | None:
-    """Return the dependency id when one edge is a `blocks` dependency."""
-    if not isinstance(edge, dict):
-        return None
-    typed_edge = cast("dict[str, Any]", edge)
-    depends_on_id = typed_edge.get("depends_on_id")
-    if typed_edge.get("type") != EDGE_BLOCKS or not isinstance(depends_on_id, str):
-        return None
-    return depends_on_id
-
-
-def has_blocks_edge_to_epic(*, record: BeadsRecord, epic_id: str) -> bool:
-    """Return whether `record` carries a legacy-shaped dependency on `epic_id`."""
-    return epic_id in blocking_dependency_ids(record=record)
-
-
-def is_blocks_edge_to_epic(*, edge: object, epic_id: str) -> bool:
-    """Return whether one legacy-shaped dependency edge points at `epic_id`."""
-    return is_blocks_dependency_edge(edge=edge) == epic_id
 
 
 def _evidence_comment_body(

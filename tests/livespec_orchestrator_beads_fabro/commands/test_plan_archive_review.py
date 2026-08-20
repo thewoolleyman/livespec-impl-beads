@@ -137,18 +137,16 @@ def test_child_disposition_ignores_downstream_epic_depending_on_foundation() -> 
 
 
 class _RawChildrenClient:
-    def children(self, *, parent_id: str) -> list[dict[str, object]]:
+    def list_issues(self) -> list[dict[str, object]]:
         return [
             {
                 "id": "bd-ib-plain",
-                "parent": parent_id,
                 "status": "backlog",
-                "dependencies": [],
+                "dependencies": [
+                    {"depends_on_id": "bd-ib-epic", "type": EDGE_PARENT_CHILD},
+                ],
             },
         ]
-
-    def list_issues(self) -> list[dict[str, object]]:
-        return []
 
 
 def test_child_disposition_detects_raw_parent_child_record() -> None:
