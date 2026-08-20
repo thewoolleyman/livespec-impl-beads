@@ -157,6 +157,7 @@
     // every comment here while reporting green — tracked as bd-ib-lmi5.
     "dispatcher": {
       "auto_approve_ready": true,
+      "wip_cap": 10,
       "acceptance_mode": "ai-only",
       "default_factory": "hp",
       "factories": {
