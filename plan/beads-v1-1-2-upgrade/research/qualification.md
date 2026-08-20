@@ -1,5 +1,19 @@
 # Beads v1.1.2 upgrade qualification
 
+> **SUPERSEDED IN PART as of 2026-08-20 — read this first.** The release
+> selection below is stale: **v1.2.2** (2026-08-15) is now the latest stable,
+> and it is a *recovery* release that upstream describes as "the v1.1.2 code
+> under a higher version number". The technical findings in this note — the
+> adapter command surface, the JSON envelope shapes, and migrations 0050–0053
+> landing at schema v53 — are expected to carry over unchanged, but the
+> **target version named here is no longer the one to install**. There is also
+> a live hazard: running the accidentally-published **v1.2.1** even once
+> migrates a database to schema v65 and strands every v1.1.2/v1.2.2 client —
+> fleet-wide on our shared tenants. See
+> [`release-target-restatement-2026-08-20.md`](release-target-restatement-2026-08-20.md)
+> and ledger item `bd-ib-3kolea.4`. Everything below remains accurate **as of
+> its own evidence date** and is left unedited for that reason.
+
 **Evidence date:** 2026-07-30  
 **Target:** the Livespec family’s guarded Beads runtime on the host and in the
 `livespec-orchestrator` image.
