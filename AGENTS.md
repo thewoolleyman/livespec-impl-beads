@@ -538,6 +538,58 @@ references passes with its guidance orphaned.
   the HALT-first preconditions, and the rule that new supervisor handoffs
   are ledger epic entries, never files under `plan/<topic>/`.
 
+## Decision authority — when to ask, proceed, or self-resolve
+
+Fleet-standard guidance, ported from
+`livespec/AGENTS.md` §"When to ask, proceed, or self-resolve". The default is
+to decide and report, not to escalate.
+
+**This repo already owned half of it.** The fleet's "Drive authorized work to
+completion; do not over-ask" rule is maintainer-declared (2026-07-06) and
+lives below in "Working with the maintainer (repo-additive)", among the other
+maintainer-declared rules. It is deliberately NOT duplicated here — that
+grouping is load-bearing, and a second copy would drift from the first. Read
+it there; the bullets below are what this repo was missing.
+
+- **A recorded next action is an instruction, not a menu.** When a handoff, a
+  work-item, or a plan timeline names exactly one next action, take it.
+  Re-presenting it as option 1 of a picker is a documented stall shape: on
+  2026-08-20 a track sat roughly sixteen hours doing exactly that, alongside
+  five self-decidable engineering calls escalated as standing maintainer
+  questions.
+- **Research before gating.** If a question is answerable by reading the code,
+  the spec, the docs, or by testing on a live system, do that, decide,
+  implement, and report for objection. Reserve gates for genuine product or
+  values calls, irreversible or outward-facing actions, and secret or
+  host-mutation authorization.
+- **Only ask on genuine doubt, one thing at a time.** Self-resolve trivial
+  wording fixes, internal-consistency repairs, and items clearly aligned with
+  established preferences, presenting each with its disposition. When a gate is
+  warranted, ask exactly one question per turn.
+- **One investigation, one finding, one question.** When a focused
+  investigation surfaces unrelated discrepancies, finish the original question
+  first and surface only the load-bearing finding; log side observations
+  briefly. Cosmetic drift never blocks on its own.
+- **Prescribed destructive ops are pre-authorized.** When a destructive git
+  operation is the codified mechanism of an adopted workflow — the
+  `git commit --amend` of the Red→Green step, for instance — the adoption is
+  the authorization. Keep per-instance gating for ad-hoc `--amend`,
+  force-push, `reset --hard`, or `branch -D` on unmerged branches.
+- **An unratified filter inside a check is conformance, not ratification.**
+  Narrowing, excluding, or filtering inside an enforcement check to match what
+  the ratified spec already says is a conformance fix — implement it and report
+  it. It only becomes a ratification question when the change would make the
+  check assert something the spec does not.
+- **A question you can answer with a recommendation is a finding, not a
+  maintainer question.** If you can state the options, the costs, and which one
+  you would pick, you have already done the deciding work. Decide it, record
+  the reasoning where the work is tracked, and report it as decided.
+- **Disposing a plan child is session-performable.** Closing or re-parenting a
+  child that no longer belongs under a plan epic changes where work is TRACKED,
+  not what the specification REQUIRES, so it is not a spec-change decision.
+  Only a spec-change-tier child routes to `propose-change`; escalating the rest
+  deadlocks the archive gate, which refuses while any child sits undisposed.
+
 ## Working with the maintainer (repo-additive)
 
 - **Spell out "Definition-of-Ready" in full** — the acronym "DoR" is BANNED
