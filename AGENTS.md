@@ -250,9 +250,22 @@ never uses, so it reports `✨ No open issues` and exits 0. Measured 2026-08-19
 on this tenant: `bd ready --json` returned `[]` while **18** items sat at
 `status == ready`, including one with an empty dependency list. `--limit 0`
 changes nothing; this is the status filter, not the row cap and not blocker
-filtering. Do not use it to choose work. Use this plugin's `next` operation, or
-`bd list --status all --limit 0 --json` filtered client-side on
-`status == ready`.
+filtering. Do not use it to choose work. **Use this plugin's `next` operation.**
+
+**Do NOT substitute a `status == ready` filter for `next`: `ready` is a
+lifecycle status, not a computed readiness, and filtering on it IGNORES
+BLOCKERS.** An item sits at `status == ready` while a dependency of it is still
+open, so a filter picks work that must not start yet — and picks it silently,
+because the row looks exactly like genuinely-ready work. Measured 2026-08-20 on
+the `openbrain` tenant: `bd list --status all --limit 0 --json` filtered on
+`status == ready` returned `ob-uhiint`, whose `dependency_count` is 1 and whose
+blocker `ob-zmrbcy` was `active` at the time — and whose own notes say it must
+be written only after that sibling lands. The plugin's `next` returned
+`candidates: []` for the same tenant in the same minute. `next` is right and
+the filter is wrong; that is the whole reason the ranking lives in the
+operation rather than in a one-liner.
+
+Use the filter ONLY to survey what exists, never to choose what to start.
 
 **`--status all` is load-bearing: without it `bd list` HIDES EVERY CLOSED
 ITEM.** A bare `bd list --limit 0 --json` returns only non-closed work, and it
