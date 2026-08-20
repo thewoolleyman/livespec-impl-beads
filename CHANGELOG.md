@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.62.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.61.0...v0.62.0) (2026-08-20)
+
+
+### Features
+
+* **plan:** warn when plan-record authoring runs past a daily threshold ([7da225c](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/7da225c227f4f326f60de6658175e841367a5164))
+
 ## [0.61.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.60.0...v0.61.0) (2026-08-20)
 
 
