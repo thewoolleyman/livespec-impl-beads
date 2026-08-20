@@ -67,10 +67,28 @@ def fabro_run_summaries_from_payload(*, payload: object | None) -> tuple[FabroRu
     return tuple(summaries)
 
 
+def _inspect_record(*, payload: object | None) -> dict[str, Any] | None:
+    """Normalize an `inspect` payload to the single run record it describes.
+
+    `fabro inspect <run> --json` returns a single-element LIST on the pinned
+    build (0.254.0), not a bare mapping. Measured against six real payloads on
+    2026-08-20. Mapping payloads are still accepted so a future shape change
+    back to a bare object does not regress.
+    """
+    if isinstance(payload, dict):
+        return cast("dict[str, Any]", payload)
+    if isinstance(payload, list):
+        for entry in cast("list[object]", payload):
+            if isinstance(entry, dict):
+                return cast("dict[str, Any]", entry)
+    return None
+
+
 def fabro_status_kind_from_payload(*, payload: object | None) -> str | None:
-    if not isinstance(payload, dict):
+    record = _inspect_record(payload=payload)
+    if record is None:
         return None
-    status_raw: object = cast("dict[str, Any]", payload).get("status")
+    status_raw: object = record.get("status")
     if isinstance(status_raw, str):
         return status_raw
     if isinstance(status_raw, dict):
@@ -81,9 +99,10 @@ def fabro_status_kind_from_payload(*, payload: object | None) -> str | None:
 
 
 def fabro_failure_detail_from_payload(*, payload: object | None) -> FabroFailureDetail | None:
-    if not isinstance(payload, dict):
+    record = _inspect_record(payload=payload)
+    if record is None:
         return None
-    typed_payload = cast("dict[object, object]", payload)
+    typed_payload = cast("dict[object, object]", record)
     for block in _failure_blocks(value=typed_payload):
         detail = _failure_detail(block=block)
         if detail is not None:
