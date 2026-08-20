@@ -6,6 +6,25 @@ api_base="${HONEYCOMB_API_BASE:-https://api.honeycomb.io}"
 dataset="${HONEYCOMB_FABRO_DATASET:-fabro}"
 trigger_name="${HONEYCOMB_FABRO_RUN_TURN_TRIGGER_NAME:-Fabro run_turn dead-man}"
 recipient_selector="${HONEYCOMB_OPERATOR_ALERT_RECIPIENT:-}"
+# Trailing window with no `run_turn` span that counts as "telemetry is dead",
+# and how often the trigger is evaluated. Defaults are 8h / 2h, matching the
+# live trigger and the pre-existing `bd-guard` telemetry trigger.
+#
+# NOT the 10 minutes originally specified: the factory dispatches episodically,
+# so a short window alarms on IDLENESS rather than on a broken pipeline.
+# Measured 2026-08-20 on the `fabro` dataset: 8 `run_turn` spans across the
+# trailing 3h, all inside ONE 10-minute bucket, so a 600s window flaps
+# alarm/clear on nearly every bucket. `bd-guard` took the same correction
+# (1h -> 8h, 2026-07-18).
+#
+# The valid window is bounded RELATIVE TO `frequency`, not by a fixed ceiling.
+# Both walls were hit against the live API:
+#   frequency=900  -> "query: time_range: must be no greater than 3600."
+#   frequency=7200 -> "query: time_range: must be no less than 7200."
+# So raising `frequency` is what buys a longer window; an 8h dead-man needs the
+# 2h evaluation cadence below. Keep the two in step when overriding either.
+window_seconds="${HONEYCOMB_FABRO_RUN_TURN_WINDOW_SECONDS:-28800}"
+frequency_seconds="${HONEYCOMB_FABRO_RUN_TURN_FREQUENCY_SECONDS:-7200}"
 dry_run="${DRY_RUN:-0}"
 
 if [[ -z "${api_key}" ]]; then
@@ -109,23 +128,42 @@ raise SystemExit(1)
 PY
 )"
 
-python3 - "${payload_json}" "${trigger_name}" "${recipient_id}" <<'PY'
+python3 - "${payload_json}" "${trigger_name}" "${recipient_id}" "${window_seconds}" "${frequency_seconds}" <<'PY'
 import json
 import sys
 
-path, trigger_name, recipient_id = sys.argv[1:]
+path, trigger_name, recipient_id, raw_window, raw_frequency = sys.argv[1:]
+window_seconds = int(raw_window)
+frequency_seconds = int(raw_frequency)
+if window_seconds < frequency_seconds:
+    # Honeycomb rejects this with a 422 whose detail is only in the response
+    # body; fail here with a message that names the fix instead.
+    print(
+        f"window ({window_seconds}s) must be >= frequency ({frequency_seconds}s); "
+        "raise HONEYCOMB_FABRO_RUN_TURN_WINDOW_SECONDS or lower "
+        "HONEYCOMB_FABRO_RUN_TURN_FREQUENCY_SECONDS",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
 payload = {
     "name": trigger_name,
     "description": (
         "Dead-man trigger for the livespec Fabro dataset: fires when no "
-        "run_turn spans arrive over the trailing 10 minutes."
+        f"run_turn spans arrive over the trailing {window_seconds}s, evaluated every "
+        f"{frequency_seconds}s. The window "
+        "is hours, not minutes, on purpose -- the factory dispatches "
+        "episodically, so a short window alarms on idleness instead of on a "
+        "broken telemetry pipeline."
     ),
+    # Honeycomb rejects a tag key that is not purely lowercase LETTERS
+    # ("key: must contain only lowercase letters."), so no hyphens here --
+    # `work-item` is refused with a 422.
     "tags": [
         {"key": "owner", "value": "livespec"},
-        {"key": "work-item", "value": "bd-ib-ehrdid"},
+        {"key": "workitem", "value": "bd-ib-ehrdid"},
     ],
     "threshold": {"op": "<=", "value": 0, "exceeded_limit": 1},
-    "frequency": 600,
+    "frequency": frequency_seconds,
     "alert_type": "on_change",
     "disabled": False,
     "recipients": [{"id": recipient_id}],
@@ -134,7 +172,7 @@ payload = {
         "calculations": [{"op": "COUNT"}],
         "filters": [{"column": "name", "op": "=", "value": "run_turn"}],
         "filter_combination": "AND",
-        "time_range": 600,
+        "time_range": window_seconds,
     },
 }
 with open(path, "w", encoding="utf-8") as handle:

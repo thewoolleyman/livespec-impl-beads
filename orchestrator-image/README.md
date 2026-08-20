@@ -385,15 +385,30 @@ indexes those correlation ids if a future span shape carries them. A green dispa
 reflection finding in the same loop-exit reflection window, normally seconds
 after the run returns and within the next dispatcher loop pass.
 
-This is the cheap per-dispatch layer. The paired Honeycomb-side dead-man
-trigger is designed and scripted, but it is not yet provisioned in the livespec
-Honeycomb environment. The trigger goes live only after someone runs
-`orchestrator-image/provision-honeycomb-run-turn-trigger.sh` with
-`HONEYCOMB_CONFIG_KEY_LIVESPEC`; that provisioning credential is tracked by
-bd-ib-jb7rzr.3. Until then, only the per-dispatch guard layer exists. Once
-provisioned, zero `run_turn` spans over the trailing 10 minutes fire an
-`on_change` alert through the Honeycomb recipient selected by
+This is the cheap per-dispatch layer. It is paired with a Honeycomb-side
+dead-man trigger, `Fabro run_turn dead-man` (id `q33z6VbrjT6`), provisioned on
+the `fabro` dataset 2026-08-20: zero `run_turn` spans over the trailing hour
+fire an `on_change` alert to the recipient selected by
 `HONEYCOMB_OPERATOR_ALERT_RECIPIENT`.
+
+**The window is 8 hours, not the 10 minutes originally specified, and that is
+deliberate.** The factory dispatches episodically, so a short window measures
+IDLENESS rather than a broken pipeline. Measured 2026-08-20 on the `fabro`
+dataset: 8 `run_turn` spans across the trailing 3 hours, all inside a single
+10-minute bucket — a 600s window flaps alarm/clear on nearly every bucket. The
+`bd-guard` telemetry trigger took the same correction (1h → 8h, 2026-07-18) for
+the same reason, and this trigger now matches its 8h/2h shape.
+
+The valid window is bounded **relative to `frequency`**, not by a fixed ceiling.
+Both walls were hit against the live API while provisioning: at `frequency=900`
+it answers `query: time_range: must be no greater than 3600.`, and at
+`frequency=7200` it answers `query: time_range: must be no less than 7200.`. So
+raising the evaluation cadence is what buys a longer window — an 8h dead-man
+requires the 2h cadence. Override with
+`HONEYCOMB_FABRO_RUN_TURN_WINDOW_SECONDS` and
+`HONEYCOMB_FABRO_RUN_TURN_FREQUENCY_SECONDS`, keeping the two in step; the
+script refuses a window smaller than the frequency rather than emitting a
+payload that 422s.
 
 Provision or repair that trigger with the livespec Honeycomb configuration key:
 
@@ -406,15 +421,23 @@ HONEYCOMB_OPERATOR_ALERT_RECIPIENT=operator@example.com \
 The script is idempotent by trigger name (`Fabro run_turn dead-man`), resolves
 the configured recipient by id, email address, name, webhook name, or Slack
 channel, and creates or updates the `fabro` dataset trigger with `COUNT`
-filtered to `name = run_turn`, `time_range = 600`, `frequency = 600`, and
+filtered to `name = run_turn`, `time_range = 28800`, `frequency = 7200`, and
 threshold `<= 0`. If the selector is missing or does not match, the script lists
 the available recipient ids, types, and redacted email addresses. Set
-`DRY_RUN=1` to print the exact payload without changing Honeycomb. Verification
-is still live: break
-`OTEL_EXPORTER_OTLP_ENDPOINT` on a scratch run and confirm the dispatcher
-finding appears and the Honeycomb trigger fires within the 10-minute window;
-restore the endpoint and confirm both clear after the next successful
-`run_turn` export.
+`DRY_RUN=1` to print the exact payload without changing Honeycomb.
+
+Two Honeycomb API constraints this script had to be corrected for, recorded
+because both fail as an opaque 422 with the detail only in the response body:
+`query.time_range` is bounded relative to `frequency` (see above), and a tag KEY
+must contain only lowercase letters — the original `work-item` tag key was
+refused and is now `workitem`.
+
+Verification is still live: break `OTEL_EXPORTER_OTLP_ENDPOINT` on a scratch run
+and confirm the dispatcher finding appears and the Honeycomb trigger fires
+within the window; restore the endpoint and confirm both clear after the next
+successful `run_turn` export. Note that the dispatcher-side half of that check is
+unreliable until the marker anomaly tracked by `bd-ib-jb7rzr.9` is resolved; the
+Honeycomb-trigger half is independent of it.
 
 ### Auth posture (OAuth-only)
 
