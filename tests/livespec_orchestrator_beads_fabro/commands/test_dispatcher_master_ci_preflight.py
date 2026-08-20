@@ -264,7 +264,7 @@ def test_non_dict_jobs_are_ignored_while_finding_ci_green(tmp_path: Path) -> Non
     assert module.master_ci_preflight_refusal(repo=tmp_path, runner=runner) is None
 
 
-def test_refusal_text_names_run_and_recovery_order(tmp_path: Path) -> None:
+def test_refusal_text_names_master_health_recovery(tmp_path: Path) -> None:
     module = _module()
     runner = _Runner(
         results=_results(
@@ -278,10 +278,19 @@ def test_refusal_text_names_run_and_recovery_order(tmp_path: Path) -> None:
 
     assert refusal is not None
     detail = refusal.detail
-    failed = "gh run rerun 30316766663 --failed"
-    full = "gh run rerun 30316766663"
     assert "30316766663" in detail
-    assert detail.index(failed) < detail.index(full, detail.index(failed) + len(failed))
+    assert "master-health-restoration" in detail
+    assert "in-session" in detail
+    assert "PR CI is independent of master" in detail
+    assert "repeat-flakes" in detail
+    assert "AGENTS.md" in detail
+    assert "gh run rerun 30316766663 --failed" not in detail
+    assert refusal.record["recovery"] == [
+        "For a master-health-restoration item parked behind red master, drive it "
+        "in-session through worktree -> PR -> merge; PR CI is independent of master.",
+        "See AGENTS.md and .claude-plugin/prose/implement.md Step 0 for the documented "
+        "escape hatch and the repeat-flake caveat.",
+    ]
 
 
 def test_lever_env_cannot_make_red_master_pass(

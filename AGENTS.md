@@ -541,6 +541,20 @@ references passes with its guidance orphaned.
   telemetry emitter, the factory-safe slice F1 was first offered as "hand-build
   (recommended) vs dispatch (heavier)"; the maintainer corrected that the
   factory-safe slice is exactly what should be dispatched.)
+- **Master-red restoration is the factory-dispatch exception**
+  (maintainer-declared 2026-08-20). If latest master is red and the parked item is
+  explicitly the fix for that master health failure, do not try to bypass or
+  weaken the green-master gate. Pull the item in-session and deliver it through
+  worktree -> PR -> merge; PR CI is independent of master, so the PR can prove the
+  fix while the dispatch gate stays fail-closed. `gh run rerun --failed` is not a
+  remedy for repeat-flakes: it may be useful evidence, but repeated reruns can
+  still leave master red and the fix factory-parked. If red master also makes the
+  local pre-commit hook refuse every commit, use the server-side GitHub revert
+  break-glass path rather than `--no-verify`: fetch the offending PR's node id
+  with a `repository.pullRequest(number:)` GraphQL query, then call
+  `revertPullRequest` with that id, passing the query and mutation body from
+  files. Prefer re-landing the reverted change paired with whatever it broke in
+  one PR, not re-landing it alone.
 - **Name the OWNING SESSION when attributing work to another session**
   (maintainer-declared 2026-07-26). When you report that another session made a
   change — a dirty file, a live branch, an in-flight PR, a concurrent worktree —
