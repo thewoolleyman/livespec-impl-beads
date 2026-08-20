@@ -79,6 +79,9 @@ bd.db
 # artifacts, not the source of truth, so they are ignored too. README.md is a
 # generic bd-init boilerplate file regenerated locally, so it is not committed.
 metadata.json
+# Per-machine tenant-verification cache: keyed by the ABSOLUTE clone path plus a
+# host-local timestamp, so it is meaningless in any other checkout.
+tenant-verification-cache.json
 issues.jsonl
 events.jsonl
 interactions.jsonl
