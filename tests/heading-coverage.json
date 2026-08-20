@@ -703,12 +703,28 @@
     "spec_file": "scenarios.md",
     "test": "TODO",
     "reason": "Ratified with the pin-host-direct-dispatch-to-release proposal (bd-ib-4zif.1): host-side dispatch executes a released payload rather than a working tree, self-update triggers on a running-release vs latest-release comparison, and every promotion is gated on a canary of the candidate artifact. Per the test-pyramid tier requirement this scenario binds to an INTEGRATION-tier test (never unit-tier); the exercising test lands with the implementation slice bd-ib-4zif.2 and this entry is bound to its real node id in that change."
-    },
+  },
   {
     "heading": "## Scenario 55 — plan archive commissions a missing independent completeness review",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
     "test": "TODO",
     "reason": "Added by the automatic-archive-completeness-review revision. The behavior requires an integration-tier or higher exercising test because it coordinates a real plan, ledger evidence, and archive state; the implementation slice bd-ib-ydjf7k supplies that binding."
+  },
+  {
+    "heading": "## Not-human-gated decision constraints",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "constraints.md",
+    "test": "TODO",
+    "reason": "Ratified with the positive-floor-complement revision (plan epic bd-ib-idgwyk, child bd-ib-idgwyk.3). The rule governs how a session decides whether to escalate, which no in-repo test can decide mechanically today; the heading is bound to a real test id when a session-decision harness exists.",
+    "work_item": "bd-ib-idgwyk.3"
+  },
+  {
+    "heading": "## Scenario 56 — A not-human-gated decision is taken by the session, never escalated",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "reason": "Ratified with the positive-floor-complement revision (plan epic bd-ib-idgwyk, child bd-ib-idgwyk.3). The rule governs how a session decides whether to escalate, which no in-repo test can decide mechanically today. When a session-decision harness exists this heading binds to an integration/consumer-tier (e2e-cli) test exercising the observable escalate-or-take outcome, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement.",
+    "work_item": "bd-ib-idgwyk.3"
   }
 ]
