@@ -28,7 +28,8 @@ _DEFAULT_SERVER_URL = "http://127.0.0.1:32276"
 _WORKFLOW_PATH = Path(".claude-plugin/.fabro/workflows/implement-work-item/workflow.fabro")
 _TIMEOUT_SECONDS = 30.0
 _EXPECTED_PS_FIELDS = frozenset(("run_id", "status", "goal", "total_usd_micros"))
-_EXPECTED_INSPECT_FIELDS = frozenset(("status",))
+_EXPECTED_INSPECT_FIELDS = frozenset(("status", "updated_at"))
+_EVENT_TIMESTAMP_FIELDS = frozenset(("timestamp", "ts", "at"))
 _TERMINAL_STATUS_KINDS = frozenset(
     (
         "blocked",
@@ -161,8 +162,7 @@ def test_inspect_and_events_completed_run_field_sets(
     assert inspect.status_kind is not None
     event_records = _event_records(stdout=events.command.stdout, payload=events.payload)
     assert event_records
-    for event in event_records:
-        assert event
+    assert any(_has_event_timestamp(event=event) for event in event_records)
 
 
 def _assert_success(*, command: FabroCommand) -> None:
@@ -221,3 +221,13 @@ def _event_records(*, stdout: str, payload: object | None) -> list[dict[str, Any
         if isinstance(decoded, dict):
             records.append(cast("dict[str, Any]", decoded))
     return records
+
+
+def _has_event_timestamp(*, event: dict[str, Any]) -> bool:
+    for key in _EVENT_TIMESTAMP_FIELDS:
+        value = event.get(key)
+        if isinstance(value, str):
+            return bool(value)
+        if isinstance(value, int | float) and not isinstance(value, bool):
+            return True
+    return False
