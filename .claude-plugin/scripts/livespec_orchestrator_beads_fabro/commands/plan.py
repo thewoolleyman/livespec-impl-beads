@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -20,7 +19,18 @@ from livespec_orchestrator_beads_fabro.commands._plan_archive_review import (
     undisposed_plan_child_ids,
     valid_completeness_review_evidence_id,
 )
-from livespec_orchestrator_beads_fabro.store import append_work_item, read_work_item_comments
+from livespec_orchestrator_beads_fabro.commands._plan_timeline import (
+    PLAN_HANDOFF_PREFIX,
+    PLAN_SCOPE_PREFIX,
+    UNATTENDED_ENV_VAR,
+    PlanTimelineEntry,
+    ResumeDirective,
+    is_unattended_session,
+    read_timeline,
+    recorded_next_actions,
+    resume_directive,
+)
+from livespec_orchestrator_beads_fabro.store import append_work_item
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
 if TYPE_CHECKING:
@@ -28,23 +38,26 @@ if TYPE_CHECKING:
     from livespec_orchestrator_beads_fabro.types import StoreConfig
 
 __all__: list[str] = [
+    "UNATTENDED_ENV_VAR",
     "PlanArchiveRefusedError",
     "PlanTimelineEntry",
+    "ResumeDirective",
     "_blocking_dependency_ids",
     "_is_blocks_dependency_edge",
     "append_handoff",
     "append_supervisor_handoff",
     "archive_thread",
     "create_thread",
+    "is_unattended_session",
     "read_timeline",
     "record_completeness_review_evidence",
     "record_scope_event",
+    "recorded_next_actions",
+    "resume_directive",
 ]
 
 _PLAN_DIR = "plan"
 _ARCHIVE_DIR = "archive"
-_PLAN_HANDOFF_PREFIX = "plan-handoff-entry"
-_PLAN_SCOPE_PREFIX = "plan-scope-event"
 _RESEARCH_DIR = "research"
 _PLAN_ARCHIVE_ACTOR = "plan-archive"
 
@@ -59,15 +72,6 @@ class PlanArchiveRefusedError(Exception):
     @classmethod
     def undisposed_children(cls, *, child_ids: list[str]) -> PlanArchiveRefusedError:
         return cls(f"undisposed child work-items: {', '.join(child_ids)}")
-
-
-@dataclass(frozen=True, kw_only=True)
-class PlanTimelineEntry:
-    """One parsed plan-epic timeline entry."""
-
-    body: str
-    author: str
-    created_at: str
 
 
 def create_thread(  # noqa: PLR0913 — package primitive mirrors the plan-create inputs.
@@ -124,7 +128,7 @@ def append_handoff(
     client = make_beads_client(config=config)
     client.add_comment(
         issue_id=epic_id,
-        body=_comment_body(prefix=_PLAN_HANDOFF_PREFIX, author=author, now=now, body=body),
+        body=_comment_body(prefix=PLAN_HANDOFF_PREFIX, author=author, now=now, body=body),
     )
 
 
@@ -166,22 +170,12 @@ def record_scope_event(
     client.add_comment(
         issue_id=epic_id,
         body=_comment_body(
-            prefix=_PLAN_SCOPE_PREFIX,
+            prefix=PLAN_SCOPE_PREFIX,
             author=author,
             now=now,
             body=_scope_body(requirements=requirements, deferrals=deferrals),
         ),
     )
-
-
-def read_timeline(*, config: StoreConfig, epic_id: str) -> tuple[PlanTimelineEntry, ...]:
-    """Read plan-epic handoff comments oldest-first."""
-    entries: list[PlanTimelineEntry] = []
-    for comment in read_work_item_comments(path=config, work_item_id=epic_id):
-        if not comment.text.startswith((_PLAN_HANDOFF_PREFIX, _PLAN_SCOPE_PREFIX)):
-            continue
-        entries.append(_parse_entry(text=comment.text))
-    return tuple(entries)
 
 
 def archive_thread(
@@ -220,7 +214,7 @@ def archive_thread(
     client.add_comment(
         issue_id=epic_id,
         body=_comment_body(
-            prefix=_PLAN_HANDOFF_PREFIX,
+            prefix=PLAN_HANDOFF_PREFIX,
             author=_PLAN_ARCHIVE_ACTOR,
             now=evidence_id,
             body=f"Archived after completeness review {evidence_id}.",
@@ -273,16 +267,6 @@ def _tag_epic_anchor(*, config: StoreConfig, epic_id: str, slug: str) -> None:
 
 def _comment_body(*, prefix: str, author: str, now: str, body: str) -> str:
     return f"{prefix}\nauthor: {author}\ntimestamp: {now}\n\n{body}"
-
-
-def _parse_entry(*, text: str) -> PlanTimelineEntry:
-    header, body = text.split("\n\n", maxsplit=1)
-    lines = header.splitlines()
-    return PlanTimelineEntry(
-        body=body,
-        author=lines[1].removeprefix("author: "),
-        created_at=lines[2].removeprefix("timestamp: "),
-    )
 
 
 def _scope_body(*, requirements: tuple[str, ...], deferrals: tuple[str, ...]) -> str:
