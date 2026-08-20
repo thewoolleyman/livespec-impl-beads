@@ -169,6 +169,14 @@ class FakeBeadsClient:
         if edge not in edges:
             edges.append(edge)
 
+    def remove_dependency(self, *, from_id: str, to_id: str) -> None:
+        """Drop every edge from one issue to another; absent edges are a no-op."""
+        record = self._issues.get(from_id)
+        if record is None:
+            return
+        edges = cast("list[DependencyEdge]", record.setdefault("dependencies", []))
+        record["dependencies"] = [edge for edge in edges if edge.get("depends_on_id") != to_id]
+
     def add_comment(self, *, issue_id: str, body: str) -> None:
         """Append a comment in the in-memory tenant (mirrors `seed_comment`)."""
         if issue_id not in self._issues:

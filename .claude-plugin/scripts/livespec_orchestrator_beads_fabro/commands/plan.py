@@ -19,6 +19,11 @@ from livespec_orchestrator_beads_fabro.commands._plan_archive_review import (
     undisposed_plan_child_ids,
     valid_completeness_review_evidence_id,
 )
+from livespec_orchestrator_beads_fabro.commands._plan_disposition import (
+    PlanDispositionRefusedError,
+    close_plan_child,
+    reparent_plan_child,
+)
 from livespec_orchestrator_beads_fabro.commands._plan_timeline import (
     PLAN_HANDOFF_PREFIX,
     PLAN_SCOPE_PREFIX,
@@ -40,6 +45,7 @@ if TYPE_CHECKING:
 __all__: list[str] = [
     "UNATTENDED_ENV_VAR",
     "PlanArchiveRefusedError",
+    "PlanDispositionRefusedError",
     "PlanTimelineEntry",
     "ResumeDirective",
     "_blocking_dependency_ids",
@@ -47,12 +53,14 @@ __all__: list[str] = [
     "append_handoff",
     "append_supervisor_handoff",
     "archive_thread",
+    "close_plan_child",
     "create_thread",
     "is_unattended_session",
     "read_timeline",
     "record_completeness_review_evidence",
     "record_scope_event",
     "recorded_next_actions",
+    "reparent_plan_child",
     "resume_directive",
 ]
 
