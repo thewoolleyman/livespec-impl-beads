@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.59.8](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.59.7...v0.59.8) (2026-08-20)
+
+
+### Bug Fixes
+
+* explain bd status open refusals ([e7bc570](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/e7bc570f6663135a4b5b4ef22d1ce3dc62eea27a))
+
 ## [0.59.7](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.59.6...v0.59.7) (2026-08-20)
 
 
