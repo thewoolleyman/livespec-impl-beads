@@ -164,3 +164,12 @@ like `.15` — which is a non-self-healing loop that has already killed a run.
 configured numbers rather than measuring running ones, and both were
 internally consistent and confidently wrong. `docker stats` and the kernel
 journal settled in one command what two rounds of arithmetic could not.
+
+## Where these artifacts went, 2026-08-20
+
+`003-artifacts/` no longer exists in this research store. The destination
+decision recorded above as "the maintainer's call" was made on 2026-08-20 and
+the artifacts moved to their real home. See `004-destination-decision.md` for
+the choice, the reasoning, and what was verified across the move. Every
+reference to `003-artifacts/<file>` above should now be read as
+`fabro-hosts/services/fabro-server/<file>`.

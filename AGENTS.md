@@ -376,8 +376,12 @@ modernization is `bd-ib-6qu`.
   sudo systemctl restart fabro-server
   ```
 
-  The canonical unit and installer live in
-  `/data/projects/vps-info/services/fabro-server/`. The unit runs Fabro in the
+  The canonical unit and installer live in the fleet repo
+  `thewoolleyman/fabro-hosts`, at `services/fabro-server/` (moved out of
+  `vps-info` on 2026-08-20, because `fabro-server` runs on both `vps` and
+  `hp-xubuntu` and a per-host copy is what let the two diverge silently). One
+  unit template plus a six-line `hosts/<host>.env` covers both factories, and
+  `install.sh` refuses to apply one host's values on another. The unit runs Fabro in the
   foreground under systemd, passes the affirmative `--web` option, restarts it
   after failures and reboots, and refuses readiness unless `/runs` exists and
   the unauthenticated `/login` shell plus its JavaScript bundle load. Build the
