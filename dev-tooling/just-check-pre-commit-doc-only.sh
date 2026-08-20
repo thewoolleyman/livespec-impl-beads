@@ -12,6 +12,62 @@ targets=(
     check-no-direct-tool-invocation
     check-check-tools
 )
+authored_unowned_heading_coverage_todo() {
+    uv run python - <<'PY'
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+from typing import Any
+
+
+def git_show(*, revision: str) -> str | None:
+    result = subprocess.run(
+        ["git", "show", revision],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
+def parse_entries(*, text: str | None) -> list[dict[str, Any]]:
+    if text is None:
+        return []
+    parsed = json.loads(text)
+    if not isinstance(parsed, list):
+        return []
+    return [entry for entry in parsed if isinstance(entry, dict)]
+
+
+def entry_key(*, entry: dict[str, Any]) -> tuple[Any, Any, Any]:
+    return (entry.get("spec_root"), entry.get("spec_file"), entry.get("heading"))
+
+
+def is_unowned_todo(*, entry: dict[str, Any]) -> bool:
+    work_item = entry.get("work_item")
+    return entry.get("test") == "TODO" and not (
+        isinstance(work_item, str) and bool(work_item.strip())
+    )
+
+
+head_entries = {
+    entry_key(entry=entry): entry
+    for entry in parse_entries(text=git_show(revision="HEAD:tests/heading-coverage.json"))
+}
+staged_entries = parse_entries(text=git_show(revision=":tests/heading-coverage.json"))
+for entry in staged_entries:
+    if not is_unowned_todo(entry=entry):
+        continue
+    previous = head_entries.get(entry_key(entry=entry))
+    if previous != entry:
+        sys.exit(0)
+sys.exit(1)
+PY
+}
 failed=()
 for target in "${targets[@]}"; do
     printf '\n::: just %s\n' "$target"
@@ -25,8 +81,13 @@ done
 # authoring an UNOWNED TODO entry is never valid per the check's contract.
 printf '\n::: just check-no-todo-registry\n'
 if git diff --cached --name-only | grep -qx 'tests/heading-coverage.json'; then
-    echo ":: staged changeset edits tests/heading-coverage.json — arming the TODO-ownership release tier"
-    if ! LIVESPEC_FAIL_IF_HEADING_COVERAGE_TODOS_EXIST=true just check-no-todo-registry; then
+    echo ":: staged changeset edits tests/heading-coverage.json — checking authored TODO ownership"
+    if authored_unowned_heading_coverage_todo; then
+        echo ":: staged changeset authors an unowned heading-coverage TODO — arming the TODO-ownership release tier"
+        if ! LIVESPEC_FAIL_IF_HEADING_COVERAGE_TODOS_EXIST=true just check-no-todo-registry; then
+            failed+=(check-no-todo-registry)
+        fi
+    elif ! just check-no-todo-registry; then
         failed+=(check-no-todo-registry)
     fi
 elif ! just check-no-todo-registry; then
