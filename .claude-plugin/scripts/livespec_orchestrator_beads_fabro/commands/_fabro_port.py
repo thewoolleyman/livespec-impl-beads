@@ -2,20 +2,26 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Protocol
 
-from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
-    CommandResult,
-    CommandRunner,
+from livespec_orchestrator_beads_fabro.commands._fabro_port_records import (
+    FabroFailureDetail,
+    FabroRunSummary,
+    fabro_failure_detail_from_payload,
+    fabro_run_id_from_output,
+    fabro_run_summaries_from_payload,
+    fabro_run_summaries_from_stdout,
+    fabro_status_kind_from_payload,
 )
 from livespec_orchestrator_beads_fabro.effects import JsonParseFailure, parse_json
 
 __all__: list[str] = [
+    "FabroCommand",
     "FabroCommandResult",
     "FabroEventsResult",
+    "FabroFailureDetail",
     "FabroInspectResult",
     "FabroJsonResult",
     "FabroPort",
@@ -24,10 +30,34 @@ __all__: list[str] = [
     "FabroRunSummary",
     "FabroTarget",
     "FabroVersionResult",
+    "fabro_port_for_plan",
+    "fabro_run_summaries_from_stdout",
 ]
 
-_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
-_RUN_ID_RE = re.compile(r"Run:\s*([0-9A-Za-z-]+)")
+
+class FabroCommand(Protocol):
+    """Result fields consumed from the dispatcher's command runner."""
+
+    @property
+    def exit_code(self) -> int: ...
+
+    @property
+    def stdout(self) -> str: ...
+
+    @property
+    def stderr(self) -> str: ...
+
+
+class _FabroRunner(Protocol):
+    def run(
+        self,
+        *,
+        argv: list[str],
+        cwd: Path,
+        timeout_seconds: float,
+        env: dict[str, str] | None = None,
+        stdin: int | None = None,
+    ) -> FabroCommand: ...
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -42,14 +72,14 @@ class FabroTarget:
 class FabroCommandResult:
     """Result for Fabro commands whose output is not parsed further."""
 
-    command: CommandResult
+    command: FabroCommand
 
 
 @dataclass(frozen=True, kw_only=True)
 class FabroRunResult:
     """Result for `fabro run`, including the run id printed by the CLI."""
 
-    command: CommandResult
+    command: FabroCommand
     run_id: str | None
 
 
@@ -57,7 +87,7 @@ class FabroRunResult:
 class FabroJsonResult:
     """Result for a `--json` Fabro command."""
 
-    command: CommandResult
+    command: FabroCommand
     payload: object | None
 
 
@@ -65,7 +95,7 @@ class FabroJsonResult:
 class FabroEventsResult:
     """Parsed `fabro events --json` result."""
 
-    command: CommandResult
+    command: FabroCommand
     payload: object | None
 
 
@@ -73,26 +103,17 @@ class FabroEventsResult:
 class FabroInspectResult:
     """Parsed `fabro inspect --json` result with normalized status kind."""
 
-    command: CommandResult
+    command: FabroCommand
     payload: object | None
     status_kind: str | None
-
-
-@dataclass(frozen=True, kw_only=True)
-class FabroRunSummary:
-    """Run row from `fabro ps -a --json` that livespec code reads."""
-
-    run_id: str
-    status_kind: str | None
-    goal: str | None
-    total_usd_micros: int | None
+    failure: FabroFailureDetail | None
 
 
 @dataclass(frozen=True, kw_only=True)
 class FabroPsResult:
     """Parsed `fabro ps -a --json` result."""
 
-    command: CommandResult
+    command: FabroCommand
     payload: object | None
     runs: tuple[FabroRunSummary, ...]
 
@@ -101,7 +122,7 @@ class FabroPsResult:
 class FabroVersionResult:
     """Raw `fabro version` result."""
 
-    command: CommandResult
+    command: FabroCommand
     text: str
 
 
@@ -117,7 +138,7 @@ class FabroPort:
 
     fabro_bin: str
     target: FabroTarget
-    runner: CommandRunner
+    runner: _FabroRunner
     cwd: Path
 
     def run(
@@ -128,18 +149,24 @@ class FabroPort:
         inputs: tuple[str, ...],
         timeout_seconds: float,
     ) -> FabroRunResult:
-        argv = [
-            self.fabro_bin,
-            "run",
-            str(workflow_toml),
-            "--goal-file",
-            str(goal_file),
-            *_input_args(inputs=inputs),
-            "--no-upgrade-check",
-            *self._server_suffix(),
-        ]
-        command = self._run(argv=argv, timeout_seconds=timeout_seconds, env=self._server_env())
-        return FabroRunResult(command=command, run_id=_parse_run_id(output=command.stdout))
+        command = self._run(
+            argv=[
+                self.fabro_bin,
+                "run",
+                str(workflow_toml),
+                "--goal-file",
+                str(goal_file),
+                *_input_args(inputs=inputs),
+                "--no-upgrade-check",
+                *self._server_suffix(),
+            ],
+            timeout_seconds=timeout_seconds,
+            env=self._server_env(),
+        )
+        return FabroRunResult(
+            command=command,
+            run_id=fabro_run_id_from_output(output=f"{command.stdout}\n{command.stderr}"),
+        )
 
     def auth_login(self, *, timeout_seconds: float) -> FabroCommandResult | None:
         if self.target.server_url is None or self.target.dev_token is None:
@@ -167,7 +194,8 @@ class FabroPort:
         return FabroInspectResult(
             command=command,
             payload=payload,
-            status_kind=_status_kind(payload=payload),
+            status_kind=fabro_status_kind_from_payload(payload=payload),
+            failure=fabro_failure_detail_from_payload(payload=payload),
         )
 
     def events(self, *, run_id: str, timeout_seconds: float) -> FabroEventsResult:
@@ -183,7 +211,11 @@ class FabroPort:
             timeout_seconds=timeout_seconds,
         )
         payload = _json_payload(command=command)
-        return FabroPsResult(command=command, payload=payload, runs=_run_summaries(payload=payload))
+        return FabroPsResult(
+            command=command,
+            payload=payload,
+            runs=fabro_run_summaries_from_payload(payload=payload),
+        )
 
     def rm(self, *, run_id: str, timeout_seconds: float) -> FabroCommandResult:
         command = self._run(
@@ -212,7 +244,9 @@ class FabroPort:
         argv: list[str],
         timeout_seconds: float,
         env: dict[str, str] | None = None,
-    ) -> CommandResult:
+    ) -> FabroCommand:
+        if env is None:
+            return self.runner.run(argv=argv, cwd=self.cwd, timeout_seconds=timeout_seconds)
         return self.runner.run(
             argv=argv,
             cwd=self.cwd,
@@ -234,6 +268,19 @@ class FabroPort:
         return {"FABRO_SERVER": self.target.server_url}
 
 
+def fabro_port_for_plan(*, plan: Any, runner: _FabroRunner) -> FabroPort:
+    """Construct the Fabro CLI port from a dispatch plan."""
+    return FabroPort(
+        fabro_bin=plan.fabro_bin,
+        target=FabroTarget(
+            server_url=plan.fabro_factory_server,
+            dev_token=plan.fabro_factory_dev_token,
+        ),
+        runner=runner,
+        cwd=plan.repo,
+    )
+
+
 def _input_args(*, inputs: tuple[str, ...]) -> list[str]:
     argv: list[str] = []
     for item in inputs:
@@ -241,73 +288,10 @@ def _input_args(*, inputs: tuple[str, ...]) -> list[str]:
     return argv
 
 
-def _parse_run_id(*, output: str) -> str | None:
-    plain = _ANSI_ESCAPE_RE.sub("", output)
-    match = _RUN_ID_RE.search(plain)
-    if match is None:
-        return None
-    return match.group(1)
-
-
-def _json_payload(*, command: CommandResult) -> object | None:
+def _json_payload(*, command: FabroCommand) -> object | None:
     if command.exit_code != 0:
         return None
     parsed = parse_json(text=command.stdout)
     if isinstance(parsed, JsonParseFailure):
         return None
     return parsed
-
-
-def _status_kind(*, payload: object | None) -> str | None:
-    if not isinstance(payload, dict):
-        return None
-    status_raw: object = cast("dict[str, Any]", payload).get("status")
-    if isinstance(status_raw, str):
-        return status_raw
-    if isinstance(status_raw, dict):
-        kind_raw: object = cast("dict[str, Any]", status_raw).get("kind")
-        if isinstance(kind_raw, str):
-            return kind_raw
-    return None
-
-
-def _run_summaries(*, payload: object | None) -> tuple[FabroRunSummary, ...]:
-    summaries: list[FabroRunSummary] = []
-    for run in _runs(payload=payload):
-        summary = _run_summary(run=run)
-        if summary is not None:
-            summaries.append(summary)
-    return tuple(summaries)
-
-
-def _runs(*, payload: object | None) -> list[object]:
-    if isinstance(payload, list):
-        return cast("list[object]", payload)
-    if isinstance(payload, dict):
-        runs_raw: object = cast("dict[str, Any]", payload).get("runs")
-        if isinstance(runs_raw, list):
-            return cast("list[object]", runs_raw)
-    return []
-
-
-def _run_summary(*, run: object) -> FabroRunSummary | None:
-    if not isinstance(run, dict):
-        return None
-    record = cast("dict[str, Any]", run)
-    run_id_raw: object = record.get("run_id")
-    if not isinstance(run_id_raw, str) or run_id_raw == "":
-        return None
-    return FabroRunSummary(
-        run_id=run_id_raw,
-        status_kind=_status_kind(payload=record),
-        goal=_optional_str(value=record.get("goal")),
-        total_usd_micros=_optional_int(value=record.get("total_usd_micros")),
-    )
-
-
-def _optional_str(*, value: object) -> str | None:
-    return value if isinstance(value, str) else None
-
-
-def _optional_int(*, value: object) -> int | None:
-    return value if isinstance(value, int) else None

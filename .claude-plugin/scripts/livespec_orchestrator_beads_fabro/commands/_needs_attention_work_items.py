@@ -17,11 +17,11 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_dispatch_lock import
     live_dispatch_lock,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import ShellCommandRunner
-from livespec_orchestrator_beads_fabro.commands._dispatcher_run_status import parse_watchable_run
 from livespec_orchestrator_beads_fabro.commands._drive_valve_predicates import (
     awaits_dispatcher_admission,
     can_approve_item,
 )
+from livespec_orchestrator_beads_fabro.commands._fabro_port import FabroPort, FabroTarget
 from livespec_orchestrator_beads_fabro.commands._needs_attention_handoffs import (
     dispatcher_loop_command,
     drive_command,
@@ -169,14 +169,22 @@ def _live_dispatch_lock(*, repo: Path, work_item_id: str) -> object | None:
 
 
 def _watchable_fabro_run(*, repo: Path, work_item_id: str) -> object | None:
-    result = ShellCommandRunner().run(
-        argv=[resolve_fabro_bin(cwd=repo), "ps", "--all", "--json"],
+    result = FabroPort(
+        fabro_bin=resolve_fabro_bin(cwd=repo),
+        target=FabroTarget(),
+        runner=ShellCommandRunner(),
         cwd=repo,
-        timeout_seconds=15,
-    )
-    if result.exit_code != 0:
+    ).ps(timeout_seconds=15)
+    if result.command.exit_code != 0:
         return None
-    return parse_watchable_run(ps_json=result.stdout, work_item_id=work_item_id)
+    return next(
+        (
+            run
+            for run in result.runs
+            if run.work_item_id == work_item_id and run.status_kind in {"runnable", "running"}
+        ),
+        None,
+    )
 
 
 def _host_only_reasons(*, project_root: Path, items: list[WorkItem]) -> dict[str, str]:

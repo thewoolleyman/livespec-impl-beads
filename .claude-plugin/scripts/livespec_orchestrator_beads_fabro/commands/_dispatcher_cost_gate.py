@@ -44,6 +44,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
     cost_report_spans_path,
     cost_sink_path,
 )
+from livespec_orchestrator_beads_fabro.commands._fabro_port import FabroPort, FabroTarget
 from livespec_orchestrator_beads_fabro.effects import AttemptFailure, attempt
 
 __all__: list[str] = ["cost_gate_after_verdict", "derived_costs"]
@@ -114,12 +115,13 @@ def _cost_gate(
     if not any(outcome.status == "green" for outcome in outcomes):
         return
     cost_mode = resolve_cost_mode(environ=dict(os.environ))
-    ps = runner.run(
-        argv=[args.fabro_bin, "ps", "-a", "--json"],
+    ps = FabroPort(
+        fabro_bin=args.fabro_bin,
+        target=FabroTarget(),
+        runner=runner,
         cwd=repo,
-        timeout_seconds=_FABRO_PS_PROBE_TIMEOUT_SECONDS,
-    )
-    ps_json = ps.stdout if ps.exit_code == 0 else ""
+    ).ps(timeout_seconds=_FABRO_PS_PROBE_TIMEOUT_SECONDS)
+    ps_json = ps.command.stdout if ps.command.exit_code == 0 else ""
     refusals = gate_wave(
         unattended=not bool(getattr(args, "items", None) or getattr(args, "item", None)),
         outcomes=tuple(outcomes),

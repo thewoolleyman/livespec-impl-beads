@@ -4,24 +4,21 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Protocol, cast
+from typing import Protocol
 
 from livespec_orchestrator_beads_fabro.commands._config import (
     resolve_fabro_bin,
     resolve_fabro_factory,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import CommandResult
-from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_argv import (
-    fabro_ps_argv,
-    fabro_rm_argv,
-)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import ShellCommandRunner
 from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_close import load_items
-from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import build_plan
-from livespec_orchestrator_beads_fabro.effects import JsonParseFailure, parse_json
+from livespec_orchestrator_beads_fabro.commands._fabro_port import (
+    FabroPort,
+    FabroTarget,
+)
 from livespec_orchestrator_beads_fabro.io import write_stdout
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
@@ -34,7 +31,6 @@ __all__: list[str] = [
 
 _FABRO_PROBE_TIMEOUT_SECONDS = 60.0
 _FABRO_RM_TIMEOUT_SECONDS = 120.0
-_WORK_ITEM_RE = re.compile(r"^Work-item:\s*(\S+)", re.MULTILINE)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -64,14 +60,8 @@ class _StaleRunSweepRunner(Protocol):
         cwd: Path,
         timeout_seconds: float,
         env: dict[str, str] | None = None,
+        stdin: int | None = None,
     ) -> CommandResult: ...
-
-
-@dataclass(frozen=True, kw_only=True)
-class _WatchableFabroRun:
-    work_item_id: str
-    run_id: str
-    status_kind: str
 
 
 def reap_stale_fabro_runs(
@@ -83,32 +73,25 @@ def reap_stale_fabro_runs(
     fabro_factory_server: str | None,
 ) -> StaleFabroRunSweepSummary:
     """Reap runnable/running Fabro runs whose ledger item is no longer active."""
-    plan = build_plan(
-        repo=repo,
-        work_item_id="stale-run-sweep",
-        workflow_toml=repo / ".fabro/workflows/implement-work-item/workflow.toml",
-        goal_file=repo / ".fabro/stale-run-sweep-goal.md",
+    port = FabroPort(
         fabro_bin=fabro_bin,
-        fabro_factory_server=fabro_factory_server,
-        janitor=None,
-        janitor_checkout=repo / ".stale-run-sweep-janitor-unused",
-    )
-    ps = runner.run(
-        argv=fabro_ps_argv(plan=plan),
+        target=FabroTarget(server_url=fabro_factory_server),
+        runner=runner,
         cwd=repo,
-        timeout_seconds=_FABRO_PROBE_TIMEOUT_SECONDS,
     )
-    if ps.exit_code != 0:
-        return StaleFabroRunSweepSummary(reaped=(), probe_exit_code=ps.exit_code)
+    ps = port.ps(timeout_seconds=_FABRO_PROBE_TIMEOUT_SECONDS)
+    if ps.command.exit_code != 0:
+        return StaleFabroRunSweepSummary(reaped=(), probe_exit_code=ps.command.exit_code)
     item_statuses = {item.id: item.status for item in items}
     reaped: list[ReapedStaleFabroRun] = []
-    for run in _watchable_fabro_runs(ps_json=ps.stdout):
+    for run in ps.runs:
+        if run.work_item_id is None or run.status_kind not in {"runnable", "running"}:
+            continue
         item_status = item_statuses.get(run.work_item_id)
         if item_status is None or item_status == "active":
             continue
-        rm = runner.run(
-            argv=fabro_rm_argv(plan=plan, run_id=run.run_id),
-            cwd=repo,
+        rm = port.rm(
+            run_id=run.run_id,
             timeout_seconds=_FABRO_RM_TIMEOUT_SECONDS,
         )
         reaped.append(
@@ -117,7 +100,7 @@ def reap_stale_fabro_runs(
                 run_id=run.run_id,
                 run_status=run.status_kind,
                 item_status=item_status,
-                rm_exit_code=rm.exit_code,
+                rm_exit_code=rm.command.exit_code,
             )
         )
     return StaleFabroRunSweepSummary(reaped=tuple(reaped), probe_exit_code=0)
@@ -135,62 +118,6 @@ def run_stale_run_sweep_command(*, args: argparse.Namespace) -> int:
     )
     _emit_summary(summary=summary, as_json=args.as_json)
     return 1 if summary.probe_exit_code != 0 or _has_failed_rm(summary=summary) else 0
-
-
-def _watchable_fabro_runs(*, ps_json: str) -> tuple[_WatchableFabroRun, ...]:
-    parsed_raw = parse_json(text=ps_json)
-    if isinstance(parsed_raw, JsonParseFailure):
-        return ()
-    runs = _runs_list(parsed_raw=parsed_raw)
-    return tuple(run for raw in runs for run in [_watchable_fabro_run(raw=raw)] if run is not None)
-
-
-def _runs_list(*, parsed_raw: object) -> list[object]:
-    if isinstance(parsed_raw, list):
-        return cast("list[object]", parsed_raw)
-    if isinstance(parsed_raw, dict):
-        runs_raw: object = cast("dict[str, Any]", parsed_raw).get("runs")
-        if isinstance(runs_raw, list):
-            return cast("list[object]", runs_raw)
-    return []
-
-
-def _watchable_fabro_run(*, raw: object) -> _WatchableFabroRun | None:
-    if not isinstance(raw, dict):
-        return None
-    run = cast("dict[str, Any]", raw)
-    work_item_id = _work_item_id(goal=run.get("goal"))
-    status_kind = _status_kind(status=run.get("status"))
-    run_id_raw: object = run.get("run_id")
-    if (
-        work_item_id is None
-        or status_kind not in {"runnable", "running"}
-        or not isinstance(run_id_raw, str)
-        or run_id_raw == ""
-    ):
-        return None
-    return _WatchableFabroRun(
-        work_item_id=work_item_id,
-        run_id=run_id_raw,
-        status_kind=status_kind,
-    )
-
-
-def _work_item_id(*, goal: object) -> str | None:
-    if not isinstance(goal, str):
-        return None
-    match = _WORK_ITEM_RE.search(goal)
-    return None if match is None else match.group(1)
-
-
-def _status_kind(*, status: object) -> str | None:
-    if isinstance(status, str):
-        return status
-    if isinstance(status, dict):
-        kind_raw: object = cast("dict[str, Any]", status).get("kind")
-        if isinstance(kind_raw, str):
-            return kind_raw
-    return None
 
 
 def _emit_summary(*, summary: StaleFabroRunSweepSummary, as_json: bool) -> None:

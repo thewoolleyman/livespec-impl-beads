@@ -16,11 +16,12 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import Comman
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io_fabro_launcher import (
     WatchedFabroLauncher,
 )
-from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import WatchableRun, build_plan
+from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import build_plan
 from livespec_orchestrator_beads_fabro.commands._dispatcher_watchdog import (
     STALL_SECONDS_ENV_VAR,
     LivenessSample,
 )
+from livespec_orchestrator_beads_fabro.commands._fabro_port import FabroRunSummary
 from livespec_orchestrator_beads_fabro.errors import BeadsConnectionError
 from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
 
@@ -38,8 +39,9 @@ class _QueuedRunner:
         cwd: Path,
         timeout_seconds: float,
         env: dict[str, str] | None = None,
+        stdin: int | None = None,
     ) -> CommandResult:
-        _ = (cwd, timeout_seconds, env)
+        _ = (cwd, timeout_seconds, env, stdin)
         command = argv[1]
         self.calls.append(command)
         if command == "ps":
@@ -120,8 +122,10 @@ def test_watched_launcher_covers_finished_thread_watch_path(
             argv: list[str],
             cwd: Path,
             timeout_seconds: float,
+            env: dict[str, str] | None = None,
+            stdin: int | None = None,
         ) -> CommandResult:
-            _ = (argv, cwd, timeout_seconds)
+            _ = (argv, cwd, timeout_seconds, env, stdin)
             return CommandResult(exit_code=0, stdout="done", stderr="")
 
     def _thread(*, target: Callable[[], None], name: str) -> _SynchronousThread:
@@ -257,15 +261,21 @@ def test_watched_launcher_does_not_stall_cancel_queued_active_run(
         self: WatchedFabroLauncher,
         *,
         plan: object,
-        runner: object,
+        port: object,
         run_id: str | None,
     ) -> LivenessSample:
-        _ = (self, plan, runner, run_id)
+        _ = (self, plan, port, run_id)
         return samples.pop(0)
 
-    def _discover_runnable_run(self: WatchedFabroLauncher, **_: object) -> WatchableRun:
+    def _discover_runnable_run(self: WatchedFabroLauncher, **_: object) -> FabroRunSummary:
         _ = self
-        return WatchableRun(run_id="01QUEUED", status_kind="runnable")
+        return FabroRunSummary(
+            run_id="01QUEUED",
+            status_kind="runnable",
+            goal=None,
+            work_item_id="bd-ib-queued",
+            total_usd_micros=None,
+        )
 
     def _thread(*, target: Callable[[], None], name: str) -> _QueuedThread:
         return _QueuedThread(
@@ -320,6 +330,86 @@ def test_watched_launcher_skips_item_status_lookup_without_store_config(
     assert result.abandoned_run_id is None
     assert runner.rm_calls == []
     assert reader.call_count == 0
+
+
+def test_watched_launcher_continues_when_ps_has_no_matching_run(
+    *,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    @dataclass(kw_only=True)
+    class _Runner:
+        calls: list[str]
+        run_finished: bool = False
+
+        def run(
+            self,
+            *,
+            argv: list[str],
+            cwd: Path,
+            timeout_seconds: float,
+            env: dict[str, str] | None = None,
+            stdin: int | None = None,
+        ) -> CommandResult:
+            _ = (cwd, timeout_seconds, env, stdin)
+            self.calls.append(argv[1])
+            if argv[1] == "ps":
+                return CommandResult(
+                    exit_code=0,
+                    stdout=(
+                        '[{"run_id": "01OTHER", '
+                        '"status": {"kind": "running"}, '
+                        '"goal": "Work-item: bd-ib-other\\nRepo: /tmp/repo"}]'
+                    ),
+                    stderr="",
+                )
+            self.run_finished = True
+            return CommandResult(exit_code=0, stdout="Run: 01MINE\n", stderr="")
+
+    @dataclass(kw_only=True)
+    class _Thread:
+        target: Callable[[], None]
+        name: str
+        runner: _Runner
+        daemon: bool = False
+        alive_checks: int = 0
+
+        def start(self) -> None:
+            pass
+
+        def is_alive(self) -> bool:
+            self.alive_checks += 1
+            return not self.runner.run_finished and self.alive_checks < 3
+
+        def join(self, timeout: float | None = None) -> None:
+            _ = timeout
+            self.target()
+
+    def _thread(*, target: Callable[[], None], name: str) -> _Thread:
+        return _Thread(target=target, name=name, runner=runner)
+
+    runner = _Runner(calls=[])
+    journal = _Journal(records=[])
+    monkeypatch.setattr(_dispatcher_io_fabro_launcher.threading, "Thread", _thread)
+    plan = build_plan(
+        repo=tmp_path,
+        work_item_id="bd-ib-queued",
+        workflow_toml=tmp_path / "workflow.toml",
+        goal_file=tmp_path / "goal.md",
+        fabro_bin="fabro",
+        janitor=None,
+        janitor_checkout=tmp_path / "janitor",
+    )
+
+    result = WatchedFabroLauncher(sleep=lambda _seconds: None, clock=lambda: 0.0).launch(
+        plan=plan,
+        runner=runner,
+        journal=journal,
+    )
+
+    assert result.abandoned_run_id is None
+    assert "ps" in runner.calls
+    assert "rm" not in runner.calls
 
 
 def test_watched_launcher_continues_when_item_status_lookup_fails(

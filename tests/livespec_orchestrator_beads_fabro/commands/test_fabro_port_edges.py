@@ -97,6 +97,7 @@ def test_fabro_port_ps_accepts_top_level_lists_and_skips_unusable_runs(
             run_id="01A",
             status_kind="done",
             goal=None,
+            work_item_id=None,
             total_usd_micros=None,
         ),
     )

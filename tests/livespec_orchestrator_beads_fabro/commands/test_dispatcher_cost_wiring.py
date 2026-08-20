@@ -2,9 +2,8 @@
 
 Covers `_dispatcher_cost.gate_wave` (the post-verdict stage the dispatcher
 calls after the wave's outcomes are computed, alongside `reflect` /
-`_alarm`) and `_dispatcher_plan.parse_run_id_for_work_item` (the
-status-agnostic run-id matcher used to find the terminal run for a
-dispatched item in `fabro ps -a --json`).
+`_alarm`) and the `FabroPort` run-summary record used to find the terminal
+run for a dispatched item in `fabro ps -a --json`.
 
 The load-bearing facts under test: `gate_wave` journals one `cost-gate`
 record per launched (green) run carrying the leak-free verdict, and
@@ -22,7 +21,9 @@ from dataclasses import dataclass, field
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_cost import gate_wave
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
-from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import parse_run_id_for_work_item
+from livespec_orchestrator_beads_fabro.commands._fabro_port import (
+    fabro_run_summaries_from_stdout,
+)
 
 
 @dataclass(kw_only=True)
@@ -63,33 +64,40 @@ _PS_JSON_NULL = (
 )
 
 
-def test_parse_run_id_for_work_item_matches_terminal_run() -> None:
+def test_fabro_run_summary_matches_terminal_run() -> None:
     """The matcher finds a run by the goal-embedded id, status-agnostic."""
-    run_id = parse_run_id_for_work_item(ps_json=_PS_JSON_NULL, work_item_id="item-aaa")
+    run_id = _run_id_for_work_item(ps_json=_PS_JSON_NULL, work_item_id="item-aaa")
     assert run_id == "01RUNZZZ"
 
 
-def test_parse_run_id_for_work_item_none_when_absent() -> None:
+def test_fabro_run_summary_none_when_absent() -> None:
     """No matching run yields None (not a crash)."""
-    run_id = parse_run_id_for_work_item(ps_json=_PS_JSON_NULL, work_item_id="item-missing")
+    run_id = _run_id_for_work_item(ps_json=_PS_JSON_NULL, work_item_id="item-missing")
     assert run_id is None
 
 
-def test_parse_run_id_for_work_item_skips_non_dict_entries() -> None:
+def test_fabro_run_summary_skips_non_dict_entries() -> None:
     """A non-dict array entry is skipped, then the matching dict run is found."""
     ps_json = (
         '["junk-not-a-dict", {"run_id": "01RUNXYZ", '
         '"goal": "Work-item: item-aaa\\nRepo: /x", "total_usd_micros": null}]'
     )
-    run_id = parse_run_id_for_work_item(ps_json=ps_json, work_item_id="item-aaa")
+    run_id = _run_id_for_work_item(ps_json=ps_json, work_item_id="item-aaa")
     assert run_id == "01RUNXYZ"
 
 
-def test_parse_run_id_for_work_item_none_when_matching_run_lacks_run_id() -> None:
+def test_fabro_run_summary_none_when_matching_run_lacks_run_id() -> None:
     """A goal-matching run whose run_id is empty/absent yields None, not a crash."""
     ps_json = '[{"run_id": "", "goal": "Work-item: item-aaa\\nRepo: /x", "total_usd_micros": null}]'
-    run_id = parse_run_id_for_work_item(ps_json=ps_json, work_item_id="item-aaa")
+    run_id = _run_id_for_work_item(ps_json=ps_json, work_item_id="item-aaa")
     assert run_id is None
+
+
+def _run_id_for_work_item(*, ps_json: str, work_item_id: str) -> str | None:
+    for run in fabro_run_summaries_from_stdout(stdout=ps_json):
+        if run.work_item_id == work_item_id:
+            return run.run_id
+    return None
 
 
 def test_gate_wave_autonomous_refuses_and_journals_on_dark_cost() -> None:
