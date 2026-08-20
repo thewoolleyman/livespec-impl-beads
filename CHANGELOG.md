@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.59.4](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.59.3...v0.59.4) (2026-08-20)
+
+
+### Bug Fixes
+
+* degrade post-merge primary pull failures ([3ae648b](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/3ae648b8f889189ffb57515f4d445f7f865e7045))
+
 ## [0.59.3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.59.2...v0.59.3) (2026-08-20)
 
 
