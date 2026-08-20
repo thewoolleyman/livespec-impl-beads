@@ -92,6 +92,34 @@ def test_post_merge_degraded_detail_truncates_long_checkout_error(tmp_path: Path
     assert "prefix-" not in outcome.detail
 
 
+def test_post_merge_degrades_when_primary_pull_fails_after_merge(tmp_path: Path) -> None:
+    runner = Runner(
+        queue=[
+            _err(
+                stderr=(
+                    "error: Your local changes to the following files would be overwritten "
+                    "by merge:\n\tplan/foreman/handoff.md\nPlease commit your changes or "
+                    "stash them before you merge. Aborting"
+                )
+            )
+        ]
+    )
+
+    outcome = post_merge(
+        outcome_type=DispatchOutcome,
+        plan=_plan(repo=tmp_path),
+        runner=runner,
+        journal=Journal(),
+        merged=_merged(),
+    )
+
+    assert (outcome.status, outcome.stage) == ("green", "janitor-env-degraded")
+    assert (outcome.pr_number, outcome.merge_sha) == (7, "cafe08")
+    assert "refreshing the primary checkout" in outcome.detail
+    assert "plan/foreman/handoff.md" in outcome.detail
+    assert "not a work-item failure" in outcome.detail
+
+
 def test_post_merge_lock_contention_refuses_before_preclean(tmp_path: Path) -> None:
     plan = _plan(repo=tmp_path)
     lock = plan.janitor_checkout.with_name(f"{plan.janitor_checkout.name}.lock")
@@ -108,8 +136,10 @@ def test_post_merge_lock_contention_refuses_before_preclean(tmp_path: Path) -> N
         merged=_merged(),
     )
 
-    assert (outcome.status, outcome.stage) == ("failed", "janitor-checkout-locked")
+    assert (outcome.status, outcome.stage) == ("green", "janitor-env-degraded")
+    assert (outcome.pr_number, outcome.merge_sha) == (7, "cafe08")
     assert "remove the stale lock file before retrying" in outcome.detail
+    assert "janitor checkout lock" in outcome.detail
     assert runner.calls == []
     assert journal.records == []
 

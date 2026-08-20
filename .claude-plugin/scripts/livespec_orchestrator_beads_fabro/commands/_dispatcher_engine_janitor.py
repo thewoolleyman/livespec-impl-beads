@@ -51,13 +51,12 @@ def post_merge(
     lock_path = janitor_lock_path(plan=plan)
     lock_detail = claim_janitor_lock(path=lock_path, owner=plan.work_item_id)
     if lock_detail is not None:
-        return outcome_type(
+        return _merged_degraded_detail(
             work_item_id=plan.work_item_id,
-            status="failed",
-            stage="janitor-checkout-locked",
-            pr_number=merged.number,
-            merge_sha=merged.merge_sha,
-            detail=lock_detail,
+            outcome_type=outcome_type,
+            merged=merged,
+            step="claiming the janitor checkout lock",
+            reason=lock_detail,
         )
     with ExitStack() as stack:
         _ = stack.callback(release_janitor_lock, path=lock_path)
@@ -86,13 +85,12 @@ def _post_merge_locked(
         command=(pull_primary_argv(plan=plan), plan.repo, _GIT_TIMEOUT_SECONDS, None),
     )
     if pull.exit_code != 0:
-        return outcome_type(
-            work_item_id=plan.work_item_id,
-            status="failed",
-            stage="pull-primary",
-            pr_number=merged.number,
-            merge_sha=merged.merge_sha,
-            detail=tail(text=pull.stderr),
+        return _merged_degraded(
+            outcome_type=outcome_type,
+            plan=plan,
+            merged=merged,
+            step=f"refreshing the primary checkout {plan.repo} via pull-primary",
+            result=pull,
         )
     degraded = _provision_janitor_checkout(
         outcome_type=outcome_type,
@@ -225,17 +223,42 @@ def _merged_degraded(
     step: str,
     result: CommandResult,
 ) -> DispatchOutcome:
-    return outcome_type(
+    return _merged_degraded_detail(
         work_item_id=plan.work_item_id,
+        outcome_type=outcome_type,
+        merged=merged,
+        step=step,
+        reason=tail(text=result.stderr, limit=500),
+        janitor_argv=plan.janitor,
+    )
+
+
+def _merged_degraded_detail(
+    *,
+    work_item_id: str,
+    outcome_type: type[DispatchOutcome],
+    merged: PrView,
+    step: str,
+    reason: str,
+    janitor_argv: tuple[str, ...] | None = None,
+) -> DispatchOutcome:
+    remediation = (
+        (
+            f" Remediate the host, then run `{' '.join(janitor_argv)}` in a clean "
+            "checkout of merged master to close the gate by hand."
+        )
+        if janitor_argv is not None
+        else ""
+    )
+    return outcome_type(
+        work_item_id=work_item_id,
         status="green",
         stage="janitor-env-degraded",
         pr_number=merged.number,
         merge_sha=merged.merge_sha,
         detail=(
             f"merged, but the post-merge janitor DID NOT RUN: {step} failed "
-            f"({tail(text=result.stderr, limit=500)}). This is a host-environment "
-            f"problem, not a work-item failure — the merge is confirmed on the "
-            f"remote. Remediate the host, then run `{' '.join(plan.janitor)}` in "
-            f"a clean checkout of merged master to close the gate by hand."
+            f"({reason}). This is a host-environment problem, not a work-item "
+            f"failure — the merge is confirmed on the remote.{remediation}"
         ),
     )

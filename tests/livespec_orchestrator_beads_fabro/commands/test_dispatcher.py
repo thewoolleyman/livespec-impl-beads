@@ -2355,10 +2355,7 @@ def test_engine_poll_budget_exhaustion_keeps_pr_number(tmp_path: Path) -> None:
 
 
 def test_engine_post_merge_failures_carry_merge_evidence(tmp_path: Path) -> None:
-    cases = [
-        (["pull broke"], "pull-primary"),
-        ([None, None, None, None, None, None, "janitor broke"], "janitor-post-merge"),
-    ]
+    cases = [([None, None, None, None, None, None, "janitor broke"], "janitor-post-merge")]
     for tail_specs, stage in cases:
         tail = [_ok() if spec is None else _err(stderr=spec) for spec in tail_specs]
         runner = _FakeRunner(
@@ -2372,6 +2369,24 @@ def test_engine_post_merge_failures_carry_merge_evidence(tmp_path: Path) -> None
         outcome, _, _ = _dispatch(runner=runner, repo=tmp_path)
         assert (outcome.status, outcome.stage) == ("failed", stage)
         assert (outcome.pr_number, outcome.merge_sha) == (7, "cafe05")
+
+
+def test_engine_primary_pull_failure_after_merge_is_degraded(tmp_path: Path) -> None:
+    runner = _FakeRunner(
+        queue=[
+            _ok(),
+            _ok(stdout=_pr_json(armed=True)),
+            _ok(stdout=_pr_json(state="MERGED", sha="cafe05")),
+            _err(stderr="error: would overwrite plan/foreman/handoff.md"),
+        ]
+    )
+
+    outcome, _, _ = _dispatch(runner=runner, repo=tmp_path)
+
+    assert (outcome.status, outcome.stage) == ("green", "janitor-env-degraded")
+    assert (outcome.pr_number, outcome.merge_sha) == (7, "cafe05")
+    assert "refreshing the primary checkout" in outcome.detail
+    assert "plan/foreman/handoff.md" in outcome.detail
 
 
 def test_engine_janitor_red_keeps_checkout_for_diagnosis(tmp_path: Path) -> None:
