@@ -38,6 +38,8 @@ import json
 from pathlib import Path
 
 from livespec_spec_clauses import RuleMatch, extract_rules_from_file
+from returns.pipeline import is_successful
+from returns.unsafe import unsafe_perform_io
 
 from livespec_orchestrator_beads_fabro.errors import SpecVersionNotFoundError
 from livespec_orchestrator_beads_fabro.io import write_stderr, write_stdout
@@ -181,7 +183,15 @@ def _files_changed_since(*, spec_root: Path, since_version: int) -> set[str]:
     Raises `SpecVersionNotFoundError` if `<since_version>` does not
     exist under `<spec-root>/history/`.
     """
-    since_snapshot = read_specification_history(spec_root=spec_root, version=since_version)
+    # TEMPORARY BRIDGE: `detect_rules` (this module's public surface) is
+    # itself an unconverted ROP offender that still documents a raised
+    # `SpecVersionNotFoundError`, and `main` catches it for its exit code.
+    # Re-raising the SAME error object keeps that chain byte-identical
+    # until `detect_rules` is converted in its own change.
+    since_result = read_specification_history(spec_root=spec_root, version=since_version)
+    if not is_successful(since_result):
+        raise unsafe_perform_io(since_result.failure())
+    since_snapshot = unsafe_perform_io(since_result.unwrap())
     live_snapshot = read_current_specification(spec_root=spec_root)
     changed: set[str] = set()
     all_paths = set(since_snapshot.files.keys()) | set(live_snapshot.files.keys())
