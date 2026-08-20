@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.61.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.60.0...v0.61.0) (2026-08-20)
+
+
+### Features
+
+* **plan:** let a session dispose a plan child with a recorded rationale ([7e732aa](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/7e732aa4ec148c6399829e4c4bef76a0836266fd))
+
 ## [0.60.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.59.11...v0.60.0) (2026-08-20)
 
 
