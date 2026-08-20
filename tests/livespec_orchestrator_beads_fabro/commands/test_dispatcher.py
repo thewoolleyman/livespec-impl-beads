@@ -1487,6 +1487,59 @@ def test_render_run_config_overlay_prepares_refreshing_gh_wrapper(
     assert _FAKE_GITHUB_PRIVATE_KEY_LINE in rendered
 
 
+def test_render_run_config_overlay_projects_gh_mint_helper_for_target_without_scripts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The gh wrapper must not resolve helpers from the target repo checkout."""
+    monkeypatch.setenv("GITHUB_APP_ID", "42")
+    monkeypatch.setenv("GITHUB_PRIVATE_KEY", "stub-pem")
+    overlay_token = "test-oauth-token"
+
+    rendered = render_run_config_overlay(
+        committed_text=_COMMITTED_WORKFLOW_TOML,
+        workflow_dir=tmp_path,
+        token=overlay_token,
+        github_token=_FAKE_GITHUB_TOKEN,
+        siblings=None,
+    )
+
+    assert rendered is not None
+    env_table_at = rendered.index("[environments.livespec-ci.env]")
+    prepare_steps = rendered[:env_table_at]
+    assert "/workspace/.livespec-gh-refresh/bin/mint_app_token.py" in prepare_steps
+    assert "$PWD/.claude-plugin/scripts/bin/mint_app_token.py" not in prepare_steps
+    assert 'token="$(python3 "$mint")"' in prepare_steps
+    assert 'tarfile.open(fileobj=io.BytesIO(payload), mode="r:gz")' in prepare_steps
+
+
+def test_render_run_config_overlay_ignores_target_repo_mint_helper_when_present(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Control: repos shipping the old helper still use the projected helper."""
+    monkeypatch.setenv("GITHUB_APP_ID", "42")
+    monkeypatch.setenv("GITHUB_PRIVATE_KEY", "stub-pem")
+    target_helper = tmp_path / ".claude-plugin" / "scripts" / "bin" / "mint_app_token.py"
+    target_helper.parent.mkdir(parents=True)
+    target_helper.write_text("raise SystemExit('target helper must not run')\n", encoding="utf-8")
+    overlay_token = "test-oauth-token"
+
+    rendered = render_run_config_overlay(
+        committed_text=_COMMITTED_WORKFLOW_TOML,
+        workflow_dir=tmp_path,
+        token=overlay_token,
+        github_token=_FAKE_GITHUB_TOKEN,
+        siblings=None,
+    )
+
+    assert rendered is not None
+    env_table_at = rendered.index("[environments.livespec-ci.env]")
+    prepare_steps = rendered[:env_table_at]
+    assert str(target_helper) not in prepare_steps
+    assert "/workspace/.livespec-gh-refresh/bin/mint_app_token.py" in prepare_steps
+
+
 def test_render_run_config_overlay_keeps_absolute_graph_path(tmp_path: Path) -> None:
     absolute_graph = tmp_path / "elsewhere" / "g.fabro"
     committed = _COMMITTED_WORKFLOW_TOML.replace(
