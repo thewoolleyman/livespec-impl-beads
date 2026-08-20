@@ -34,6 +34,10 @@ import difflib
 import re
 from pathlib import Path
 
+from returns.io import IOFailure, IOResult, IOSuccess
+from returns.pipeline import is_successful
+from returns.unsafe import unsafe_perform_io
+
 from livespec_orchestrator_beads_fabro.errors import SpecVersionNotFoundError
 from livespec_orchestrator_beads_fabro.types import FileDiff, SpecDiff, SpecSnapshot
 
@@ -54,13 +58,21 @@ def read_current_specification(*, spec_root: Path) -> SpecSnapshot:
     return SpecSnapshot(version=version, files=files)
 
 
-def read_specification_history(*, spec_root: Path, version: int) -> SpecSnapshot:
-    """Return a SpecSnapshot of <spec-root>/history/v{version:03d}/."""
+def read_specification_history(
+    *, spec_root: Path, version: int
+) -> IOResult[SpecSnapshot, SpecVersionNotFoundError]:
+    """Return a SpecSnapshot of <spec-root>/history/v{version:03d}/.
+
+    An absent version directory is an EXPECTED failure and rides the
+    failure track as `SpecVersionNotFoundError`; it is not raised.
+    `IOResult` rather than `Result` because the read touches the
+    filesystem.
+    """
     version_dir = _version_directory(spec_root=spec_root, version=version)
     if not version_dir.exists():
-        raise SpecVersionNotFoundError(spec_root=spec_root, version=version)
+        return IOFailure(SpecVersionNotFoundError(spec_root=spec_root, version=version))
     files = _read_spec_directory(directory=version_dir, exclude=set())
-    return SpecSnapshot(version=version, files=files)
+    return IOSuccess(SpecSnapshot(version=version, files=files))
 
 
 def current_specification_version(*, spec_root: Path) -> int:
@@ -78,10 +90,22 @@ def current_specification_version(*, spec_root: Path) -> int:
     return max(versions) if versions else 0
 
 
-def diff_specification_versions(*, spec_root: Path, version_a: int, version_b: int) -> SpecDiff:
-    """Return a SpecDiff comparing two history versions."""
-    snapshot_a = read_specification_history(spec_root=spec_root, version=version_a)
-    snapshot_b = read_specification_history(spec_root=spec_root, version=version_b)
+def diff_specification_versions(
+    *, spec_root: Path, version_a: int, version_b: int
+) -> IOResult[SpecDiff, SpecVersionNotFoundError]:
+    """Return a SpecDiff comparing two history versions.
+
+    Either version being absent is an expected failure, surfaced on the
+    failure track rather than raised. The FIRST absent version wins.
+    """
+    result_a = read_specification_history(spec_root=spec_root, version=version_a)
+    if not is_successful(result_a):
+        return IOFailure(unsafe_perform_io(result_a.failure()))
+    result_b = read_specification_history(spec_root=spec_root, version=version_b)
+    if not is_successful(result_b):
+        return IOFailure(unsafe_perform_io(result_b.failure()))
+    snapshot_a = unsafe_perform_io(result_a.unwrap())
+    snapshot_b = unsafe_perform_io(result_b.unwrap())
     all_paths = sorted(set(snapshot_a.files.keys()) | set(snapshot_b.files.keys()))
     per_file: dict[str, FileDiff] = {}
     for path in all_paths:
@@ -90,7 +114,7 @@ def diff_specification_versions(*, spec_root: Path, version_a: int, version_b: i
         if content_a == content_b:
             continue
         per_file[path] = _file_diff(path=path, content_a=content_a, content_b=content_b)
-    return SpecDiff(version_a=version_a, version_b=version_b, per_file=per_file)
+    return IOSuccess(SpecDiff(version_a=version_a, version_b=version_b, per_file=per_file))
 
 
 def _read_spec_directory(*, directory: Path, exclude: set[str]) -> dict[str, str]:
