@@ -70,6 +70,8 @@ The operation's testable package substrate is
   deferrals before implementation children are admitted.
 - `close_plan_child(...)` and `reparent_plan_child(...)` dispose one plan
   child with a recorded rationale. See Step 3's "Child disposition".
+- `plan_record_rate_warnings(...)` reports the days on which this thread's
+  record authoring ran past a threshold. See Step 3's "Record rate".
 - `record_completeness_review_evidence(...)` appends one durable
   independent completeness-review evidence comment to the plan epic.
 - `archive_thread(...)` performs the child-disposition gate, launches a
@@ -166,6 +168,28 @@ Both refuse a **spec-change-tier** child — one carrying a spec commitment
 — by raising `PlanDispositionRefusedError`. That child is human-gated by
 routing: hand it to `propose-change` instead of disposing it here.
 
+#### Record rate
+
+A blocked session writes records instead of making progress: one wrote 15
+handoff entries and about 12 research notes in a single day while it was
+stuck, and nothing noticed, because every individual write was
+legitimate.
+
+Before appending a handoff entry or a research note, call
+`plan_record_rate_warnings(entries=..., research_paths=...)` with the
+timeline from `read_timeline(...)` and this thread's research-note paths.
+It returns one warning per day that ran past the threshold — separately
+for handoff entries, counted per author-day, and for research notes,
+counted per day from the working tree's modification times.
+
+Surface every warning it returns, then carry on. This guard only WARNS:
+it never refuses a write, and exceeding the threshold is not an error. A
+genuinely busy day is allowed to exceed it. What is NOT allowed is a
+thread quietly accumulating a day's worth of records nobody sees, so the
+warning MUST be surfaced rather than swallowed. When one fires, the
+useful question is whether the thread is blocked on something that a
+handoff entry cannot fix.
+
 #### Unattended resume
 
 A resume is *unattended* when the environment variable
@@ -259,6 +283,8 @@ or work-item before archiving.
   the which-action picker is the attended-mode behavior.
 - Child disposition is session-performable with a recorded rationale;
   only a spec-change-tier child refuses.
+- Runaway record authoring is visible: a day past the record-rate
+  threshold warns, and never refuses a write.
 - Creation writes one research note plus one epic anchor and nothing
   else.
 - Status is derived from the ledger and never shadowed in files.
