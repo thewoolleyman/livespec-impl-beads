@@ -1540,6 +1540,133 @@ def test_render_run_config_overlay_ignores_target_repo_mint_helper_when_present(
     assert "/workspace/.livespec-gh-refresh/bin/mint_app_token.py" in prepare_steps
 
 
+def test_projected_gh_wrapper_publishes_for_target_without_scripts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A target without the orchestrator scripts tree still reaches PR create."""
+    _assert_projected_gh_wrapper_publishes(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        target_helper_source=None,
+    )
+
+
+def test_projected_gh_wrapper_publishes_when_target_helper_exists(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Control: a target-local helper cannot shadow the projected helper."""
+    _assert_projected_gh_wrapper_publishes(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        target_helper_source="echo target-helper-token\n",
+    )
+
+
+def _assert_projected_gh_wrapper_publishes(
+    *,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    target_helper_source: str | None,
+) -> None:
+    monkeypatch.setenv("GITHUB_APP_ID", "42")
+    monkeypatch.setenv("GITHUB_PRIVATE_KEY", "stub-pem")
+    if target_helper_source is not None:
+        target_helper = tmp_path / ".claude-plugin" / "scripts" / "bin" / "mint_app_token.py"
+        target_helper.parent.mkdir(parents=True)
+        target_helper.write_text(target_helper_source, encoding="utf-8")
+
+    rendered = render_run_config_overlay(
+        committed_text=_COMMITTED_WORKFLOW_TOML,
+        workflow_dir=tmp_path,
+        token=_FAKE_GITHUB_TOKEN,
+        github_token=_FAKE_GITHUB_TOKEN,
+        siblings=None,
+    )
+
+    assert rendered is not None
+    script = _gh_refresh_prepare_script(rendered=rendered)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    capture = tmp_path / "gh-calls.txt"
+    mint_arg_log = tmp_path / "mint-args.txt"
+    fake_gh = bin_dir / "gh"
+    fake_gh.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -eu\n"
+        "{\n"
+        '  printf "args=%s\\n" "$*"\n'
+        '  printf "GH_TOKEN=%s\\n" "${GH_TOKEN:-}"\n'
+        '  printf "GITHUB_TOKEN=%s\\n" "${GITHUB_TOKEN:-}"\n'
+        '} >> "$GH_CAPTURE"\n'
+        'if [ "$1" = "auth" ] && [ "$2" = "status" ]; then exit 0; fi\n'
+        'if [ "$1" = "pr" ] && [ "$2" = "create" ]; then exit 0; fi\n'
+        "exit 64\n",
+        encoding="utf-8",
+    )
+    fake_gh.chmod(0o755)
+    env = {
+        **os.environ,
+        "GH_CAPTURE": str(capture),
+        "MINT_ARG_LOG": str(mint_arg_log),
+        "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+    }
+
+    prepare_script = tmp_path / "prepare-gh.sh"
+    prepare_script.write_text(script, encoding="utf-8")
+    subprocess.run(
+        ["/bin/bash", str(prepare_script)],
+        cwd=tmp_path,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert (bin_dir / "gh.livespec-real").is_file()
+
+    fake_python = bin_dir / "python3"
+    fake_python.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -eu\n"
+        'printf "%s\\n" "$1" >> "$MINT_ARG_LOG"\n'
+        "printf minted-token\n",
+        encoding="utf-8",
+    )
+    fake_python.chmod(0o755)
+
+    for argv in (["gh", "auth", "status"], ["gh", "pr", "create", "--title", "x"]):
+        subprocess.run(
+            argv,
+            cwd=tmp_path,
+            env=env,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+    assert capture.read_text(encoding="utf-8").splitlines() == [
+        "args=auth status",
+        "GH_TOKEN=minted-token",
+        "GITHUB_TOKEN=minted-token",
+        "args=pr create --title x",
+        "GH_TOKEN=minted-token",
+        "GITHUB_TOKEN=minted-token",
+    ]
+    assert mint_arg_log.read_text(encoding="utf-8").splitlines() == [
+        "/workspace/.livespec-gh-refresh/bin/mint_app_token.py",
+        "/workspace/.livespec-gh-refresh/bin/mint_app_token.py",
+    ]
+
+
+def _gh_refresh_prepare_script(*, rendered: str) -> str:
+    marker = "# --- Dispatcher-materialized livespec-refreshing-gh-wrapper ---"
+    start = rendered.index(marker)
+    match = re.search(r"script = '''\n(?P<script>.*?)\n'''", rendered[start:], re.DOTALL)
+    assert match is not None
+    return match.group("script")
+
+
 def test_render_run_config_overlay_keeps_absolute_graph_path(tmp_path: Path) -> None:
     absolute_graph = tmp_path / "elsewhere" / "g.fabro"
     committed = _COMMITTED_WORKFLOW_TOML.replace(
