@@ -61,7 +61,11 @@ The operation's testable package substrate is
   A supervisor session driving this operation MUST use this call, never
   `append_handoff`, for its own handoff entries.
 - `read_timeline(...)` reads plan handoff and scope comments
-  oldest-first.
+  oldest-first, each labelled with its `kind` (`handoff` or `scope`).
+- `is_unattended_session(...)` reports whether this session carries the
+  unattended marker, and `resume_directive(...)` decides whether this
+  resume asks which action to take or takes the single recorded next
+  action. See Step 3's "Unattended resume".
 - `record_scope_event(...)` records requirement carriers and explicit
   deferrals before implementation children are admitted.
 - `record_completeness_review_evidence(...)` appends one durable
@@ -115,8 +119,10 @@ files, or any other thread metadata file.
 
 ### Step 3 - Work The Thread
 
-Within a thread, ask which action to take and perform one action at a
-time:
+Within a thread, perform one action at a time. Which action comes from
+`resume_directive(...)`: an attended resume asks, and an unattended one
+with a single recorded next action takes it. See "Unattended resume"
+below.
 
 - Update reasoning. Add or revise a research note under
   `plan/<slug>/research/`.
@@ -134,6 +140,36 @@ time:
   event exists. Planning sessions file ripe work; they do not implement
   it inline.
 - Close the thread. Run the archive gates in Step 5.
+
+#### Unattended resume
+
+A resume is *unattended* when the environment variable
+`LIVESPEC_PLAN_UNATTENDED` is set to a truthy value (`1`, `true`, `yes`,
+or `on`, case- and whitespace-insensitive). The overseer daemon sets it
+on the resume it triggers after a context-threshold restart, where no
+operator is present to answer a question. Nothing else sets it: an
+operator-launched session leaves it unset and keeps the picker.
+
+Call `resume_directive(entries=..., unattended=...)` with the timeline
+from `read_timeline(...)`. It returns `ask`, `next_action`, and a
+`reason`:
+
+- `ask` is false only when the session is unattended AND the NEWEST
+  handoff entry names exactly one next action. Take that
+  `next_action` directly and do not raise the which-action picker.
+- `ask` is true in every other case — an attended session, a timeline
+  with no handoff entry, a newest handoff naming no next action, or one
+  naming several. Present the picker and wait.
+
+The newest **handoff** entry is what counts; a scope event recorded after
+it does not shadow the handoff, and an older handoff's next action is
+never resurrected once a newer handoff supersedes it. A marker line that
+names nothing after its colon records no action, so it falls back to the
+picker rather than executing an empty instruction.
+
+Report the `reason` when the picker is raised in an unattended session:
+that string is how a hands-off restart explains why it stopped rather
+than parking silently on a question nobody will see.
 
 ### Step 4 - Handoff Timeline Requirements
 
@@ -194,6 +230,8 @@ or work-item before archiving.
 ## Important Properties
 
 - Research is filesystem-held; handoffs are ledger-held.
+- An unattended resume with exactly one recorded next action takes it;
+  the which-action picker is the attended-mode behavior.
 - Creation writes one research note plus one epic anchor and nothing
   else.
 - Status is derived from the ledger and never shadowed in files.
