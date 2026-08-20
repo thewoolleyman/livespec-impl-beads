@@ -6,17 +6,6 @@ api_base="${HONEYCOMB_API_BASE:-https://api.honeycomb.io}"
 dataset="${HONEYCOMB_FABRO_DATASET:-fabro}"
 trigger_name="${HONEYCOMB_FABRO_RUN_TURN_TRIGGER_NAME:-Fabro run_turn dead-man}"
 recipient_selector="${HONEYCOMB_OPERATOR_ALERT_RECIPIENT:-}"
-# Trailing window with no `run_turn` span that counts as "telemetry is dead".
-# Default is the API MAXIMUM of 3600s, not the 10 minutes originally specified:
-# the factory dispatches episodically, so a short window alarms on idleness
-# rather than on a broken pipeline. Measured 2026-08-20 on the `fabro` dataset:
-# 8 `run_turn` spans across the trailing 3h, all inside ONE 10-minute bucket, so
-# a 600s window would have flapped alarm/clear on nearly every bucket. The
-# `bd-guard` telemetry trigger took the same correction (1h -> 8h, 2026-07-18).
-# Honeycomb REFUSES a trigger whose query time_range exceeds 3600 ("must be no
-# greater than 3600."), so 1h is the ceiling here and a longer dead-man window
-# cannot be expressed as a plain trigger.
-window_seconds="${HONEYCOMB_FABRO_RUN_TURN_WINDOW_SECONDS:-3600}"
 dry_run="${DRY_RUN:-0}"
 
 if [[ -z "${api_key}" ]]; then
@@ -120,30 +109,23 @@ raise SystemExit(1)
 PY
 )"
 
-python3 - "${payload_json}" "${trigger_name}" "${recipient_id}" "${window_seconds}" <<'PY'
+python3 - "${payload_json}" "${trigger_name}" "${recipient_id}" <<'PY'
 import json
 import sys
 
-path, trigger_name, recipient_id, raw_window = sys.argv[1:]
-window_seconds = int(raw_window)
+path, trigger_name, recipient_id = sys.argv[1:]
 payload = {
     "name": trigger_name,
     "description": (
         "Dead-man trigger for the livespec Fabro dataset: fires when no "
-        f"run_turn spans arrive over the trailing {window_seconds}s. The window "
-        "is hours, not minutes, on purpose -- the factory dispatches "
-        "episodically, so a short window alarms on idleness instead of on a "
-        "broken telemetry pipeline."
+        "run_turn spans arrive over the trailing 10 minutes."
     ),
-    # Honeycomb rejects a tag key that is not purely lowercase LETTERS
-    # ("key: must contain only lowercase letters."), so no hyphens here --
-    # `work-item` is refused with a 422.
     "tags": [
         {"key": "owner", "value": "livespec"},
-        {"key": "workitem", "value": "bd-ib-ehrdid"},
+        {"key": "work-item", "value": "bd-ib-ehrdid"},
     ],
     "threshold": {"op": "<=", "value": 0, "exceeded_limit": 1},
-    "frequency": 900,
+    "frequency": 600,
     "alert_type": "on_change",
     "disabled": False,
     "recipients": [{"id": recipient_id}],
@@ -152,7 +134,7 @@ payload = {
         "calculations": [{"op": "COUNT"}],
         "filters": [{"column": "name", "op": "=", "value": "run_turn"}],
         "filter_combination": "AND",
-        "time_range": window_seconds,
+        "time_range": 600,
     },
 }
 with open(path, "w", encoding="utf-8") as handle:
