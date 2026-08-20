@@ -533,6 +533,9 @@ if [ -n "$status_value" ]; then
             _bdg_op="status:$status_value"
             if [ "$status_value" = "in_progress" ]; then
                 guard_warn "bd update --status $status_value" "--status active"
+            elif [ "$status_value" = "open" ]; then
+                guard_warn "bd update --status $status_value" \
+                    "--status backlog (new items are normalized to backlog)"
             else
                 guard_warn "bd update --status $status_value" \
                     "one of:$LIFECYCLE_STATUSES(or 'bd close')"

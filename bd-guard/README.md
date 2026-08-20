@@ -74,6 +74,11 @@ immediately updates the item cannot race the guard's own backlog update.
 Telemetry records the normalization as `guard.op=create-forced-backlog` (with
 `guard.warned=false`, since a create is not a violation).
 
+The guard deliberately does **not** add a create-time stderr note yet: `bd`'s
+auto-backup denial currently makes stderr noisy on ordinary invocations, so that
+notice is sequenced behind `bd-ib-rxf`. Until that lands, the `--status open`
+refusal names the induced cause and points callers at `--status backlog`.
+
 **id extraction is form-anchored, never first-token-anywhere.** beads v1.0.5's
 legacy `--json` (the **default** when `BD_JSON_ENVELOPE` is unset) re-marshals
 the issue through a map with **alphabetically-sorted keys**, so `assignee` /
@@ -148,6 +153,7 @@ Example warnings:
 
 ```
 livespec bd-guard: 'bd update --status in_progress' is non-lifecycle; use --status active
+livespec bd-guard: 'bd update --status open' is non-lifecycle; use --status backlog (new items are normalized to backlog)
 livespec bd-guard: 'bd update --claim' is non-lifecycle; use --status active
 livespec bd-guard: 'bd reopen' is non-lifecycle; use bd update --status <lifecycle> (e.g. backlog)
 livespec bd-guard: 'bd ready --claim' is non-lifecycle; use --status active
