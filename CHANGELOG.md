@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.59.3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.59.2...v0.59.3) (2026-08-20)
+
+
+### Bug Fixes
+
+* **honeycomb:** make the run_turn dead-man window sane and the payload API-valid ([462611c](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/462611c04dc00d855979a79e1aa171c0c89a4fe3))
+
 ## [0.59.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.59.1...v0.59.2) (2026-08-19)
 
 
