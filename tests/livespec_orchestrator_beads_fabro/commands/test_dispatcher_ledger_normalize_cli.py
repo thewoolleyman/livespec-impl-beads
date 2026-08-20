@@ -111,7 +111,7 @@ def test_plan_remaps_in_progress_to_active() -> None:
     ]
 
 
-def test_plan_remaps_leaves_everything_else_untouched() -> None:
+def test_plan_remaps_leaves_parked_and_unknown_statuses_untouched() -> None:
     items = [
         _item(id="deferred-1", status="deferred"),
         _item(id="hooked-1", status="hooked"),
@@ -150,11 +150,11 @@ def test_ledger_normalize_dry_run_reports_and_mutates_nothing(
 
     exit_code = main(argv=["ledger-normalize", "--project-root", str(tmp_path), "--dry-run"])
 
-    assert exit_code == 1  # the deferred row is residual non-conformance
+    assert exit_code == 0
     out = capsys.readouterr().out
     assert "would remap  native-open  open -> backlog" in out
     assert "would remap  raw-claim  in_progress -> active" in out
-    assert "RESIDUAL  FAIL  status-conformance  stuck-deferred" in out
+    assert "(no residual findings)" in out
     # Dry-run performs NO store mutation: every status is untouched.
     assert _current_statuses(config=config) == {
         "native-open": "open",
@@ -176,14 +176,13 @@ def test_ledger_normalize_dry_run_json_shape(
         argv=["ledger-normalize", "--project-root", str(tmp_path), "--dry-run", "--json"]
     )
 
-    assert exit_code == 1
+    assert exit_code == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["dry_run"] is True
     remapped_by_id = {remap["item_id"]: remap for remap in payload["remapped"]}
     assert remapped_by_id["native-open"]["to"] == "backlog"
     assert remapped_by_id["raw-claim"]["to"] == "active"
-    residual_ids = {finding["item_id"] for finding in payload["residual"]}
-    assert residual_ids == {"stuck-deferred"}
+    assert payload["residual"] == []
     # Still no mutation.
     assert _current_statuses(config=config)["native-open"] == "open"
 
@@ -199,13 +198,13 @@ def test_ledger_normalize_real_run_remaps_both_and_reports_residual(
 
     exit_code = main(argv=["ledger-normalize", "--project-root", str(tmp_path)])
 
-    assert exit_code == 1  # the deferred row it cannot map remains residual
+    assert exit_code == 0
     out = capsys.readouterr().out
     assert "remapped  native-open  open -> backlog" in out
     assert "remapped  raw-claim  in_progress -> active" in out
-    assert "RESIDUAL  FAIL  status-conformance  stuck-deferred" in out
-    # Both native statuses were written through to the store; the deferred
-    # row is left untouched for a human.
+    assert "(no residual findings)" in out
+    # The transient native statuses were written through to the store; the
+    # parked deferred row is conforming and left untouched.
     assert _current_statuses(config=config) == {
         "native-open": "backlog",
         "raw-claim": "active",
@@ -232,6 +231,22 @@ def test_ledger_normalize_real_run_all_clean_exits_zero(
         "native-open": "backlog",
         "raw-claim": "active",
     }
+
+
+def test_ledger_normalize_reports_unknown_status_residual(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    config = _config()
+    append_work_item(path=config, item=_item(id="bad-hooked", status="hooked"))
+
+    exit_code = main(argv=["ledger-normalize", "--project-root", str(tmp_path)])
+
+    assert exit_code == 1
+    out = capsys.readouterr().out
+    assert "(nothing to normalize)" in out
+    assert "RESIDUAL  FAIL  status-conformance  bad-hooked" in out
+    assert "status 'hooked' is outside the livespec lifecycle" in out
 
 
 def test_ledger_normalize_nothing_to_normalize(

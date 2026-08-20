@@ -3,15 +3,16 @@
 The check wires the Dispatcher's `status-conformance` Ledger invariant into
 `just check` / `/livespec:doctor`: every LIVE (non-`done`) work-item's stored
 beads status MUST be one of `ALLOWED_BEADS_STATUSES` — the canonical 7-state
-lifecycle projected through the adapter's `done` → `closed` rename, DERIVED
-from the `WorkItemStatus` Literal. The pure `status_conformance_findings`
-surface is exercised directly with constructed work-items (a conforming row,
-an out-of-lifecycle row that IS flagged, and a row that yields a NON-status
-Ledger finding which is filtered out); `main()` is driven hermetically
-through the in-memory `FakeBeadsClient` for the exit-code + structlog
-branches. A derivation test pins `ALLOWED_BEADS_STATUSES` to the
-`WorkItemStatus` Literal so a stale hand-typed set (PR #227's failure mode)
-cannot regress silently.
+lifecycle projected through the adapter's `done` → `closed` rename, plus the
+modeled beads-native parked state `deferred`. The pure
+`status_conformance_findings` surface is exercised directly with constructed
+work-items (a conforming row, a parked row, an out-of-lifecycle row that IS
+flagged, and a row that yields a NON-status Ledger finding which is filtered
+out); `main()` is driven hermetically through the in-memory `FakeBeadsClient`
+for the exit-code + structlog branches. A derivation test pins
+`ALLOWED_BEADS_STATUSES` to the `WorkItemStatus` Literal plus the parked
+extension so a stale hand-typed set (PR #227's failure mode) cannot regress
+silently.
 """
 
 from __future__ import annotations
@@ -119,7 +120,7 @@ def test_allowed_beads_statuses_derives_from_work_item_status() -> None:
     """`done` maps to beads `closed`; every other state appears verbatim.
 
     Pins `ALLOWED_BEADS_STATUSES` to the canonical 7-state `WorkItemStatus`
-    Literal at runtime, so a stale hand-typed set (PR #227) fails here.
+    Literal plus the parked native extension, so a stale hand-typed set fails.
     """
     livespec_states = set(get_args(WorkItemStatus))
     assert livespec_states == {
@@ -131,7 +132,7 @@ def test_allowed_beads_statuses_derives_from_work_item_status() -> None:
         "blocked",
         "done",
     }
-    assert (livespec_states - {"done"}) | {"closed"} == ALLOWED_BEADS_STATUSES
+    assert ((livespec_states - {"done"}) | {"closed", "deferred"}) == ALLOWED_BEADS_STATUSES
 
 
 # -- status_conformance_findings: keep vs drop -----------------------------
@@ -140,6 +141,7 @@ def test_allowed_beads_statuses_derives_from_work_item_status() -> None:
 def test_findings_flag_out_of_lifecycle_and_drop_non_status_findings() -> None:
     items = [
         _item(id_="ok", status="ready"),
+        _item(id_="parked", status="deferred"),
         _item(id_="bad-open", status="open"),
         # A malformed depends_on yields a `depends-on-ref-wellformedness`
         # Ledger finding, which this check filters OUT (non-status).
