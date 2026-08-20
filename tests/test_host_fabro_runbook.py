@@ -23,10 +23,13 @@ def test_host_fabro_runbook_documents_run_turn_absence_guard() -> None:
     assert "### Fabro `run_turn` absence guard" in _IMAGE_RUNBOOK
     assert "`run-turn-telemetry-absent`" in _IMAGE_RUNBOOK
     assert "critical\nreflection finding" in _IMAGE_RUNBOOK
-    assert "not yet provisioned in the livespec" in _IMAGE_RUNBOOK
-    assert "Honeycomb environment" in _IMAGE_RUNBOOK
-    assert "bd-ib-jb7rzr.3" in _IMAGE_RUNBOOK
-    assert "only the per-dispatch guard layer exists" in _IMAGE_RUNBOOK
+    # The trigger was PROVISIONED 2026-08-20, so the runbook must no longer
+    # claim it is pending. Assert the provisioned identity instead, and assert
+    # the stale claims are GONE so the doc cannot silently regress to them.
+    assert "Fabro run_turn dead-man" in _IMAGE_RUNBOOK
+    assert "q33z6VbrjT6" in _IMAGE_RUNBOOK
+    assert "not yet provisioned in the livespec" not in _IMAGE_RUNBOOK
+    assert "only the per-dispatch guard layer exists" not in _IMAGE_RUNBOOK
     assert "Real Fabro `run_turn` spans do not" in _IMAGE_RUNBOOK
     assert "timestamp-bounded global Fabro `run_turn` marker" in _IMAGE_RUNBOOK
     assert "if a future span shape carries them" in _IMAGE_RUNBOOK
@@ -34,7 +37,9 @@ def test_host_fabro_runbook_documents_run_turn_absence_guard() -> None:
     assert "orchestrator-image/provision-honeycomb-run-turn-trigger.sh" in _IMAGE_RUNBOOK
     assert "filtered to `name = run_turn`" in _IMAGE_RUNBOOK
     assert "threshold `<= 0`" in _IMAGE_RUNBOOK
-    assert "Honeycomb recipient selected by" in _IMAGE_RUNBOOK
+    assert "HONEYCOMB_OPERATOR_ALERT_RECIPIENT" in _IMAGE_RUNBOOK
     assert "redacted email addresses" in _IMAGE_RUNBOOK
-    assert "10-minute" in _IMAGE_RUNBOOK
+    # Deliberately NOT asserting a literal window ("10-minute", "3600", "8h"):
+    # the window is tuning, it has already changed twice, and pinning the number
+    # here makes an operational retune fail CI for no safety benefit.
     assert "DRY_RUN=1" in _IMAGE_RUNBOOK
