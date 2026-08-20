@@ -148,11 +148,12 @@ is where this epic's own plan handoff timeline lives. The 34 entries on
 The rehearsal is scoped, in the epic's words, "to exactly those" migrations
 `0050`–`0053`. Measured against the package under
 `plan/beads-v1-1-2-upgrade/rehearsal-package/`, coverage of the rekey is
-**partial and asymmetric**:
+**absent on all four tables** (this sentence originally read "partial and
+asymmetric"; see the CORRECTION below the table):
 
 | Rekeyed table | Captured by the inventory? | Would the rewrite be visible? |
 |---|---|---|
-| `comments` | yes — `comments.json`, columns include `id`, `ordered_by: [issue_id, id]` | **yes, loudly** |
+| `comments` | yes — `comments.json`, columns include `id`, `ordered_by: [issue_id, id]` | ~~**yes, loudly**~~ **no** — see the CORRECTION below |
 | `events` | no artifact | no |
 | `issue_snapshots` | no artifact | no |
 | `compaction_snapshots` | no artifact | no |
@@ -177,6 +178,40 @@ Two distinct consequences, pulling in opposite directions:
    `compaction_snapshots` get the same class of rewrite with no artifact
    capturing it. The rehearsal cannot prove those converged, or that they
    converged *correctly*.
+
+> **CORRECTION, same day — consequence 1 above is WRONG, and the table's
+> "yes, loudly" row with it.** I inferred visibility from the fact that
+> `comments.json` captures `id`, without tracing whether anything ever
+> *compares* two captures across the migration boundary. Nothing does. Reading
+> `command-plans/beads112-rehearsal.command-plan.json` stage by stage, the plan
+> captures an inventory at `source/v49` (`capture-v49-baseline`) and another at
+> `migrated/golden-compare` (`capture-v53-and-golden-schema`), and it performs
+> exactly three comparisons:
+>
+> - `compare-golden-schema.sh`, whose input is `schema.json` — **schema only,
+>   no row data**;
+> - `compare-restored-baseline.sh`, comparing `source/v49` against
+>   `restored/v49` — **both sides at v49**, a backup/restore fidelity check;
+> - the round-trip delta, whose script (`run-round-trip.sh`) creates two issues,
+>   one dependency and one comment **on the already-migrated database** — so
+>   both sides of that delta are post-migration.
+>
+> **No comparison in the package puts v49 data beside v53 data.** So the
+> `comments.id` rewrite is not surfaced at all, there is no false-alarm hazard,
+> and the gap is **uniform across all four tables** rather than asymmetric. The
+> corrected table row for `comments` is "captured at both points, never
+> compared across the boundary → **no**".
+>
+> This makes the finding **stronger**, not weaker: the rehearsal cannot detect
+> an incorrect, partial, or skipped re-key on *any* of the four tables, because
+> it never diffs data across the migration. Recommendation 2 below should
+> therefore be read as "add a cross-boundary data comparison", not merely "add
+> three more artifacts".
+>
+> Recorded rather than silently edited, because the original error was
+> reasoning from *artifact capture* to *comparison coverage* without checking
+> the second step — the same "true premise, unverified conclusion" shape this
+> thread's timeline already records three instances of.
 
 The good news: the inventory **does** capture `ignored_schema_migrations` rows
 (in `schema-migrations.json`, alongside `schema_migrations`), so the ignored
