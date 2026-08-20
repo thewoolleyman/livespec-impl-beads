@@ -12,6 +12,34 @@
 
 set -euo pipefail
 
+# Read `url` from settings.toml's [cli.target] table.
+#
+# Extracted as a function so it can be tested against fixtures: it is a
+# hand-rolled TOML reader, and the file it parses contains a `url` key in
+# several OTHER tables ([server.api], [server.web]). Matching the wrong one
+# would compare the right key against the wrong value and report `ok`.
+#
+# The awk state machine: arm on the [cli.target] header, disarm on ANY
+# subsequent table header (so sibling tables cannot leak in), and while armed
+# take the first `url =` line, stripping the key and the surrounding quotes.
+read_cli_target_url() {
+    local toml="$1"
+    awk '
+        /^\[cli\.target\]/ { in_table = 1; next }
+        /^\[/                { in_table = 0 }
+        in_table && /^url[[:space:]]*=/ {
+            gsub(/^url[[:space:]]*=[[:space:]]*"|"$/, "")
+            print
+            exit
+        }
+    ' "${toml}"
+}
+
+# Sourceable for testing: the runtime body below runs only on direct execution.
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+    return 0
+fi
+
 HOST_ENV="${1:?usage: check-settings.sh <hosts/NAME.env>}"
 EXPECTED="${HOST_ENV%.env}.settings.expected"
 
@@ -70,7 +98,7 @@ done < "${EXPECTED}"
 settings_toml="${FABRO_HOST_HOME}/.fabro/settings.toml"
 if [[ -r "${settings_toml}" ]]; then
     want_cli="${FABRO_CLI_TARGET_URL:-http://127.0.0.1:32276}"
-    got_cli="$(awk '/^\[cli\.target\]/{f=1;next} /^\[/{f=0} f&&/^url[[:space:]]*=/{gsub(/^url[[:space:]]*=[[:space:]]*"|"$/,"");print;exit}' "${settings_toml}")"
+    got_cli="$(read_cli_target_url "${settings_toml}")"
     if [[ "${got_cli}" != "${want_cli}" ]]; then
         printf 'DRIFT  %-46s expected=%-42s actual=%s\n' "cli.target.url" "${want_cli}" "${got_cli:-<<missing>>}"
         status=1
