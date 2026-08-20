@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.62.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.0...v0.62.1) (2026-08-20)
+
+
+### Bug Fixes
+
+* **intake:** put apply_intake_dor on the IOResult railway ([8a4ee4a](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/8a4ee4a2efff51c205937a5d8854ef79a1b8a3e5))
+* **spec-reader:** put read_specification_history on the IOResult railway ([df316ea](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/df316eac3e0f410afeafb246535fbf5944d100de))
+
 ## [0.62.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.61.0...v0.62.0) (2026-08-20)
 
 
