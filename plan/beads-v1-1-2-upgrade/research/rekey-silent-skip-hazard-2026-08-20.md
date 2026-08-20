@@ -229,3 +229,65 @@ make it.
 Recorded as a finding, not filed as a work item and not implemented: the
 implementation children of this epic are `admission:manual`, and this session
 holds no admission.
+
+## How the rewrite is actually performed, and what it costs
+
+Added 2026-08-20 after reading `rekeyAuxRowTable`, which the earlier sections
+listed as unexamined ("I read its caller's error handling, not its body").
+
+The per-table pass is:
+
+1. `SELECT id, <frozen columns> FROM <table>` — **the whole table, unbatched
+   and with no `ORDER BY`** — scanned into an in-memory `map[digest][]id`.
+2. For each digest group, compute the target ids `rowid.New(table, i, digest)`
+   for `i` in `0..n-1`; rows already holding one of their group's targets are
+   left alone (this is what makes re-running a no-op), and the remaining "free"
+   ids are sorted and paired with the remaining targets.
+3. The pairs are sorted by old id — the code comments that this is
+   "deterministic `UPDATE` order (groups is a map) so runs are reproducible" —
+   and then applied **one row at a time**:
+
+```go
+for _, r := range todo {
+    db.ExecContext(ctx, fmt.Sprintf(`UPDATE %s SET id = ? WHERE id = ?`, t.name),
+        r.newID, r.oldID)
+}
+```
+
+Three properties follow, none of them alarming on their own:
+
+- **One statement per re-keyed row.** Cost scales linearly with row count, as
+  individual round trips to the Dolt server rather than a set-based update.
+- **The full table is read into memory first.** Peak memory scales with table
+  size, not with a batch size.
+- **No transaction wraps the loop here.** Atomicity is not the mechanism;
+  idempotence plus the pre-`UPDATE` sentinel is. A crash mid-loop leaves the
+  table partly re-keyed and the next pass resumes, which is why step 2's
+  "already holding a target" check exists.
+
+The primary-key collision worry that an in-place `SET id = ...` would normally
+raise is handled by the held/free split: a target already occupied by a row of
+the same digest group is never re-assigned.
+
+### Measured blast radius for this tenant, so the cost is not guessed
+
+Read through the sanctioned listing path on the
+`livespec-orchestrator-beads-fabro` tenant, 2026-08-20:
+
+- **629** issues
+- **646** comments in total, the largest single issue carrying **60**
+
+So `comments` is on the order of hundreds of rows here, and the per-row
+`UPDATE` loop for that table is a modest, bounded cost — seconds-to-minutes,
+not an outage. **This measurement right-sizes the concern rather than raising
+one.**
+
+What is *not* measured: `events`, `issue_snapshots` and `compaction_snapshots`.
+`events` grows with every status change on every issue, so it is the largest of
+the four by construction, and no ledger verb exposes its row count. The
+rehearsal captures `table-counts.json`, which is exactly where that number will
+first become visible — worth reading deliberately rather than in passing, since
+it is the multiplier on the whole loop.
+
+Other tenants were not surveyed. The family has fourteen; this is one, and it
+is not necessarily the largest.
