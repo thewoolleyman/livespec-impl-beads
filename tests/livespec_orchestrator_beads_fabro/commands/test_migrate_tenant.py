@@ -130,7 +130,6 @@ def test_main_backfills_native_content_fields_and_retires_metadata_copies(
     client.update_issue(
         issue_id="metadata-only",
         metadata={
-            "rank": "a0",
             "acceptance_criteria": "Legacy acceptance.",
             "notes": "Legacy notes.",
         },
