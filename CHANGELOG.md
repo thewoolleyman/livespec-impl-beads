@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.59.7](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.59.6...v0.59.7) (2026-08-20)
+
+
+### Bug Fixes
+
+* enforce authoritative bd dependency child surface ([93b6a15](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/93b6a158a5c6fd0136e72f0c547ce82ad0b8d33f))
+* probe bd show child divergence ([0a1c614](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/0a1c614f72cd08fa27aca3c314e67a82c8f96f66))
+
 ## [0.59.6](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.59.5...v0.59.6) (2026-08-20)
 
 
