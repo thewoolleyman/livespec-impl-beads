@@ -47,9 +47,9 @@ def migrate_tenant(*, config: StoreConfig) -> tuple[int, int, int]:
     markers are skipped.
     """
     register_custom_statuses(path=config)
+    content_fields = backfill_native_content_fields(path=config)
     rekeyed = _backfill_legacy_ranks(config=config)
     factories = backfill_dispatch_factory_metadata(path=config)
-    content_fields = backfill_native_content_fields(path=config)
     return rekeyed, factories, content_fields
 
 
