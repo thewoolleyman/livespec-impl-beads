@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.60.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.59.11...v0.60.0) (2026-08-20)
+
+
+### Features
+
+* **plan:** take the single recorded next action on an unattended resume ([8e6e7b5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/8e6e7b5b82b3b2ef7a7d8920b27e561615a95fea))
+
 ## [0.59.11](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.59.10...v0.59.11) (2026-08-20)
 
 
