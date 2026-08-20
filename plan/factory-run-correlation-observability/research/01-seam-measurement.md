@@ -113,8 +113,10 @@ Stated as a proposal for the grooming pass to accept, amend, or reject; it is
 not a decision taken here.
 
 1. Learn the fabro run id host-side from the `Workflow run started` event's
-   `run_id` (and/or `Sandbox initialized`'s `id`) within a trace, and stamp it
-   onto that trace's `run` spans as the **already-allowlisted** `fabro.run_id`.
+   `run_id` (and/or `Sandbox initialized`'s `id`) and stamp it onto the span
+   that event belongs to as the **already-allowlisted** `fabro.run_id`. Section
+   6 measures that the event is nested inside the `run` span itself, so this is
+   a local read-and-stamp, not a join.
 2. `_otel_enrich.py` already maintains `work.item.id → {livespec.dispatch.id,
    fabro.run_id}`, and `livespec-dispatcher` spans already carry
    `fabro.run_id` — so inverting that map on `fabro.run_id` backfills
@@ -133,15 +135,45 @@ repo has already paid for that lesson once: `plan/otel-receiver-attr-verificatio
 exists solely because O4's five attributes were emitted correctly and dropped by
 this same gate.
 
-## 6. The assumption in seam C that is NOT yet verified
+## 6. The assumption seam C rested on — measured, and it dissolves
 
-Seam C needs the `Workflow run started` event to reach the enricher **before**
-the `run` span it must stamp. Ordering is plausible and favourable — the event
-fires at run start while the `run` span is exported at close, and observed `run`
-durations here are 1,012s–1,309s — but *plausible is not measured*. Treat it as
-the first thing the implementing child must prove, not as established. If it
-does not hold, the stamp needs a short deferral buffer or a second pass, which
-changes the size of the work.
+The first draft of this note flagged an unverified assumption: that the
+`Workflow run started` event reaches the enricher *before* the `run` span it
+must stamp. It was written as the first thing the implementing child had to
+prove. Measured immediately after, it turns out there is no ordering problem to
+prove, because the two are not separate arrivals at all.
+
+`get_span_details` on `Workflow run started` (same window, 49 samples):
+
+| attribute | value |
+| --- | --- |
+| `meta.annotation_type` | `span_event` (49/49) |
+| `parent_name` | `run` (49/49) |
+| `run_id` | 49 distinct ULIDs, one per event |
+| `workflow` | `ImplementWorkItem` (49/49) |
+
+Honeycomb renders a span event as its own row, which is what made it look like a
+sibling. On the wire it is not a sibling: it is an entry in the `run` span's own
+`events[]` list, inside the same OTLP span object. The enricher receives the run
+id and the span it belongs on **together, in one payload**.
+
+So seam C's step 1 is not a cross-span or cross-batch join needing a buffer or a
+second pass. It is a local read of `span["events"][*]["attributes"]` followed by
+a stamp onto that same span. `correlation_keys_from_attrs`
+(`commands/_otel_enrich.py:166`) currently reads only `span["attributes"]`;
+teaching it to also read nested event attributes is the whole of the mechanism.
+
+This removes the slice that would otherwise have existed to answer it, and it
+shrinks step 1 rather than growing it.
+
+One consequence worth carrying into grooming: `CorrelationJoin.observe`
+(`:133`) returns early when a span carries no `work.item.id`, and
+`CorrelationJoin.backfill` (`:150`) returns only what the span brought in the
+same case. Both are keyed on `work.item.id` alone. Seam C needs a second index
+on `fabro.run_id`, since that is the key the fabro side can actually supply and
+the dispatcher side already carries. `fabro.run_id` is already in
+`ATTRIBUTE_ALLOWLIST`, so no allowlist change is needed for the run id itself —
+only for the factory attribute added later.
 
 ## 7. Verification will lie to you unless execution context is established first
 
