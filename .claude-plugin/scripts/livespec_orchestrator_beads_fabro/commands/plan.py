@@ -24,6 +24,11 @@ from livespec_orchestrator_beads_fabro.commands._plan_disposition import (
     close_plan_child,
     reparent_plan_child,
 )
+from livespec_orchestrator_beads_fabro.commands._plan_record_rate import (
+    DEFAULT_DAILY_RECORD_THRESHOLD,
+    PlanRecordRateWarning,
+    plan_record_rate_warnings,
+)
 from livespec_orchestrator_beads_fabro.commands._plan_timeline import (
     PLAN_HANDOFF_PREFIX,
     PLAN_SCOPE_PREFIX,
@@ -43,9 +48,11 @@ if TYPE_CHECKING:
     from livespec_orchestrator_beads_fabro.types import StoreConfig
 
 __all__: list[str] = [
+    "DEFAULT_DAILY_RECORD_THRESHOLD",
     "UNATTENDED_ENV_VAR",
     "PlanArchiveRefusedError",
     "PlanDispositionRefusedError",
+    "PlanRecordRateWarning",
     "PlanTimelineEntry",
     "ResumeDirective",
     "_blocking_dependency_ids",
@@ -56,6 +63,7 @@ __all__: list[str] = [
     "close_plan_child",
     "create_thread",
     "is_unattended_session",
+    "plan_record_rate_warnings",
     "read_timeline",
     "record_completeness_review_evidence",
     "record_scope_event",
