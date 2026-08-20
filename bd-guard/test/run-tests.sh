@@ -332,6 +332,18 @@ else
     fail "edge: reordered flags"
 fi
 
+# --status open is the status shown by bd's native create output before the
+# guard's follow-up normalization to backlog. The refusal must name that induced
+# cause and the correct lifecycle target, not the old generic lifecycle list.
+run_wrapper fail 0 "" -- update abc-4 --status open
+if ! was_called && [ "$RC" -eq 3 ] \
+        && stderr_has "bd update --status open' is non-lifecycle; use --status backlog (new items are normalized to backlog)" \
+        && ! stderr_has "one of:"; then
+    pass "edge: --status open refusal names create-normalization cause and points to backlog"
+else
+    fail "edge: --status open refusal (rc=$RC, stderr=$(cat "$ERR_FILE"))"
+fi
+
 # global flag BEFORE the subcommand
 run_wrapper warn 0 "" -- --json update abc-4 --claim
 if was_called && assert_argv --json update abc-4 --claim && stderr_has "--claim' is non-lifecycle"; then
