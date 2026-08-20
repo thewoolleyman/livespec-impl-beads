@@ -68,6 +68,8 @@ The operation's testable package substrate is
   action. See Step 3's "Unattended resume".
 - `record_scope_event(...)` records requirement carriers and explicit
   deferrals before implementation children are admitted.
+- `close_plan_child(...)` and `reparent_plan_child(...)` dispose one plan
+  child with a recorded rationale. See Step 3's "Child disposition".
 - `record_completeness_review_evidence(...)` appends one durable
   independent completeness-review evidence comment to the plan epic.
 - `archive_thread(...)` performs the child-disposition gate, launches a
@@ -139,7 +141,30 @@ below.
   `capture-work-item` as a child of the plan epic after the scoping
   event exists. Planning sessions file ripe work; they do not implement
   it inline.
+- Dispose a child. Close or re-parent a plan child that no longer belongs
+  under this epic. See "Child disposition" below.
 - Close the thread. Run the archive gates in Step 5.
+
+#### Child disposition
+
+Disposing a plan child is **session-performable**. It changes where work
+is TRACKED, not what the specification REQUIRES, so it is not a
+spec-change decision and MUST NOT be escalated as one. Treating it as a
+maintainer call deadlocks the archive gate for every epic that
+accumulated scope creep: the gate refuses while a child is undisposed,
+and the session that could dispose it declines to.
+
+Call `close_plan_child(...)` for a child whose work is finished,
+abandoned, or absorbed elsewhere, and `reparent_plan_child(...)` for one
+that belongs under a different parent. Both take a `rationale` and write
+it to the ledger — on the child and on the plan epic — BEFORE they mutate
+anything, so a failed mutation leaves an explained intent rather than a
+silent disposition. Re-parenting moves only the edge to this plan's epic;
+every other edge the child carries is left alone.
+
+Both refuse a **spec-change-tier** child — one carrying a spec commitment
+— by raising `PlanDispositionRefusedError`. That child is human-gated by
+routing: hand it to `propose-change` instead of disposing it here.
 
 #### Unattended resume
 
@@ -232,6 +257,8 @@ or work-item before archiving.
 - Research is filesystem-held; handoffs are ledger-held.
 - An unattended resume with exactly one recorded next action takes it;
   the which-action picker is the attended-mode behavior.
+- Child disposition is session-performable with a recorded rationale;
+  only a spec-change-tier child refuses.
 - Creation writes one research note plus one epic anchor and nothing
   else.
 - Status is derived from the ledger and never shadowed in files.
@@ -248,5 +275,7 @@ or work-item before archiving.
 - Does not write status or queues into planning files.
 - Does not create a thread from strict `<slug>` resume mode.
 - Does not implement child work inline.
+- Does not escalate a plan child's closure or re-parenting to a human,
+  except for a spec-change-tier child.
 - Does not accept a self-review, an unrecorded result, or a partial
   coverage attestation as archive evidence.

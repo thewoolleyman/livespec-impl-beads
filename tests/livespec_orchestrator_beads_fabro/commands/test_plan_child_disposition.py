@@ -1,0 +1,172 @@
+"""A session disposes a plan child itself, and refuses only the spec-change tier."""
+
+from __future__ import annotations
+
+import pytest
+from livespec_orchestrator_beads_fabro._beads_client import (
+    EDGE_PARENT_CHILD,
+    FakeBeadsClient,
+    IssueDraft,
+    make_beads_client,
+    reset_fake_singleton,
+)
+from livespec_orchestrator_beads_fabro.commands._plan_disposition import (
+    PlanDispositionRefusedError,
+    close_plan_child,
+    reparent_plan_child,
+)
+from livespec_orchestrator_beads_fabro.types import StoreConfig
+
+_NOW = "2026-08-20T00:00:00Z"
+_AUTHOR = "unattended-plan-operation-plan"
+
+
+def _config() -> StoreConfig:
+    return StoreConfig(
+        tenant="livespec-impl-beads",
+        prefix="bd-ib",
+        server_user="livespec-impl-beads",
+        database="livespec-impl-beads",
+        bd_path="bd",
+        fake=True,
+    )
+
+
+def _fake() -> FakeBeadsClient:
+    client = make_beads_client(config=_config())
+    assert isinstance(client, FakeBeadsClient)
+    return client
+
+
+def _issue(*, issue_id: str, issue_type: str, spec_id: str | None = None) -> None:
+    _ = _fake().create_issue(
+        draft=IssueDraft(
+            issue_id=issue_id,
+            issue_type=issue_type,
+            title=issue_id,
+            description=issue_id,
+            assignee=None,
+            created_at=_NOW,
+            metadata={"rank": "a1"},
+            labels=["origin:freeform"],
+            spec_id=spec_id,
+        )
+    )
+
+
+def _seed_plan(*, spec_id: str | None = None) -> None:
+    reset_fake_singleton()
+    _issue(issue_id="bd-ib-epic", issue_type="epic")
+    _issue(issue_id="bd-ib-other", issue_type="epic")
+    _issue(issue_id="bd-ib-child", issue_type="task", spec_id=spec_id)
+    _fake().add_dependency(from_id="bd-ib-child", to_id="bd-ib-epic", edge_type=EDGE_PARENT_CHILD)
+
+
+def _comment_bodies(*, issue_id: str) -> list[str]:
+    return [str(comment["text"]) for comment in _fake().list_comments(issue_id=issue_id)]
+
+
+def test_closing_a_plan_child_needs_no_human_valve_and_records_the_rationale() -> None:
+    _seed_plan()
+
+    close_plan_child(
+        config=_config(),
+        epic_id="bd-ib-epic",
+        child_id="bd-ib-child",
+        rationale="Superseded by the scope event; the work moved into bd-ib-epic.2.",
+        author=_AUTHOR,
+        now=_NOW,
+    )
+
+    assert _fake().show_issue(issue_id="bd-ib-child")["status"] == "closed"
+    child_comment = "\n".join(_comment_bodies(issue_id="bd-ib-child"))
+    assert "plan-child-disposition" in child_comment
+    assert "closed" in child_comment
+    assert "Superseded by the scope event" in child_comment
+    assert "bd-ib-child" in "\n".join(_comment_bodies(issue_id="bd-ib-epic"))
+
+
+def test_reparenting_a_plan_child_moves_the_edge_and_records_the_rationale() -> None:
+    _seed_plan()
+
+    reparent_plan_child(
+        config=_config(),
+        epic_id="bd-ib-epic",
+        child_id="bd-ib-child",
+        new_parent_id="bd-ib-other",
+        rationale="Scope creep: this belongs to the sibling thread's epic.",
+        author=_AUTHOR,
+        now=_NOW,
+    )
+
+    edges = _fake().show_issue(issue_id="bd-ib-child")["dependencies"]
+    assert {"depends_on_id": "bd-ib-other", "type": EDGE_PARENT_CHILD} in edges
+    assert {"depends_on_id": "bd-ib-epic", "type": EDGE_PARENT_CHILD} not in edges
+    assert _fake().show_issue(issue_id="bd-ib-child")["status"] != "closed"
+    child_comment = "\n".join(_comment_bodies(issue_id="bd-ib-child"))
+    assert "re-parented to bd-ib-other" in child_comment
+    assert "Scope creep" in child_comment
+
+
+def test_reparenting_leaves_an_unrelated_edge_alone() -> None:
+    _seed_plan()
+    _issue(issue_id="bd-ib-blocker", issue_type="task")
+    _fake().add_dependency(from_id="bd-ib-child", to_id="bd-ib-blocker", edge_type="blocks")
+
+    reparent_plan_child(
+        config=_config(),
+        epic_id="bd-ib-epic",
+        child_id="bd-ib-child",
+        new_parent_id="bd-ib-other",
+        rationale="Scope creep.",
+        author=_AUTHOR,
+        now=_NOW,
+    )
+
+    edges = _fake().show_issue(issue_id="bd-ib-child")["dependencies"]
+    assert {"depends_on_id": "bd-ib-blocker", "type": "blocks"} in edges
+
+
+def test_a_spec_change_tier_child_refuses_closure() -> None:
+    _seed_plan(spec_id="spec:contracts-dispatcher-admission")
+
+    with pytest.raises(PlanDispositionRefusedError) as refusal:
+        close_plan_child(
+            config=_config(),
+            epic_id="bd-ib-epic",
+            child_id="bd-ib-child",
+            rationale="Tidying the epic.",
+            author=_AUTHOR,
+            now=_NOW,
+        )
+
+    assert "bd-ib-child" in str(refusal.value)
+    assert _fake().show_issue(issue_id="bd-ib-child")["status"] != "closed"
+    assert _comment_bodies(issue_id="bd-ib-child") == []
+
+
+def test_a_spec_change_tier_child_refuses_reparenting() -> None:
+    _seed_plan(spec_id="spec:contracts-dispatcher-admission")
+
+    with pytest.raises(PlanDispositionRefusedError):
+        reparent_plan_child(
+            config=_config(),
+            epic_id="bd-ib-epic",
+            child_id="bd-ib-child",
+            new_parent_id="bd-ib-other",
+            rationale="Tidying the epic.",
+            author=_AUTHOR,
+            now=_NOW,
+        )
+
+    edges = _fake().show_issue(issue_id="bd-ib-child")["dependencies"]
+    assert {"depends_on_id": "bd-ib-epic", "type": EDGE_PARENT_CHILD} in edges
+
+
+def test_removing_an_absent_dependency_is_a_no_op() -> None:
+    _seed_plan()
+
+    _fake().remove_dependency(from_id="bd-ib-child", to_id="bd-ib-other")
+
+    edges = _fake().show_issue(issue_id="bd-ib-child")["dependencies"]
+    assert {"depends_on_id": "bd-ib-epic", "type": EDGE_PARENT_CHILD} in edges

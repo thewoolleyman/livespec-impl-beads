@@ -146,6 +146,10 @@ class BeadsClient(Protocol):
         """Close an issue in place (`bd close <id> --reason`)."""
         ...
 
+    def remove_dependency(self, *, from_id: str, to_id: str) -> None:
+        """Remove any dependency edge from one issue to another."""
+        ...
+
     def add_dependency(self, *, from_id: str, to_id: str, edge_type: str) -> None:
         """Add a dependency edge (`bd dep add <FROM> <TO> --type <edge_type>`)."""
         ...
@@ -282,6 +286,10 @@ class ShellBeadsClient:
         self._run_void(
             verb_args=["dep", "add", from_id, to_id, "--type", edge_type],
         )
+
+    def remove_dependency(self, *, from_id: str, to_id: str) -> None:
+        """Remove a dependency edge through the ledger CLI's dependency-remove verb."""
+        self._run_void(verb_args=["dep", "remove", from_id, to_id])
 
     def add_comment(self, *, issue_id: str, body: str) -> None:
         """Append a comment via `bd comment <id> <body>`."""
