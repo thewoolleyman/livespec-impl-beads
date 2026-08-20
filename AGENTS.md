@@ -267,6 +267,15 @@ operation rather than in a one-liner.
 
 Use the filter ONLY to survey what exists, never to choose what to start.
 
+**Status-conformance refusal trap signature.** A pre-dispatch ledger
+conformance refusal presents as `drive.py` exit 1 + dispatcher exit 1 + no
+phantom claim. That discriminates it from the anchor-as-dependency trap, which
+uses dispatcher exit 3. Ask which surface produced the conformance finding
+before concluding dispatch is blocked: dispatch/gate surfaces auto-heal
+beads-native `open` / `in_progress`, while raw check surfaces report them as
+status findings; beads-native `deferred` is modeled as a parked, conforming
+status and must not block unrelated items tenant-wide.
+
 **`--status all` is load-bearing: without it `bd list` HIDES EVERY CLOSED
 ITEM.** A bare `bd list --limit 0 --json` returns only non-closed work, and it
 reports that truncated set as a normal, plausible, non-empty result — there is

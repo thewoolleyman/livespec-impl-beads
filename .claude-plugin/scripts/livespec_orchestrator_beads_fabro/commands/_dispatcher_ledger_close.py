@@ -43,8 +43,9 @@ class _NativeRemap:
 # lifecycle equivalent: `open` (beads' intake default a fresh `bd create`
 # lands in) → `backlog`, and `in_progress` (the status a raw `bd --claim`
 # stamps) → `active`. Both carry a lifecycle intent the livespec model names
-# differently. Every OTHER status (deferred / hooked / pinned / closed / any
-# ad-hoc or unknown value) is a KEY-miss here and is left untouched — those
+# differently. `deferred` is deliberately left untouched because it is modeled
+# as a parked beads-native state. Every OTHER status (hooked / pinned / closed /
+# any ad-hoc or unknown value) is a KEY-miss here and is left untouched — those
 # surface via the post-normalization ledger status-conformance check, never
 # auto-remapped.
 _NATIVE_STATUS_REMAP: dict[str, _NativeRemap] = {
@@ -58,7 +59,7 @@ def plan_native_status_remaps(*, items: list[WorkItem]) -> list[dict[str, str]]:
 
     Returns one `{item_id, from, to, reason}` dict per row whose stored
     status is a KEY of `_NATIVE_STATUS_REMAP`; every other row (already-
-    conformant, deferred, hooked, ad-hoc, unknown) contributes nothing.
+    conformant, parked, hooked, ad-hoc, unknown) contributes nothing.
     Performs NO store mutation and NO journaling, so the dispatch path and
     the standalone `ledger-normalize` CLI share identical remap logic.
     """

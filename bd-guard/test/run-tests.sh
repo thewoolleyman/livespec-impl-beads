@@ -250,7 +250,7 @@ fi
 # ===========================================================================
 # 3. lifecycle statuses -> NO violation, passthrough (all 7)
 # ===========================================================================
-for st in backlog pending-approval ready active acceptance blocked closed; do
+for st in backlog pending-approval ready active acceptance blocked closed deferred; do
     run_wrapper warn 0 "" -- update abc-3 --status "$st"
     if was_called && assert_argv update abc-3 --status "$st" && [ "$RC" -eq 0 ] && stderr_empty; then
         pass "lifecycle status '$st' passes through with no warning"
@@ -857,19 +857,35 @@ else
     fail "ready: --status open filter blocked (rc=$RC, stderr=$(cat "$ERR_FILE"))"
 fi
 
-# 13c. `bd defer <id>` subcommand -> blocks in fail mode, warns in warn mode.
+# 13c. `bd defer <id>` subcommand -> modeled parked status, passthrough.
 run_wrapper fail 0 "" -- defer abc-1
-if ! was_called && [ "$RC" -eq 3 ] && stderr_has "bd defer' is non-lifecycle"; then
-    pass "defer: 'bd defer abc-1' blocks in fail mode (no exec, exit 3)"
+if was_called && assert_argv defer abc-1 && [ "$RC" -eq 0 ] && stderr_empty; then
+    pass "defer: 'bd defer abc-1' passes through in fail mode (modeled parked status)"
 else
-    fail "defer: fail-mode block (rc=$RC, called=$(was_called && echo y || echo n))"
+    fail "defer: fail-mode passthrough (rc=$RC, called=$(was_called && echo y || echo n), stderr=$(cat "$ERR_FILE"))"
 fi
 
 run_wrapper warn 0 "" -- defer abc-1
-if was_called && assert_argv defer abc-1 && [ "$RC" -eq 0 ] && stderr_has "bd defer' is non-lifecycle"; then
-    pass "defer: 'bd defer abc-1' warns and still execs in warn mode (argv preserved)"
+if was_called && assert_argv defer abc-1 && [ "$RC" -eq 0 ] && stderr_empty; then
+    pass "defer: 'bd defer abc-1' passes through in warn mode without warning"
 else
     fail "defer: warn-mode passthrough (rc=$RC, stderr=$(cat "$ERR_FILE"))"
+fi
+
+run_wrapper fail 0 "" -- update abc-1 --defer 2026-08-27
+if was_called && assert_argv update abc-1 --defer 2026-08-27 && [ "$RC" -eq 0 ] \
+        && stderr_empty; then
+    pass "defer: 'bd update --defer <date>' passes through in fail mode (modeled parked status)"
+else
+    fail "defer: update --defer passthrough (rc=$RC, stderr=$(cat "$ERR_FILE"))"
+fi
+
+run_wrapper fail 0 "" -- update abc-1 --defer ""
+if was_called && assert_argv update abc-1 --defer "" && [ "$RC" -eq 0 ] \
+        && stderr_empty; then
+    pass "defer: 'bd update --defer \"\"' clear passes through in fail mode"
+else
+    fail "defer: update --defer clear passthrough (rc=$RC, stderr=$(cat "$ERR_FILE"))"
 fi
 
 run_wrapper fail 0 "defer help" -- defer --help

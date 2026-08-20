@@ -313,12 +313,34 @@ test_lifecycle_controls() {
         [ "$(field_of_object active.json status)" = "active" ] \
             || fail "lifecycle status did not apply"
 
+        LIVESPEC_BD_GUARD_MODE=fail run_guard update q-life --status deferred \
+            --json >status-deferred.json 2>status-deferred.err
+        [ ! -s status-deferred.err ] || fail "modeled --status deferred emitted a warning"
+        [ "$(field_of_object status-deferred.json status)" = "deferred" ] \
+            || fail "candidate --status deferred did not apply"
+        LIVESPEC_BD_GUARD_MODE=fail run_guard update q-life --status active \
+            --json >/dev/null
+
         LIVESPEC_BD_GUARD_MODE=warn run_guard update q-life --status in_progress \
             --json >native.json 2>native.err
         grep -qF "bd update --status in_progress' is non-lifecycle" native.err \
             || fail "warn-mode native status did not warn"
         [ "$(field_of_object native.json status)" = "in_progress" ] \
             || fail "warn-mode native status did not pass through"
+
+        LIVESPEC_BD_GUARD_MODE=fail run_guard update q-life --defer 2026-08-27 \
+            --json >defer-flag.json 2>defer-flag.err
+        [ ! -s defer-flag.err ] || fail "modeled update --defer emitted a guard warning"
+        [ "$(field_of_object defer-flag.json status)" = "deferred" ] \
+            || fail "candidate update --defer no longer writes status=deferred"
+
+        LIVESPEC_BD_GUARD_MODE=fail run_guard update q-life --defer "" \
+            --json >defer-clear.json 2>defer-clear.err
+        [ ! -s defer-clear.err ] || fail "modeled update --defer clear emitted a guard warning"
+        [ "$(field_of_object defer-clear.json status)" = "open" ] \
+            || fail "candidate update --defer clear no longer writes status=open"
+        LIVESPEC_BD_GUARD_MODE=fail run_guard update q-life --status active \
+            --json >/dev/null
 
         set +e
         LIVESPEC_BD_GUARD_MODE=fail run_guard update q-life --claim \
@@ -331,7 +353,7 @@ test_lifecycle_controls() {
             >reopen.out 2>reopen.err
         reopen_rc=$?
         LIVESPEC_BD_GUARD_MODE=fail run_guard defer q-life \
-            >defer.out 2>defer.err
+            --json >defer-subcommand.json 2>defer-subcommand.err
         defer_rc=$?
         set -e
         if ! { [ "$claim_rc" -eq 3 ] && grep -qF "bd update --claim' is non-lifecycle" claim.err; }; then
@@ -343,9 +365,11 @@ test_lifecycle_controls() {
         if ! { [ "$reopen_rc" -eq 3 ] && grep -qF "bd reopen' is non-lifecycle" reopen.err; }; then
             fail "fail-mode reopen was not blocked"
         fi
-        if ! { [ "$defer_rc" -eq 3 ] && grep -qF "bd defer' is non-lifecycle" defer.err; }; then
-            fail "fail-mode defer was not blocked"
+        if ! { [ "$defer_rc" -eq 0 ] && [ ! -s defer-subcommand.err ]; }; then
+            fail "fail-mode defer subcommand did not pass through as modeled"
         fi
+        [ "$(field_of_object defer-subcommand.json status)" = "deferred" ] \
+            || fail "candidate defer subcommand no longer writes status=deferred"
 
         set +e
         run_guard ready --status open --json >ready-filter.json 2>ready-filter.err

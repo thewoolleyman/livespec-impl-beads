@@ -120,7 +120,7 @@ def test_gate_open_item_heals_in_place_and_exits_zero(
     assert _current_statuses(config=config) == {"native-open": "backlog"}
 
 
-def test_gate_deferred_item_blocks_with_human_decision_message(
+def test_gate_deferred_item_is_parked_and_conformant(
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
 ) -> None:
@@ -129,15 +129,14 @@ def test_gate_deferred_item_blocks_with_human_decision_message(
 
     exit_code = main(argv=["ledger-normalize", "--project-root", str(tmp_path), "--gate"])
 
-    assert exit_code == 1
+    assert exit_code == 0
     out = capsys.readouterr().out
-    assert LEDGER_GATE_DRIFT_MARKER in out
-    assert "stuck-deferred" in out
-    assert "bd update <id> --status" in out
-    assert "will NOT fix these" in out
+    assert LEDGER_GATE_CLEAN_MARKER in out
+    assert LEDGER_GATE_DRIFT_MARKER not in out
+    assert "stuck-deferred" not in out
 
 
-def test_gate_open_and_deferred_heals_open_but_blocks_on_deferred(
+def test_gate_open_and_deferred_heals_open_and_leaves_deferred_parked(
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
 ) -> None:
@@ -148,13 +147,13 @@ def test_gate_open_and_deferred_heals_open_but_blocks_on_deferred(
 
     exit_code = main(argv=["ledger-normalize", "--project-root", str(tmp_path), "--gate"])
 
-    # The open row heals in place (loud + written), but the residual deferred
-    # row still blocks the push: the auto-heal is committed even though exit 1.
-    assert exit_code == 1
+    # The open row heals in place (loud + written), and the parked deferred row
+    # is conforming without being normalized.
+    assert exit_code == 0
     out = capsys.readouterr().out
-    assert LEDGER_GATE_DRIFT_MARKER in out
+    assert LEDGER_GATE_DRIFT_MARKER not in out
     assert "native-open: open -> backlog" in out
-    assert "stuck-deferred" in out
+    assert "stuck-deferred" not in out
     statuses = _current_statuses(config=config)
     assert statuses["native-open"] == "backlog"
     assert statuses["stuck-deferred"] == "deferred"

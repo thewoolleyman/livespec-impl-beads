@@ -10,11 +10,10 @@ the Dispatcher already loads, and that make dispatching UNSAFE when
 violated:
 
 - `status-conformance` — every live row's status is one of the seven
-  livespec lifecycle states, encoded as `ALLOWED_BEADS_STATUSES`
-  (DERIVED from the canonical `WorkItemStatus` Literal, never
-  hand-typed); beads' extra built-ins/customs (`open`/`deferred`) or an
-  ad-hoc `bd update --status foo` must not silently park dispatchable
-  work in an unknown lane.
+  livespec lifecycle states or the modeled beads-native parked state,
+  encoded as `ALLOWED_BEADS_STATUSES`; beads' transient intake statuses
+  (`open`/`in_progress`) or an ad-hoc `bd update --status foo` must not
+  silently park dispatchable work in an unknown lane.
 - `depends-on-ref-wellformedness` — every `depends_on` entry on a
   non-closed item parses to a typed entry (`parse_entry` returning
   `None` means the readiness predicate silently treats the row as
@@ -98,9 +97,9 @@ def _check_status_conformance(*, active: list[WorkItem]) -> list[LedgerFinding]:
     here is the stored beads status verbatim — the sole `done` ↔ `closed`
     rename only touches closed rows, which are excluded. Membership is
     tested against `ALLOWED_BEADS_STATUSES` (DERIVED from the canonical
-    `WorkItemStatus` Literal), so beads' native `open`/`deferred` and any
-    ad-hoc status that would silently park the row in an unknown lane are
-    named here rather than dispatched.
+    `WorkItemStatus` Literal plus modeled parked states), so beads' native
+    `open` and any ad-hoc status that would silently park the row in an
+    unknown lane are named here rather than dispatched.
     """
     allowed = ", ".join(sorted(ALLOWED_BEADS_STATUSES))
     findings: list[LedgerFinding] = []

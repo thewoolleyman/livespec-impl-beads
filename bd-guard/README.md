@@ -8,9 +8,7 @@ polluting the fleet's beads tenant with off-lifecycle statuses:
 2. `bd update ... --claim` (which sets status to `in_progress`);
 3. `bd reopen ...` (which sets status back to the non-lifecycle `open`);
 4. `bd ready ... --claim` (the advertised "grab work" path, which sets status
-   to `in_progress`);
-5. `bd defer <id>` (the defer **subcommand**, which sets status to the
-   non-lifecycle `deferred`).
+   to `in_progress`).
 
 Separately, it **normalizes** every qualifying `bd create` (see **Create
 normalization** below) to the lifecycle status `backlog`.
@@ -19,9 +17,9 @@ Everything else — `list`, `show`, `close`, `dep`, `config`, `history`, `--json
 help for every subcommand, a bare `bd ready` list (or `bd ready --status <x>`
 filtering), and every other subcommand/flag — passes through **unchanged**.
 
-In particular, `bd reopen --help` / `-h` and `bd defer --help` / `-h` are
-read-only CLI introspection, not lifecycle writes. They pass through without a
-warning or block even in `fail` mode; a real `reopen` or `defer` remains guarded.
+In particular, `bd reopen --help` / `-h` is read-only CLI introspection, not a
+lifecycle write. It passes through without a warning or block even in `fail`
+mode; a real `reopen` remains guarded.
 
 This is a **STOPGAP** until beads ships the upstream fixes (a `status.default`
 and a lifecycle-aware `--claim`/`--status`). It is designed to be **trivially
@@ -29,7 +27,7 @@ removable**: run `rollback.sh` and delete the `bd-guard/` directory.
 
 ## Create normalization (the sixth channel)
 
-Unlike the five warn/block channels above, this one **rewrites state**: it is a
+Unlike the four warn/block channels above, this one **rewrites state**: it is a
 silent normalization, not a warning. beads v1.0.5 `bd create` **hardcodes**
 status `open` (a non-lifecycle status) — there is no `create --status` flag and
 no default-status config on v1.0.5 — so every plain create mints an `open` item.
@@ -105,8 +103,10 @@ backlog  pending-approval  ready  active  acceptance  blocked  closed
 
 This set is `ALLOWED_BEADS_STATUSES` in
 `.claude-plugin/scripts/livespec_orchestrator_beads_fabro/_store_statuses.py`,
-derived from the `WorkItemStatus` Literal (`done` projected to `closed`). Beads'
-native `open` / `in_progress` / `deferred` are non-conformant.
+derived from the `WorkItemStatus` Literal (`done` projected to `closed`) plus
+the modeled parked native state `deferred`. Beads' native `open` /
+`in_progress` are non-conformant; `deferred` is conforming but never a dispatch
+lane.
 
 ## Out of scope (deliberately)
 
@@ -118,10 +118,13 @@ normalizer) and creates carrying a **tenant/db selector** (`-C` / `--directory` 
 `--db` / `--global` / `--repo`, where a flag-less follow-up `update` would hit the
 wrong tenant).
 
-Note the **flag vs subcommand** distinction for defer: `bd update ... --defer
-<date>` (the `--defer` **flag**) sets a defer *date*, not a status, so it is
-**not** guarded — but the `bd defer <id>` **subcommand** writes
-status=`deferred` and **is** guarded (item 5 above), exactly like `bd reopen`.
+Both `bd defer <id>` and `bd update <id> --defer <date>` write
+status=`deferred` on the pinned candidate measured by this guard's live-style
+test. The guard deliberately passes both through because the Dispatcher models
+`deferred` as a parked, non-dispatching status instead of treating it as
+tenant-wide drift. Clearing a defer date with `bd update <id> --defer ""` can
+leave an intermediate status=`open` on a bare-check surface; clear the defer
+date and set the intended lifecycle status before verifying.
 
 ## Behavior contract
 
@@ -157,7 +160,6 @@ livespec bd-guard: 'bd update --status open' is non-lifecycle; use --status back
 livespec bd-guard: 'bd update --claim' is non-lifecycle; use --status active
 livespec bd-guard: 'bd reopen' is non-lifecycle; use bd update --status <lifecycle> (e.g. backlog)
 livespec bd-guard: 'bd ready --claim' is non-lifecycle; use --status active
-livespec bd-guard: 'bd defer' is non-lifecycle; use bd update --status <lifecycle> (e.g. backlog)
 ```
 
 ## Telemetry (OTLP `bd.invoke` span — default ON, fail-open)
@@ -321,15 +323,16 @@ Later sections cover the flip-hardening behavior: that `--format json update …
 that a `fail`-mode **block emits a span** (routed to a stub emitter) so
 enforcement is observable.
 
-The `ready`/`defer` guards and the mode-file newline footgun: `bd ready --claim`
-(and `--claim=true`) is **blocked** in `fail` mode while a bare `bd ready` list,
+The `ready` guard, modeled defer passthrough, and the mode-file newline footgun:
+`bd ready --claim` (and `--claim=true`) is **blocked** in `fail` mode while a
+bare `bd ready` list,
 `bd ready --json`, `bd ready --limit 5`, and — critically — `bd ready --status
 ready` / `bd ready --status open` list-filters all **pass through** unblocked
 (the `ready` phase never scans `--status`, so no legit list is ever mis-blocked);
-the `bd defer <id>` subcommand is **blocked** in `fail` and **warns** in `warn`;
-and a mode file containing `fail` with **no trailing newline** still resolves to
-`fail` and blocks (proving the `head`/`tr` read does not silently degrade to
-`warn`).
+`bd defer <id>` and `bd update <id> --defer <date>` pass through even in `fail`
+mode because `deferred` is modeled; and a mode file containing `fail` with **no
+trailing newline** still resolves to `fail` and blocks guarded writes (proving
+the `head`/`tr` read does not silently degrade to `warn`).
 
 The **create-normalization** section (§15) uses a stub that appends every
 invocation to a call log (`FAKE_BD_LOG`), so the two-step (real create, then the

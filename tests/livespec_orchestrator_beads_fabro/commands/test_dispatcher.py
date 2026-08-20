@@ -460,17 +460,15 @@ def test_ledger_checks_flag_duplicate_gap_ids_sorted() -> None:
 def test_ledger_checks_flag_out_of_lifecycle_live_status() -> None:
     items = [
         _item(id="ok-ready", status="ready"),
+        _item(id="parked-deferred", status="deferred"),
         _item(id="bad-open", status="open"),
-        _item(id="bad-deferred", status="deferred"),
         _item(id="closed-deferred", status="done"),
     ]
     findings = run_ledger_checks(items=items)
     assert [(finding.check, finding.item_id) for finding in findings] == [
-        ("status-conformance", "bad-deferred"),
         ("status-conformance", "bad-open"),
     ]
-    assert "status 'deferred' is outside the livespec lifecycle" in findings[0].message
-    assert "status 'open' is outside the livespec lifecycle" in findings[1].message
+    assert "status 'open' is outside the livespec lifecycle" in findings[0].message
 
 
 def test_dispatch_gate_auto_normalizes_beads_native_open(
@@ -480,7 +478,8 @@ def test_dispatch_gate_auto_normalizes_beads_native_open(
     calls: list[tuple[str, str]] = []
     items = [
         _item(id="native-open", status="open"),
-        _item(id="bad-deferred", status="deferred"),
+        _item(id="parked-deferred", status="deferred"),
+        _item(id="bad-hooked", status="hooked"),
     ]
 
     def fake_update_work_item_status(
@@ -545,10 +544,10 @@ def test_dispatch_gate_auto_normalizes_beads_native_open(
     assert records[1]["findings"] == [
         {
             "check": "status-conformance",
-            "item_id": "bad-deferred",
+            "item_id": "bad-hooked",
             "message": (
-                "status 'deferred' is outside the livespec lifecycle "
-                "(allowed: acceptance, active, backlog, blocked, closed, pending-approval, ready)"
+                "status 'hooked' is outside the livespec lifecycle "
+                "(allowed: acceptance, active, backlog, blocked, closed, deferred, pending-approval, ready)"
             ),
             "severity": "fail",
         }

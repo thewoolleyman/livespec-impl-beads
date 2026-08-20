@@ -10,11 +10,11 @@ fires from the aggregate — not only at dispatch time.
 
 The invariant: every LIVE (non-`done`) work-item's stored beads status
 MUST be one of `ALLOWED_BEADS_STATUSES` — the canonical 7-state lifecycle
-projected through the adapter's `done` → `closed` rename, DERIVED from the
-`WorkItemStatus` Literal (never hand-typed). Beads' native `open`/`deferred`
-or an ad-hoc `bd update --status foo` is out-of-lifecycle: `lane_of` parks
-it in an unknown lane where it silently never dispatches. This check NAMES
-the offending item id(s) and the bad status and fails (exit 1).
+projected through the adapter's `done` → `closed` rename, plus modeled
+parked statuses. Beads' native `open` or an ad-hoc `bd update --status foo`
+is out-of-lifecycle: `lane_of` parks it in an unknown lane where it silently
+never dispatches. This check NAMES the offending item id(s) and the bad
+status and fails (exit 1).
 
 The check walks every materialized work-item from the configured store
 descriptor through the same beads client the runtime uses. In hermetic mode

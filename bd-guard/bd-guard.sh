@@ -12,17 +12,19 @@
 #
 #     backlog  pending-approval  ready  active  acceptance  blocked  closed
 #
-# (this set is authoritative: it is `ALLOWED_BEADS_STATUSES` in
+# (this set plus modeled `deferred` is authoritative: it is
+# `ALLOWED_BEADS_STATUSES` in
 # `.claude-plugin/scripts/livespec_orchestrator_beads_fabro/_store_statuses.py`,
 # itself DERIVED from the `WorkItemStatus` Literal with `done` projected to
-# `closed`). Beads' native `open` / `in_progress` / `deferred`, and
-# `bd update --claim` (which sets `in_progress`), are NON-conformant.
+# `closed`, plus the parked native `deferred`). Beads' native `open` /
+# `in_progress`, and `bd update --claim` (which sets `in_progress`), are
+# NON-conformant.
 #
 # This wrapper guards ONLY the EXPLICIT non-lifecycle operations that a
 # single-command wrapper on `bd` v1.0.5 can detect with high confidence:
 #
 #   1. `bd update ... --status <S>` where S is not one of the 7 lifecycle
-#      statuses (e.g. open, in_progress, deferred, done, or any unknown value);
+#      statuses (e.g. open, in_progress, done, or any unknown value);
 #   2. `bd update ... --claim` (which sets status=in_progress);
 #   3. `bd reopen ...` (which sets status back to the non-lifecycle `open`) —
 #      a single-token subcommand, so detection is unambiguous;
@@ -30,10 +32,9 @@
 #      status=in_progress) — scanned in a DEDICATED `ready` phase that checks
 #      ONLY --claim, so a bare `bd ready` list or a `bd ready --status <x>`
 #      filter is never misread as a status write;
-#   5. `bd defer <id>` (which sets status to the non-lifecycle `deferred`) —
-#      a single-token subcommand, exactly the `reopen` shape. NOTE this is the
-#      defer SUBCOMMAND, distinct from `update --defer <date>` (a defer-date
-#      FLAG that writes no status and is NOT guarded).
+# `deferred` is intentionally not guarded: deployed bd writes it from both
+# `bd defer <id>` and `bd update <id> --defer <date>`, and the Dispatcher models
+# it as a parked status rather than tenant-wide status drift.
 #
 # EVERYTHING ELSE passes through UNCHANGED — `list`, `show`, `close`, `dep`,
 # `config`, `history`, `--json`, help for every subcommand, and every other
@@ -127,9 +128,10 @@ MODE="${MODE:-warn}"
 # Display argv for telemetry, captured at top level (a function's $* would shadow it).
 _bdg_argv="$*"
 
-# The 7 livespec lifecycle statuses, space-padded for substring matching.
+# The livespec lifecycle statuses plus modeled parked statuses, space-padded for
+# substring matching.
 # Keep in lockstep with ALLOWED_BEADS_STATUSES (see header).
-LIFECYCLE_STATUSES=" backlog pending-approval ready active acceptance blocked closed "
+LIFECYCLE_STATUSES=" backlog pending-approval ready active acceptance blocked closed deferred "
 
 # Emit a violation to stderr in the standardized one-line form
 # `livespec bd-guard: '<subject>' is non-lifecycle; use <alternative>`.
@@ -155,9 +157,8 @@ guard_warn() {
 #   * phase=ready  — after a `ready` subcommand: look ONLY for a --claim (which
 #     grabs a ready item into in_progress). Deliberately does NOT scan --status,
 #     so a bare `bd ready` list or a `bd ready --status <x>` filter never trips.
-# The `reopen` and `defer` subcommands (both direct non-lifecycle status writes)
-# enter a direct-mutation phase so their read-only `--help` / `-h` forms can
-# pass through without a false-positive violation.
+# The `reopen` subcommand enters a direct-mutation phase so its read-only
+# `--help` / `-h` forms can pass through without a false-positive violation.
 # If the subcommand is anything else, we stop early.
 # ---------------------------------------------------------------------------
 phase="global"
@@ -167,8 +168,7 @@ after_ddash=0         # a `--` end-of-flags terminator has been seen
 status_value=""       # the captured --status/-s value (empty = none seen)
 saw_claim=0           # a --claim flag was seen
 saw_reopen=0          # the `reopen` subcommand was seen
-saw_defer=0           # the `defer` subcommand was seen
-direct_help=0         # --help/-h on reopen/defer: introspection, not a mutation
+direct_help=0         # --help/-h on reopen: introspection, not a mutation
 guarded_sub="update"  # subcommand a --claim was seen under (update|ready), for the message
 _bdg_op=""            # telemetry: a summary of the flagged op (reopen / claim /
                       # status:<value>), empty when nothing was flagged
@@ -275,12 +275,9 @@ for arg in "$@"; do
                         phase="direct"
                         ;;
                     defer)
-                        # `bd defer <id>` sets status to the non-lifecycle
-                        # `deferred` (a direct status write, exactly the `reopen`
-                        # shape). Keep scanning for read-only --help/-h.
-                        saw_defer=1
-                        guarded_sub="defer"
-                        phase="direct"
+                        # `bd defer <id>` writes the modeled parked status
+                        # `deferred`, so it is not a lifecycle violation.
+                        break
                         ;;
                     create|new|q)
                         # create / new (aliases) and q (quick-capture) all mint
@@ -303,7 +300,7 @@ for arg in "$@"; do
     fi
 
     if [ "$phase" = "direct" ]; then
-        # `reopen` and `defer` mutate merely by naming the subcommand, except
+        # `reopen` mutates merely by naming the subcommand, except
         # that Cobra's help flags are read-only introspection. Scan through ids
         # and flags to find --help/-h, while consuming known value-taking flags
         # so a reason/until/actor VALUE equal to "--help" is never misread.
@@ -509,12 +506,6 @@ if [ "$saw_reopen" -eq 1 ] && [ "$direct_help" -eq 0 ]; then
     violated=1
     _bdg_op="reopen"
     guard_warn "bd reopen" "bd update --status <lifecycle> (e.g. backlog)"
-fi
-
-if [ "$saw_defer" -eq 1 ] && [ "$direct_help" -eq 0 ]; then
-    violated=1
-    _bdg_op="defer"
-    guard_warn "bd defer" "bd update --status <lifecycle> (e.g. backlog)"
 fi
 
 if [ "$saw_claim" -eq 1 ]; then
