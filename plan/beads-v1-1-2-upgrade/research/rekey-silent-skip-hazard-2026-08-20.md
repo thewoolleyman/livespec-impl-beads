@@ -148,6 +148,84 @@ actionable through `bd-ib-ao3j`'s scope.
 - The behaviour of `rekeyAuxRowTable` itself, which performs the per-table
   `UPDATE`. I read its caller's error handling, not its body, so how it
   interacts with foreign keys or indexes during the rewrite is unexamined.
-- Whether our `bd` invocation paths would in fact drop the log stream. That is
-  a question about our own wrappers, answerable locally, and worth answering
-  before the attended window.
+- ~~Whether our `bd` invocation paths would in fact drop the log stream.~~
+  **Answered below the same day — they do.**
+
+## ANSWERED 2026-08-20: our own client swallows it
+
+The open question above was answerable locally, so it was answered rather than
+carried into the attended window. **Our `BeadsClient` captures `bd`'s stderr and
+discards it on a zero exit.** The hazard is therefore live for our tooling, not
+merely plausible.
+
+The whole path, in three steps:
+
+**1. stderr is captured, so it never reaches a terminal.**
+`effects/_beads_client_shell.py::invoke`:
+
+```python
+completed = subprocess.run(
+    argv,
+    capture_output=True,   # stderr -> completed.stderr, not the tty
+    text=True,
+    check=False,
+    cwd=repo_root,
+)
+```
+
+**2. On success, nothing ever looks at it.**
+`raise_for_status` returns before touching `stderr`:
+
+```python
+def raise_for_status(*, completed, argv, tenant) -> None:
+    """Map a nonzero `bd` exit onto the typed expected-error surface."""
+    if completed.returncode == 0:
+        return                      # <-- stderr never examined
+    stderr = completed.stderr or ""
+    ...
+```
+
+**3. The callers use only stdout.** `_run_json` parses `completed.stdout`;
+`_run_void` discards the `CompletedProcess` entirely. No caller reads
+`completed.stderr` on a successful run.
+
+Go's standard `log` package writes to `os.Stderr` by default, and the re-key
+skip notice is emitted with `log.Printf`. So the three lines that upstream calls
+"the only notice" that a table kept divergent ids land in `completed.stderr` of
+a `returncode == 0` process and are dropped on the floor. Nothing raises,
+nothing logs, nothing records.
+
+### The mitigating fact, stated so this is not over-read
+
+Our tenants are **server-mode**, and beads has a remote-migrate gate for that
+case — `internal/storage/schema/remote_migrate_gate.go` and its smart variant.
+The rehearsal package already exercises its refusal arm: `migration-gate-receipt`
+has `gate_decision: ["smart-first-mover", "migrate-or-adopt-refusal"]` and
+asserts `BD_ALLOW_REMOTE_MIGRATE_unset` and `BD_SMART_GATE_unset`. So an
+incidental `bd list` through our client should hit that gate and **refuse**
+rather than quietly migrate a shared tenant. That is a real and deliberate
+safeguard, and it is the reason this is a contained exposure rather than an
+everyday one.
+
+I read the gate's existence and the receipt's shape, **not** the gate's full
+semantics — so treat "should refuse" as the design's evident intent rather than
+as verified behaviour.
+
+**The residual exposure is the deliberate migration itself.** The upgrade uses a
+one-designated-migrator flow: exactly one client performs the migration with the
+gate satisfied. If that client is our Python tooling, the partial-re-key notice
+is swallowed by the mechanism above and the migration reports success.
+
+### What this changes
+
+Recommendation 1 in the previous section ("capture the log stream") is not a
+precaution any more — it is a **defect to fix in our own code** before the
+attended window, and the cheapest fix is the narrowest: on a zero exit, when
+`completed.stderr` is non-empty, surface it rather than discard it. Whether that
+belongs in `invoke`, in the designated-migrator wrapper, or only in the
+rehearsal harness is a design call for whoever picks this up; this note does not
+make it.
+
+Recorded as a finding, not filed as a work item and not implemented: the
+implementation children of this epic are `admission:manual`, and this session
+holds no admission.
