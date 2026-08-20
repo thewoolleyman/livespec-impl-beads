@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.62.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.1...v0.62.2) (2026-08-20)
+
+
+### Bug Fixes
+
+* scope heading coverage TODO ownership arming ([7da375d](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/7da375da02fc016b4ca313310e1eb4dc9ddea369))
+
 ## [0.62.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.0...v0.62.1) (2026-08-20)
 
 
