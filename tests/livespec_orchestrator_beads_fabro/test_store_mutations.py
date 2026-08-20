@@ -243,8 +243,63 @@ def test_created_item_carries_labels_metadata_and_spec_hint() -> None:
     assert "blocked-reason:needs-human" in record["labels"]
     assert record["metadata"]["audit"]["merge_sha"] == "abc123"
     assert record["metadata"]["audit"]["pr_number"] == 42
-    assert record["metadata"]["acceptance_criteria"] == "Run just check."
-    assert record["metadata"]["notes"] == "Keep scope narrow."
+    assert record["acceptance_criteria"] == "Run just check."
+    assert record["notes"] == "Keep scope narrow."
+    assert "acceptance_criteria" not in record["metadata"]
+    assert "notes" not in record["metadata"]
+
+
+def test_native_acceptance_update_matches_plugin_read_projection() -> None:
+    append_work_item(
+        path=_config(),
+        item=_minimal_work_item(
+            id_="li-edit",
+            acceptance_criteria="Original acceptance.",
+            notes="Original notes.",
+        ),
+    )
+
+    _fake().update_issue(
+        issue_id="li-edit",
+        acceptance_criteria="Edited acceptance.",
+        notes="Edited notes.",
+    )
+
+    record = _fake().show_issue(issue_id="li-edit")
+    [read_back] = list(read_work_items(path=_config()))
+    assert record["acceptance_criteria"] == read_back.acceptance_criteria
+    assert record["notes"] == read_back.notes
+    assert read_back.acceptance_criteria == "Edited acceptance."
+    assert read_back.notes == "Edited notes."
+
+
+def test_rank_update_does_not_clobber_concurrent_native_acceptance_edit() -> None:
+    append_work_item(
+        path=_config(),
+        item=_minimal_work_item(
+            id_="li-concurrent",
+            rank="a0",
+            acceptance_criteria="Original acceptance.",
+            notes="Original notes.",
+        ),
+    )
+    stale_projection = next(iter(read_work_items(path=_config())))
+
+    _fake().update_issue(
+        issue_id="li-concurrent",
+        acceptance_criteria="Concurrent acceptance.",
+        notes="Concurrent notes.",
+    )
+    update_work_item_rank(path=_config(), item=stale_projection)
+
+    record = _fake().show_issue(issue_id="li-concurrent")
+    [read_back] = list(read_work_items(path=_config()))
+    assert record["acceptance_criteria"] == "Concurrent acceptance."
+    assert record["notes"] == "Concurrent notes."
+    assert read_back.acceptance_criteria == "Concurrent acceptance."
+    assert read_back.notes == "Concurrent notes."
+    assert "acceptance_criteria" not in record["metadata"]
+    assert "notes" not in record["metadata"]
 
 
 def test_depends_on_edges_and_non_local_metadata_are_written() -> None:

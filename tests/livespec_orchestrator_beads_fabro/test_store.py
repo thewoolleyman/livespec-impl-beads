@@ -166,6 +166,50 @@ def test_notes_roundtrips() -> None:
     assert read_back.notes == item.notes
 
 
+def test_legacy_metadata_acceptance_and_notes_read_when_native_fields_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_stub(
+        monkeypatch=monkeypatch,
+        records=[
+            _raw_work_item(
+                metadata={
+                    "rank": "a0",
+                    "acceptance_criteria": "Legacy acceptance.",
+                    "notes": "Legacy notes.",
+                }
+            )
+        ],
+    )
+
+    [read_back] = list(read_work_items(path=_config()))
+    assert read_back.acceptance_criteria == "Legacy acceptance."
+    assert read_back.notes == "Legacy notes."
+
+
+def test_empty_native_acceptance_does_not_fall_back_to_stale_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_stub(
+        monkeypatch=monkeypatch,
+        records=[
+            _raw_work_item(
+                acceptance_criteria="",
+                notes="",
+                metadata={
+                    "rank": "a0",
+                    "acceptance_criteria": "Stale acceptance.",
+                    "notes": "Stale notes.",
+                },
+            )
+        ],
+    )
+
+    [read_back] = list(read_work_items(path=_config()))
+    assert read_back.acceptance_criteria == ""
+    assert read_back.notes == ""
+
+
 def test_assignee_and_rank_roundtrip() -> None:
     item = _minimal_work_item(id_="li-pa", rank="a5", assignee="alice")
     append_work_item(path=_config(), item=item)

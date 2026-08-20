@@ -108,6 +108,10 @@ class FakeBeadsClient:
             "parent_id": draft.parent_id,
             "dependencies": dependencies,
         }
+        if draft.acceptance_criteria is not None:
+            record["acceptance_criteria"] = draft.acceptance_criteria
+        if draft.notes is not None:
+            record["notes"] = draft.notes
         self._issues[draft.issue_id] = record
         return draft.issue_id
 
@@ -122,6 +126,8 @@ class FakeBeadsClient:
         add_labels: list[str] | None = None,
         remove_labels: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
+        acceptance_criteria: str | None = None,
+        notes: str | None = None,
     ) -> None:
         record = self._issues.get(issue_id)
         if record is None:
@@ -129,24 +135,17 @@ class FakeBeadsClient:
                 record_id=issue_id,
                 detail="cannot update an issue that is not present in the tenant",
             )
-        if status is not None:
-            record["status"] = status
-        if clear_assignee or assignee is not None:
-            record["assignee"] = None if clear_assignee else assignee
-        if parent_id is not None:
-            record["parent_id"] = parent_id
-        if add_labels is not None:
-            existing = cast("list[str]", record.get("labels", []))
-            merged = list(existing)
-            for label in add_labels:
-                if label not in merged:
-                    merged.append(label)
-            record["labels"] = merged
-        if remove_labels is not None:
-            current = cast("list[str]", record.get("labels", []))
-            record["labels"] = [label for label in current if label not in remove_labels]
-        if metadata is not None:
-            record["metadata"] = dict(metadata)
+        _update_scalar_fields(
+            record=record,
+            status=status,
+            parent_id=parent_id,
+            metadata=metadata,
+            acceptance_criteria=acceptance_criteria,
+            notes=notes,
+        )
+        _update_assignee(record=record, assignee=assignee, clear_assignee=clear_assignee)
+        _add_labels(record=record, labels=add_labels)
+        _remove_labels(record=record, labels=remove_labels)
 
     def close_issue(self, *, issue_id: str, reason: str | None) -> None:
         record = self._issues.get(issue_id)
@@ -191,6 +190,55 @@ class FakeBeadsClient:
 
 
 _FAKE_HOLDER: list[FakeBeadsClient] = []
+
+
+def _update_scalar_fields(
+    *,
+    record: BeadsRecord,
+    status: str | None,
+    parent_id: str | None,
+    metadata: dict[str, Any] | None,
+    acceptance_criteria: str | None,
+    notes: str | None,
+) -> None:
+    if status is not None:
+        record["status"] = status
+    if parent_id is not None:
+        record["parent_id"] = parent_id
+    if metadata is not None:
+        record["metadata"] = dict(metadata)
+    if acceptance_criteria is not None:
+        record["acceptance_criteria"] = acceptance_criteria
+    if notes is not None:
+        record["notes"] = notes
+
+
+def _update_assignee(
+    *,
+    record: BeadsRecord,
+    assignee: str | None,
+    clear_assignee: bool,
+) -> None:
+    if clear_assignee or assignee is not None:
+        record["assignee"] = None if clear_assignee else assignee
+
+
+def _add_labels(*, record: BeadsRecord, labels: list[str] | None) -> None:
+    if labels is None:
+        return
+    existing = cast("list[str]", record.get("labels", []))
+    merged = list(existing)
+    for label in labels:
+        if label not in merged:
+            merged.append(label)
+    record["labels"] = merged
+
+
+def _remove_labels(*, record: BeadsRecord, labels: list[str] | None) -> None:
+    if labels is None:
+        return
+    current = cast("list[str]", record.get("labels", []))
+    record["labels"] = [label for label in current if label not in labels]
 
 
 def fake_singleton() -> FakeBeadsClient:

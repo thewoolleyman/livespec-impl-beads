@@ -80,6 +80,8 @@ class IssueDraft:
     metadata: dict[str, Any] = field(default_factory=dict)
     spec_id: str | None = None
     parent_id: str | None = None
+    acceptance_criteria: str | None = None
+    notes: str | None = None
 
 
 class BeadsClient(Protocol):
@@ -124,8 +126,10 @@ class BeadsClient(Protocol):
         add_labels: list[str] | None = None,
         remove_labels: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
+        acceptance_criteria: str | None = None,
+        notes: str | None = None,
     ) -> None:
-        """Mutate an existing issue's status / assignee / parent / labels / metadata.
+        """Mutate an existing issue's status / assignee / parent / labels / content.
 
         `assignee` maps onto `bd update --assignee` — the seam the admission
         valve uses to set the doer when it transitions a ready item to
@@ -249,6 +253,8 @@ class ShellBeadsClient:
         add_labels: list[str] | None = None,
         remove_labels: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
+        acceptance_criteria: str | None = None,
+        notes: str | None = None,
     ) -> None:
         verb_args = build_update_argv(
             issue_id=issue_id,
@@ -259,6 +265,8 @@ class ShellBeadsClient:
             add_labels=add_labels,
             remove_labels=remove_labels,
             metadata=metadata,
+            acceptance_criteria=acceptance_criteria,
+            notes=notes,
         )
         if len(verb_args) <= _UPDATE_ARGV_NO_OP_LENGTH:
             return
