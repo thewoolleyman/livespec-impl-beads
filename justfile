@@ -45,6 +45,14 @@ acceptance-live-preflight:
 acceptance-live item:
     bash orchestrator-image/tier2-dispatch-proof.sh --run --item "$1"
 
+# Fabro Enemy Unit Tests tier 0. Real Fabro dependency calls through the
+# dispatcher FabroPort against the live host server, but no workflow run is
+# launched. Kept outside `just check`; run under the operator environment when
+# evaluating the pinned build or an upgrade candidate:
+#   FABRO_EUT_BIN=/path/to/fabro just fabro-enemy-tier0
+fabro-enemy-tier0:
+    uv run pytest fabro-enemy-unit-tests -q
+
 # W7 LIVE Beads/Fabro golden-master tier. The REAL end-to-end proof: creates a
 # throwaway `livespec-e2e/livespec-e2e-*` repo, seeds it with the hello-world
 # fixture SPECIFICATION + an embedded beads ledger carrying one ready greeting
