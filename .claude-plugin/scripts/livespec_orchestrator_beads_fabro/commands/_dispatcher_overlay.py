@@ -8,10 +8,14 @@ future MiniJinja-templated text) routes untrusted prose through.
 from __future__ import annotations
 
 import json
-import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
+
+from livespec_orchestrator_beads_fabro.commands._dispatcher_gh_refresh import (
+    refreshing_gh_env_lines,
+    refreshing_gh_prepare_steps_block,
+)
 
 __all__: list[str] = [
     "CORE_PLUGIN_ROOT_ENV_VAR",
@@ -41,12 +45,6 @@ CORE_PLUGIN_ROOT_ENV_VAR = "LIVESPEC_CORE_PLUGIN_ROOT"
 CURRENCY_GATE_ENV_VAR = "LIVESPEC_CURRENCY_GATE"
 CURRENCY_GATE_ENV_VALUE = "fail"
 _CORE_SIBLING_SLUG = "livespec"
-_GITHUB_APP_ENV_KEYS = (
-    "GITHUB_APP_ID",
-    "GITHUB_PRIVATE_KEY",
-    "GITHUB_APP_INSTALLATION_ID",
-    "GITHUB_API_URL",
-)
 # MiniJinja's three OPENING delimiters: expression `{{`, statement `{%`,
 # comment `{#` (fabro v0.254.0 renders the run goal through MiniJinja —
 # fabro issue #124 — storing it in the graph's `goal` attribute and
@@ -212,8 +210,8 @@ def render_run_config_overlay(  # noqa: PLR0913 — kw-only pure overlay builder
     otel_env_lines = _otel_env_lines(otel_env=otel_env)
     tmux_steps = _tmux_tmpdir_prepare_steps_block()
     tmux_env_line = f"TMUX_TMPDIR = {json.dumps(_SANDBOX_TMUX_TMPDIR)}\n"
-    gh_refresh_steps = _refreshing_gh_prepare_steps_block()
-    gh_refresh_env_lines = _refreshing_gh_env_lines()
+    gh_refresh_steps = refreshing_gh_prepare_steps_block()
+    gh_refresh_env_lines = refreshing_gh_env_lines()
     codex_steps = _codex_auth_prepare_steps_block(codex_auth_snapshot=codex_auth_snapshot)
     codex_env_lines = _codex_auth_env_lines(codex_auth_snapshot=codex_auth_snapshot)
     return (
@@ -265,65 +263,6 @@ def _tmux_tmpdir_prepare_steps_block() -> str:
         f"script = {json.dumps(script)}",
     ]
     return "\n".join(lines) + "\n"
-
-
-def _refreshing_gh_prepare_steps_block() -> str:
-    """Install a sandbox-local refreshing `gh` wrapper when App inputs exist.
-
-    Fabro can mint a fresh token at node spawn, but a long-lived agent
-    process can still cross GitHub's installation-token TTL before it runs
-    `just check`. The prepare step reads the sandbox's live PATH to find `gh`,
-    moves that binary aside, and writes the wrapper at the same path. That keeps
-    the container's mise/just/uv/node/npx PATH intact while making every later
-    `gh` invocation mint immediately before use.
-    """
-    if not _github_app_env_present():
-        return ""
-    script = (
-        "set -eu\n"
-        'real_gh="$(command -v gh)"\n'
-        'case "$real_gh" in\n'
-        "  /*) ;;\n"
-        '  *) echo "gh did not resolve to an absolute path" >&2; exit 1 ;;\n'
-        "esac\n"
-        'wrapped_gh="${real_gh}.livespec-real"\n'
-        'if [ ! -x "$wrapped_gh" ]; then mv "$real_gh" "$wrapped_gh"; fi\n'
-        'mint="$PWD/.claude-plugin/scripts/bin/mint_app_token.py"\n'
-        'cat > "$real_gh" <<EOF\n'
-        "#!/usr/bin/env bash\n"
-        "set -euo pipefail\n"
-        'mint="$mint"\n'
-        'real_gh="$wrapped_gh"\n'
-        "EOF\n"
-        "cat >> \"$real_gh\" <<'EOF'\n"
-        'token="$(python3 "$mint")"\n'
-        'export GH_TOKEN="$token"\n'
-        'export GITHUB_TOKEN="$token"\n'
-        'exec "$real_gh" "$@"\n'
-        "EOF\n"
-        'chmod 755 "$real_gh"'
-    )
-    lines = [
-        "",
-        "# --- Dispatcher-materialized livespec-refreshing-gh-wrapper ---",
-        "[[run.prepare.steps]]",
-        f"script = '''\n{script}\n'''",
-    ]
-    return "\n".join(lines) + "\n"
-
-
-def _refreshing_gh_env_lines() -> str:
-    if not _github_app_env_present():
-        return ""
-    return "".join(
-        f"{key} = {json.dumps(value)}\n"
-        for key in _GITHUB_APP_ENV_KEYS
-        if (value := os.environ.get(key)) not in (None, "")
-    )
-
-
-def _github_app_env_present() -> bool:
-    return all(os.environ.get(key) not in (None, "") for key in _GITHUB_APP_ENV_KEYS[:2])
 
 
 def _core_plugin_env_line(*, siblings: SiblingClones | None) -> str:
