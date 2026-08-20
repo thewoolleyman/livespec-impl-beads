@@ -15,7 +15,6 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_decision_journal imp
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     DispatchPlan,
-    fabro_events_argv,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_review_gate_parse import (
     ReviewGateTelemetry,
@@ -25,6 +24,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_review_gate_span imp
     emit_review_gate_span,
     review_gate_request_line,
 )
+from livespec_orchestrator_beads_fabro.commands._fabro_port import fabro_port_for_plan
 
 __all__: list[str] = [
     "ReviewGateEmission",
@@ -48,6 +48,7 @@ class CommandRunner(Protocol):
         cwd: Path,
         timeout_seconds: float,
         env: dict[str, str] | None = None,
+        stdin: int | None = None,
     ) -> CommandResult:
         """Run argv and return a completed command result."""
         ...
@@ -107,20 +108,19 @@ def _emit_review_gate_from_fabro_events(*, emission: ReviewGateEmission) -> None
             exit_code=None,
         )
         return
-    events = emission.runner.run(
-        argv=fabro_events_argv(plan=emission.plan, run_id=emission.run_id),
-        cwd=emission.plan.repo,
+    events = fabro_port_for_plan(plan=emission.plan, runner=emission.runner).events(
+        run_id=emission.run_id,
         timeout_seconds=_FABRO_EVENTS_TIMEOUT_SECONDS,
     )
-    if events.exit_code != 0:
+    if events.command.exit_code != 0:
         _append_review_gate_skip(
             emission=emission,
             reason="fabro events command failed",
-            exit_code=events.exit_code,
+            exit_code=events.command.exit_code,
         )
         return
     telemetry = parse_review_gate_events(
-        events_jsonl=events.stdout,
+        events_jsonl=events.command.stdout,
         review_fix_visit_cap=emission.plan.review_fix_visit_cap,
     )
     _ = (

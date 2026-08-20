@@ -61,14 +61,16 @@ never echoes the broader record).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Protocol, cast
+from typing import Protocol
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
+from livespec_orchestrator_beads_fabro.commands._fabro_port import (
+    FabroRunSummary,
+    fabro_run_summaries_from_stdout,
+)
 from livespec_orchestrator_beads_fabro.effects import (
     FloatParseFailure,
-    JsonParseFailure,
     parse_float,
-    parse_json,
 )
 
 
@@ -425,21 +427,11 @@ def _total_usd_micros_for(*, ps_json: str, run_id: str) -> int | None:
     null / non-integer field. `bool` is excluded explicitly (a JSON
     `true` is an `int` in Python but is never a valid micro-USD count).
     """
-    parsed_raw = parse_json(text=ps_json)
-    if isinstance(parsed_raw, JsonParseFailure):
-        return None
-    if not isinstance(parsed_raw, list):
-        return None
-    for entry_raw in cast("list[object]", parsed_raw):
-        if not isinstance(entry_raw, dict):
-            continue
-        entry = cast("dict[str, Any]", entry_raw)
-        if entry.get("run_id") != run_id:
-            continue
-        micros_raw: object = entry.get("total_usd_micros")
-        if isinstance(micros_raw, bool):
-            return None
-        if isinstance(micros_raw, int):
-            return micros_raw
-        return None
+    for entry in _fabro_runs_from_ps_json(ps_json=ps_json):
+        if entry.run_id == run_id:
+            return entry.total_usd_micros
     return None
+
+
+def _fabro_runs_from_ps_json(*, ps_json: str) -> tuple[FabroRunSummary, ...]:
+    return fabro_run_summaries_from_stdout(stdout=ps_json)

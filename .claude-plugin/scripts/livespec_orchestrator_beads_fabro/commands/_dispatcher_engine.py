@@ -53,7 +53,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, cast
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_janitor import post_merge
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_journal import (
@@ -66,7 +66,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_merge import 
     confirm_pr,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_argv import (
-    fabro_auth_login_argv,
+    CODEX_IMPLEMENTER_ADAPTER,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_terminal import (
     fabro_run_terminal_outcome,
@@ -74,10 +74,8 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_terminal impor
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     DispatchPlan,
-    fabro_run_argv,
-    fabro_server_env,
-    parse_run_id,
 )
+from livespec_orchestrator_beads_fabro.commands._fabro_port import fabro_port_for_plan
 
 __all__: list[str] = [
     "CommandResult",
@@ -89,6 +87,7 @@ __all__: list[str] = [
     "PollPolicy",
     "SleepFn",
     "SynchronousFabroLauncher",
+    "dispatch_fabro_run_inputs",
     "run_dispatch",
     "run_fabro_factory_auth_login",
 ]
@@ -163,6 +162,7 @@ class FabroRunResult:
     """
 
     command: CommandResult
+    run_id: str | None = None
     stalled_run_id: str | None = None
     abandoned_run_id: str | None = None
     abandoned_item_status: str | None = None
@@ -192,13 +192,9 @@ class FabroLauncher(Protocol):
 
 
 def run_fabro_factory_auth_login(*, plan: DispatchPlan, runner: CommandRunner) -> None:
-    auth_argv = fabro_auth_login_argv(plan=plan)
-    if auth_argv is not None:
-        _ = runner.run(
-            argv=auth_argv,
-            cwd=plan.repo,
-            timeout_seconds=_FABRO_AUTH_TIMEOUT_SECONDS,
-        )
+    _ = fabro_port_for_plan(plan=plan, runner=runner).auth_login(
+        timeout_seconds=_FABRO_AUTH_TIMEOUT_SECONDS
+    )
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -223,22 +219,13 @@ class SynchronousFabroLauncher:
     ) -> FabroRunResult:
         _ = journal
         run_fabro_factory_auth_login(plan=plan, runner=runner)
-        env = fabro_server_env(plan=plan)
-        command = (
-            runner.run(
-                argv=fabro_run_argv(plan=plan),
-                cwd=plan.repo,
-                timeout_seconds=_FABRO_TIMEOUT_SECONDS,
-                env=env,
-            )
-            if env is not None
-            else runner.run(
-                argv=fabro_run_argv(plan=plan),
-                cwd=plan.repo,
-                timeout_seconds=_FABRO_TIMEOUT_SECONDS,
-            )
+        result = fabro_port_for_plan(plan=plan, runner=runner).run(
+            workflow_toml=plan.workflow_toml,
+            goal_file=plan.goal_file,
+            inputs=dispatch_fabro_run_inputs(plan=plan),
+            timeout_seconds=_FABRO_TIMEOUT_SECONDS,
         )
-        return FabroRunResult(command=command)
+        return FabroRunResult(command=cast("CommandResult", result.command), run_id=result.run_id)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -303,7 +290,7 @@ def run_dispatch(
         return stalled_outcome(
             outcome_type=DispatchOutcome, plan=plan, run_id=launched.stalled_run_id
         )
-    run_id = parse_run_id(output=fabro.stdout + "\n" + fabro.stderr)
+    run_id = launched.run_id
     inspect = inspect_run(plan=plan, runner=runner, journal=journal, run_id=run_id)
     terminal = fabro_run_terminal_outcome(
         outcome_type=DispatchOutcome,
@@ -355,3 +342,11 @@ def run_dispatch(
     if run_id is not None and outcome.fabro_run_id is None:
         outcome = replace(outcome, fabro_run_id=run_id)
     return outcome
+
+
+def dispatch_fabro_run_inputs(*, plan: DispatchPlan) -> tuple[str, ...]:
+    return (
+        f"acp_adapter={CODEX_IMPLEMENTER_ADAPTER}",
+        f"review_fix_visit_cap={plan.review_fix_visit_cap}",
+        f"merge_on_review_cap_outcome={plan.merge_on_review_cap_outcome}",
+    )

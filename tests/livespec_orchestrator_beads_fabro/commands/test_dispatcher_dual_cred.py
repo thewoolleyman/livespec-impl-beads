@@ -4,8 +4,8 @@ The Dispatcher reads the host Codex `auth.json`, freshness-gates it, and
 projects a NON-rotatable snapshot into the sandbox at `$CODEX_HOME/auth.json`
 alongside the existing Claude OAuth env, then flips the implementer nodes
 to the Codex ACP adapter (scenarios.md Scenario 18 / Scenario 19). These
-tests exercise the PURE overlay surface (`render_run_config_overlay`,
-`fabro_run_argv`) plus the host-read + projection helpers in `dispatcher`:
+tests exercise the PURE overlay surface (`render_run_config_overlay`), the
+Fabro port run inputs, and the host-read + projection helpers in `dispatcher`:
 no real `~/.codex` read, no real fabro run, no real clock dependence — the
 host-read and the freshness clock are injected so every assertion is
 hermetic and deterministic.
@@ -19,6 +19,7 @@ import json
 import os
 import stat
 import subprocess
+from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -37,13 +38,17 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_codex_auth import (
 from livespec_orchestrator_beads_fabro.commands._dispatcher_credentials import (
     materialize_overlay,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
+    CommandResult,
+    dispatch_fabro_run_inputs,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     CODEX_IMPLEMENTER_ADAPTER,
     build_plan,
-    fabro_run_argv,
     render_run_config_overlay,
 )
+from livespec_orchestrator_beads_fabro.commands._fabro_port import FabroPort, FabroTarget
 from livespec_orchestrator_beads_fabro.errors import BeadsCommandError
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
@@ -265,12 +270,30 @@ def _socket_dir_listing(*, path: Path) -> tuple[str, ...]:
     return tuple(sorted(child.name for child in path.iterdir()))
 
 
+@dataclass(kw_only=True)
+class _FabroRunner:
+    calls: list[list[str]] = field(default_factory=list)
+
+    def run(
+        self,
+        *,
+        argv: list[str],
+        cwd: Path,
+        timeout_seconds: float,
+        env: dict[str, str] | None = None,
+        stdin: int | None = None,
+    ) -> CommandResult:
+        _ = (cwd, timeout_seconds, env, stdin)
+        self.calls.append(argv)
+        return CommandResult(exit_code=0, stdout="", stderr="")
+
+
 # ---------------------------------------------------------------------------
-# fabro_run_argv — the static Codex implementer-adapter routing
+# FabroPort run inputs — the static Codex implementer-adapter routing
 # ---------------------------------------------------------------------------
 
 
-def test_fabro_run_argv_routes_implementer_to_codex_adapter(tmp_path: Path) -> None:
+def test_fabro_port_run_routes_implementer_to_codex_adapter(tmp_path: Path) -> None:
     """`--input acp_adapter=<codex>` is present, before --no-upgrade-check."""
     plan = build_plan(
         repo=tmp_path,
@@ -281,7 +304,19 @@ def test_fabro_run_argv_routes_implementer_to_codex_adapter(tmp_path: Path) -> N
         janitor=None,
         janitor_checkout=tmp_path / "janitor-co",
     )
-    argv = fabro_run_argv(plan=plan)
+    runner = _FabroRunner()
+    _ = FabroPort(
+        fabro_bin=plan.fabro_bin,
+        target=FabroTarget(),
+        runner=runner,
+        cwd=plan.repo,
+    ).run(
+        workflow_toml=plan.workflow_toml,
+        goal_file=plan.goal_file,
+        inputs=dispatch_fabro_run_inputs(plan=plan),
+        timeout_seconds=1,
+    )
+    argv = runner.calls[0]
     input_values = [
         value for index, value in enumerate(argv[1:], start=1) if argv[index - 1] == "--input"
     ]
@@ -491,7 +526,7 @@ def test_materialize_overlay_writes_codex_projection_when_fresh(
     assert stat.S_IMODE(overlay.stat().st_mode) == 0o600
 
 
-def test_fabro_run_argv_routes_effective_review_cap_policy_inputs(tmp_path: Path) -> None:
+def test_fabro_port_run_routes_effective_review_cap_policy_inputs(tmp_path: Path) -> None:
     """Dispatcher policy values are rendered as Fabro workflow inputs."""
     plan = build_plan(
         repo=tmp_path,
@@ -504,7 +539,19 @@ def test_fabro_run_argv_routes_effective_review_cap_policy_inputs(tmp_path: Path
         review_fix_cap=7,
         merge_on_review_cap=True,
     )
-    argv = fabro_run_argv(plan=plan)
+    runner = _FabroRunner()
+    _ = FabroPort(
+        fabro_bin=plan.fabro_bin,
+        target=FabroTarget(),
+        runner=runner,
+        cwd=plan.repo,
+    ).run(
+        workflow_toml=plan.workflow_toml,
+        goal_file=plan.goal_file,
+        inputs=dispatch_fabro_run_inputs(plan=plan),
+        timeout_seconds=1,
+    )
+    argv = runner.calls[0]
     input_values = [
         value for index, value in enumerate(argv[1:], start=1) if argv[index - 1] == "--input"
     ]

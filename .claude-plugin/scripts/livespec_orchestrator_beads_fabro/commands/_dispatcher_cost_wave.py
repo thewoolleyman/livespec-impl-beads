@@ -14,7 +14,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_cost import (
     resolve_per_session_cap_usd,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
-from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import parse_run_id_for_work_item
+from livespec_orchestrator_beads_fabro.commands._fabro_port import (
+    FabroRunSummary,
+    fabro_run_summaries_from_stdout,
+)
 
 __all__: list[str] = ["gate_wave_refusals"]
 
@@ -33,15 +36,17 @@ def gate_wave_refusals(  # noqa: PLR0913 - mirrors the public gate_wave inputs.
     session_usd_micros = 0
     derived = derived_cost_micros_by_work_item or {}
     enforcing = cost_mode == COST_MODE_ENFORCE
+    runs = fabro_run_summaries_from_stdout(stdout=ps_json)
     per_run_cap = resolve_per_run_cap_usd(environ=environ) if environ is not None else None
     per_session_cap = resolve_per_session_cap_usd(environ=environ) if environ is not None else None
     for outcome in outcomes:
         if outcome.status != "green":
             continue
-        run_id = parse_run_id_for_work_item(ps_json=ps_json, work_item_id=outcome.work_item_id)
-        if run_id is None:
+        run = _run_for_work_item(runs=runs, work_item_id=outcome.work_item_id)
+        if run is None:
             _append_skipped(journal=journal, work_item_id=outcome.work_item_id)
             continue
+        run_id = run.run_id
         observation = _observe_with_derived(
             ps_json=ps_json,
             run_id=run_id,
@@ -157,3 +162,12 @@ def _observe_with_derived(
     if derived_micros is not None:
         return CostObservation(run_id=run_id, usd_micros=derived_micros, observable=True)
     return observe_run_cost(ps_json=ps_json, run_id=run_id)
+
+
+def _run_for_work_item(
+    *, runs: tuple[FabroRunSummary, ...], work_item_id: str
+) -> FabroRunSummary | None:
+    for run in runs:
+        if run.work_item_id == work_item_id:
+            return run
+    return None

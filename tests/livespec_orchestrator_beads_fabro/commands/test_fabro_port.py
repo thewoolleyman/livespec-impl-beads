@@ -47,6 +47,24 @@ def _port_module() -> Any:
     return importlib.import_module(_MODULE_NAME)
 
 
+def test_fabro_port_is_the_only_public_fabro_cli_and_response_surface() -> None:
+    """Legacy dispatcher modules must not keep duplicate Fabro readers."""
+    argv_module = importlib.import_module(
+        "livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_argv"
+    )
+    run_status_module = importlib.import_module(
+        "livespec_orchestrator_beads_fabro.commands._dispatcher_run_status"
+    )
+    stale_sweep_module = importlib.import_module(
+        "livespec_orchestrator_beads_fabro.commands._dispatcher_stale_run_sweep"
+    )
+
+    assert not any(name.startswith("fabro_") for name in argv_module.__all__)
+    assert "parse_run_id" not in run_status_module.__all__
+    assert "parse_run_status" not in run_status_module.__all__
+    assert not hasattr(stale_sweep_module, "_watchable_fabro_run")
+
+
 def test_fabro_port_run_builds_livespec_run_argv_and_parses_run_id(tmp_path: Path) -> None:
     module = _port_module()
     login_value = "fixture-login-value"
@@ -169,6 +187,7 @@ def test_fabro_port_json_operations_parse_payloads_and_run_summaries(tmp_path: P
             total_usd_micros=1250,
         ),
     )
+    assert getattr(ps.runs[0], "work_item_id", None) == "bd-ib-okr5ru"
     assert validate.payload == {"valid": True}
     assert [call.argv for call in runner.calls] == [
         ["fabro", "inspect", "01RUN", "--json", "--server", "http://factory"],

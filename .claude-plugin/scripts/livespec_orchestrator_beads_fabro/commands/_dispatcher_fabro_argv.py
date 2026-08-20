@@ -15,11 +15,6 @@ if TYPE_CHECKING:
 __all__: list[str] = [
     "CODEX_IMPLEMENTER_ADAPTER",
     "FleetMembers",
-    "fabro_events_argv",
-    "fabro_inspect_argv",
-    "fabro_ps_argv",
-    "fabro_rm_argv",
-    "fabro_run_argv",
     "janitor_argv_with_default",
     "janitor_bootstrap_argv",
     "janitor_checkout_path",
@@ -203,111 +198,6 @@ def janitor_core_ref_from_config(*, config_text: str) -> str:
     if not isinstance(pinned_raw, str) or pinned_raw.strip() == "":
         return _DEFAULT_JANITOR_CORE_REF
     return pinned_raw.strip()
-
-
-def fabro_run_argv(*, plan: DispatchPlan) -> list[str]:
-    # `--input acp_adapter=...` statically routes the implementer nodes
-    # (implement/fix/pr/review_fix) to the Codex ACP adapter; the review
-    # node uses its own `review_adapter` default (Slice A) and is
-    # unaffected. The dual-credential overlay projects the matching
-    # auth.json so the adapter authenticates from the host snapshot.
-    return [
-        plan.fabro_bin,
-        "run",
-        str(plan.workflow_toml),
-        "--goal-file",
-        str(plan.goal_file),
-        "--input",
-        f"acp_adapter={CODEX_IMPLEMENTER_ADAPTER}",
-        "--input",
-        f"review_fix_visit_cap={plan.review_fix_visit_cap}",
-        "--input",
-        f"merge_on_review_cap_outcome={plan.merge_on_review_cap_outcome}",
-        "--no-upgrade-check",
-        *_fabro_server_suffix(plan=plan),
-    ]
-
-
-def fabro_server_env(*, plan: DispatchPlan) -> dict[str, str] | None:
-    if plan.fabro_factory_server is None:
-        return None
-    return {"FABRO_SERVER": plan.fabro_factory_server}
-
-
-def fabro_auth_login_argv(*, plan: DispatchPlan) -> list[str] | None:
-    if plan.fabro_factory_server is None or plan.fabro_factory_dev_token is None:
-        return None
-    return [
-        plan.fabro_bin,
-        "auth",
-        "login",
-        "--dev-token",
-        plan.fabro_factory_dev_token,
-        "--server",
-        plan.fabro_factory_server,
-    ]
-
-
-def _fabro_server_suffix(*, plan: DispatchPlan) -> list[str]:
-    # `--server` is a per-subcommand fabro CLI flag, never a top-level one;
-    # `fabro --server <url> <cmd>` is a hard parse error on the pinned
-    # 0.254.0 CLI. Every caller appends this AFTER its subcommand token.
-    if plan.fabro_factory_server is None:
-        return []
-    return ["--server", plan.fabro_factory_server]
-
-
-def fabro_inspect_argv(*, plan: DispatchPlan, run_id: str) -> list[str]:
-    return [
-        plan.fabro_bin,
-        "inspect",
-        run_id,
-        "--json",
-        *_fabro_server_suffix(plan=plan),
-    ]
-
-
-def fabro_events_argv(*, plan: DispatchPlan, run_id: str) -> list[str]:
-    """`fabro events <run-id> --json`: the per-run event log (liveness source).
-
-    The watchdog reads the maximum event timestamp here as its coarse
-    liveness signal (work-item livespec-impl-beads-oyg); a stream that
-    flatlines for the full stall window is the confirmed-stall signal.
-    """
-    return [
-        plan.fabro_bin,
-        "events",
-        run_id,
-        "--json",
-        *_fabro_server_suffix(plan=plan),
-    ]
-
-
-def fabro_ps_argv(*, plan: DispatchPlan) -> list[str]:
-    """`fabro ps -a --json`: per-run metadata used to discover the run id.
-
-    The watchdog cannot read the run id from the still-blocking `fabro
-    run` output, so it discovers the in-flight run for this dispatch from
-    `fabro ps` (matched on the work-item id embedded in the run's goal
-    text plus a `running` status — see `parse_running_run_id`).
-    """
-    return [plan.fabro_bin, "ps", "-a", "--json", *_fabro_server_suffix(plan=plan)]
-
-
-def fabro_rm_argv(*, plan: DispatchPlan, run_id: str) -> list[str]:
-    """`fabro rm -f <run-id>`: force-cancel a confirmed-stalled run.
-
-    The watchdog calls this on a confirmed sustained-no-progress stall to
-    free the slot + stop the spend (the manual `fabro rm` a human had to
-    do at 152min in the 7us.6 incident, now mechanized).
-    """
-    return [
-        plan.fabro_bin,
-        "rm",
-        "-f",
-        run_id,
-        *_fabro_server_suffix(plan=plan),
-    ]
 
 
 def pr_view_argv(*, plan: DispatchPlan) -> list[str]:

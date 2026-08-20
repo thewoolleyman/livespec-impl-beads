@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_journal import (
     journal_stage,
@@ -10,12 +10,11 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_journal impor
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_failure import (
     fabro_failure_outcome_detail,
-    parse_fabro_failure_detail,
 )
-from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
-    DispatchPlan,
-    fabro_inspect_argv,
-    parse_run_status,
+from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import DispatchPlan
+from livespec_orchestrator_beads_fabro.commands._fabro_port import (
+    FabroInspectResult,
+    fabro_port_for_plan,
 )
 
 if TYPE_CHECKING:
@@ -40,16 +39,20 @@ def inspect_run(
     runner: CommandRunner,
     journal: JournalWriter,
     run_id: str | None,
-) -> CommandResult | None:
+) -> FabroInspectResult | None:
     """Read and journal `fabro inspect --json` for a parsed run id."""
     if run_id is None:
         return None
-    inspect = runner.run(
-        argv=fabro_inspect_argv(plan=plan, run_id=run_id),
-        cwd=plan.repo,
+    inspect = fabro_port_for_plan(plan=plan, runner=runner).inspect(
+        run_id=run_id,
         timeout_seconds=_FABRO_INSPECT_TIMEOUT_SECONDS,
     )
-    journal_stage(journal=journal, plan=plan, stage="fabro-inspect", result=inspect)
+    journal_stage(
+        journal=journal,
+        plan=plan,
+        stage="fabro-inspect",
+        result=cast("CommandResult", inspect.command),
+    )
     return inspect
 
 
@@ -58,7 +61,7 @@ def fabro_run_terminal_outcome(
     outcome_type: type[DispatchOutcome],
     plan: DispatchPlan,
     run_id: str | None,
-    inspect: CommandResult | None,
+    inspect: FabroInspectResult | None,
     exit_code: int,
     stderr: str,
 ) -> DispatchOutcome | None:
@@ -73,11 +76,7 @@ def fabro_run_terminal_outcome(
         return blocked
     if exit_code == 0:
         return None
-    failure = (
-        parse_fabro_failure_detail(stdout=inspect.stdout)
-        if inspect is not None and inspect.exit_code == 0
-        else None
-    )
+    failure = inspect.failure if inspect is not None and inspect.command.exit_code == 0 else None
     return outcome_type(
         work_item_id=plan.work_item_id,
         status="failed",
@@ -97,7 +96,7 @@ def _blocked_outcome(
     outcome_type: type[DispatchOutcome],
     plan: DispatchPlan,
     run_id: str | None,
-    inspect: CommandResult | None,
+    inspect: FabroInspectResult | None,
 ) -> DispatchOutcome | None:
     """Detect a run parked at the in-loop human gate (third terminal state).
 
@@ -109,9 +108,9 @@ def _blocked_outcome(
     """
     if run_id is None or inspect is None:
         return None
-    if inspect.exit_code != 0:
+    if inspect.command.exit_code != 0:
         return None
-    if parse_run_status(stdout=inspect.stdout) not in {"blocked", "human_input_required"}:
+    if inspect.status_kind not in {"blocked", "human_input_required"}:
         return None
     return outcome_type(
         work_item_id=plan.work_item_id,

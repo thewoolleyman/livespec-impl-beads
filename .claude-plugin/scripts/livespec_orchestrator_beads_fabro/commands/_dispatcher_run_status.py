@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -10,13 +9,7 @@ from livespec_orchestrator_beads_fabro.effects import JsonParseFailure, parse_js
 
 __all__: list[str] = [
     "PrView",
-    "WatchableRun",
     "parse_pr_view",
-    "parse_run_id",
-    "parse_run_id_for_work_item",
-    "parse_run_status",
-    "parse_running_run_id",
-    "parse_watchable_run",
 ]
 
 
@@ -30,179 +23,6 @@ class PrView:
     merge_state_status: str
     merge_sha: str | None
     terminal_required_check_failures: tuple[str, ...]
-
-
-@dataclass(frozen=True, kw_only=True)
-class WatchableRun:
-    """Run entry the watchdog may inspect or reap."""
-
-    run_id: str
-    status_kind: str
-
-
-_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
-_RUN_ID_RE = re.compile(r"Run:\s*([0-9A-Za-z-]+)")
-_WATCHABLE_RUN_STATUSES = frozenset({"running", "runnable"})
-
-
-def parse_running_run_id(*, ps_json: str, work_item_id: str) -> str | None:
-    """Find the RUNNING run id for `work_item_id` from `fabro ps -a --json`.
-
-    `fabro ps -a --json` lists per-run metadata: a `run_id`, a
-    serde-tagged `status` (`{"kind": "running", ...}` or a plain string),
-    and the full `goal` text (which embeds `Work-item: <id>` per
-    `render_goal`). The watchdog matches the run whose goal contains this
-    dispatch's work-item id AND whose status is `running` — the in-flight
-    run to watch. None when no such run is found yet (the run may not have
-    registered; the watchdog treats that as "no signal", never a stall).
-    Accepts a top-level array or a `{"runs": [...]}` envelope.
-    """
-    parsed_raw = parse_json(text=ps_json)
-    if isinstance(parsed_raw, JsonParseFailure):
-        return None
-    runs = _runs_list(parsed_raw=parsed_raw)
-    for run_raw in runs:
-        run_id = _running_run_id_for(run_raw=run_raw, work_item_id=work_item_id)
-        if run_id is not None:
-            return run_id
-    return None
-
-
-def parse_watchable_run(*, ps_json: str, work_item_id: str) -> WatchableRun | None:
-    """Find a running-or-runnable run for `work_item_id`.
-
-    The stale-run reaper has to see queued `runnable` runs, while the
-    liveness watchdog still needs the already-running case. None means no
-    matching watchable run exists or the `fabro ps --json` payload is not
-    usable.
-    """
-    parsed_raw = parse_json(text=ps_json)
-    if isinstance(parsed_raw, JsonParseFailure):
-        return None
-    for run_raw in _runs_list(parsed_raw=parsed_raw):
-        run = _watchable_run_for(run_raw=run_raw, work_item_id=work_item_id)
-        if run is not None:
-            return run
-    return None
-
-
-def _runs_list(*, parsed_raw: object) -> list[object]:
-    """Normalize `fabro ps --json` to a list (top-level array or {"runs": [...]})."""
-    if isinstance(parsed_raw, list):
-        return cast("list[object]", parsed_raw)
-    if isinstance(parsed_raw, dict):
-        runs_raw: object = cast("dict[str, Any]", parsed_raw).get("runs")
-        if isinstance(runs_raw, list):
-            return cast("list[object]", runs_raw)
-    return []
-
-
-def parse_run_id_for_work_item(*, ps_json: str, work_item_id: str) -> str | None:
-    """Find the run id for `work_item_id` from `fabro ps -a --json`, any status.
-
-    Like `parse_running_run_id` but STATUS-AGNOSTIC: it matches the run
-    whose goal embeds `work_item_id` regardless of status, which is what
-    the post-dispatch cost gate needs — the run is terminal (succeeded /
-    failed) by the time the cost is read, not `running`. The cost source
-    (work-item livespec-impl-beads-5v9) is `fabro ps -a --json`'s
-    `total_usd_micros`, keyed by this run id. None when no goal embeds the
-    id or the JSON is unusable; the cost gate journals `cost-gate-skipped`
-    for a None match rather than crashing the wave.
-    """
-    parsed_raw = parse_json(text=ps_json)
-    if isinstance(parsed_raw, JsonParseFailure):
-        return None
-    for run_raw in _runs_list(parsed_raw=parsed_raw):
-        if not isinstance(run_raw, dict):
-            continue
-        run = cast("dict[str, Any]", run_raw)
-        goal_raw: object = run.get("goal")
-        if not isinstance(goal_raw, str) or work_item_id not in goal_raw:
-            continue
-        run_id_raw: object = run.get("run_id")
-        if isinstance(run_id_raw, str) and run_id_raw:
-            return run_id_raw
-    return None
-
-
-def _running_run_id_for(*, run_raw: object, work_item_id: str) -> str | None:
-    """Return the run id IFF this entry is a running run for `work_item_id`."""
-    if not isinstance(run_raw, dict):
-        return None
-    run = cast("dict[str, Any]", run_raw)
-    goal_raw: object = run.get("goal")
-    if not isinstance(goal_raw, str) or work_item_id not in goal_raw:
-        return None
-    if _run_status_kind(run=run) != "running":
-        return None
-    run_id_raw: object = run.get("run_id")
-    return run_id_raw if isinstance(run_id_raw, str) and run_id_raw else None
-
-
-def _watchable_run_for(*, run_raw: object, work_item_id: str) -> WatchableRun | None:
-    """Return a watchable run entry for this work item, if present."""
-    if not isinstance(run_raw, dict):
-        return None
-    run = cast("dict[str, Any]", run_raw)
-    goal_raw: object = run.get("goal")
-    if not isinstance(goal_raw, str) or work_item_id not in goal_raw:
-        return None
-    status_kind = _run_status_kind(run=run)
-    if status_kind not in _WATCHABLE_RUN_STATUSES:
-        return None
-    run_id_raw: object = run.get("run_id")
-    if not isinstance(run_id_raw, str) or not run_id_raw:
-        return None
-    return WatchableRun(run_id=run_id_raw, status_kind=status_kind)
-
-
-def _run_status_kind(*, run: dict[str, Any]) -> str | None:
-    """Read a run entry's status kind (`{"kind": ...}` or a plain string)."""
-    status_raw: object = run.get("status")
-    if isinstance(status_raw, str):
-        return status_raw
-    if isinstance(status_raw, dict):
-        kind_raw: object = cast("dict[str, Any]", status_raw).get("kind")
-        if isinstance(kind_raw, str):
-            return kind_raw
-    return None
-
-
-def parse_run_id(*, output: str) -> str | None:
-    """Extract the run id from `fabro run` CLI output.
-
-    The CLI prints `Run: <run-id>` (possibly ANSI-dimmed) when a run
-    starts; None when no such line is present (e.g. fabro crashed
-    before allocating a run).
-    """
-    plain = _ANSI_ESCAPE_RE.sub("", output)
-    match = _RUN_ID_RE.search(plain)
-    if match is None:
-        return None
-    return match.group(1)
-
-
-def parse_run_status(*, stdout: str) -> str | None:
-    """Parse the status kind out of `fabro inspect <run-id> --json`.
-
-    The status field is a serde-tagged union (`{"kind": "blocked", ...}`
-    in fabro v0.254.0); a plain string status is accepted for
-    forward-compatibility. None when the shape is unusable.
-    """
-    parsed_raw = parse_json(text=stdout)
-    if isinstance(parsed_raw, JsonParseFailure):
-        return None
-    if not isinstance(parsed_raw, dict):
-        return None
-    parsed = cast("dict[str, Any]", parsed_raw)
-    status_raw: object = parsed.get("status")
-    if isinstance(status_raw, str):
-        return status_raw
-    if isinstance(status_raw, dict):
-        kind_raw: object = cast("dict[str, Any]", status_raw).get("kind")
-        if isinstance(kind_raw, str):
-            return kind_raw
-    return None
 
 
 _TERMINAL_CHECK_CONCLUSIONS = frozenset(

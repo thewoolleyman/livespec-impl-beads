@@ -38,8 +38,6 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_io import WatchedFab
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     DispatchPlan,
     build_plan,
-    parse_running_run_id,
-    parse_watchable_run,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_watchdog import (
     DEFAULT_STALL_SECONDS,
@@ -49,6 +47,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_watchdog import (
     decide_stall,
     parse_last_event_epoch,
     resolve_stall_seconds,
+)
+from livespec_orchestrator_beads_fabro.commands._fabro_port import (
+    FabroRunSummary,
+    fabro_run_summaries_from_stdout,
 )
 
 # ---------------------------------------------------------------------------
@@ -212,80 +214,80 @@ def test_parse_last_event_epoch_handles_naive_and_offset_timestamps() -> None:
 
 
 # ---------------------------------------------------------------------------
-# parse_running_run_id (fabro ps -a --json)
+# FabroPort run summaries (fabro ps -a --json)
 # ---------------------------------------------------------------------------
 
 
-def test_parse_running_run_id_matches_running_run_for_work_item() -> None:
+def test_fabro_run_summaries_match_running_run_for_work_item() -> None:
     ps = (
         '[{"run_id": "01OTHER", "goal": "Work-item: other-1", "status": {"kind": "running"}},'
         ' {"run_id": "01MINE", "goal": "Work-item: oyg-1 ...", "status": {"kind": "running"}}]'
     )
-    assert parse_running_run_id(ps_json=ps, work_item_id="oyg-1") == "01MINE"
+    assert _running_run_id(ps_json=ps, work_item_id="oyg-1") == "01MINE"
 
 
-def test_parse_running_run_id_skips_non_running_and_wrong_item() -> None:
+def test_fabro_run_summaries_skip_non_running_and_wrong_item() -> None:
     # succeeded run for my item -> not it; running run for another item -> not it.
     ps = (
         '[{"run_id": "01DONE", "goal": "Work-item: oyg-1", "status": {"kind": "succeeded"}},'
         ' {"run_id": "01OTHER", "goal": "Work-item: zzz", "status": "running"}]'
     )
-    assert parse_running_run_id(ps_json=ps, work_item_id="oyg-1") is None
+    assert _running_run_id(ps_json=ps, work_item_id="oyg-1") is None
 
 
-def test_parse_running_run_id_accepts_envelope_and_plain_string_status() -> None:
+def test_fabro_run_summaries_accept_envelope_and_plain_string_status() -> None:
     ps = '{"runs": [{"run_id": "01ENV", "goal": "Work-item: oyg-1", "status": "running"}]}'
-    assert parse_running_run_id(ps_json=ps, work_item_id="oyg-1") == "01ENV"
+    assert _running_run_id(ps_json=ps, work_item_id="oyg-1") == "01ENV"
 
 
-def test_parse_running_run_id_returns_none_on_malformed() -> None:
-    assert parse_running_run_id(ps_json="not json", work_item_id="oyg-1") is None
-    assert parse_running_run_id(ps_json="[]", work_item_id="oyg-1") is None
-    assert parse_running_run_id(ps_json='[{"no": "fields"}]', work_item_id="oyg-1") is None
+def test_fabro_run_summaries_return_none_on_malformed() -> None:
+    assert _running_run_id(ps_json="not json", work_item_id="oyg-1") is None
+    assert _running_run_id(ps_json="[]", work_item_id="oyg-1") is None
+    assert _running_run_id(ps_json='[{"no": "fields"}]', work_item_id="oyg-1") is None
 
 
-def test_parse_running_run_id_handles_unusable_top_level_and_entries() -> None:
+def test_fabro_run_summaries_handle_unusable_top_level_and_entries() -> None:
     # Top-level scalar and a dict without a `runs` list -> empty run set.
-    assert parse_running_run_id(ps_json="42", work_item_id="oyg-1") is None
-    assert parse_running_run_id(ps_json='{"runs": "nope"}', work_item_id="oyg-1") is None
+    assert _running_run_id(ps_json="42", work_item_id="oyg-1") is None
+    assert _running_run_id(ps_json='{"runs": "nope"}', work_item_id="oyg-1") is None
     # A non-dict entry in the list is skipped.
-    assert parse_running_run_id(ps_json='["not-a-dict"]', work_item_id="oyg-1") is None
+    assert _running_run_id(ps_json='["not-a-dict"]', work_item_id="oyg-1") is None
 
 
-def test_parse_running_run_id_skips_unusable_status_shapes() -> None:
+def test_fabro_run_summaries_skip_unusable_status_shapes() -> None:
     # A numeric status (neither string nor `{"kind": ...}`) and a status
     # dict with no string `kind` are both treated as not-running.
     numeric_status = '[{"run_id": "01N", "goal": "Work-item: oyg-1", "status": 7}]'
     no_kind = '[{"run_id": "01K", "goal": "Work-item: oyg-1", "status": {"phase": "x"}}]'
-    assert parse_running_run_id(ps_json=numeric_status, work_item_id="oyg-1") is None
-    assert parse_running_run_id(ps_json=no_kind, work_item_id="oyg-1") is None
+    assert _running_run_id(ps_json=numeric_status, work_item_id="oyg-1") is None
+    assert _running_run_id(ps_json=no_kind, work_item_id="oyg-1") is None
 
 
-def test_parse_running_run_id_requires_a_nonempty_run_id() -> None:
+def test_fabro_run_summaries_require_a_nonempty_run_id() -> None:
     # A running, matching run with a missing/empty run_id -> no usable id.
     missing = '[{"goal": "Work-item: oyg-1", "status": "running"}]'
     empty = '[{"run_id": "", "goal": "Work-item: oyg-1", "status": "running"}]'
-    assert parse_running_run_id(ps_json=missing, work_item_id="oyg-1") is None
-    assert parse_running_run_id(ps_json=empty, work_item_id="oyg-1") is None
+    assert _running_run_id(ps_json=missing, work_item_id="oyg-1") is None
+    assert _running_run_id(ps_json=empty, work_item_id="oyg-1") is None
 
 
-def test_parse_watchable_run_matches_runnable_or_running_run_for_work_item() -> None:
+def test_fabro_run_summaries_match_runnable_or_running_run_for_work_item() -> None:
     ps = (
         '[{"run_id": "01OTHER", "goal": "Work-item: other-1", "status": "runnable"},'
         ' {"run_id": "01QUEUED", "goal": "Work-item: oyg-1",'
         ' "status": {"kind": "runnable"}},'
         ' {"run_id": "01RUNNING", "goal": "Work-item: oyg-1", "status": "running"}]'
     )
-    run = parse_watchable_run(ps_json=ps, work_item_id="oyg-1")
+    run = _watchable_run(ps_json=ps, work_item_id="oyg-1")
 
     assert run is not None
     assert run.run_id == "01QUEUED"
     assert run.status_kind == "runnable"
 
 
-def test_parse_watchable_run_skips_unwatchable_and_malformed_entries() -> None:
-    assert parse_watchable_run(ps_json="not-json", work_item_id="oyg-1") is None
-    assert parse_watchable_run(ps_json='{"runs": "nope"}', work_item_id="oyg-1") is None
+def test_fabro_run_summaries_skip_unwatchable_and_malformed_entries() -> None:
+    assert _watchable_run(ps_json="not-json", work_item_id="oyg-1") is None
+    assert _watchable_run(ps_json='{"runs": "nope"}', work_item_id="oyg-1") is None
     ps = (
         '["bad", {"run_id": "01DONE", "goal": "Work-item: oyg-1",'
         ' "status": {"kind": "succeeded"}},'
@@ -293,7 +295,19 @@ def test_parse_watchable_run_skips_unwatchable_and_malformed_entries() -> None:
         ' {"run_id": "01NOGOAL", "status": "runnable"},'
         ' {"run_id": "01NOSTATUS", "goal": "Work-item: oyg-1", "status": 7}]'
     )
-    assert parse_watchable_run(ps_json=ps, work_item_id="oyg-1") is None
+    assert _watchable_run(ps_json=ps, work_item_id="oyg-1") is None
+
+
+def _running_run_id(*, ps_json: str, work_item_id: str) -> str | None:
+    run = _watchable_run(ps_json=ps_json, work_item_id=work_item_id)
+    return run.run_id if run is not None and run.status_kind == "running" else None
+
+
+def _watchable_run(*, ps_json: str, work_item_id: str) -> FabroRunSummary | None:
+    for run in fabro_run_summaries_from_stdout(stdout=ps_json):
+        if run.work_item_id == work_item_id and run.status_kind in {"runnable", "running"}:
+            return run
+    return None
 
 
 # ---------------------------------------------------------------------------

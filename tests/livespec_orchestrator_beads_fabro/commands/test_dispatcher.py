@@ -82,11 +82,6 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     FleetMembers,
     SiblingClones,
     build_plan,
-    fabro_events_argv,
-    fabro_inspect_argv,
-    fabro_ps_argv,
-    fabro_rm_argv,
-    fabro_run_argv,
     item_sizing_warnings,
     janitor_argv_with_default,
     janitor_bootstrap_argv,
@@ -98,8 +93,6 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     janitor_worktree_remove_argv,
     parse_fleet_members,
     parse_pr_view,
-    parse_run_id,
-    parse_run_status,
     pr_arm_argv,
     pr_update_branch_argv,
     pr_view_argv,
@@ -119,6 +112,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_spec_commitments imp
     Obligation,
     collect_obligations_and_supersedes,
 )
+from livespec_orchestrator_beads_fabro.commands._fabro_port import FabroPort, FabroTarget
 from livespec_orchestrator_beads_fabro.commands.detect_impl_gaps import detect_rules
 from livespec_orchestrator_beads_fabro.commands.dispatcher import main
 from livespec_orchestrator_beads_fabro.errors import BeadsCommandError
@@ -165,11 +159,6 @@ def test_dispatcher_plan_decomposition_contract() -> None:
     assert set(_dispatcher_fabro_argv.__all__) == {
         "CODEX_IMPLEMENTER_ADAPTER",
         "FleetMembers",
-        "fabro_events_argv",
-        "fabro_inspect_argv",
-        "fabro_ps_argv",
-        "fabro_rm_argv",
-        "fabro_run_argv",
         "janitor_argv_with_default",
         "janitor_bootstrap_argv",
         "janitor_checkout_path",
@@ -188,13 +177,7 @@ def test_dispatcher_plan_decomposition_contract() -> None:
     }
     assert set(_dispatcher_run_status.__all__) == {
         "PrView",
-        "WatchableRun",
         "parse_pr_view",
-        "parse_run_id",
-        "parse_run_id_for_work_item",
-        "parse_run_status",
-        "parse_running_run_id",
-        "parse_watchable_run",
     }
     assert set(_dispatcher_overlay.__all__) == {
         "CORE_PLUGIN_ROOT_ENV_VAR",
@@ -363,9 +346,10 @@ class _FakeRunner:
         cwd: Path,
         timeout_seconds: float,
         env: dict[str, str] | None = None,
+        stdin: int | None = None,
     ) -> CommandResult:
         assert timeout_seconds > 0
-        _ = env
+        _ = (env, stdin)
         self.calls.append((argv, cwd))
         self.timeouts.append(timeout_seconds)
         self.envs.append(env)
@@ -942,7 +926,7 @@ def test_build_plan_derives_publish_branch_and_default_janitor(tmp_path: Path) -
     assert plan.merge_on_review_cap_outcome == "__merge_on_review_cap_disabled__"
 
 
-def test_dispatch_factory_selection_reaches_fabro_run_argv_and_env(
+def test_dispatch_factory_selection_reaches_fabro_port_run_and_env(
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
 ) -> None:
@@ -951,32 +935,29 @@ def test_dispatch_factory_selection_reaches_fabro_run_argv_and_env(
     assert exc.value.code == 0
     assert "--factory" in capsys.readouterr().out
 
-    from livespec_orchestrator_beads_fabro.commands import _dispatcher_plan
-
-    assert hasattr(_dispatcher_plan, "fabro_server_env")
-    plan = _dispatcher_plan.build_plan(
-        repo=tmp_path,
-        work_item_id="x-1",
+    runner = _FakeRunner(queue=[_ok()])
+    port = FabroPort(
+        fabro_bin="fabro",
+        target=FabroTarget(server_url="https://factory.example.test"),
+        runner=runner,
+        cwd=tmp_path,
+    )
+    _ = port.run(
         workflow_toml=tmp_path / "wf.toml",
         goal_file=tmp_path / "goal.md",
-        fabro_bin="fabro",
-        janitor=None,
-        janitor_checkout=tmp_path / "janitor-co",
-        fabro_factory_name="remote",
-        fabro_factory_server="https://factory.example.test",
+        inputs=("acp_adapter=codex",),
+        timeout_seconds=10,
     )
 
-    assert _dispatcher_plan.fabro_server_env(plan=plan) == {
-        "FABRO_SERVER": "https://factory.example.test",
-    }
     # The pinned fabro CLI (0.254.0) only accepts `--server` as a
     # per-subcommand flag, never before the subcommand — `fabro --server
     # <url> run ...` is a hard CLI parse error. See bd-ib-1g01.
-    assert _dispatcher_plan.fabro_run_argv(plan=plan)[:2] == ["fabro", "run"]
-    assert _dispatcher_plan.fabro_run_argv(plan=plan)[-2:] == [
+    assert runner.calls[0][0][:2] == ["fabro", "run"]
+    assert runner.calls[0][0][-2:] == [
         "--server",
         "https://factory.example.test",
     ]
+    assert runner.envs == [{"FABRO_SERVER": "https://factory.example.test"}]
 
 
 def test_fabro_argv_builders_place_server_after_their_subcommand(tmp_path: Path) -> None:
@@ -986,48 +967,51 @@ def test_fabro_argv_builders_place_server_after_their_subcommand(tmp_path: Path)
     a top-level-flag parse error; `--server` is per-subcommand only. See
     bd-ib-1g01 for the live repro.
     """
-    plan = build_plan(
-        repo=tmp_path,
-        work_item_id="x-1",
-        workflow_toml=tmp_path / "wf.toml",
-        goal_file=tmp_path / "goal.md",
+    runner = _FakeRunner(queue=[_ok("{}"), _ok("{}"), _ok("[]"), _ok()])
+    port = FabroPort(
         fabro_bin="fabro",
-        janitor=None,
-        janitor_checkout=tmp_path / "janitor-co",
-        fabro_factory_name="remote",
-        fabro_factory_server="https://factory.example.test",
+        target=FabroTarget(server_url="https://factory.example.test"),
+        runner=runner,
+        cwd=tmp_path,
     )
-    assert fabro_inspect_argv(plan=plan, run_id="01RUNID") == [
-        "fabro",
-        "inspect",
-        "01RUNID",
-        "--json",
-        "--server",
-        "https://factory.example.test",
-    ]
-    assert fabro_events_argv(plan=plan, run_id="01RUNID") == [
-        "fabro",
-        "events",
-        "01RUNID",
-        "--json",
-        "--server",
-        "https://factory.example.test",
-    ]
-    assert fabro_ps_argv(plan=plan) == [
-        "fabro",
-        "ps",
-        "-a",
-        "--json",
-        "--server",
-        "https://factory.example.test",
-    ]
-    assert fabro_rm_argv(plan=plan, run_id="01RUNID") == [
-        "fabro",
-        "rm",
-        "-f",
-        "01RUNID",
-        "--server",
-        "https://factory.example.test",
+    _ = port.inspect(run_id="01RUNID", timeout_seconds=1)
+    _ = port.events(run_id="01RUNID", timeout_seconds=1)
+    _ = port.ps(timeout_seconds=1)
+    _ = port.rm(run_id="01RUNID", timeout_seconds=1)
+
+    assert [call[0] for call in runner.calls] == [
+        [
+            "fabro",
+            "inspect",
+            "01RUNID",
+            "--json",
+            "--server",
+            "https://factory.example.test",
+        ],
+        [
+            "fabro",
+            "events",
+            "01RUNID",
+            "--json",
+            "--server",
+            "https://factory.example.test",
+        ],
+        [
+            "fabro",
+            "ps",
+            "-a",
+            "--json",
+            "--server",
+            "https://factory.example.test",
+        ],
+        [
+            "fabro",
+            "rm",
+            "-f",
+            "01RUNID",
+            "--server",
+            "https://factory.example.test",
+        ],
     ]
 
 
@@ -1238,29 +1222,6 @@ def test_render_goal_anchors_repo_to_sandbox_cwd_not_host_path(tmp_path: Path) -
 
 def test_argv_builders_encode_family_discipline(tmp_path: Path) -> None:
     plan = _plan(repo=tmp_path)
-    assert fabro_run_argv(plan=plan) == [
-        "fabro",
-        "run",
-        str(tmp_path / "wf.toml"),
-        "--goal-file",
-        str(tmp_path / "goal.md"),
-        "--input",
-        (
-            "acp_adapter=npx --no-install @zed-industries/codex-acp "
-            "-c sandbox_mode=danger-full-access -c approval_policy=never"
-        ),
-        "--input",
-        "review_fix_visit_cap=4",
-        "--input",
-        "merge_on_review_cap_outcome=__merge_on_review_cap_disabled__",
-        "--no-upgrade-check",
-    ]
-    assert fabro_inspect_argv(plan=plan, run_id="01RUNID") == [
-        "fabro",
-        "inspect",
-        "01RUNID",
-        "--json",
-    ]
     assert pr_view_argv(plan=plan)[:3] == ["gh", "pr", "view"]
     assert pr_view_argv(plan=plan)[3] == "feat/x-1"
     assert "statusCheckRollup" in pr_view_argv(plan=plan)[5]
@@ -1431,40 +1392,6 @@ def test_parse_pr_view_reads_context_connection_shaped_status_check_rollup() -> 
     )
     assert view is not None
     assert view.terminal_required_check_failures == ("check-coverage",)
-
-
-def test_parse_run_id_reads_the_cli_run_line() -> None:
-    output = "Preparing sandbox\n    Run: 01KTVX6AV677VBWPG63ERB4VH0\nmore output\n"
-    assert parse_run_id(output=output) == "01KTVX6AV677VBWPG63ERB4VH0"
-
-
-def test_parse_run_id_strips_ansi_and_misses_gracefully() -> None:
-    dimmed = "\x1b[2mRun:\x1b[0m \x1b[2m01ABCDEF\x1b[0m\n"
-    assert parse_run_id(output=dimmed) == "01ABCDEF"
-    assert parse_run_id(output="no run line here") is None
-    assert parse_run_id(output="") is None
-
-
-def test_parse_run_status_reads_tagged_kind() -> None:
-    blocked = json.dumps(
-        {
-            "run_id": "01A",
-            "status": {"kind": "blocked", "blocked_reason": "human_input_required"},
-        }
-    )
-    assert parse_run_status(stdout=blocked) == "blocked"
-    assert parse_run_status(stdout=_HUMAN_INPUT_REQUIRED_INSPECT_JSON) == "human_input_required"
-    succeeded = json.dumps({"status": {"kind": "succeeded", "reason": "completed"}})
-    assert parse_run_status(stdout=succeeded) == "succeeded"
-    assert parse_run_status(stdout=json.dumps({"status": "failed"})) == "failed"
-
-
-def test_parse_run_status_rejects_unusable_shapes() -> None:
-    assert parse_run_status(stdout="not json") is None
-    assert parse_run_status(stdout=json.dumps([1, 2])) is None
-    assert parse_run_status(stdout=json.dumps({"no_status": 1})) is None
-    assert parse_run_status(stdout=json.dumps({"status": {"no_kind": 1}})) is None
-    assert parse_run_status(stdout=json.dumps({"status": 7})) is None
 
 
 # The fake token the autouse fixture plants in the process env; the
