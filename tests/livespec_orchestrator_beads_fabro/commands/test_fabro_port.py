@@ -222,3 +222,32 @@ def test_fabro_port_rm_and_version_stay_on_the_declared_surface(tmp_path: Path) 
         ["fabro", "rm", "-f", "01RUN"],
         ["fabro", "version"],
     ]
+
+
+def test_fabro_port_can_probe_top_level_server_parse_rejection(tmp_path: Path) -> None:
+    module = _port_module()
+    runner = _Runner(
+        results=[CommandResult(exit_code=2, stdout="", stderr="unexpected argument '--server'")],
+        calls=[],
+    )
+    port = module.FabroPort(
+        fabro_bin="fabro",
+        target=module.FabroTarget(server_url="http://factory"),
+        runner=runner,
+        cwd=tmp_path,
+    )
+
+    result = port.top_level_server_parse_probe(
+        subcommand=("ps", "-a", "--json"),
+        timeout_seconds=8.0,
+    )
+
+    assert result.command.exit_code == 2
+    assert runner.calls == [
+        _Call(
+            argv=["fabro", "--server", "http://factory", "ps", "-a", "--json"],
+            cwd=tmp_path,
+            timeout_seconds=8.0,
+            env=None,
+        )
+    ]

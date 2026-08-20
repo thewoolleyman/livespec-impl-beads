@@ -224,6 +224,19 @@ class FabroPort:
         )
         return FabroCommandResult(command=command)
 
+    def top_level_server_parse_probe(
+        self,
+        *,
+        subcommand: tuple[str, ...],
+        timeout_seconds: float,
+    ) -> FabroCommandResult:
+        server_url = self.target.server_url or ""
+        command = self._run(
+            argv=[self.fabro_bin, "--server", server_url, *subcommand],
+            timeout_seconds=timeout_seconds,
+        )
+        return FabroCommandResult(command=command)
+
     def validate(self, *, workflow_toml: Path, timeout_seconds: float) -> FabroJsonResult:
         command = self._run(
             argv=[self.fabro_bin, "validate", str(workflow_toml), "--json"],
