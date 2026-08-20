@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.59.10](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.59.9...v0.59.10) (2026-08-20)
+
+
+### Bug Fixes
+
+* preserve legacy content during tenant migration ([144e971](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/144e9716de509fc77a3d6c9ccc0d600a76a1ffc5))
+* store acceptance criteria in native bead fields ([f27864f](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/f27864fe1a64a091ce930a99901f809170baa513))
+
 ## [0.59.9](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.59.8...v0.59.9) (2026-08-20)
 
 
