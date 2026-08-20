@@ -67,6 +67,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
+from returns.io import IOFailure, IOResult, IOSuccess
 from returns.unsafe import unsafe_perform_io
 
 from livespec_orchestrator_beads_fabro._beads_client import make_beads_client
@@ -146,11 +147,18 @@ def apply_intake_dor(
     path: StoreConfig,
     item_id: str,
     checklist: DefinitionOfReadyChecklist,
-) -> Verdict:
-    """Evaluate the checklist and route a filed item into its lifecycle state."""
+) -> IOResult[Verdict, WorkItemNotFoundError]:
+    """Evaluate the checklist and route a filed item into its lifecycle state.
+
+    An item the store does not hold is an EXPECTED failure and rides the
+    failure track. A `StoreConfig` with no `repo_root` is NOT: that is a
+    caller bug, and it still raises `TypeError` for the outermost
+    supervisor. `IOResult` because the whole body is store and
+    filesystem IO.
+    """
     client = make_beads_client(config=path)
     if not client.exists(issue_id=item_id):
-        raise WorkItemNotFoundError(item_id=item_id)
+        return IOFailure(WorkItemNotFoundError(item_id=item_id))
 
     item = materialize_work_items(records=read_work_items(path=path))[item_id]
     verdict = evaluate(checklist=checklist)
@@ -187,7 +195,7 @@ def apply_intake_dor(
         add_labels=add_labels,
         remove_labels=remove_labels,
     )
-    return status
+    return IOSuccess(status)
 
 
 def _routed_status(*, verdict: Verdict, has_dependencies: bool) -> Verdict:
