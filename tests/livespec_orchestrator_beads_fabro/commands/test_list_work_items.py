@@ -272,6 +272,9 @@ def test_main_json_parent_unions_implicit_dotted_child_and_explicit_edge(
     _seed(_item(id_="bd-ib-g4u4xj", status="done"))
     _seed(_item(id_="bd-ib-m36re3", status="done"))
     fake_singleton().update_issue(issue_id="bd-ib-m36re3", parent_id="bd-ib-g4u4xj")
+    fake_singleton().children = Mock(
+        side_effect=AssertionError("list-work-items must not fan out child reads")
+    )
 
     rc = main(argv=["--json"])
     captured = capsys.readouterr()
