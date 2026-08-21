@@ -235,14 +235,38 @@ def test_join_backfills_triple_for_later_span_carrying_one_key() -> None:
     }
 
 
+def test_join_backfills_work_item_and_dispatch_ids_from_fabro_run_id() -> None:
+    join = CorrelationJoin()
+    join.observe(
+        keys={"work.item.id": "li-1", "livespec.dispatch.id": "d-1", "fabro.run_id": "r-9"}
+    )
+    backfilled = join.backfill(keys={"fabro.run_id": "r-9"})
+    assert backfilled == {
+        "work.item.id": "li-1",
+        "livespec.dispatch.id": "d-1",
+        "fabro.run_id": "r-9",
+    }
+
+
 def test_join_does_not_clobber_value_the_span_already_carries() -> None:
+    join = CorrelationJoin()
+    join.observe(
+        keys={"work.item.id": "li-1", "livespec.dispatch.id": "d-old", "fabro.run_id": "r-9"}
+    )
+    backfilled = join.backfill(keys={"livespec.dispatch.id": "d-new", "fabro.run_id": "r-9"})
+    assert backfilled["work.item.id"] == "li-1"
+    assert backfilled["fabro.run_id"] == "r-9"
+    assert backfilled["livespec.dispatch.id"] == "d-new"
+
+
+def test_join_keeps_existing_work_item_keyed_value_precedence() -> None:
     join = CorrelationJoin()
     join.observe(keys={"work.item.id": "li-1", "fabro.run_id": "r-old"})
     backfilled = join.backfill(keys={"work.item.id": "li-1", "fabro.run_id": "r-new"})
     assert backfilled["fabro.run_id"] == "r-new"
 
 
-def test_join_ignores_span_without_work_item_id() -> None:
+def test_join_leaves_unknown_fabro_run_id_unchanged() -> None:
     join = CorrelationJoin()
     join.observe(keys={"fabro.run_id": "r-9"})  # no anchor key — not learned
     assert join.backfill(keys={"fabro.run_id": "r-9"}) == {"fabro.run_id": "r-9"}
@@ -397,10 +421,10 @@ def test_forward_once_enriches_scrubs_and_batches_per_dataset(tmp_path: Path) ->
             _attr_entry(key="fabro.run_id", string_value="r-9"),
         ],
     )
-    # A fabro span carrying only work.item.id — backfilled from the dispatcher.
+    # A fabro span carrying only fabro.run_id — backfilled from the dispatcher.
     fabro_span = _span(
         name="fabro.node",
-        attrs=[_attr_entry(key="work.item.id", string_value="li-1")],
+        attrs=[_attr_entry(key="fabro.run_id", string_value="r-9")],
     )
     _write_lines(
         path=path,
