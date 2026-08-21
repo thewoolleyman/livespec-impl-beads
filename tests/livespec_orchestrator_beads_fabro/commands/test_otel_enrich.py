@@ -32,6 +32,7 @@ from livespec_orchestrator_beads_fabro.commands._otel_enrich import (
     enrich_span,
     tail_spans,
 )
+from livespec_orchestrator_beads_fabro.commands._otel_scrub import ATTR_MAX_LEN, REDACTION_MARKER
 
 # --------------------------------------------------------------------------
 # Fakes + builders (no network, no real fabro)
@@ -67,6 +68,18 @@ def _span(*, name: str, attrs: list[dict[str, object]]) -> dict[str, object]:
         "startTimeUnixNano": "1",
         "endTimeUnixNano": "2",
         "attributes": attrs,
+    }
+
+
+def _event(*, name: str, attrs: list[dict[str, object]]) -> dict[str, object]:
+    return {"name": name, "attributes": attrs}
+
+
+def _attrs_by_key(*, span: dict[str, object]) -> dict[str, dict[str, object]]:
+    return {
+        str(entry["key"]): cast("dict[str, object]", entry["value"])
+        for entry in cast("list[dict[str, object]]", span["attributes"])
+        if isinstance(entry, dict) and isinstance(entry.get("key"), str)
     }
 
 
@@ -127,6 +140,80 @@ def test_correlation_keys_tolerates_missing_or_malformed_attrs() -> None:
         ]
     }
     assert correlation_keys_from_attrs(span=cast("dict[str, object]", malformed)) == {}
+
+
+def test_correlation_keys_extracts_fabro_run_id_from_workflow_started_event() -> None:
+    span = _span(name="run", attrs=[])
+    span["events"] = [
+        _event(
+            name="Workflow run started",
+            attrs=[_attr_entry(key="run_id", string_value="01RUNWORKFLOW")],
+        )
+    ]
+
+    assert correlation_keys_from_attrs(span=span) == {"fabro.run_id": "01RUNWORKFLOW"}
+
+
+def test_correlation_keys_extracts_fabro_run_id_from_sandbox_event_id_fallback() -> None:
+    span = _span(name="run", attrs=[])
+    span["events"] = [
+        _event(
+            name="Sandbox initialized",
+            attrs=[_attr_entry(key="id", string_value="01RUNSANDBOX")],
+        )
+    ]
+
+    assert correlation_keys_from_attrs(span=span) == {"fabro.run_id": "01RUNSANDBOX"}
+
+
+def test_correlation_keys_prefers_event_run_id_over_event_id() -> None:
+    span = _span(name="run", attrs=[])
+    span["events"] = [
+        _event(
+            name="Sandbox initialized",
+            attrs=[_attr_entry(key="id", string_value="01RUNSANDBOX")],
+        ),
+        _event(
+            name="Workflow run started",
+            attrs=[_attr_entry(key="run_id", string_value="01RUNWORKFLOW")],
+        ),
+    ]
+
+    assert correlation_keys_from_attrs(span=span) == {"fabro.run_id": "01RUNWORKFLOW"}
+
+
+def test_correlation_keys_keep_explicit_fabro_run_id_over_event_value() -> None:
+    span = _span(
+        name="run",
+        attrs=[_attr_entry(key="fabro.run_id", string_value="01RUNEXPLICIT")],
+    )
+    span["events"] = [
+        _event(
+            name="Workflow run started",
+            attrs=[_attr_entry(key="run_id", string_value="01RUNEVENT")],
+        )
+    ]
+
+    assert correlation_keys_from_attrs(span=span) == {"fabro.run_id": "01RUNEXPLICIT"}
+
+
+def test_correlation_keys_ignore_malformed_event_run_id_values() -> None:
+    span = _span(name="run", attrs=[])
+    span["events"] = [
+        "not-a-dict",
+        {"name": "Workflow run started", "attributes": "not-a-list"},
+        {
+            "name": "Workflow run started",
+            "attributes": [
+                "not-a-dict",
+                {"key": "other", "value": {"stringValue": "not-the-run-id"}},
+                {"key": "run_id", "value": {"intValue": "9"}},
+            ],
+        },
+        {"name": "Sandbox initialized", "attributes": [{"key": "id", "value": "not-a-dict"}]},
+    ]
+
+    assert correlation_keys_from_attrs(span=span) == {}
 
 
 # --------------------------------------------------------------------------
@@ -401,3 +488,69 @@ def test_forward_once_no_spans_is_a_clean_noop(tmp_path: Path) -> None:
     assert result.forwarded == 0
     assert result.exported is True
     assert exporter.calls == []
+
+
+def test_forward_once_stamps_event_derived_fabro_run_id_under_allowlisted_name(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "spans.jsonl"
+    span = _span(name="run", attrs=[])
+    span["events"] = [
+        _event(
+            name="Workflow run started",
+            attrs=[_attr_entry(key="run_id", string_value="01RUNWORKFLOW")],
+        )
+    ]
+    _write_lines(path=path, lines=[_request_line(service_name="fabro", spans=[span])])
+    exporter = _FakeExporter()
+    stage = EnrichStage(spans_path=path, exporter=exporter)
+
+    result = stage.forward_once()
+
+    assert result.forwarded == 1
+    exported = exporter.calls[0][0][0]
+    attrs = _attrs_by_key(span=exported)
+    assert attrs["fabro.run_id"] == {"stringValue": "01RUNWORKFLOW"}
+    assert "run_id" not in attrs
+    assert "id" not in attrs
+
+
+def test_forward_once_event_derived_run_id_uses_scrub_attr_rules(tmp_path: Path) -> None:
+    path = tmp_path / "spans.jsonl"
+    span = _span(name="run", attrs=[])
+    long_run_id = "r" * (ATTR_MAX_LEN + 10)
+    span["events"] = [
+        _event(
+            name="Workflow run started",
+            attrs=[_attr_entry(key="run_id", string_value=long_run_id)],
+        )
+    ]
+    _write_lines(path=path, lines=[_request_line(service_name="fabro", spans=[span])])
+    exporter = _FakeExporter()
+
+    result = EnrichStage(spans_path=path, exporter=exporter).forward_once()
+
+    assert result.forwarded == 1
+    exported = exporter.calls[0][0][0]
+    attrs = _attrs_by_key(span=exported)
+    assert attrs["fabro.run_id"] == {"stringValue": long_run_id[:ATTR_MAX_LEN]}
+
+
+def test_forward_once_event_derived_credential_run_id_is_redacted(tmp_path: Path) -> None:
+    path = tmp_path / "spans.jsonl"
+    span = _span(name="run", attrs=[])
+    span["events"] = [
+        _event(
+            name="Workflow run started",
+            attrs=[_attr_entry(key="run_id", string_value="https://u:p@host/run")],
+        )
+    ]
+    _write_lines(path=path, lines=[_request_line(service_name="fabro", spans=[span])])
+    exporter = _FakeExporter()
+
+    result = EnrichStage(spans_path=path, exporter=exporter).forward_once()
+
+    assert result.forwarded == 1
+    exported = exporter.calls[0][0][0]
+    attrs = _attrs_by_key(span=exported)
+    assert attrs["fabro.run_id"] == {"stringValue": REDACTION_MARKER}

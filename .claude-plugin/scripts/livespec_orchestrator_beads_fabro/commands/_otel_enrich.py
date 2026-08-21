@@ -166,15 +166,24 @@ class CorrelationJoin:
 def correlation_keys_from_attrs(*, span: dict[str, object]) -> dict[str, str]:
     """Extract the correlation-triple key/values a span already carries.
 
-    Reads the span's OTLP `attributes` list and returns only the triple
-    members present (string-valued). A span attribute is
-    `{"key": ..., "value": {"stringValue": ...}}`; non-string or
-    non-triple attributes are ignored here (correlation keys are strings).
+    Reads the span's OTLP `attributes` list and the Fabro run-id span
+    events nested under `events[]`, returning only string-valued
+    correlation keys. Span attributes use the normalized triple names and
+    win over event-derived values; Fabro events use raw `run_id` / `id`
+    names and are normalized to `fabro.run_id` before stamping.
     """
     found: dict[str, str] = {}
-    raw_attrs = span.get("attributes")
+    _collect_span_correlation_attrs(found=found, raw_attrs=span.get("attributes"))
+    if _FABRO_RUN_ID not in found:
+        run_id = _fabro_run_id_from_events(raw_events=span.get("events"))
+        if run_id is not None:
+            found[_FABRO_RUN_ID] = run_id
+    return found
+
+
+def _collect_span_correlation_attrs(*, found: dict[str, str], raw_attrs: object) -> None:
     if not isinstance(raw_attrs, list):
-        return found
+        return
     for raw in cast("list[object]", raw_attrs):
         if not isinstance(raw, dict):
             continue
@@ -182,13 +191,51 @@ def correlation_keys_from_attrs(*, span: dict[str, object]) -> dict[str, str]:
         key = entry.get("key")
         if not isinstance(key, str) or key not in _TRIPLE_KEYS:
             continue
-        value = entry.get("value")
-        if not isinstance(value, dict):
-            continue
-        string_value = cast("dict[str, object]", value).get("stringValue")
-        if isinstance(string_value, str):
+        string_value = _string_attr_value(entry=entry)
+        if string_value is not None:
             found[key] = string_value
+
+
+def _fabro_run_id_from_events(*, raw_events: object) -> str | None:
+    if not isinstance(raw_events, list):
+        return None
+    fallback_id: str | None = None
+    for raw_event in cast("list[object]", raw_events):
+        if not isinstance(raw_event, dict):
+            continue
+        event = cast("dict[str, object]", raw_event)
+        name = event.get("name")
+        raw_attrs = event.get("attributes")
+        if name == "Workflow run started":
+            run_id = _event_attr_string(raw_attrs=raw_attrs, raw_key="run_id")
+            if run_id is not None:
+                return run_id
+        if name == "Sandbox initialized" and fallback_id is None:
+            fallback_id = _event_attr_string(raw_attrs=raw_attrs, raw_key="id")
+    return fallback_id
+
+
+def _event_attr_string(*, raw_attrs: object, raw_key: str) -> str | None:
+    if not isinstance(raw_attrs, list):
+        return None
+    found: str | None = None
+    for raw in cast("list[object]", raw_attrs):
+        if not isinstance(raw, dict):
+            continue
+        entry = cast("dict[str, object]", raw)
+        key = entry.get("key")
+        if key != raw_key:
+            continue
+        found = _string_attr_value(entry=entry)
     return found
+
+
+def _string_attr_value(*, entry: dict[str, object]) -> str | None:
+    value = entry.get("value")
+    if not isinstance(value, dict):
+        return None
+    string_value = cast("dict[str, object]", value).get("stringValue")
+    return string_value if isinstance(string_value, str) else None
 
 
 def enrich_span(
