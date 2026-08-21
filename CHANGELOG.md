@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.62.3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.2...v0.62.3) (2026-08-21)
+
+
+### Bug Fixes
+
+* stamp fabro run id from span events ([9afb620](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/9afb6205827b9c311f369f7f26141d6114ccffee))
+
 ## [0.62.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.1...v0.62.2) (2026-08-20)
 
 
