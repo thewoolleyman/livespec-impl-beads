@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.62.11](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.10...v0.62.11) (2026-08-21)
+
+
+### Bug Fixes
+
+* allow reconcile-merged recovery from parked statuses ([8bc1f08](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/8bc1f08d0e763bbc8e0909424000ee8a4e6c3cd2))
+
 ## [0.62.10](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.9...v0.62.10) (2026-08-21)
 
 
