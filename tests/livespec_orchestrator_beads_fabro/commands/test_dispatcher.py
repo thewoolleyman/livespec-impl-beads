@@ -66,6 +66,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_gh_refresh import (
     DEFAULT_SANDBOX_GH_REFRESH_ROOT,
+    MAX_PREPARE_STEP_BYTES,
     SANDBOX_GH_REFRESH_ROOT_ENV_VAR,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import (
@@ -1599,10 +1600,17 @@ def _assert_projected_gh_wrapper_publishes(
     )
 
     assert rendered is not None
-    script = _gh_refresh_prepare_script(rendered=rendered)
+    scripts = _gh_refresh_prepare_scripts(rendered=rendered)
     # Guard against a regression to a hardcoded root: with the lever set, the
-    # production path must not appear in the script at all.
-    assert DEFAULT_SANDBOX_GH_REFRESH_ROOT not in script
+    # production path must not appear in any emitted step.
+    for script in scripts:
+        assert DEFAULT_SANDBOX_GH_REFRESH_ROOT not in script
+    # The payload must never ride in one argv slot again (bd-ib-gnli): fabro
+    # runs each step as `bash -c <script>`, and Linux caps a SINGLE argument at
+    # MAX_ARG_STRLEN (131072), not the total. One 186KB step killed every
+    # dispatch at exec with "argument list too long".
+    for script in scripts:
+        assert len(script.encode()) <= MAX_PREPARE_STEP_BYTES
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     capture = tmp_path / "gh-calls.txt"
@@ -1627,16 +1635,17 @@ def _assert_projected_gh_wrapper_publishes(
         "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
     }
 
-    prepare_script = tmp_path / "prepare-gh.sh"
-    prepare_script.write_text(script, encoding="utf-8")
-    subprocess.run(
-        ["/bin/bash", str(prepare_script)],
-        cwd=tmp_path,
-        env=env,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    for index, step in enumerate(scripts):
+        prepare_script = tmp_path / f"prepare-gh-{index}.sh"
+        prepare_script.write_text(step, encoding="utf-8")
+        subprocess.run(
+            ["/bin/bash", str(prepare_script)],
+            cwd=tmp_path,
+            env=env,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
     assert (bin_dir / "gh.livespec-real").is_file()
 
     _write_executable(
@@ -1682,12 +1691,15 @@ def _write_executable(*, path: Path, source: str) -> None:
     path.chmod(0o755)
 
 
-def _gh_refresh_prepare_script(*, rendered: str) -> str:
+def _gh_refresh_prepare_scripts(*, rendered: str) -> list[str]:
+    """Every prepare-step script the gh-refresh block emits, in order."""
     marker = "# --- Dispatcher-materialized livespec-refreshing-gh-wrapper ---"
     start = rendered.index(marker)
-    match = re.search(r"script = '''\n(?P<script>.*?)\n'''", rendered[start:], re.DOTALL)
-    assert match is not None
-    return match.group("script")
+    tail = rendered[start:]
+    end = tail.index("[environments.") if "[environments." in tail else len(tail)
+    found = re.findall(r"script = '''\n(.*?)\n'''", tail[:end], re.DOTALL)
+    assert found
+    return list(found)
 
 
 def test_render_run_config_overlay_keeps_absolute_graph_path(tmp_path: Path) -> None:
