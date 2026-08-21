@@ -162,10 +162,17 @@ per tenant, needs no installation, and returns a hard binary answer.
 **Recommendation: run this probe as a pre-flight gate inside the attended
 window, immediately before the migration, and treat a non-clean result as a
 stop.** That converts the hazard from an unbounded unknown discovered afterwards
-in a log nobody reads into a checked precondition. The scripts are
-`drift_sweep.sh` / `drift_sweep_independent.sh` in this session's scratch; they
-are small enough to re-author from the column list above, which is the part that
-must stay in lockstep with `auxRekeyTables`.
+in a log nobody reads into a checked precondition.
+
+**The probe is committed beside this note as `preflight-probe.sh`** — an earlier
+draft of this paragraph left the scripts in session scratch and said they were
+"small enough to re-author", which is exactly how a recommended control quietly
+fails to exist. It also folds in the schema-version assertion and the
+`dolt_remotes` reading from `remote-migrate-gate-does-not-fire-2026-08-21.md`,
+runs one query per tenant so it is fast enough to actually be run inside the
+window, and fails closed: a tenant that gives no verdict exits 2 rather than
+passing. Its column lists must stay in lockstep with `auxRekeyTables`, which is
+why that requirement is restated in the script's own header.
 
 This is recorded as a finding with a disposition, not as a new maintainer
 question. It bears on `bd-ib-ao3j` (the attended rehearsal) and `bd-ib-3kolea.2`
