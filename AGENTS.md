@@ -489,6 +489,29 @@ having already shipped the `reconcile-merged` valve that one recommendation woul
 have broken, and a filed item asserted a dispatch produced "no PR" when its PR had
 in fact merged.)
 
+**Before IMPLEMENTING an item, read its comments — `bd show` does not carry
+them.** The rule above is about scanning the ledger for prior art. This one is
+narrower and catches a different miss: RIDERS ARRIVE ON A WORK-ITEM AFTER IT IS
+FILED, they are binding scope, and NEITHER the description NOR the
+`acceptance_criteria` field announces that any exist. `bd show <id>` renders a
+`COMMENTS` section, but `bd show <id> --json` carries only `comment_count` (see
+the beads-trap catalogue above), so an agent reading an item through the machine
+surface sees no sign of them at all. Run `bd comments <id> --json` on the item you
+are about to build, not just `bd show`.
+
+*Cost of skipping this, 2026-08-21:* `bd-ib-cfncp5` was implemented and merged
+covering THREE traps when three riders — filed at 01:10:09Z, 01:43:27Z and
+01:55:34Z, all before the work started — had raised it to FOUR and supplied a
+sharper formulation for the fourth. The implementing session read the description
+and the criteria, rewrote those criteria with the item open in front of it, and
+still never read the comments; its rewrite then encoded "all three traps" as the
+bar, locking the omission into the very field acceptance is judged against. It
+took a second pull request to finish, and the miss was caught by a peer session
+rather than self-announced. Note the shape: the session's own verification grepped
+merged `AGENTS.md` for the three trap markers it knew about, found all three, and
+passed — an instrument pointed at the wrong population, which is exactly the fourth
+trap in the catalogue above.
+
 ## Host Fabro server (self-hosted dark factory)
 
 The Dispatcher's host-direct path (`dispatcher.py loop` run on the host, NOT in
@@ -510,6 +533,34 @@ every dispatch dies `exit 127`). These rules are NORMATIVE — `SPECIFICATION/co
 §"Fabro runtime constraints" (ratified in `v035`). The build/pin/rollback commands are in
 `orchestrator-image/README.md`. Rollout/revert state is ledger `bd-ib-2nq.4`; deferred
 modernization is `bd-ib-6qu`.
+
+**THIS REPO'S DISPATCHES DO NOT GO TO `127.0.0.1` — check the configured factory
+before concluding a run is missing.** The local server described in this section is
+real and is what `sudo systemctl restart fabro-server` manages, but
+`.livespec.jsonc` sets `dispatcher.default_factory` to **`hp`**, and its
+`dispatcher.factories` block defines only two targets, neither of them loopback:
+`hp` = `https://hp-xubuntu.perch-rudd.ts.net:32276` and `vps` =
+`https://vps.perch-rudd.ts.net:32276`. The Dispatcher passes the resolved factory's
+URL to `fabro run --server`, and an item can override the choice through its own
+`dispatch_factory` metadata key.
+
+The practical consequence, measured 2026-08-21: a bare `fabro ps` defaults to the
+LOCAL server and reports `No running processes found` while this repo's dispatch is
+perfectly healthy on `hp`. That is a clean, plausible, wrong answer with no error —
+an instrument aimed at the wrong host, per the fourth trap in the beads-trap
+catalogue above. Pass the factory explicitly:
+
+```bash
+~/.fabro/bin/fabro ps --server https://hp-xubuntu.perch-rudd.ts.net:32276
+```
+
+The same applies to `inspect`, `dump` and `attach`, all of which accept `--server`
+and all of which reach a remote run's state when given it — verified on run
+`01M0H73GQ8Y0`, where `dump --server` exported 61 files and `attach --server`
+reached a run holding a live human gate and answered it. Concluding that a remote
+run is unreachable because a bare invocation found nothing is the same trap one
+level on.
+
 
 - **Start / restart** (OAuth-only — no wrapper, no `ANTHROPIC_API_KEY`):
 
