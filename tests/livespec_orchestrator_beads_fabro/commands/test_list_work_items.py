@@ -264,6 +264,24 @@ def test_main_json_output_includes_parent_and_labels(
     assert payload["li-parent"]["labels"] == ["origin:freeform"]
 
 
+def test_main_json_parent_unions_implicit_dotted_child_and_explicit_edge(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _seed(_item(id_="bd-ib-mrqoy2", status="done"))
+    _seed(_item(id_="bd-ib-mrqoy2.1", status="done"))
+    _seed(_item(id_="bd-ib-g4u4xj", status="done"))
+    _seed(_item(id_="bd-ib-m36re3", status="done"))
+    fake_singleton().update_issue(issue_id="bd-ib-m36re3", parent_id="bd-ib-g4u4xj")
+
+    rc = main(argv=["--json"])
+    captured = capsys.readouterr()
+
+    assert rc == 0
+    payload = _by_id(json.loads(captured.out))
+    assert payload["bd-ib-mrqoy2.1"]["parent"] == "bd-ib-mrqoy2"
+    assert payload["bd-ib-m36re3"]["parent"] == "bd-ib-g4u4xj"
+
+
 def test_substrate_facts_from_records_reads_native_parent_and_labels() -> None:
     from livespec_orchestrator_beads_fabro.commands._list_work_items_projection import (
         substrate_facts_from_records,

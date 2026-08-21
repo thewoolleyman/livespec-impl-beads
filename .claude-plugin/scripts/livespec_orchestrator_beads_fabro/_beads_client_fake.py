@@ -82,7 +82,9 @@ class FakeBeadsClient:
 
     def children(self, *, parent_id: str) -> list[BeadsRecord]:
         return [
-            dict(record) for record in self._issues.values() if record.get("parent_id") == parent_id
+            dict(record)
+            for record in self._issues.values()
+            if _is_child_of(record=record, parent_id=parent_id)
         ]
 
     def exists(self, *, issue_id: str) -> bool:
@@ -247,6 +249,13 @@ def _remove_labels(*, record: BeadsRecord, labels: list[str] | None) -> None:
         return
     current = cast("list[str]", record.get("labels", []))
     record["labels"] = [label for label in current if label not in labels]
+
+
+def _is_child_of(*, record: BeadsRecord, parent_id: str) -> bool:
+    issue_id = record.get("id")
+    return record.get("parent_id") == parent_id or (
+        isinstance(issue_id, str) and issue_id.startswith(f"{parent_id}.")
+    )
 
 
 def fake_singleton() -> FakeBeadsClient:
