@@ -132,6 +132,57 @@ construction. That is now measured, and the correction is large:
 
 The single largest tenant is `livespec-overseer` at 7,608 rows, not this repo.
 
+## The method itself was controlled, because it was reasoning until it wasn't
+
+Everything above rests on one assumption: that
+`SUM(LENGTH(CONCAT_WS(...)))` forces every selected cell to **materialise**, so
+a cell Dolt cannot decode raises instead of being optimised away. That was
+stated as fact in the first draft of this note. It was **reasoning, not
+measurement** — exactly the shape this repo's Verification discipline warns
+about, and it sits directly under the day's central claim, so it was
+subsequently controlled.
+
+**Control 1 — the arithmetic reconciles.** On `livespec-driver-codex`
+(4 comments), per-row component lengths:
+
+| `issue_id` | `author` | `text` | `created_at` | +3 separators | row total |
+|---:|---:|---:|---:|---:|---:|
+| 25 | 13 | 854 | 19 | 3 | 914 |
+| 25 | 13 | 954 | 19 | 3 | 1014 |
+| 28 | 13 | 2619 | 19 | 3 | 2682 |
+| 25 | 13 | 34 | 19 | 3 | 94 |
+
+914 + 1014 + 2682 + 94 = **4,704**, which is exactly what the probe reported for
+that tenant. So the number is the real sum of real field lengths, not an
+artifact.
+
+**Control 2 — the decisive one, because `LENGTH` alone is not proof.** A
+skeptic's objection survives Control 1: for a `TEXT`/`LONGTEXT` column stored
+out-of-line, a *length* might be answerable from a stored header without ever
+decoding the content. So the second control uses a function that **cannot** be
+answered from metadata — a content hash — and compares it across two
+independent code paths:
+
+- the **SQL path** computed `MD5(text)` for two comments;
+- the **JSON path** (`bd comments --json`, through the package client, a
+  different code path entirely) returned those comments' text, which was hashed
+  in Python.
+
+```
+019f273b-d1c9-79a3…   len sql=854  json=854   md5 MATCH
+019f3a8a-9eea-7130…   len sql=954  json=954   md5 MATCH
+```
+
+An MD5 requires reading every byte. Both hashes match across the two paths, and
+both lengths agree. **The SQL path genuinely decoded the stored bytes**, so the
+probe's clean result is a real decode of every cell the re-key reads — not a
+metadata read that would have returned "clean" whether or not the content was
+readable.
+
+This is the difference between a probe that *would* have caught the drift and
+one that merely *reported* no drift. Without Control 2 the two are
+indistinguishable from the output.
+
 ## What this does and does not establish
 
 **ESTABLISHES.** The specific hazard the hypothesis named is **absent from every
