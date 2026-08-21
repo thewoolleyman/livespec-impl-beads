@@ -86,7 +86,21 @@ RUN curl -fsSL "https://astral.sh/uv/${UV_VERSION}/install.sh" \
 
 # --- bd (beads CLI), pinned v1.1.2 behind the lifecycle guard. The official
 #     release TARBALL is content-pinned by sha256; the extracted binary is
-#     re-verified and installed as the guard's private delegate at bd-real. ---
+#     re-verified and installed as the guard's private delegate at bd-real.
+#
+#     NEVER set BD_VERSION to 1.2.0 or 1.2.1. Upstream published both by
+#     accident on 2026-08-11 without release testing. Running the v1.2.1
+#     binary EVEN ONCE migrates the database schema from v53 to v65, after
+#     which every v1.1.2 / v1.2.2 binary refuses with "schema version
+#     mismatch: database is at v65, binary knows up to v53". We run a SHARED
+#     multi-tenant Dolt server, so one invocation strands that tenant for
+#     every client in the family. v1.2.1 is marked prerelease rather than
+#     withdrawn, so it is still downloadable: this is a live hazard, not
+#     history. The current stable is v1.2.2, a recovery release re-issuing
+#     the tested 1.1 line. If a database is already at v65, recover per
+#     docs/RECOVERY-1.2.1.md at tag v1.2.2 and upgrade EVERY clone first --
+#     a leftover v1.2.1 binary silently re-migrates. See AGENTS.md
+#     "Beads runtime prerequisites". ---
 ENV BD_VERSION=1.1.2 \
     BD_TARBALL_SHA256=a72d71ed374955dc9f83a0f90b54bd7b6a0016709dd1676ae2e368651ed401c2 \
     BD_BINARY_SHA256=6d767629e90560506d0ea3de9823aef48386414f5425d8853e2ae3312cad9a82
