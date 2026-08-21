@@ -64,6 +64,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     PollPolicy,
     run_dispatch,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_gh_refresh import (
+    DEFAULT_SANDBOX_GH_REFRESH_ROOT,
+    SANDBOX_GH_REFRESH_ROOT_ENV_VAR,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import (
     GithubTokenEnvRunner,
     JournalFile,
@@ -1572,6 +1576,15 @@ def _assert_projected_gh_wrapper_publishes(
 ) -> None:
     monkeypatch.setenv("GITHUB_APP_ID", "42")
     monkeypatch.setenv("GITHUB_PRIVATE_KEY", "stub-pem")
+    # The production bundle root is the absolute in-sandbox path
+    # /workspace/.livespec-gh-refresh. This test EXECUTES the rendered prepare
+    # script for real, so without redirecting that root the script would
+    # `rm -rf` and `mkdir` at the RUNNER's filesystem root: refused under uid
+    # 1000 (`mkdir: Permission denied`, measured), and under uid 0 it would
+    # succeed by deleting a real /workspace. Redirect it into tmp_path so the
+    # script stays hermetic under both uids.
+    sandbox_root = tmp_path / "sandbox-bundle"
+    monkeypatch.setenv(SANDBOX_GH_REFRESH_ROOT_ENV_VAR, str(sandbox_root))
     if target_helper_source is not None:
         target_helper = tmp_path / ".claude-plugin" / "scripts" / "bin" / "mint_app_token.py"
         target_helper.parent.mkdir(parents=True)
@@ -1587,13 +1600,16 @@ def _assert_projected_gh_wrapper_publishes(
 
     assert rendered is not None
     script = _gh_refresh_prepare_script(rendered=rendered)
+    # Guard against a regression to a hardcoded root: with the lever set, the
+    # production path must not appear in the script at all.
+    assert DEFAULT_SANDBOX_GH_REFRESH_ROOT not in script
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     capture = tmp_path / "gh-calls.txt"
     mint_arg_log = tmp_path / "mint-args.txt"
-    fake_gh = bin_dir / "gh"
-    fake_gh.write_text(
-        "#!/usr/bin/env bash\n"
+    _write_executable(
+        path=bin_dir / "gh",
+        source="#!/usr/bin/env bash\n"
         "set -eu\n"
         "{\n"
         '  printf "args=%s\\n" "$*"\n'
@@ -1603,9 +1619,7 @@ def _assert_projected_gh_wrapper_publishes(
         'if [ "$1" = "auth" ] && [ "$2" = "status" ]; then exit 0; fi\n'
         'if [ "$1" = "pr" ] && [ "$2" = "create" ]; then exit 0; fi\n'
         "exit 64\n",
-        encoding="utf-8",
     )
-    fake_gh.chmod(0o755)
     env = {
         **os.environ,
         "GH_CAPTURE": str(capture),
@@ -1625,15 +1639,13 @@ def _assert_projected_gh_wrapper_publishes(
     )
     assert (bin_dir / "gh.livespec-real").is_file()
 
-    fake_python = bin_dir / "python3"
-    fake_python.write_text(
-        "#!/usr/bin/env bash\n"
+    _write_executable(
+        path=bin_dir / "python3",
+        source="#!/usr/bin/env bash\n"
         "set -eu\n"
         'printf "%s\\n" "$1" >> "$MINT_ARG_LOG"\n'
         "printf minted-token\n",
-        encoding="utf-8",
     )
-    fake_python.chmod(0o755)
 
     for argv in (["gh", "auth", "status"], ["gh", "pr", "create", "--title", "x"]):
         subprocess.run(
@@ -1653,10 +1665,21 @@ def _assert_projected_gh_wrapper_publishes(
         "GH_TOKEN=minted-token",
         "GITHUB_TOKEN=minted-token",
     ]
+    projected_mint = sandbox_root / "bin" / "mint_app_token.py"
+    # The bundle materialized under the redirected root, not at the runner root.
+    assert projected_mint.is_file()
+    # And `gh` invoked THAT helper both times -- the projected bundle's, never
+    # the target repo's, which is the property this pair of tests exists for.
     assert mint_arg_log.read_text(encoding="utf-8").splitlines() == [
-        "/workspace/.livespec-gh-refresh/bin/mint_app_token.py",
-        "/workspace/.livespec-gh-refresh/bin/mint_app_token.py",
+        str(projected_mint),
+        str(projected_mint),
     ]
+
+
+def _write_executable(*, path: Path, source: str) -> None:
+    """Materialize an executable stub on the fake PATH."""
+    path.write_text(source, encoding="utf-8")
+    path.chmod(0o755)
 
 
 def _gh_refresh_prepare_script(*, rendered: str) -> str:
