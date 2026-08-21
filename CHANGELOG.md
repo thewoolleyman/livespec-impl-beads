@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.62.8](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.7...v0.62.8) (2026-08-21)
+
+
+### Bug Fixes
+
+* journal resolved dispatch factory ([dc6319d](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/dc6319d8b64e96a9960e299da383b2c605227259))
+
 ## [0.62.7](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.6...v0.62.7) (2026-08-21)
 
 
