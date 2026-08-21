@@ -164,10 +164,62 @@ Nothing was applied to `bd-ib-ao3j` or `bd-ib-3kolea.2`: both are
 `admission:manual`, and this session held an admission only on
 `bd-ib-3kolea.4`.
 
+## Follow-on, same session: the other migrate path is UNGATED BY CONSTRUCTION
+
+The limit originally recorded here — "establishing whether any other guard
+exists in that path is separate work" — was then done, and it sharpens the
+finding rather than softening it.
+
+Call sites of `CheckRemoteMigrateGate*` are seven, of which the two
+non-test store implementations are `internal/storage/dolt/store.go`
+(server mode — **ours**) and `internal/storage/embeddeddolt/store.go`.
+In the server-mode store there are exactly **two** routes into
+`initSchemaOnDBWithRetryAndGate`, and they differ in their last argument:
+
+```go
+// 1. the store-OPEN path — gated
+func (s *DoltStore) initSchema(ctx context.Context) error {
+	…
+	gate := func(ctx context.Context, db *sql.DB) error {
+		return schema.CheckRemoteMigrateGateForRemoteWithRemoteCheck(ctx, db, s.remote, s.hasPersistedCLIRemote)
+	}
+	_, err = initSchemaOnDBWithRetryAndGate(ctx, migDB, gate)
+```
+
+```go
+// 2. the explicit APPLY path — gate is nil
+func (s *DoltStore) ApplySchemaMigrations(ctx context.Context) (int, error) {
+	…
+	return initSchemaOnDBWithRetry(ctx, migDB)
+}
+
+func initSchemaOnDBWithRetry(ctx context.Context, db *sql.DB) (int, error) {
+	return initSchemaOnDBWithRetryAndGate(ctx, db, nil)   // <- no gate
+}
+```
+
+`ApplySchemaMigrations` implements `storage.SchemaMigrator` — the explicit
+"apply the migrations" entry point — and passes **`nil`** for the gate. That is
+a deliberate design choice, not a bug: an operator who explicitly asks to
+migrate should not be refused by a guard whose purpose is to catch *silent*
+migration. But it means the gate is not a backstop even in principle.
+
+So the two routes compose to: **on our tenants, neither path refuses.**
+
+| Path | Gate passed? | Fires on our tenants? |
+|---|---|---|
+| store open (`initSchema`) | yes | **no** — `dolt_remotes` is 0, so the gate returns `nil` |
+| explicit apply (`ApplySchemaMigrations`) | **no — `nil`** | n/a — there is no gate to fire |
+
+This also means the gate's protection is narrower than it looks *for anyone*,
+not only for us: even a tenant that DID have a remote configured would be
+migrated without refusal through the explicit-apply path.
+
 ## Limits of this finding
 
-This verifies **one** guard — the one the hazard note named. It does not
-enumerate every check in beads' database-open path, so it is not a claim that
-*nothing* would stop an accidental migration; it is a claim that **this** gate
-would not, on evidence that is the gate's own query. Establishing whether any
-other guard exists in that path is separate work and was not done here.
+This traces the two migrate routes in the **server-mode** store, which is the
+one our tenants use. It does not audit `embeddeddolt`, and it does not claim
+that no check anywhere else in the process would intervene — only that the two
+routes into the migration runner in our store either pass a gate that provably
+does not fire here, or pass no gate at all. Both legs are read from v1.2.2
+source at commit `6c124203e771…`, the same commit the attestation binds.
