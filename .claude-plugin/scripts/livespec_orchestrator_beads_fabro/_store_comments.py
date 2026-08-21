@@ -27,6 +27,7 @@ class WorkItemComment:
     text: str
     author: str | None
     created_at: str | None
+    comment_id: str | None = None
 
 
 def read_work_item_comments(
@@ -54,6 +55,7 @@ def read_work_item_comments(
                 text=text_raw,
                 author=_comment_field_str(value=record.get("author")),
                 created_at=_comment_field_str(value=record.get("created_at")),
+                comment_id=_comment_field_str(value=record.get("id")),
             )
         )
     return tuple(comments)
