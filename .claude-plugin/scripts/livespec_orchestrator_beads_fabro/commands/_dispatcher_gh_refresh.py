@@ -7,11 +7,15 @@ import io
 import json
 import os
 import tarfile
+from collections.abc import Mapping
 from pathlib import Path
 
 __all__: list[str] = [
+    "DEFAULT_SANDBOX_GH_REFRESH_ROOT",
+    "SANDBOX_GH_REFRESH_ROOT_ENV_VAR",
     "refreshing_gh_env_lines",
     "refreshing_gh_prepare_steps_block",
+    "resolve_sandbox_gh_refresh_root",
 ]
 
 _GITHUB_APP_ENV_KEYS = (
@@ -20,8 +24,24 @@ _GITHUB_APP_ENV_KEYS = (
     "GITHUB_APP_INSTALLATION_ID",
     "GITHUB_API_URL",
 )
-_SANDBOX_GH_REFRESH_ROOT = "/workspace/.livespec-gh-refresh"
-_SANDBOX_GH_MINT_HELPER = f"{_SANDBOX_GH_REFRESH_ROOT}/bin/mint_app_token.py"
+# The in-sandbox bundle root the dispatcher materializes the refreshing `gh`
+# wrapper into. `/workspace` is the fabro sandbox's own mount, so this absolute
+# path is correct in production and WRONG anywhere else -- on a CI runner it
+# resolves to the runner's filesystem root, where `rm -rf` + `mkdir` either is
+# refused (uid 1000: `mkdir: Permission denied`) or, worse, succeeds under uid 0
+# and destroys a real /workspace. The lever below exists so a test can execute
+# the rendered script for real against a temporary root; production never sets
+# it. Mirrors `LIVESPEC_SANDBOX_OTEL_ENDPOINT` in `_dispatcher_projection`.
+SANDBOX_GH_REFRESH_ROOT_ENV_VAR = "LIVESPEC_SANDBOX_GH_REFRESH_ROOT"
+DEFAULT_SANDBOX_GH_REFRESH_ROOT = "/workspace/.livespec-gh-refresh"
+
+
+def resolve_sandbox_gh_refresh_root(*, environ: Mapping[str, str]) -> str:
+    """Resolve the in-sandbox `gh`-wrapper bundle root (override > default)."""
+    override = environ.get(SANDBOX_GH_REFRESH_ROOT_ENV_VAR, "").strip()
+    return override or DEFAULT_SANDBOX_GH_REFRESH_ROOT
+
+
 _SUPPORT_ARCHIVE_RELPATHS = (
     Path("_vendor/livespec_runtime/__init__.py"),
     Path("_vendor/livespec_runtime/github_auth"),
@@ -62,12 +82,14 @@ def refreshing_gh_prepare_steps_block() -> str:
     """Install a sandbox-local refreshing `gh` wrapper when App inputs exist."""
     if not github_app_env_present():
         return ""
+    bundle_root = resolve_sandbox_gh_refresh_root(environ=os.environ)
+    mint_helper = f"{bundle_root}/bin/mint_app_token.py"
     support_archive_literal = json.dumps(github_auth_support_archive_b64())
     helper_source_literal = json.dumps(_MINT_HELPER_SOURCE)
     script = (
         "set -eu\n"
-        f'bundle_root="{_SANDBOX_GH_REFRESH_ROOT}"\n'
-        f'mint="{_SANDBOX_GH_MINT_HELPER}"\n'
+        f'bundle_root="{bundle_root}"\n'
+        f'mint="{mint_helper}"\n'
         'rm -rf "$bundle_root"\n'
         'mkdir -p "$bundle_root/bin"\n'
         "python3 - <<'PY'\n"
@@ -75,13 +97,13 @@ def refreshing_gh_prepare_steps_block() -> str:
         "import io\n"
         "import tarfile\n"
         f"payload = base64.b64decode({support_archive_literal})\n"
-        f"target = {_SANDBOX_GH_REFRESH_ROOT!r}\n"
+        f"target = {bundle_root!r}\n"
         'with tarfile.open(fileobj=io.BytesIO(payload), mode="r:gz") as archive:\n'
         "    archive.extractall(target)\n"
         "PY\n"
         "python3 - <<'PY'\n"
         "from pathlib import Path\n"
-        f"Path({_SANDBOX_GH_MINT_HELPER!r}).write_text({helper_source_literal}, encoding='utf-8')\n"
+        f"Path({mint_helper!r}).write_text({helper_source_literal}, encoding='utf-8')\n"
         "PY\n"
         'chmod 755 "$mint"\n'
         'real_gh="$(command -v gh)"\n'
