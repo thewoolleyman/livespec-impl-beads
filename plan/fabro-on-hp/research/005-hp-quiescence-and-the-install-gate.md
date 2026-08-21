@@ -9,6 +9,18 @@ they will need one, because `.10` step (4) and `.11` step (5) both stop a
 
 It supersedes nothing in `001`–`004`.
 
+> **Correction, 2026-08-21, same day.** This note originally justified itself by
+> saying `.10` step (4) and `.11` step (5) "both stop a `fabro` server and will
+> meet the same gate". **They do not meet this gate**, and the difference makes
+> them *more* exposed rather than less. Both stop their servers by
+> **pid-verified direct kill** — `.10`: "kill the pid-verified :32278 process";
+> `.11`: "stop the :32286 server (pid-verified)". Neither goes through
+> `install.sh`, so `require_quiet_server` never runs and **nothing will refuse
+> you**. On hp the installer refused for 67 minutes and protected in-flight
+> work; on that path the only guard is the operator. See "The dedicated servers
+> have no guard at all" below. The quiescence *reasoning* in this note still
+> transfers; the *mechanism* does not.
+
 ## The gate is stricter than "the machine is busy"
 
 `services/fabro-server/install.sh:68-74` (`require_quiet_server`) refuses when:
@@ -117,6 +129,36 @@ across 14:53:23Z–14:56:26Z, and discharged `.14`, `.15` and `bd-ib-wdns6b` in
 one restart. Its justification was that nobody could forecast this — which is
 the reasoning to keep, rather than any of the three forecasts.
 
+## The dedicated servers have no guard at all
+
+`.10` and `.11` decommission the per-tenant `fabro` servers on **vps**, not hp,
+and they do it with a direct `kill` rather than through `install.sh`. So the
+protection this whole note is about is absent there:
+
+| | hp `fabro-server` | `:32278` / `:32286` |
+|---|---|---|
+| stop mechanism | `install.sh` → `systemctl` | direct pid-verified `kill` |
+| refuses under a live run | **yes** (`require_quiet_server`) | **no guard exists** |
+| refuses under a parked human gate | yes (that is this note's subject) | no |
+
+**Measure before killing, because nothing else will.** Measured 2026-08-21:
+
+```
+FABRO_HOME=~/.fabro-homelab     fabro ps --server http://127.0.0.1:32278  -> no running processes;  0 runs ever
+FABRO_HOME=~/.fabro-dolt-server fabro ps --server http://127.0.0.1:32286  -> no running processes; 17 runs historical
+```
+
+Both are idle as of that measurement, so neither kill would destroy work *today*
+— `:32278` has never run anything at all, which corroborates `.10`'s own
+description. Re-measure at execution time rather than trusting this paragraph:
+`:32286` served an actively-used dispatch path until recently, and its item
+warns against stopping it before the cutover is verified green. That warning is
+about preserving a **rollback path**, not about in-flight runs.
+
+Note also that `:32278`'s process has run from a **deleted binary** since
+2026-07-18 (`/proc/662038/exe` → `... (deleted)`), so it cannot be restarted in
+place once stopped.
+
 ## Checklist for the next host-quiescing operation
 
 1. Read `fabro --json ps | jq 'length'` — the installer's own expression, not
@@ -128,3 +170,6 @@ the reasoning to keep, rather than any of the three forecasts.
 4. Arm a watcher rather than predicting a window; let the guard be the backstop.
 5. Stage everything first — a restart is one shot, so place `settings.toml`
    before the install so a single restart carries every change.
+6. If you are stopping a server by `kill` rather than through `install.sh`,
+   steps 1–4 are **advice, not enforcement**. Nothing refuses you. Do them
+   anyway.
