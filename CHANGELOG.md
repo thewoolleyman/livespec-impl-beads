@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.62.7](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.6...v0.62.7) (2026-08-21)
+
+
+### Bug Fixes
+
+* **dispatcher:** stop shipping the gh-refresh payload in one argv slot ([465f177](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/465f1775d2561921ebc51da21012637e24d9d807))
+
 ## [0.62.6](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.5...v0.62.6) (2026-08-21)
 
 
