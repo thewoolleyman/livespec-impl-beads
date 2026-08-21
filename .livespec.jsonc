@@ -17,6 +17,16 @@
   // reviewable opt-out. Written explicitly at install time so the obligation is
   // readable here rather than inferred from a verifier failure.
   "worktree_discipline": { "pack": "required" },
+  // Maintainer opt-in 2026-08-21: the foreman may convene the cross-vendor
+  // consensus panel on a blocked session and act on its typed verdict through
+  // foreman-act, instead of only surfacing it. Absent (or unrecognized) this
+  // key resolves to the fail-closed default "report-only". The contract floors
+  // are NOT relaxed by this setting: the foreman still escalates and does not
+  // act on panel dissent, any insufficient-information verdict, a decision that
+  // is human-gated by design, or a failed audit-journal append. Brings this repo
+  // in line with livespec-overseer, livespec-console-beads-fabro and
+  // livespec-dev-tooling, which already carry this value.
+  "livespec-overseer": { "foreman_valve_disposition": "consensus" },
   "template": "livespec",
   "spec_root": "SPECIFICATION",
   "implementation": { "plugin": "livespec-orchestrator-beads-fabro" },
