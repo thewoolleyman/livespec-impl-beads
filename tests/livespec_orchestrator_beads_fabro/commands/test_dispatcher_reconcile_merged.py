@@ -158,6 +158,39 @@ def test_reconcile_merged_resolves_merged_pr_by_title_search(
     assert stages[:2] == ["reconcile-pr-view-branch", "reconcile-pr-list-merged"]
 
 
+@pytest.mark.parametrize("status", ["backlog", "ready", "blocked"])
+def test_reconcile_merged_accepts_merge_verified_parked_items(
+    status: str,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _assert_reconcile_command_registered(capsys=capsys)
+    repo = _repo(tmp_path=tmp_path)
+    item = _item(status=status)
+    append_work_item(path=_config(), item=item)
+    runner = _Runner(
+        queue=[_ok(stdout=_pr_json(number=1654, state="MERGED", sha="33b230b6"))] + [_ok()] * 8
+    )
+    _patch_runner(monkeypatch=monkeypatch, runner=runner)
+    monkeypatch.setattr(
+        _dispatcher_completion,
+        "run_acceptance_pass",
+        lambda **_: _AcceptancePass(verdict="PASS"),
+    )
+
+    exit_code = main(argv=["reconcile-merged", "--repo", str(repo), "--item", item.id, "--json"])
+
+    assert exit_code == 0
+    stored = materialize_work_items(records=read_work_items(path=_config()))[item.id]
+    assert (stored.status, stored.resolution) == ("done", "completed")
+    assert stored.audit is not None
+    assert (stored.audit.pr_number, stored.audit.merge_sha) == (1654, "33b230b6")
+    stages = [record["stage"] for record in _journal_records(repo=repo)]
+    assert "fabro-run" not in stages
+    assert stages[:2] == ["reconcile-pr-view-branch", "pull-primary"]
+
+
 def test_reconcile_merged_janitor_red_leaves_item_active(
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
@@ -325,7 +358,7 @@ def test_reconcile_plan_uses_resolved_fabro_bin(
     assert plan.fabro_bin != "fabro"
 
 
-@pytest.mark.parametrize("status", ["ready", "acceptance"])
+@pytest.mark.parametrize("status", ["acceptance", "done"])
 def test_reconcile_merged_refuses_non_active_items(
     status: str,
     capsys: pytest.CaptureFixture[str],
@@ -339,7 +372,7 @@ def test_reconcile_merged_refuses_non_active_items(
     exit_code = main(argv=["reconcile-merged", "--repo", str(repo), "--item", item.id])
 
     assert exit_code == 3
-    assert "expected active" in capsys.readouterr().err
+    assert "expected active or parked" in capsys.readouterr().err
 
 
 def test_reconcile_merged_refuses_unknown_repo_and_item(

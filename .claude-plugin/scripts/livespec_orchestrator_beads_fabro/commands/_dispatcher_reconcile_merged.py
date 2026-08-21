@@ -1,4 +1,4 @@
-"""Operator valve for reconciling already-merged active items."""
+"""Operator valve for reconciling already-merged active or parked items."""
 
 from __future__ import annotations
 
@@ -57,12 +57,13 @@ __all__: list[str] = [
 ]
 
 _GH_TIMEOUT_SECONDS = 120.0
+_RECONCILE_MERGED_ALLOWED_STATUSES = frozenset({"active", "backlog", "ready", "blocked"})
 
 
 def run_reconcile_merged_command(
     *, args: argparse.Namespace, runner: CommandRunner | None = None
 ) -> int:
-    """Run the post-merge janitor + acceptance valve for a stranded active item."""
+    """Run the post-merge janitor + acceptance valve for a stranded merged item."""
     repo = Path(args.repo)
     preflight = _reconcile_preflight(args=args, repo=repo)
     if isinstance(preflight, int):
@@ -108,8 +109,11 @@ def _reconcile_preflight(*, args: argparse.Namespace, repo: Path) -> _ReconcileP
     if item is None:
         _ = write_stderr(text=f"ERROR: work-item {args.item} not found\n")
         return EXIT_PRECONDITION_ERROR
-    if item.status != "active":
-        detail = f"ERROR: reconcile-merged expected active item {item.id}; found {item.status}\n"
+    if item.status not in _RECONCILE_MERGED_ALLOWED_STATUSES:
+        detail = (
+            f"ERROR: reconcile-merged expected active or parked item {item.id}; "
+            f"found {item.status}\n"
+        )
         _ = write_stderr(text=detail)
         return EXIT_PRECONDITION_ERROR
     janitor, janitor_ok = parse_janitor(raw=args.janitor)
