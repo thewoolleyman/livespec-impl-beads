@@ -14,7 +14,7 @@ from livespec_orchestrator_beads_fabro._beads_client import EDGE_PARENT_CHILD, m
 if TYPE_CHECKING:
     from livespec_runtime.cross_repo.types import CrossRepoManifest
 
-    from livespec_orchestrator_beads_fabro._beads_client import BeadsRecord
+    from livespec_orchestrator_beads_fabro._beads_client import BeadsClient, BeadsRecord
     from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
 
 __all__: list[str] = [
@@ -35,19 +35,30 @@ class WorkItemSubstrateFacts:
 
 def substrate_facts_for(*, path: StoreConfig) -> dict[str, WorkItemSubstrateFacts]:
     client = make_beads_client(config=path)
-    return substrate_facts_from_records(records=client.list_issues())
+    records = client.list_issues()
+    return substrate_facts_from_records(
+        records=records,
+        child_parent_links=_child_parent_links(client=client, records=records),
+    )
 
 
 def substrate_facts_from_records(
     *,
     records: list[BeadsRecord],
+    child_parent_links: dict[str, str] | None = None,
 ) -> dict[str, WorkItemSubstrateFacts]:
     facts: dict[str, WorkItemSubstrateFacts] = {}
     for record in records:
         issue_id = record.get("id")
         if isinstance(issue_id, str):
+            parent = _parent_of(record=record)
             facts[issue_id] = WorkItemSubstrateFacts(
-                parent=_parent_of(record=record),
+                parent=parent
+                if parent is not None
+                else _child_parent_of(
+                    issue_id=issue_id,
+                    child_parent_links=child_parent_links,
+                ),
                 labels=_labels_of(record=record),
             )
     return facts
@@ -127,3 +138,27 @@ def _parent_from_edges(*, record: BeadsRecord) -> str | None:
         if edge_type == EDGE_PARENT_CHILD and isinstance(parent_id, str):
             return parent_id
     return None
+
+
+def _child_parent_links(
+    *,
+    client: BeadsClient,
+    records: list[BeadsRecord],
+) -> dict[str, str]:
+    links: dict[str, str] = {}
+    for record in records:
+        parent_id = cast("str", record["id"])
+        for child in client.children(parent_id=parent_id):
+            child_id = cast("str", child["id"])
+            _ = links.setdefault(child_id, parent_id)
+    return links
+
+
+def _child_parent_of(
+    *,
+    issue_id: str,
+    child_parent_links: dict[str, str] | None,
+) -> str | None:
+    if child_parent_links is None:
+        return None
+    return child_parent_links.get(issue_id)
