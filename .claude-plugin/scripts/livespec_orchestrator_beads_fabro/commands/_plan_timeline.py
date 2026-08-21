@@ -18,6 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from livespec_orchestrator_beads_fabro.effects import IsoDatetimeParseFailure, parse_iso_datetime
 from livespec_orchestrator_beads_fabro.store import read_work_item_comments
 
 if TYPE_CHECKING:
@@ -156,8 +157,15 @@ def _parse_entry(*, comment: WorkItemComment, comment_ref: str) -> PlanTimelineE
 
 def _created_at(*, lines: list[str], comment: WorkItemComment) -> str:
     if len(lines) >= _FULL_HEADER_LINES and lines[_TIMESTAMP_LINE_INDEX].startswith("timestamp: "):
-        return lines[_TIMESTAMP_LINE_INDEX].removeprefix("timestamp: ")
+        header_created_at = lines[_TIMESTAMP_LINE_INDEX].removeprefix("timestamp: ")
+        if _is_parseable_timestamp(value=header_created_at):
+            return header_created_at
     return comment.created_at or ""
+
+
+def _is_parseable_timestamp(*, value: str) -> bool:
+    parsed = parse_iso_datetime(text=value.replace("Z", "+00:00"))
+    return not isinstance(parsed, IsoDatetimeParseFailure)
 
 
 def _comment_ref(*, epic_id: str, comment: WorkItemComment, index: int) -> str:
