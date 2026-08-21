@@ -139,6 +139,59 @@ break `_run_json`'s contract. The measurement above is the useful input — the
 verbs our client uses are quiet, so surfacing stderr on zero exit should be
 close to silent in normal operation, which is what makes it safe to turn on.
 
+## How far a fix would reach — measured, because the answer is not obvious
+
+A defect in a plugin-distributed client raises a question a single-repo defect
+does not: *where does the fixed code actually have to land to take effect?*
+
+Measured across `/data/projects`, `~/.claude` and `~/.codex` on this host:
+
+| | |
+|---|---:|
+| copies of `_beads_client_shell.py` | **127** |
+| copies carrying the zero-exit early return | **127** |
+| **distinct content hashes among them** | **5** |
+
+**Five hashes across 127 copies means one lineage, not divergent forks.** The
+copies are version snapshots — Claude plugin caches keyed by commit, a Codex
+plugin cache, two `.pi/git/` package installs, and the marketplace checkouts —
+all descended from this repo's single source. So the fix is a **one-place fix**,
+which is the good news, and no sibling repo carries an independent copy to
+hunt down.
+
+The operational catch is the second half: **agents run from the cache, not from
+this repo.** A fix committed here is inert until each install refreshes. Checked
+directly, and today there is no skew:
+
+```
+dc37870f…  .claude-plugin/scripts/…/_beads_client_shell.py          (repo HEAD)
+dc37870f…  ~/.claude/plugins/cache/…/726ae2ae3499/…                 (ACTIVE cache)
+```
+
+The active Claude cache is byte-identical to the repo. But the single most
+common hash on the host (76 of 127 copies) is an *older* revision, so stale
+caches are the normal state, not the exception — they simply are not the ones
+being executed.
+
+**Consequence for the migration.** If the stderr swallow is fixed so that the
+re-key's skip notice becomes visible, and the migration is then driven from a
+stale cached plugin, **the warning is still lost and the run still reports
+success.** This is the same stale-plugin trap AGENTS.md already records under
+Verification discipline ("expect the stale-base refusal … was true while a
+worker ran a week-old plugin and false the moment it restarted").
+
+So the fix has a precondition that is not in the code: before relying on it
+during the attended window, assert that the *active* cache matches HEAD —
+
+```bash
+sha256sum .claude-plugin/scripts/livespec_orchestrator_beads_fabro/effects/_beads_client_shell.py           ~/.claude/plugins/cache/livespec-orchestrator-beads-fabro/*/<active>/scripts/livespec_orchestrator_beads_fabro/effects/_beads_client_shell.py
+```
+
+Two identical hashes, or the fix is not running. Note this cuts both ways and is
+worth stating plainly: **it is equally a reason not to over-trust a fix, and a
+reason not to assume one is absent** — a cache checked at random is 76-in-127
+likely to be a revision nobody is executing.
+
 ## Scope and limits
 
 Seven verbs, one tenant, read verbs only. **Write verbs were not probed** —
