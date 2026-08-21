@@ -13,7 +13,7 @@ dependency:
 `lane_of` and `is_item_ready` agree by construction, so the same three
 behaviors are asserted across both the readiness surfaces (`rank_candidates`,
 `is_dispatch_candidate`) and the lane-render surfaces (`_filter_by_name`,
-`_work_item_to_dict`, `human_valves`).
+`work_item_to_dict`, `human_valves`).
 """
 
 from __future__ import annotations
@@ -23,10 +23,12 @@ from pathlib import Path
 from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_selection import (
     is_dispatch_candidate,
 )
+from livespec_orchestrator_beads_fabro.commands._list_work_items_projection import (
+    work_item_to_dict,
+)
 from livespec_orchestrator_beads_fabro.commands._needs_attention_work_items import human_valves
 from livespec_orchestrator_beads_fabro.commands.list_work_items import (
     _filter_by_name,  # pyright: ignore[reportPrivateUsage]
-    _work_item_to_dict,  # pyright: ignore[reportPrivateUsage]
 )
 from livespec_orchestrator_beads_fabro.commands.next import rank_candidates
 from livespec_orchestrator_beads_fabro.types import DependsOnRaw, WorkItem
@@ -184,8 +186,9 @@ def test_filter_blocked_includes_item_with_open_sibling() -> None:
 
 def test_work_item_to_dict_closed_sibling_renders_ready_lane() -> None:
     item = _item()
-    payload = _work_item_to_dict(
+    payload = work_item_to_dict(
         item=item,
+        facts=None,
         index={item.id: item},
         dispatch_factory=None,
         manifest=_manifest(),
@@ -197,8 +200,9 @@ def test_work_item_to_dict_closed_sibling_renders_ready_lane() -> None:
 
 def test_work_item_to_dict_open_sibling_renders_blocked_dependency_lane() -> None:
     item = _item()
-    payload = _work_item_to_dict(
+    payload = work_item_to_dict(
         item=item,
+        facts=None,
         index={item.id: item},
         dispatch_factory=None,
         manifest=_manifest(),
@@ -206,6 +210,23 @@ def test_work_item_to_dict_open_sibling_renders_blocked_dependency_lane() -> Non
     )
     assert payload["lane"] == "blocked"
     assert payload["lane_reason"] == "dependency"
+
+
+def test_work_item_to_dict_preserves_nested_list_dependency_values() -> None:
+    dependency: DependsOnRaw = {
+        "kind": "pull_request",
+        "repo": "sib",
+        "numbers": [1, 2],
+    }
+    item = _item(status="active", depends_on=(dependency,))
+    payload = work_item_to_dict(
+        item=item,
+        facts=None,
+        index={item.id: item},
+        dispatch_factory=None,
+        manifest=_manifest(),
+    )
+    assert payload["depends_on"] == [dependency]
 
 
 # ---------------------------------------------------------------------------

@@ -8,10 +8,12 @@ process-singleton fake makes the seeded writes visible to `main`.
 """
 
 import json
+from dataclasses import fields
 from unittest.mock import Mock
 
 import pytest
 from livespec_orchestrator_beads_fabro import _store_dispatch_factory
+from livespec_orchestrator_beads_fabro._beads_client import fake_singleton
 from livespec_orchestrator_beads_fabro.commands.list_work_items import main
 from livespec_orchestrator_beads_fabro.store import append_work_item, record_dispatch_factory
 from livespec_orchestrator_beads_fabro.types import AuditRecord, StoreConfig, WorkItem
@@ -214,6 +216,109 @@ def test_main_json_output_with_audit(
     payload = json.loads(captured.out)
     assert payload[0]["id"] == "li-a"
     assert payload[0]["audit"]["commits"] == ["c"]
+    assert set(payload[0]["audit"]) == {field.name for field in fields(AuditRecord)}
+
+
+def test_main_json_output_key_set_tracks_work_item_dataclass_fields(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The projection must fail if a future WorkItem field is not emitted."""
+    _seed(_item(id_="li-a", status="done"))
+    rc = main(argv=["--json"])
+    captured = capsys.readouterr()
+    assert rc == 0
+    payload = json.loads(captured.out)
+    expected = {field.name for field in fields(WorkItem)} | {
+        "dispatch_factory",
+        "labels",
+        "lane",
+        "lane_reason",
+        "parent",
+    }
+    assert set(payload[0]) == expected
+
+
+def test_main_json_output_includes_parent_and_labels(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _seed(_item(id_="li-parent"))
+    _seed(_item(id_="li-child"))
+    fake_singleton().update_issue(
+        issue_id="li-child",
+        parent_id="li-parent",
+        add_labels=["acceptance:human-only", "topic:grooming"],
+    )
+
+    rc = main(argv=["--json"])
+    captured = capsys.readouterr()
+
+    assert rc == 0
+    payload = _by_id(json.loads(captured.out))
+    assert payload["li-child"]["parent"] == "li-parent"
+    assert payload["li-child"]["labels"] == [
+        "origin:freeform",
+        "acceptance:human-only",
+        "topic:grooming",
+    ]
+    assert payload["li-parent"]["parent"] is None
+    assert payload["li-parent"]["labels"] == ["origin:freeform"]
+
+
+def test_substrate_facts_from_records_reads_native_parent_and_labels() -> None:
+    from livespec_orchestrator_beads_fabro.commands._list_work_items_projection import (
+        substrate_facts_from_records,
+    )
+
+    facts = substrate_facts_from_records(
+        records=[
+            {
+                "id": "li-child",
+                "parent": "li-parent",
+                "labels": ["topic:grooming", 7, "acceptance:human-only"],
+            },
+            {"id": 7, "parent": "ignored"},
+        ]
+    )
+
+    assert facts["li-child"].parent == "li-parent"
+    assert facts["li-child"].labels == ("topic:grooming", "acceptance:human-only")
+    assert set(facts) == {"li-child"}
+
+
+def test_substrate_facts_from_records_reads_parent_id_and_edge_fallbacks() -> None:
+    from livespec_orchestrator_beads_fabro.commands._list_work_items_projection import (
+        substrate_facts_from_records,
+    )
+
+    facts = substrate_facts_from_records(
+        records=[
+            {
+                "id": "li-parent-id",
+                "parent_id": "li-parent",
+                "labels": "not-a-list",
+                "dependencies": [],
+            },
+            {
+                "id": "li-edge",
+                "labels": [],
+                "dependencies": [
+                    {"depends_on_id": "not-parent", "type": "blocks"},
+                    "bad-edge",
+                    {"depends_on_id": "li-epic", "type": "parent-child"},
+                ],
+            },
+            {
+                "id": "li-none",
+                "labels": [],
+                "dependencies": "not-a-list",
+            },
+        ]
+    )
+
+    assert facts["li-parent-id"].parent == "li-parent"
+    assert facts["li-parent-id"].labels == ()
+    assert facts["li-edge"].parent == "li-epic"
+    assert facts["li-none"].parent is None
 
 
 def test_main_json_output_includes_dispatch_factory(

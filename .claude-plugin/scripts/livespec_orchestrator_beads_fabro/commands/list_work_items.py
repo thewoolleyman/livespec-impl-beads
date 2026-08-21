@@ -27,7 +27,8 @@ Output:
 - Default: one-line summary per work-item.
 - `--json`: an array of work-item materialized views. Each entry
   includes the optional `spec_commitment_hint` field (string or
-  `null`) — the pairing surface livespec's
+  `null`) plus the beads-native `parent` and `labels` fields — the
+  pairing surface livespec's
   `unresolved-spec-commitment` doctor invariant matches against
   per livespec PC #4 sub-proposal 3 — plus two computed flat keys,
   `lane` (the rendered lane via `lifecycle.lane_of`) and `lane_reason`
@@ -39,7 +40,6 @@ Output:
 import argparse
 import json
 from collections.abc import Callable
-from dataclasses import asdict
 from pathlib import Path
 from typing import Literal
 
@@ -48,6 +48,11 @@ from livespec_runtime.work_items.lifecycle import is_item_ready, lane_of
 
 from livespec_orchestrator_beads_fabro.commands._config import resolve_store_config
 from livespec_orchestrator_beads_fabro.commands._cross_repo import load_manifest
+from livespec_orchestrator_beads_fabro.commands._list_work_items_projection import (
+    WorkItemSubstrateFacts,
+    substrate_facts_for,
+    work_item_to_dict,
+)
 from livespec_orchestrator_beads_fabro.commands._sibling_status_lookup import (
     make_sibling_status_lookup,
 )
@@ -105,6 +110,7 @@ def main(*, argv: list[str] | None = None) -> int:
         _write_json(
             items=filtered,
             index={item.id: item for item in materialized},
+            substrate_facts=substrate_facts_for(path=config.work_items_path),
             dispatch_factories=_dispatch_factories(path=config.work_items_path, items=filtered),
             manifest=manifest,
             sibling_status_lookup=sibling_status_lookup,
@@ -177,13 +183,15 @@ def _write_json(
     *,
     items: list[WorkItem],
     index: dict[str, WorkItem],
+    substrate_facts: dict[str, WorkItemSubstrateFacts],
     dispatch_factories: dict[str, str | None],
     manifest: CrossRepoManifest,
     sibling_status_lookup: Callable[[str, str], RefStatus] | None = None,
 ) -> None:
     payload = [
-        _work_item_to_dict(
+        work_item_to_dict(
             item=item,
+            facts=substrate_facts.get(item.id),
             index=index,
             dispatch_factory=dispatch_factories.get(item.id),
             manifest=manifest,
@@ -207,35 +215,6 @@ def _write_human(*, items: list[WorkItem], dispatch_factories: dict[str, str | N
             f"  {item.title}\n"
         )
         _ = write_stdout(text=line)
-
-
-def _work_item_to_dict(
-    *,
-    item: WorkItem,
-    index: dict[str, WorkItem],
-    dispatch_factory: str | None,
-    manifest: CrossRepoManifest,
-    sibling_status_lookup: Callable[[str, str], RefStatus] | None = None,
-) -> dict[str, object]:
-    payload = asdict(item)
-    payload["depends_on"] = list(item.depends_on)
-    payload["dispatch_factory"] = dispatch_factory
-    if item.audit is not None:
-        payload["audit"] = {
-            "verification_timestamp": item.audit.verification_timestamp,
-            "commits": list(item.audit.commits),
-            "files_changed": list(item.audit.files_changed),
-        }
-    # The two computed flat keys (consume-don't-recompute): the console reads
-    # `lane`/`lane_reason` directly off the JSON view rather than re-deriving a
-    # lane from the raw status, so the shared `lane_of` authority is the single
-    # place "open dependency" / "stored blocked" is resolved into a rendered lane.
-    lane = lane_of(
-        item=item, index=index, manifest=manifest, sibling_status_lookup=sibling_status_lookup
-    )
-    payload["lane"] = lane.name
-    payload["lane_reason"] = lane.reason
-    return payload
 
 
 def _dispatch_factories(*, path: StoreConfig, items: list[WorkItem]) -> dict[str, str | None]:
