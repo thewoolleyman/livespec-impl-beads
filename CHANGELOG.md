@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.62.9](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.8...v0.62.9) (2026-08-21)
+
+
+### Bug Fixes
+
+* avoid list-work-items child fanout ([ba8ac6b](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/ba8ac6bf4a7ac42427acb97bfdd15122ee052d3e))
+* union dotted parents in list projection ([63274f8](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/63274f8803620edee94f94fc2612a778cc844ce4))
+
 ## [0.62.8](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.7...v0.62.8) (2026-08-21)
 
 
