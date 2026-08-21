@@ -359,6 +359,83 @@ flag, whose own help text reads "The labels field in output will be empty
 regardless of actual labels" — so know it exists, and know that **nothing in
 the normal path passes it**.
 
+A SECOND WORKED EXAMPLE, on a field nobody had recorded this trap for, because the
+label case above can read as a quirk of labels. `overseer-qruxr7` in the
+`livespec-overseer` tenant shows `acceptance_criteria` ABSENT from its raw JSON
+record entirely, while its `metadata` holds an 856-character
+`acceptance_criteria`. A sibling filed minutes later, `overseer-au3pt3.11`, shows
+the mirror image — native `acceptance_criteria` of 1,284 characters and empty
+metadata. TWO SESSIONS INDEPENDENTLY concluded the filing path had LOST the
+criteria, and therefore that a dispatch of that item would arrive with nothing to
+evaluate and silently pass a no-op acceptance. That conclusion was wrong. `store.py`
+builds `content_fields = {**metadata, **record}` — a MERGED read with native winning
+— so a metadata-held copy is read normally, and through the sanctioned projection
+both items report their criteria in full (856 and 1,284 characters). The two records
+differ only because a five-week-old cached plugin build wrote acceptance into
+metadata where today's build passes it natively. Nothing was lost in either.
+
+**An instrument that CANNOT RETURN A HIT, reporting no hits.** This is the sibling
+of the sparseness trap above and it sits one level earlier: there the observation
+was correct and the conclusion wrong; here THE QUERY ITSELF WAS INCAPABLE OF FINDING
+THE THING, and it reported a clean negative with no error. Every instance below
+returned valid output, exit 0, and a plausible answer.
+
+The sharp form of the rule, which is what makes it usable: **a control that
+establishes an instrument FUNCTIONS is not a control that establishes it is POINTED
+CORRECTLY.** The second needs its own positive case — a query that SHOULD return
+something, returning it. The discriminating question for aim is therefore: *what
+should this query return if it is pointed correctly, and does it?*
+
+Four measured instances, 2026-08-21, all in one night:
+
+- **An anchored regex that cannot match the real line.** Claim: "`bd update` has no
+  `--description` flag, so a description cannot be edited non-interactively."
+  The pattern was anchored `^\s+--(description|acceptance|notes)`; the help line
+  reads `-d, --description string`, leading with the SHORT flag, so a two-dash
+  anchored pattern can never match it. Three routes existed (`-d/--description`,
+  `--body-file` with `-` for stdin, `--stdin`). The same shape recurred within the
+  hour: a ten-repo sweep for `sorted(children)[-1]` — a PARAPHRASE reconstructed
+  from a peer's prose — returned zero while two live instances existed as a
+  multi-line `sorted(...)` assigned to `matches`, then `matches[-1]`.
+- **A wrong-target query with a confident empty answer.** Claim: "no fabro run
+  exists for either dispatch." The query was `fabro ps`, which defaults to the LOCAL
+  server, while the Dispatcher submits with `--server https://hp-xubuntu…`. Both
+  runs were alive on that host. The local query returned 725 rows — a large,
+  healthy, entirely irrelevant population. The discriminator was not a better run
+  query but PROCESS ANCESTRY: the live `fabro run` process carries `--server <host>`
+  in its own cmdline, which NAMES the target instead of assuming one.
+- **A PATH false-absence**, hit by two sessions independently. Claim: "fabro is not
+  installed." It is; the credential wrapper does not carry it on PATH. Preserve PATH
+  explicitly.
+- **The most credible one, because the instrument was demonstrably healthy.** Claim,
+  reached independently by two sessions: "there is no local route to a remote run's
+  store, so `fabro dump` cannot rescue an interview-destroyed run." The control that
+  was run was a GOOD control — `fabro ps -a` returned 726 rows, proving the binary
+  works, the query shape is valid and the store is readable. It proved the instrument
+  FUNCTIONED; it could not prove the instrument was AIMED at the right host. Every
+  zero collected was equally consistent with "this run does not exist" and with "I am
+  querying the wrong store", and nothing in the output distinguished them. Falsified
+  by execution: `fabro dump <run> --server https://hp-xubuntu… -o <dir>` exported 34
+  files including `stages/002-implement@1/diff.patch` at 21,949 bytes — the very
+  artifact the rescue procedure is written around. Re-confirmed independently on run
+  `01M0H73GQ8Y0`: `dump --server` exported 61 files, and `attach --server` reached a
+  run genuinely holding a human gate, rendered its prompt and accepted an answer. The
+  remedy was fully operative the whole time, and defects were filed against a
+  capability that already worked.
+
+**The existing "state the scope you searched" rule is necessary and NOT sufficient**
+— see "Verification discipline (repo-additive)" below, whose Rule 1 this extends. In
+the anchored-regex instance the scope was stated and correct (ten repos, every `.py`,
+exclusions named) and the sweep was still worthless, because the PATTERN could not
+match. State the scope AND establish that the instrument could have returned a hit
+within it.
+
+Why this one is worth re-deriving before acting: an "I checked and it is IMPOSSIBLE"
+conclusion FORECLOSES THE ACTION, and nothing downstream ever re-tests it. A wrong
+measurement gets contradicted by the next reader; a false impossibility just quietly
+stops being examined. In the anchored-regex instance the fix was one command away, and
+the false conclusion was passed to two other sessions as advice before being caught.
+
 **The `dependencies` array is ONE HETEROGENEOUS LIST that keys its target
 `depends_on_id`, and the majority of its rows are not blockers.** The target key
 is not `id`, `target`, or `to`, so every naive accessor yields `None` and a
