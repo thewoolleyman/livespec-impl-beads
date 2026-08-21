@@ -57,6 +57,18 @@
 #      holds no database is SKIPPED rather than counted unreadable; that arm is
 #      matched narrowly so an auth or connection failure still stops the run.
 #
+# RELOCATE THIS BEFORE THE PLAN ARCHIVES
+#   This file currently lives in a PLAN RESEARCH DIRECTORY, and archiving a plan
+#   moves the whole directory to plan/archive/<topic>/ with nothing left behind.
+#   That is correct for research prose and WRONG for an operational gate: this
+#   probe is useful to any future beads upgrade, and it is referenced as a STOP
+#   gate from bd-ib-ao3j. Before bd-ib-3kolea is archived, move it somewhere
+#   durable -- bd-guard/test/ is the natural home, since the v1.1.2 candidate
+#   qualification harness already lives there -- and update the references in
+#   this thread's notes and on bd-ib-ao3j. It is deliberately NOT moved now:
+#   the plan is live, the paths are cited from merged notes and a ledger
+#   comment, and churning them early buys nothing.
+#
 # MAINTENANCE
 #   The column lists below are copied verbatim from auxRekeyTables in
 #   internal/storage/schema/aux_row_id_backfill.go. If upstream changes that
