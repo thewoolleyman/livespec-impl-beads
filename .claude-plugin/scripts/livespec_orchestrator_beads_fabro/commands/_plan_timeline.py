@@ -23,6 +23,7 @@ from livespec_orchestrator_beads_fabro.store import read_work_item_comments
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
+    from livespec_orchestrator_beads_fabro.store import WorkItemComment
     from livespec_orchestrator_beads_fabro.types import StoreConfig
 
 __all__: list[str] = [
@@ -48,6 +49,11 @@ PLAN_SCOPE_PREFIX = "plan-scope-event"
 _TRUTHY = frozenset({"1", "on", "true", "yes"})
 _NEXT_ACTION_MARKER = "next action"
 _MARKER_ORNAMENTS = "-*# "
+_EXPECTED_HEADER_SHAPE = "`plan-handoff-entry|plan-scope-event`, `author: `, `timestamp: `"
+_AUTHOR_LINE_INDEX = 1
+_TIMESTAMP_LINE_INDEX = 2
+_MIN_HEADER_LINES = 2
+_FULL_HEADER_LINES = 3
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -120,19 +126,48 @@ def resume_directive(*, entries: Sequence[PlanTimelineEntry], unattended: bool) 
 def read_timeline(*, config: StoreConfig, epic_id: str) -> tuple[PlanTimelineEntry, ...]:
     """Read plan-epic handoff and scope comments oldest-first, each kind-labelled."""
     entries: list[PlanTimelineEntry] = []
-    for comment in read_work_item_comments(path=config, work_item_id=epic_id):
+    for index, comment in enumerate(
+        read_work_item_comments(path=config, work_item_id=epic_id), start=1
+    ):
         if not comment.text.startswith((PLAN_HANDOFF_PREFIX, PLAN_SCOPE_PREFIX)):
             continue
-        entries.append(_parse_entry(text=comment.text))
+        entries.append(
+            _parse_entry(
+                comment=comment,
+                comment_ref=_comment_ref(epic_id=epic_id, comment=comment, index=index),
+            )
+        )
     return tuple(entries)
 
 
-def _parse_entry(*, text: str) -> PlanTimelineEntry:
-    header, body = text.split("\n\n", maxsplit=1)
+def _parse_entry(*, comment: WorkItemComment, comment_ref: str) -> PlanTimelineEntry:
+    header, _, body = comment.text.partition("\n\n")
     lines = header.splitlines()
+    if len(lines) < _MIN_HEADER_LINES:
+        raise _format_error(comment_ref=comment_ref, detail="missing author line")
+    created_at = _created_at(lines=lines, comment=comment)
     return PlanTimelineEntry(
         kind=HANDOFF_KIND if lines[0] == PLAN_HANDOFF_PREFIX else SCOPE_KIND,
         body=body,
-        author=lines[1].removeprefix("author: "),
-        created_at=lines[2].removeprefix("timestamp: "),
+        author=lines[_AUTHOR_LINE_INDEX].removeprefix("author: "),
+        created_at=created_at,
     )
+
+
+def _created_at(*, lines: list[str], comment: WorkItemComment) -> str:
+    if len(lines) >= _FULL_HEADER_LINES and lines[_TIMESTAMP_LINE_INDEX].startswith("timestamp: "):
+        return lines[_TIMESTAMP_LINE_INDEX].removeprefix("timestamp: ")
+    return comment.created_at or ""
+
+
+def _comment_ref(*, epic_id: str, comment: WorkItemComment, index: int) -> str:
+    if comment.comment_id is not None:
+        return comment.comment_id
+    return f"{epic_id} comment #{index}"
+
+
+def _format_error(*, comment_ref: str, detail: str) -> ValueError:
+    problem = f"Malformed plan timeline comment {comment_ref}: {detail}"
+    expected = f"expected plan timeline header {_EXPECTED_HEADER_SHAPE}, then a blank line and body"
+    message = f"{problem}; {expected}"
+    return ValueError(message)
