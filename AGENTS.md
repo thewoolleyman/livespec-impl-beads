@@ -323,6 +323,70 @@ mechanisms — and never a `bd list --json` filter of either shape. (The plan
 archive gate already uses the union and is therefore correct; the exposure is
 to humans and agents surveying by hand.)
 
+**`bd show --json` is strictly LOSSIER than plain `bd show`, and it fails in the
+most alarming direction available.** Plain `bd show <id>` prints a `COMMENTS`
+section carrying every comment body; `bd show <id> --json` returns
+`comment_count` and **no `comments` key at all**. Measured 2026-08-21 on
+`bd-ib-1w1h`: the plain form renders the full comment, the `--json` form emits
+15 keys and none of them is `comments`. So an agent that writes a handoff
+comment and then reads the record back through `--json` — the obvious
+verification, and the one the plan prose explicitly asks for — finds no comments
+and concludes **the write was lost**. It was not. Use `bd comments <id> --json`,
+which returns the bodies; `_beads_client.py`'s `list_comments` docstring has
+said so all along, but a docstring is not a surface a hand-driving operator
+reads. Note also that `bd show --json` returns a **one-element array**, not an
+object, so `payload["id"]` raises rather than returning the id.
+
+**Records are `omitempty`-sparse, so A MISSING KEY IS NOT EVIDENCE OF LOSS.**
+This one is different in kind from the rest of this catalogue: it produces a
+WRONG CONCLUSION FROM A CORRECT OBSERVATION, which is why cross-checking does
+not catch it. `bd`'s Go serializer omits any field holding its zero value
+rather than emitting `null` or `[]`. Measured 2026-08-21 across all 523 records
+of the `livespec-dev-tooling` tenant: 25 distinct keys appear and only **10**
+appear on every record — `labels` on 243, `metadata` on 183, `dependencies` on
+194, `notes` on 155, `parent` on 116, `acceptance_criteria` on 65,
+`design`/`spec_id` on 7, `external_ref` on 4. A grooming pass saw `labels`
+absent on 280 of 523 records and reasonably concluded the listing had dropped
+them. **It had not.** Control, run three ways, each designed to return the
+opposite answer if the listing were lossy — server-side `--label` count versus
+client-side count from the listing: `intake:triaged` 69/69, `origin:freeform`
+201/201, `needs-regroom` 3/3, symmetric difference **0** in every case; and
+`--all` versus `--status all` compared record by record across all 523 gave
+identical id sets with **zero** records whose `labels` differed. The records
+without the key genuinely carry no labels. Knowing the encoding convention is
+the whole defence. There IS a real way to lose labels — the `--skip-labels`
+flag, whose own help text reads "The labels field in output will be empty
+regardless of actual labels" — so know it exists, and know that **nothing in
+the normal path passes it**.
+
+**The `dependencies` array is ONE HETEROGENEOUS LIST that keys its target
+`depends_on_id`, and the majority of its rows are not blockers.** The target key
+is not `id`, `target`, or `to`, so every naive accessor yields `None` and a
+tenant of perfectly sound edges reads as a tenant of dangling ones. Worse, six
+edge types share the single array. Measured 2026-08-21 over all 261 dependency
+rows in the `livespec-dev-tooling` tenant: `parent-child` 116, `blocks` 93,
+`relates-to` 26, `discovered-from` 23, `related` 2, `duplicates` 1 — so **168 of
+261 rows (64%) are NOT blockers**, and any filter treating the array as a
+blocker list is wrong for the majority of its own input, in the direction of
+INVENTING blockers that do not exist. Do not hand-roll the discrimination:
+`commands/_plan_child_edges.py` already does it correctly, and
+`list-work-items --json`'s `depends_on` projection is **blocks-only** (verified
+on `bd-ib-3kolea.2`, whose raw edge list is one `parent-child` plus four
+`blocks` and whose projected `depends_on` is exactly those four).
+
+**Prefer `list-work-items --json` to any raw per-item JSON read.** The
+projection is DENSE — measured 2026-08-21 on this repo's tenant, 30 keys
+present on all 638 records, no `omitempty` sparseness — so trap 2 does not
+reach it, and it discards `parent-child` from `depends_on`, so trap 3 does not
+either. Since `bd-ib-m36re3` it also carries `parent` and `labels`, which is
+what makes the roll-up and acceptance-split questions answerable without
+dropping to raw. **One caveat, so this does not become a new trap:** its
+`parent` is populated from the native field and the `parent-child` EDGE, so it
+inherits the dotted-id blind spot described in the child-enumeration entry
+above. It is the right surface for reading an item's parent; it is still NOT a
+complete child enumeration. Use `undisposed_plan_child_ids` /
+`client.children()` for that.
+
 **Query the ledger for prior art BEFORE designing a fix — reading the source is
 not sufficient.** Scan every item — **including `closed` ones** — for the defect
 class you are about to
