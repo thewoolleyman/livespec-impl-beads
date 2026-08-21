@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.62.14](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.13...v0.62.14) (2026-08-21)
+
+
+### Bug Fixes
+
+* recover malformed plan archive timestamps ([08f92c7](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/08f92c7409c4617c90916e2273cfaecee3718533))
+
 ## [0.62.13](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.12...v0.62.13) (2026-08-21)
 
 
