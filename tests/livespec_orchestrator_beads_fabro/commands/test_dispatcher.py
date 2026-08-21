@@ -58,6 +58,7 @@ from livespec_orchestrator_beads_fabro.commands import (
     dispatcher,
 )
 from livespec_orchestrator_beads_fabro.commands import next as next_command
+from livespec_orchestrator_beads_fabro.commands._config import FactoryTarget
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandResult,
     DispatchOutcome,
@@ -3350,6 +3351,88 @@ def test_dispatch_green_closes_item_and_journals(
     poll = fake.seen[0]["poll"]
     assert isinstance(poll, PollPolicy)
     assert (poll.attempts, poll.interval_seconds) == (80, 30.0)
+
+
+def test_dispatch_id_journal_records_resolved_factory_without_rewriting_existing_entry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, workflow = _repo_with_workflow(tmp_path=tmp_path)
+    item = _item()
+    append_work_item(path=_config(), item=item)
+    journal = JournalFile(path=repo / "tmp" / "fabro-dispatch-journal.jsonl")
+    existing = {
+        "stage": "dispatch-id",
+        "work_item_id": "older",
+        "dispatch_id": "older-dispatch",
+    }
+    journal.append(record=existing)
+    fake = _FakeRunDispatch(outcomes={item.id: _green_outcome(item_id=item.id)})
+    monkeypatch.setattr(_dispatcher_loop, "run_dispatch", fake)
+    monkeypatch.setattr(_dispatcher_loop, "post_run_dispositions", lambda **_: None)
+    monkeypatch.setattr(_dispatcher_loop, "emit_review_gate_from_fabro_events", lambda **_: None)
+
+    outcome = _dispatcher_loop.dispatch_one(
+        args=argparse.Namespace(
+            fabro_bin="fabro",
+            workflow=workflow,
+            repo=repo,
+            journal=None,
+            poll_attempts=1,
+            poll_interval_seconds=0.1,
+            fabro_factory_target=FactoryTarget(
+                name="resolved-hp",
+                server="https://hp.example.test",
+                dev_token=None,
+            ),
+        ),
+        repo=repo,
+        item=item,
+        journal=journal,
+        janitor=None,
+    )
+
+    assert outcome.status == "green"
+    records = [json.loads(line) for line in journal.path.read_text(encoding="utf-8").splitlines()]
+    assert records[0]["work_item_id"] == existing["work_item_id"]
+    assert records[0]["dispatch_id"] == existing["dispatch_id"]
+    assert "dispatch_factory" not in records[0]
+    dispatch_records = [record for record in records if record["stage"] == "dispatch-id"]
+    assert dispatch_records[1]["dispatch_factory"] == "resolved-hp"
+
+
+def test_dispatch_id_journal_omits_factory_when_target_was_not_resolved(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, workflow = _repo_with_workflow(tmp_path=tmp_path)
+    item = _item()
+    append_work_item(path=_config(), item=item)
+    journal = JournalFile(path=repo / "tmp" / "fabro-dispatch-journal.jsonl")
+    fake = _FakeRunDispatch(outcomes={item.id: _green_outcome(item_id=item.id)})
+    monkeypatch.setattr(_dispatcher_loop, "run_dispatch", fake)
+    monkeypatch.setattr(_dispatcher_loop, "post_run_dispositions", lambda **_: None)
+    monkeypatch.setattr(_dispatcher_loop, "emit_review_gate_from_fabro_events", lambda **_: None)
+
+    outcome = _dispatcher_loop.dispatch_one(
+        args=argparse.Namespace(
+            fabro_bin="fabro",
+            workflow=workflow,
+            repo=repo,
+            journal=None,
+            poll_attempts=1,
+            poll_interval_seconds=0.1,
+        ),
+        repo=repo,
+        item=item,
+        journal=journal,
+        janitor=None,
+    )
+
+    assert outcome.status == "green"
+    records = [json.loads(line) for line in journal.path.read_text(encoding="utf-8").splitlines()]
+    dispatch_record = next(record for record in records if record["stage"] == "dispatch-id")
+    assert "dispatch_factory" not in dispatch_record
 
 
 def test_complete_and_accept_ai_only_pass_journals_verdict_and_closes(

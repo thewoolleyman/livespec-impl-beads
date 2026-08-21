@@ -5,11 +5,8 @@ from __future__ import annotations
 import argparse
 import tempfile
 import time
-from collections.abc import Callable
 from contextlib import ExitStack
-from dataclasses import dataclass
 from pathlib import Path
-from time import sleep as _real_sleep
 from typing import cast
 
 from returns.unsafe import unsafe_perform_io
@@ -26,6 +23,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_credentials import (
     read_dispatch_comments,
     read_dispatch_labels,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_dispatch_id_journal import (
+    DispatchJournalIdentity,
+    append_dispatch_id_record,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_dispatch_lock import (
     dispatch_lock_path,
     live_dispatch_lock,
@@ -34,7 +35,6 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_dispatch_lock import
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     DispatchOutcome,
-    PollPolicy,
     run_dispatch,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import (
@@ -49,18 +49,20 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_lessons import (
 from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_outcomes import (
     failed_dispatch_outcome,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_run import (
+    DispatchRunContext,
+    run_dispatch_with_watchdog,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_selection import (
     janitor_core_ref,
     post_run_dispositions,
     run_id,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
-    heartbeat_path,
     spans_path,
     workflow_toml,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
-    DispatchPlan,
     build_plan,
     janitor_checkout_path,
     render_goal,
@@ -90,7 +92,11 @@ def dispatch_one(
     journal: JournalFile,
     janitor: tuple[str, ...] | None,
 ) -> DispatchOutcome:
-    if not hasattr(args, "fabro_factory_target"):
+    raw_factory_target = getattr(args, "fabro_factory_target", None)
+    dispatch_factory = (
+        raw_factory_target.name if isinstance(raw_factory_target, FactoryTarget) else None
+    )
+    if not isinstance(raw_factory_target, FactoryTarget):
         args.fabro_factory_target = FactoryTarget(name="default", server=None, dev_token=None)
     lock = live_dispatch_lock(repo=repo, work_item_id=item.id)
     if lock is None or lock.dispatch_id is None:
@@ -107,7 +113,10 @@ def dispatch_one(
             item=item,
             journal=journal,
             janitor=janitor,
-            dispatch_id=dispatch_id,
+            identity=DispatchJournalIdentity(
+                dispatch_id=dispatch_id,
+                dispatch_factory=dispatch_factory,
+            ),
         )
 
 
@@ -118,7 +127,7 @@ def _dispatch_one_locked(
     item: WorkItem,
     journal: JournalFile,
     janitor: tuple[str, ...] | None,
-    dispatch_id: str,
+    identity: DispatchJournalIdentity,
 ) -> DispatchOutcome:
     goal_file = Path(tempfile.gettempdir()) / f"fabro-goal-{item.id}.md"
     overlay_file = Path(tempfile.gettempdir()) / f"fabro-run-config-{item.id}.toml"
@@ -166,14 +175,13 @@ def _dispatch_one_locked(
     # target's OWN committed workflow over the plugin's bundled default, and
     # that config carries the sandbox image pin — so which file won is the
     # first thing to read when a dispatch dies on a missing toolchain.
-    journal.append(
-        record={
-            "stage": "dispatch-id",
-            "work_item_id": item.id,
-            "dispatch_id": dispatch_id,
-            "started_at_epoch": time.time(),
-            "workflow_toml": str(committed_workflow := workflow_toml(args=args)),
-        }
+    committed_workflow = workflow_toml(args=args)
+    append_dispatch_id_record(
+        journal=journal,
+        work_item_id=item.id,
+        identity=identity,
+        started_at_epoch=time.time(),
+        workflow_toml=committed_workflow,
     )
     token_supplier = selfup.github_token_supplier()
     if isinstance(token_supplier, str):
@@ -188,7 +196,7 @@ def _dispatch_one_locked(
         overlay=overlay_file,
         repo=repo,
         work_item_id=item.id,
-        dispatch_id=dispatch_id,
+        dispatch_id=identity.dispatch_id,
         token=token_supplier,
     )
     if overlay_error is not None:
@@ -207,17 +215,17 @@ def _dispatch_one_locked(
         item=item, repo=repo, branch=plan.branch, comments=comments, lessons=lessons
     )
     _ = goal_file.write_text(goal_text, encoding="utf-8")
-    started_at, outcome = _run_dispatch(
-        context=_DispatchRunContext(
+    started_at, outcome = run_dispatch_with_watchdog(
+        context=DispatchRunContext(
             args=args,
             repo=repo,
             plan=plan,
             journal=journal,
             overlay_file=overlay_file,
             token_supplier=token_supplier,
-            item_id=item.id,
-            dispatch_id=dispatch_id,
-        )
+        ),
+        run_dispatch_func=run_dispatch,
+        fabro_launcher_type=WatchedFabroLauncher,
     )
     post_run_dispositions(
         args=args,
@@ -236,55 +244,8 @@ def _dispatch_one_locked(
             journal=journal,
             spans_path=spans_path(args=args, repo=repo),
             work_item_id=item.id,
-            dispatch_id=dispatch_id,
+            dispatch_id=identity.dispatch_id,
             run_id=outcome.fabro_run_id,
         )
     )
     return outcome
-
-
-@dataclass(frozen=True, kw_only=True)
-class _DispatchRunContext:
-    args: argparse.Namespace
-    repo: Path
-    plan: DispatchPlan
-    journal: JournalFile
-    overlay_file: Path
-    token_supplier: Callable[[], str]
-    item_id: str
-    dispatch_id: str
-
-
-def _run_dispatch(*, context: _DispatchRunContext) -> tuple[float, DispatchOutcome]:
-    started_at = time.monotonic()
-    runner = GithubTokenEnvRunner(inner=ShellCommandRunner(), token=context.token_supplier)
-    with ExitStack() as stack:
-        _ = stack.callback(lambda: context.overlay_file.unlink(missing_ok=True))
-        outcome = run_dispatch(
-            plan=context.plan,
-            # Pillar 1 (first-class remint): the decorator re-resolves
-            # GH_TOKEN from the caching provider before EVERY engine
-            # subprocess, so the ~76-min merge-poll and the post-merge
-            # git/janitor legs never ride an expired once-at-start token.
-            runner=runner,
-            journal=context.journal,
-            sleep=_real_sleep,
-            poll=PollPolicy(
-                attempts=context.args.poll_attempts,
-                interval_seconds=context.args.poll_interval_seconds,
-            ),
-            # The progress watchdog (work-item livespec-impl-beads-oyg):
-            # runs `fabro run` while watching liveness and `fabro rm -f`-es
-            # a sustained-no-progress stall (the 7us.6 silent-deadlock
-            # backstop) — a distinct `stalled-no-progress` outcome that
-            # h1p's `notify_terminal` alarms on. 29f.6 layers the
-            # metrics-HEARTBEAT (the journal-sibling file the live receiver
-            # writes) as the deferred-PRIMARY liveness signal over the
-            # coarse wall-clock backstop; an absent/stale/malformed
-            # heartbeat degrades to the wall-clock layer, never to NO
-            # detection.
-            fabro_launcher=WatchedFabroLauncher(
-                heartbeat_path=heartbeat_path(args=context.args, repo=context.repo),
-            ),
-        )
-    return started_at, outcome

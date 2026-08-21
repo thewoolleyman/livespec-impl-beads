@@ -1,0 +1,79 @@
+"""Fabro run invocation for the dispatcher loop."""
+
+from __future__ import annotations
+
+import argparse
+import time
+from collections.abc import Callable
+from contextlib import ExitStack
+from dataclasses import dataclass
+from pathlib import Path
+from time import sleep as _real_sleep
+
+from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
+    DispatchOutcome,
+    PollPolicy,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_io import (
+    GithubTokenEnvRunner,
+    JournalFile,
+    ShellCommandRunner,
+    WatchedFabroLauncher,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import heartbeat_path
+from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import DispatchPlan
+
+__all__: list[str] = [
+    "DispatchRunContext",
+    "run_dispatch_with_watchdog",
+]
+
+
+@dataclass(frozen=True, kw_only=True)
+class DispatchRunContext:
+    args: argparse.Namespace
+    repo: Path
+    plan: DispatchPlan
+    journal: JournalFile
+    overlay_file: Path
+    token_supplier: Callable[[], str]
+
+
+def run_dispatch_with_watchdog(
+    *,
+    context: DispatchRunContext,
+    run_dispatch_func: Callable[..., DispatchOutcome],
+    fabro_launcher_type: Callable[..., WatchedFabroLauncher],
+) -> tuple[float, DispatchOutcome]:
+    started_at = time.monotonic()
+    runner = GithubTokenEnvRunner(inner=ShellCommandRunner(), token=context.token_supplier)
+    with ExitStack() as stack:
+        _ = stack.callback(lambda: context.overlay_file.unlink(missing_ok=True))
+        outcome = run_dispatch_func(
+            plan=context.plan,
+            # Pillar 1 (first-class remint): the decorator re-resolves
+            # GH_TOKEN from the caching provider before EVERY engine
+            # subprocess, so the ~76-min merge-poll and the post-merge
+            # git/janitor legs never ride an expired once-at-start token.
+            runner=runner,
+            journal=context.journal,
+            sleep=_real_sleep,
+            poll=PollPolicy(
+                attempts=context.args.poll_attempts,
+                interval_seconds=context.args.poll_interval_seconds,
+            ),
+            # The progress watchdog (work-item livespec-impl-beads-oyg):
+            # runs `fabro run` while watching liveness and `fabro rm -f`-es
+            # a sustained-no-progress stall (the 7us.6 silent-deadlock
+            # backstop) — a distinct `stalled-no-progress` outcome that
+            # h1p's `notify_terminal` alarms on. 29f.6 layers the
+            # metrics-HEARTBEAT (the journal-sibling file the live receiver
+            # writes) as the deferred-PRIMARY liveness signal over the
+            # coarse wall-clock backstop; an absent/stale/malformed
+            # heartbeat degrades to the wall-clock layer, never to NO
+            # detection.
+            fabro_launcher=fabro_launcher_type(
+                heartbeat_path=heartbeat_path(args=context.args, repo=context.repo),
+            ),
+        )
+    return started_at, outcome
