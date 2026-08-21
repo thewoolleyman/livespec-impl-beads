@@ -11,6 +11,16 @@
 
 set -euo pipefail
 
+# NEVER set VERSION to 1.2.0 or 1.2.1. Upstream published both by accident on
+# 2026-08-11 without release testing; running the v1.2.1 binary EVEN ONCE
+# migrates the schema from v53 to v65, after which every v1.1.2 / v1.2.2 binary
+# refuses with "schema version mismatch: database is at v65". We run a SHARED
+# multi-tenant Dolt server, so one invocation strands that tenant for the whole
+# family. Both are still downloadable (marked prerelease, not withdrawn). The
+# current stable is v1.2.2, a recovery release re-issuing the tested 1.1 line.
+# This harness never contacts a production tenant, but the prohibition is
+# recorded here because this is one of the two places the version is pinned.
+# See AGENTS.md "Beads runtime prerequisites".
 VERSION="1.1.2"
 RELEASE_BASE="https://github.com/gastownhall/beads/releases/download/v${VERSION}"
 TARBALL="beads_${VERSION}_linux_amd64.tar.gz"
