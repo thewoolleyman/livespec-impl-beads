@@ -4,6 +4,14 @@ Raw `dependencies[]` records are the authoritative read surface for plan child
 enumeration. `bd children` is intentionally used only by the mismatch probe
 below because upstream currently derives it from `bd list --parent`, whose
 query is narrower than the dependency surface this plugin must trust.
+
+Dependency edges are not the WHOLE child surface, though. Beads also treats an
+id of the form `<epic-id>.<suffix>` as parentage in its own right, and REFUSES
+to let a caller add an explicit `parent-child` or `tracks` edge for such a
+record — it rejects the write as a deadlock because the relation already
+exists. So a hierarchy-only child cannot be given an edge, and an
+edge-only reading omits it with no way to repair the data. Child enumeration
+therefore unions the edge surface with the id-hierarchy surface.
 """
 
 from __future__ import annotations
@@ -28,6 +36,7 @@ __all__: list[str] = [
     "is_blocks_edge_to_epic",
     "linked_plan_gate_ids_for_epic",
     "plan_child_ids_from_dependencies",
+    "plan_child_ids_from_id_hierarchy",
     "plan_child_ids_from_show_dependencies",
 ]
 
@@ -53,12 +62,11 @@ def linked_plan_gate_ids_for_epic(
     records: list[BeadsRecord],
     epic_id: str,
 ) -> frozenset[str]:
-    """Return dependency-authoritative child ids plus blockers named on the epic."""
-    return plan_child_ids_from_dependencies(
-        records=records, epic_id=epic_id
-    ) | _blocking_ids_for_epic(
-        records=records,
-        epic_id=epic_id,
+    """Return child ids from edges and id hierarchy, plus blockers on the epic."""
+    return (
+        plan_child_ids_from_dependencies(records=records, epic_id=epic_id)
+        | plan_child_ids_from_id_hierarchy(records=records, epic_id=epic_id)
+        | _blocking_ids_for_epic(records=records, epic_id=epic_id)
     )
 
 
@@ -73,6 +81,26 @@ def plan_child_ids_from_dependencies(
         for record in records
         if isinstance(issue_id := record.get("id"), str)
         and _has_plan_child_edge_to_epic(record=record, epic_id=epic_id)
+    )
+
+
+def plan_child_ids_from_id_hierarchy(
+    *,
+    records: list[BeadsRecord],
+    epic_id: str,
+) -> frozenset[str]:
+    """Return issue ids that beads treats as `epic_id` children by id hierarchy.
+
+    The separator is part of the prefix, so an unrelated epic whose id merely
+    shares a leading substring (`bd-ib-epic2.7` against `bd-ib-epic`) is not
+    matched. Deeper descendants are included deliberately: for an archive gate,
+    counting a grandchild as outstanding errs toward refusing the archive.
+    """
+    prefix = f"{epic_id}."
+    return frozenset(
+        issue_id
+        for record in records
+        if isinstance(issue_id := record.get("id"), str) and issue_id.startswith(prefix)
     )
 
 
