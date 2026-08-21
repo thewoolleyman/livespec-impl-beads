@@ -24,11 +24,11 @@ Three jobs (all decided by the doc, no design fork):
    journal).
 
 2. **Correlation-triple augmentation** (§3.3). The stage holds a small
-   in-memory map keyed on `work.item.id` → `{livespec.dispatch.id,
-   fabro.run_id}`, populated as dispatcher spans arrive. When a CC / fabro
-   span carries ONE key of the triple, `CorrelationJoin` backfills the
-   others as span attributes before forwarding, so the reflector joins on
-   ONE key set (`GROUP BY work.item.id`) regardless of source.
+   in-memory map keyed on `work.item.id` and `fabro.run_id`, populated as
+   dispatcher spans arrive. When a CC / fabro span carries ONE key of the
+   triple, `CorrelationJoin` backfills the others as span attributes before
+   forwarding, so the reflector joins on ONE key set (`GROUP BY work.item.id`)
+   regardless of source.
 
 3. **Fail-CLOSED credential scrub on EVERY forwarded span** (§3.4). Every
    span passes through the SHARED `_otel_scrub` discipline (allowlist, not
@@ -118,7 +118,7 @@ class ForwardResult:
 
 @dataclass(kw_only=True)
 class CorrelationJoin:
-    """In-memory join map keyed on `work.item.id` (§3.3).
+    """In-memory join map keyed on `work.item.id` and `fabro.run_id` (§3.3).
 
     Populated as dispatcher spans arrive (they carry the full triple);
     when a CC / fabro span later carries ONE key of the triple, the stage
@@ -129,14 +129,16 @@ class CorrelationJoin:
     """
 
     _by_work_item: dict[str, dict[str, str]] = field(default_factory=dict)
+    _by_fabro_run: dict[str, dict[str, str]] = field(default_factory=dict)
 
     def observe(self, *, keys: dict[str, str]) -> None:
-        """Record the triple values a span carries, keyed by `work.item.id`.
+        """Record the triple values a span carries.
 
-        Only learns from a span that carries `work.item.id` (the join key);
-        a span lacking it cannot anchor the map. Each newly-seen triple key
-        is merged in (later spans backfill earlier gaps without clobbering
-        a known value).
+        Only learns from a span that carries `work.item.id` (the primary
+        join key); a span lacking it cannot anchor the map. When the same
+        span also carries `fabro.run_id`, the same learned triple is indexed
+        there too. Each newly-seen triple key is merged in (later spans
+        backfill earlier gaps without clobbering a known value).
         """
         work_item = keys.get(_WORK_ITEM_ID)
         if work_item is None:
@@ -146,19 +148,26 @@ class CorrelationJoin:
             value = keys.get(triple_key)
             if value is not None and triple_key not in known:
                 known[triple_key] = value
+        fabro_run = known.get(_FABRO_RUN_ID)
+        if fabro_run is not None:
+            _ = self._by_fabro_run.setdefault(fabro_run, known)
 
     def backfill(self, *, keys: dict[str, str]) -> dict[str, str]:
         """Return the triple values to stamp on a span, backfilling from the map.
 
         Starts from the keys the span already carries (those win) and adds
-        any missing triple member known for its `work.item.id`. A span with
-        no `work.item.id` (and none learnable) gets only what it brought.
+        any missing triple member known for its `work.item.id`; a span with
+        no `work.item.id` can still backfill from a known `fabro.run_id`.
+        Unknown keys get only what they brought.
         """
         result = {k: v for k, v in keys.items() if k in _TRIPLE_KEYS}
         work_item = result.get(_WORK_ITEM_ID)
-        if work_item is None:
-            return result
-        for triple_key, value in self._by_work_item.get(work_item, {}).items():
+        if work_item is not None:
+            known = self._by_work_item.get(work_item, {})
+        else:
+            fabro_run = result.get(_FABRO_RUN_ID)
+            known = self._by_fabro_run.get(fabro_run, {}) if fabro_run is not None else {}
+        for triple_key, value in known.items():
             _ = result.setdefault(triple_key, value)
         return result
 
