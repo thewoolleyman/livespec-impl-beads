@@ -107,6 +107,40 @@ def test_timeline_recovers_missing_header_timestamp_from_comment_record() -> Non
     assert entries[0].author == "peer-session"
 
 
+def test_timeline_recovers_unparseable_header_timestamp_from_comment_record() -> None:
+    reset_fake_singleton()
+    _ = _fake().create_issue(
+        draft=IssueDraft(
+            issue_id="bd-ib-plan",
+            issue_type="epic",
+            title="plan",
+            description="plan",
+            assignee=None,
+            created_at="2026-08-11T00:00:00Z",
+            metadata={"rank": "a1"},
+            labels=["origin:freeform"],
+        )
+    )
+
+    _fake().seed_comment(
+        issue_id="bd-ib-plan",
+        text=(
+            "plan-handoff-entry\n"
+            "author: plan-archive\n"
+            "timestamp: claude-fabro-on-hp@2026-08-17T06:44:56Z\n\n"
+            "Archived after review."
+        ),
+        author="beads-problems",
+        created_at="2026-08-17T08:37:24Z",
+    )
+
+    [entry] = read_timeline(config=_config(), epic_id="bd-ib-plan")
+
+    assert entry.created_at == "2026-08-17T08:37:24Z"
+    assert entry.author == "plan-archive"
+    assert entry.body == "Archived after review."
+
+
 def test_unrecoverable_timeline_parse_error_names_comment_and_expected_header(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
