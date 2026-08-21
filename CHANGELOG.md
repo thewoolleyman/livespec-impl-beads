@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.62.5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.4...v0.62.5) (2026-08-21)
+
+
+### Bug Fixes
+
+* project parent labels in work item JSON ([a3b2515](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/a3b25154841d1e6c6367d8cbca52dcd755588ba0))
+
 ## [0.62.4](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.3...v0.62.4) (2026-08-21)
 
 
