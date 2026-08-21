@@ -14,7 +14,7 @@ from livespec_orchestrator_beads_fabro._beads_client import EDGE_PARENT_CHILD, m
 if TYPE_CHECKING:
     from livespec_runtime.cross_repo.types import CrossRepoManifest
 
-    from livespec_orchestrator_beads_fabro._beads_client import BeadsClient, BeadsRecord
+    from livespec_orchestrator_beads_fabro._beads_client import BeadsRecord
     from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
 
 __all__: list[str] = [
@@ -38,7 +38,7 @@ def substrate_facts_for(*, path: StoreConfig) -> dict[str, WorkItemSubstrateFact
     records = client.list_issues()
     return substrate_facts_from_records(
         records=records,
-        child_parent_links=_child_parent_links(client=client, records=records),
+        child_parent_links=_implicit_dotted_child_parent_links(records=records),
     )
 
 
@@ -140,18 +140,23 @@ def _parent_from_edges(*, record: BeadsRecord) -> str | None:
     return None
 
 
-def _child_parent_links(
-    *,
-    client: BeadsClient,
-    records: list[BeadsRecord],
-) -> dict[str, str]:
+def _implicit_dotted_child_parent_links(*, records: list[BeadsRecord]) -> dict[str, str]:
+    record_ids = frozenset(
+        issue_id for record in records if isinstance(issue_id := record.get("id"), str)
+    )
     links: dict[str, str] = {}
-    for record in records:
-        parent_id = cast("str", record["id"])
-        for child in client.children(parent_id=parent_id):
-            child_id = cast("str", child["id"])
-            _ = links.setdefault(child_id, parent_id)
+    for issue_id in record_ids:
+        parent_id = _dotted_parent(issue_id=issue_id, record_ids=record_ids)
+        if parent_id is not None:
+            links[issue_id] = parent_id
     return links
+
+
+def _dotted_parent(*, issue_id: str, record_ids: frozenset[str]) -> str | None:
+    parent_id = issue_id.rpartition(".")[0]
+    if parent_id in record_ids:
+        return parent_id
+    return None
 
 
 def _child_parent_of(
