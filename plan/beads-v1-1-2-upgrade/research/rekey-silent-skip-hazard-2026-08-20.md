@@ -197,7 +197,18 @@ nothing logs, nothing records.
 
 ### The mitigating fact, stated so this is not over-read
 
-Our tenants are **server-mode**, and beads has a remote-migrate gate for that
+> **SUPERSEDED 2026-08-21 — THIS MITIGATION DOES NOT HOLD.** The paragraph below
+> was labelled at the time as the design's evident intent and explicitly *not*
+> verified semantics. It has now been verified, and it is wrong for our
+> configuration: the gate keys on `SELECT COUNT(*) FROM dolt_remotes > 0`, and
+> **all 14 live tenants return 0**, so the gate returns `nil` and never fires.
+> It is not broken — it guards cross-clone schema fork, a topology we do not
+> have — but it protects us from nothing, and the residual exposure below is
+> therefore too narrow. Full measurement:
+> `remote-migrate-gate-does-not-fire-2026-08-21.md`. The original text is kept
+> rather than rewritten, per this note's own correction precedent.
+
+~~Our tenants are **server-mode**, and beads has a remote-migrate gate for that
 case — `internal/storage/schema/remote_migrate_gate.go` and its smart variant.
 The rehearsal package already exercises its refusal arm: `migration-gate-receipt`
 has `gate_decision: ["smart-first-mover", "migrate-or-adopt-refusal"]` and
@@ -205,7 +216,7 @@ asserts `BD_ALLOW_REMOTE_MIGRATE_unset` and `BD_SMART_GATE_unset`. So an
 incidental `bd list` through our client should hit that gate and **refuse**
 rather than quietly migrate a shared tenant. That is a real and deliberate
 safeguard, and it is the reason this is a contained exposure rather than an
-everyday one.
+everyday one.~~
 
 I read the gate's existence and the receipt's shape, **not** the gate's full
 semantics — so treat "should refuse" as the design's evident intent rather than
