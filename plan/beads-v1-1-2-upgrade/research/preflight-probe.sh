@@ -33,6 +33,11 @@
 #                         selected cell to materialise rather than be optimised
 #                         away, so an undecodable cell raises instead of hiding.
 #   C. row counts       — what the re-key would rewrite, one UPDATE each.
+#   E. instrument self-check — a non-empty table whose decode sums to ZERO bytes
+#                         means the expression stopped materialising cells. That
+#                         failure is invisible in the drift result (it would just
+#                         report clean), so it is treated as NO VERDICT (exit 2),
+#                         never as a pass.
 #   D. remotes          — recorded for context: 0 means the remote-migrate gate
 #                         cannot fire, which is finding 2 above.
 #
@@ -136,6 +141,7 @@ check_tenant() {   # $1=repo path
     IFS='|' read -r -a f <<< "$(tr -d ' ' <<<"$row")"
     local ver="${f[0]}" remotes="${f[1]}"
     local ne="${f[2]}" nc="${f[3]}" ni="${f[4]}" ns="${f[5]}"
+    local de="${f[6]}" dc="${f[7]}" di="${f[8]}" ds="${f[9]}"
 
     if [[ "$ver" -ge "$LANDMINE_VERSION" ]] 2>/dev/null; then
         echo "   FAIL  schema v$ver — AT OR PAST THE v1.2.1 LANDMINE (v65). See AGENTS.md; do NOT migrate."
@@ -147,7 +153,34 @@ check_tenant() {   # $1=repo path
         echo "   ok    schema v$ver (expected)"
     fi
 
-    echo "   ok    all four re-key tables decode cleanly"
+    # INSTRUMENT SELF-CHECK. "No drift" is only meaningful if the decode
+    # actually ran. A non-empty table whose decode sums to zero bytes means the
+    # expression stopped materialising cells -- an optimiser change, a renamed
+    # column, a NULL-collapsing edit -- and that failure is INVISIBLE in the
+    # drift result, which would simply report clean. Treat it as no verdict
+    # (exit 2), never as a pass. The method itself is controlled in
+    # rekey-drift-fleet-probe-2026-08-21.md: an MD5 computed by this SQL path
+    # matches one computed over the same rows fetched through the JSON path, so
+    # a non-zero byte total is a genuine decode of stored bytes.
+    local instrument_ok=1
+    local pair
+    for pair in "events:$ne:$de" "comments:$nc:$dc" \
+                "issue_snapshots:$ni:$di" "compaction_snapshots:$ns:$ds"; do
+        local tname="${pair%%:*}" rest="${pair#*:}"
+        local rows="${rest%%:*}" bytes="${rest#*:}"
+        if [[ "$rows" =~ ^[0-9]+$ ]] && [[ "$rows" -gt 0 ]]; then
+            if ! [[ "$bytes" =~ ^[0-9] ]] || [[ "${bytes%%.*}" -eq 0 ]]; then
+                echo "   ????  $tname: $rows rows but the decode returned 0 bytes —"
+                echo "         the probe is not reading cell contents; its 'clean' result is meaningless"
+                instrument_ok=0
+            fi
+        fi
+    done
+    if [[ "$instrument_ok" -eq 0 ]]; then
+        unreadable=1
+    else
+        echo "   ok    all four re-key tables decode cleanly (decode verified non-empty)"
+    fi
     echo "   info  rows to rewrite: events=$ne comments=$nc issue_snapshots=$ni compaction_snapshots=$ns"
     if [[ "$remotes" == "0" ]]; then
         echo "   note  dolt_remotes=0 — the remote-migrate gate CANNOT fire on this tenant"
