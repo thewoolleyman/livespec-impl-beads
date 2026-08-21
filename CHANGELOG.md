@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.62.6](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.5...v0.62.6) (2026-08-21)
+
+
+### Bug Fixes
+
+* **otel:** backfill correlation by fabro run id ([2a9c03b](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/2a9c03bf83b374c080841f4bb983509cae029ee6))
+
 ## [0.62.5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.4...v0.62.5) (2026-08-21)
 
 
