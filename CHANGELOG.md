@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.62.4](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.3...v0.62.4) (2026-08-21)
+
+
+### Bug Fixes
+
+* **dispatcher:** make the gh-wrapper bundle root resolvable so its tests are hermetic ([843207c](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/843207c1f2dd2bde24fe667a5639773e4dd17365))
+* project gh mint helper into sandbox ([1018548](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/101854805aa7dfdb5c33213971b492ac2bbf3e70))
+
 ## [0.62.3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.2...v0.62.3) (2026-08-21)
 
 
