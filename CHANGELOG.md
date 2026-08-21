@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.62.12](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.11...v0.62.12) (2026-08-21)
+
+
+### Bug Fixes
+
+* **plan:** count ID-hierarchy children in the archive disposition gate ([ca83f58](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/ca83f581203b0d502cc864ea32e3b232eabcaaa9))
+
 ## [0.62.11](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.10...v0.62.11) (2026-08-21)
 
 
