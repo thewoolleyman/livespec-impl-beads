@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -31,6 +32,10 @@ def _fake() -> FakeBeadsClient:
     client = make_beads_client(config=_config())
     assert isinstance(client, FakeBeadsClient)
     return client
+
+
+def _parse_utc_timestamp(*, value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
 def _draft(*, issue_id: str, parent_id: str | None) -> IssueDraft:
@@ -472,3 +477,13 @@ def test_archive_moves_thread_and_closes_epic_after_two_gates(tmp_path: Path) ->
     assert not (tmp_path / "plan" / "archive-thread").exists()
     assert (tmp_path / "plan" / "archive" / "archive-thread" / "research" / "initial.md").is_file()
     assert _fake().show_issue(issue_id=created["epic_id"])["status"] == "closed"
+    comments = _fake().list_comments(issue_id=created["epic_id"])
+    archive_comment = comments[-1]["text"]
+    header, _, body = archive_comment.partition("\n\n")
+    timestamp_line = header.splitlines()[2]
+    assert _parse_utc_timestamp(value=timestamp_line.removeprefix("timestamp: "))
+    assert "review-evidence-1" in body
+    entries = plan.read_timeline(config=_config(), epic_id=created["epic_id"])
+    archive_entries = [entry for entry in entries if entry.author == "plan-archive"]
+    assert len(archive_entries) == 1
+    assert _parse_utc_timestamp(value=archive_entries[0].created_at)

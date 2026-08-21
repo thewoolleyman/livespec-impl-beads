@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -232,7 +233,7 @@ def archive_thread(
         body=_comment_body(
             prefix=PLAN_HANDOFF_PREFIX,
             author=_PLAN_ARCHIVE_ACTOR,
-            now=evidence_id,
+            now=_utc_now_iso(),
             body=f"Archived after completeness review {evidence_id}.",
         ),
     )
@@ -263,6 +264,10 @@ def _resolve_completeness_review_evidence(
         evidence_id=launched_id,
         archive_actor=_PLAN_ARCHIVE_ACTOR,
     )
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _blocking_dependency_ids(*, record: BeadsRecord) -> frozenset[str]:
