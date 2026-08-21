@@ -9,10 +9,12 @@ they will need one, because `.10` step (4) and `.11` step (5) both stop a
 
 It supersedes nothing in `001`–`004`.
 
-> **Correction, 2026-08-21, same day.** This note originally justified itself by
-> saying `.10` step (4) and `.11` step (5) "both stop a `fabro` server and will
-> meet the same gate". **They do not meet this gate**, and the difference makes
-> them *more* exposed rather than less. Both stop their servers by
+> **Correction, 2026-08-21, same day.** The sentence above — "they will need
+> one, because `.10` step (4) and `.11` step (5) both stop a `fabro` server" —
+> is true as far as it goes, and **misleading where it sits**. It heads a note
+> whose entire subject is `install.sh`'s `require_quiet_server`, so it reads as
+> a promise that those two steps meet that gate. **They do not**, and the
+> difference makes them *more* exposed rather than less. Both stop their servers by
 > **pid-verified direct kill** — `.10`: "kill the pid-verified :32278 process";
 > `.11`: "stop the :32286 server (pid-verified)". Neither goes through
 > `install.sh`, so `require_quiet_server` never runs and **nothing will refuse
@@ -173,3 +175,19 @@ place once stopped.
 6. If you are stopping a server by `kill` rather than through `install.sh`,
    steps 1–4 are **advice, not enforcement**. Nothing refuses you. Do them
    anyway.
+
+## A postscript on the correction above
+
+The first version of that correction **misquoted this note**. It claimed the
+opening said `.10` and `.11` "both stop a `fabro` server *and will meet the same
+gate*". The note never said that; the phrase existed only inside the correction
+that was supposedly quoting it. The real sentence is weaker and true, and the
+actual defect is one of *placement* rather than of claim.
+
+Recorded because the failure mode is the one this repo's verification discipline
+already names — **quote a literal copied from the artifact, never one
+reconstructed from memory** — and because a correction is the single worst place
+to get a quotation wrong. It was caught by grepping the merged file for the
+phrase the correction attributed to it and getting **no match outside the
+correction's own text**. That grep is worth running on any document that quotes
+itself.
