@@ -215,11 +215,34 @@ This also means the gate's protection is narrower than it looks *for anyone*,
 not only for us: even a tenant that DID have a remote configured would be
 migrated without refusal through the explicit-apply path.
 
+## The "somewhere else might catch it" hedge, now closed
+
+The first version of this note hedged that it did "not claim that no check
+anywhere else in the process would intervene". That hedge was honest but it
+left a successor to redo the work, so it was chased down.
+
+The explicit-apply route was traced to its **CLI entry point**:
+`handleSchemaMigrate()` in `cmd/bd/migrate.go` calls
+`migrator.ApplySchemaMigrations(rootCtx)` directly. Two discriminating symbol
+searches over the whole repository:
+
+| Symbol | Occurrences | Any under `cmd/bd/`? |
+|---|---:|---|
+| `CheckRemoteMigrateGate*` | 7 | **no** — 2 in `internal/storage/schema`, 2 in the two store implementations, 3 tests |
+| `IsRemoteMigrateGateError` | 6 | **no** — storage layers and tests only |
+
+**The gate is purely a store-layer guard; the CLI never calls it and never
+handles its error.** So on the explicit `bd migrate` schema path there is no
+gate at *any* layer — not in the store (it passes `nil`), and not above it.
+
+That confirms the finding rather than qualifying it, and it is now traced end to
+end rather than at the store method alone.
+
 ## Limits of this finding
 
 This traces the two migrate routes in the **server-mode** store, which is the
-one our tenants use. It does not audit `embeddeddolt`, and it does not claim
-that no check anywhere else in the process would intervene — only that the two
-routes into the migration runner in our store either pass a gate that provably
-does not fire here, or pass no gate at all. Both legs are read from v1.2.2
+one our tenants use, and the CLI path that reaches the ungated one. It does not
+audit `embeddeddolt`. The two symbol searches above are the stated scope for the
+"no CLI-layer gate" claim — a repository-wide search for the two symbols that
+would have to appear for such a check to exist. Both legs are read from v1.2.2
 source at commit `6c124203e771…`, the same commit the attestation binds.
