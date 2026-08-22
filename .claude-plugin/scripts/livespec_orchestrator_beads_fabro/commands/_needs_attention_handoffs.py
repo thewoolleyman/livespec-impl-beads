@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import shlex
 from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
 
 from livespec_runtime.needs_attention import PlanThreadOutput
 
 from livespec_orchestrator_beads_fabro.commands.list_plans import list_plans
-from livespec_orchestrator_beads_fabro.commands.plan import read_timeline
+from livespec_orchestrator_beads_fabro.commands.plan import handoff_timeline_findings, read_timeline
 from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
 
 __all__: list[str] = [
@@ -28,6 +29,12 @@ _PLUGIN_NAME = "livespec-orchestrator-beads-fabro"
 _PLAN_HINT_PREFIX = "plan:"
 
 
+@dataclass(frozen=True, slots=True, kw_only=True)
+class _PlanTopic:
+    slug: str
+    epic_id: str | None
+
+
 def plans(
     *,
     project_root: Path,
@@ -35,41 +42,32 @@ def plans(
     items: Iterable[WorkItem],
 ) -> list[PlanThreadOutput]:
     return [
-        PlanThreadOutput(
-            topic=topic,
-            path=f"plan/{topic}/",
-            summary=f"Review plan {topic}.",
-            command=(
-                f"codex exec {_PLUGIN_NAME}:plan "
-                f"--project-root {_quote(path=project_root)} {shlex.quote(topic)}"
-            ),
-        )
-        for topic in _plan_topics(project_root=project_root, config=config, items=items)
+        _plan_thread_output(project_root=project_root, topic=topic, findings=findings)
+        for topic in _plan_topics(project_root=project_root, items=items)
+        for findings in (_timeline_findings(config=config, epic_id=topic.epic_id),)
     ]
 
 
 def _plan_topics(
     *,
     project_root: Path,
-    config: StoreConfig,
     items: Iterable[WorkItem],
-) -> list[str]:
-    return sorted(
-        {
-            *list_plans(project_root=project_root),
-            *_ledger_plan_topics(config=config, items=items),
-        }
-    )
+) -> list[_PlanTopic]:
+    by_slug = {
+        topic: _PlanTopic(slug=topic, epic_id=None)
+        for topic in list_plans(project_root=project_root)
+    }
+    by_slug.update({topic.slug: topic for topic in _ledger_plan_topics(items=items)})
+    return [by_slug[slug] for slug in sorted(by_slug)]
 
 
-def _ledger_plan_topics(*, config: StoreConfig, items: Iterable[WorkItem]) -> list[str]:
-    topics: list[str] = []
+def _ledger_plan_topics(*, items: Iterable[WorkItem]) -> list[_PlanTopic]:
+    topics: list[_PlanTopic] = []
     for item in items:
         topic = _plan_topic(item=item)
         if topic is None:
             continue
-        _ = read_timeline(config=config, epic_id=item.id)
-        topics.append(topic)
+        topics.append(_PlanTopic(slug=topic, epic_id=item.id))
     return topics
 
 
@@ -83,6 +81,41 @@ def _plan_topic(*, item: WorkItem) -> str | None:
     if topic == "":
         return None
     return topic
+
+
+def _timeline_findings(*, config: StoreConfig, epic_id: str | None) -> tuple[str, ...]:
+    if epic_id is None:
+        return ()
+    return handoff_timeline_findings(entries=read_timeline(config=config, epic_id=epic_id))
+
+
+def _plan_thread_output(
+    *,
+    project_root: Path,
+    topic: _PlanTopic,
+    findings: tuple[str, ...],
+) -> PlanThreadOutput:
+    if not findings:
+        return PlanThreadOutput(
+            topic=topic.slug,
+            path=f"plan/{topic.slug}/",
+            summary=f"Review plan {topic.slug}.",
+            command=_plan_command(project_root=project_root, topic=topic.slug),
+        )
+    return PlanThreadOutput(
+        topic=topic.slug,
+        path=f"plan/{topic.slug}/",
+        summary=f"Repair plan {topic.slug} handoff: {findings[0]}.",
+        command=_plan_command(project_root=project_root, topic=topic.slug),
+        urgency="high",
+    )
+
+
+def _plan_command(*, project_root: Path, topic: str) -> str:
+    return (
+        f"codex exec {_PLUGIN_NAME}:plan "
+        f"--project-root {_quote(path=project_root)} {shlex.quote(topic)}"
+    )
 
 
 def drive_command(*, project_root: Path, action_id: str) -> str:

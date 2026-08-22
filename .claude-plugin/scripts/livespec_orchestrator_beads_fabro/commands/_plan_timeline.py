@@ -15,6 +15,7 @@ attended session all fall back to the picker.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -35,6 +36,7 @@ __all__: list[str] = [
     "UNATTENDED_ENV_VAR",
     "PlanTimelineEntry",
     "ResumeDirective",
+    "handoff_timeline_findings",
     "is_unattended_session",
     "read_timeline",
     "recorded_next_actions",
@@ -50,6 +52,7 @@ PLAN_SCOPE_PREFIX = "plan-scope-event"
 _TRUTHY = frozenset({"1", "on", "true", "yes"})
 _NEXT_ACTION_MARKER = "next action"
 _MARKER_ORNAMENTS = "-*# "
+_WORK_ITEM_ID_PATTERN = re.compile(r"\b[a-z][a-z0-9]*(?:-[a-z0-9]+)+(?:\.\d+)?\b")
 _EXPECTED_HEADER_SHAPE = "`plan-handoff-entry|plan-scope-event`, `author: `, `timestamp: `"
 _AUTHOR_LINE_INDEX = 1
 _TIMESTAMP_LINE_INDEX = 2
@@ -124,6 +127,18 @@ def resume_directive(*, entries: Sequence[PlanTimelineEntry], unattended: bool) 
     )
 
 
+def handoff_timeline_findings(*, entries: Sequence[PlanTimelineEntry]) -> tuple[str, ...]:
+    """Return ledger-timeline handoff self-sufficiency findings."""
+    findings: list[str] = []
+    for index, entry in enumerate(entries, start=1):
+        if entry.body.strip() == "":
+            findings.append(f"timeline entry {index} is empty")
+        if entry.author.strip() == "":
+            findings.append(f"timeline entry {index} is unattributed")
+    findings.extend(_newest_handoff_findings(entries=entries))
+    return tuple(findings)
+
+
 def read_timeline(*, config: StoreConfig, epic_id: str) -> tuple[PlanTimelineEntry, ...]:
     """Read plan-epic handoff and scope comments oldest-first, each kind-labelled."""
     entries: list[PlanTimelineEntry] = []
@@ -139,6 +154,20 @@ def read_timeline(*, config: StoreConfig, epic_id: str) -> tuple[PlanTimelineEnt
             )
         )
     return tuple(entries)
+
+
+def _newest_handoff_findings(*, entries: Sequence[PlanTimelineEntry]) -> list[str]:
+    handoffs = [entry for entry in entries if entry.kind == HANDOFF_KIND]
+    if not handoffs:
+        return ["no handoff entry on the plan timeline"]
+    newest = handoffs[-1]
+    actions = recorded_next_actions(body=newest.body)
+    findings: list[str] = []
+    if len(actions) != 1:
+        findings.append(f"newest handoff records {len(actions)} next actions, not exactly one")
+    if _WORK_ITEM_ID_PATTERN.search(newest.body) is None:
+        findings.append("newest handoff names no work-item id")
+    return findings
 
 
 def _parse_entry(*, comment: WorkItemComment, comment_ref: str) -> PlanTimelineEntry:
