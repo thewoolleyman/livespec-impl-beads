@@ -14,12 +14,16 @@ provider → stdout railway and the expected-failure exit mapping.
 
 from __future__ import annotations
 
+import json
+import urllib.request
 from collections.abc import Callable
 
 import pytest
 from livespec_orchestrator_beads_fabro.commands import mint_app_token as cli
+from livespec_runtime.github_auth import mint
 from livespec_runtime.github_auth.config import GithubAppConfig
 from livespec_runtime.github_auth.errors import GithubAppAuthError
+from returns.unsafe import unsafe_perform_io
 
 _GITHUB_ENV_VARS = (
     "GITHUB_APP_ID",
@@ -111,6 +115,50 @@ def test_main_threads_the_optional_installation_pin_and_api_url(
     assert built is not None
     assert built.installation_id == "131208965"
     assert built.api_url == "https://ghe.example/api/v3"
+
+
+def test_installation_token_post_requests_pr_create_permissions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_bodies: list[dict[str, object]] = []
+
+    class _Response:
+        def __enter__(self) -> _Response:
+            return self
+
+        def __exit__(self, *exc_info: object) -> None:
+            _ = exc_info
+
+        def read(self) -> bytes:
+            return b'{"token": "ghs_stub-installation-token"}'
+
+    def _urlopen(
+        request: urllib.request.Request,
+        *,
+        timeout: float,
+    ) -> _Response:
+        _ = timeout
+        data = request.data
+        assert data is not None
+        captured_bodies.append(json.loads(data.decode("utf-8")))
+        return _Response()
+
+    monkeypatch.setattr(mint.urllib.request, "urlopen", _urlopen)
+
+    result = mint.http_post_json(
+        url="https://api.github.com/app/installations/123/access_tokens",
+        jwt="stub-jwt",
+    )
+
+    assert captured_bodies == [
+        {
+            "permissions": {
+                "contents": "write",
+                "pull_requests": "write",
+            },
+        },
+    ]
+    assert unsafe_perform_io(result.unwrap()) == {"token": "ghs_stub-installation-token"}
 
 
 def test_main_never_falls_back_to_the_retired_fleet_pat(
