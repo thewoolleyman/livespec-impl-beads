@@ -125,3 +125,57 @@ Measured by session `wip-cap-accounting-honesty` on 2026-08-22, after driving
 above was this session's own, formed and then falsified by the measurement; it is
 written up as a trap rather than deleted because the signature is genuinely
 convincing and a successor will meet it again.
+
+---
+
+## ADDENDUM, 2026-08-22, after PR #1718 — what this note's advice became
+
+Everything above was measured under the PR #1706 accounting. PR #1718 (`bd-ib-snyquw.2`,
+merged 03:39:52Z) changed that accounting, so the note is dated here rather than
+silently left to read as current. Nothing above is retracted; two things change
+meaning, and one piece of forward-looking advice has been discharged.
+
+### The advice was followed, and is now closed
+
+The note told `bd-ib-snyquw.2` that a reclaim remedy "MUST NOT key on the signature
+this note falsifies" — active + merged PR + no live run + stale — because that
+signature selects rows which hold nothing. `.2` chose **reclaim**, and it keyed on
+the journal rather than on the visible signature: `_green_terminal_after_latest_admit`
+reads the terminal outcome's position against the last admit, and each reclaimed row
+is journaled with reason `green-terminal-active-reclaimed`. That is the correct key.
+The constraint is discharged; it is no longer an open instruction to a future
+implementer.
+
+### The counted set is now different, so the numbers above mean something else
+
+The measurement recorded `active_count = 1`, `live_lock_active_ids = (bd-ib-9ek4,)`,
+`green_terminal_active_ids = ()`. Under #1718 the total is
+
+    active_count = len(live_lock_active_ids) + len(journal_unreadable_active_ids)
+
+so green-terminal rows are identified and reported but **no longer counted**. The
+practical consequence for this note: the "third population" it measures is now
+*larger by design*, because reclaimed green-terminal rows have joined it
+deliberately. The gap between "at status `active`" and "counted" is therefore
+structural and intended rather than accidental — which strengthens the note's
+central point rather than weakening it.
+
+The `bd-ib-bx7swg` finding is **unchanged**: it was uncounted because its journal
+carries `dispatch-claim-abandoned`, not because it was green-terminal, and #1718
+did not touch that path. The trap the note documents — that the signature is not
+distinguishable from the ledger row alone — is unaffected.
+
+### A defect this note's framing helped surface
+
+#1718 moved the accounting and did not move the reporting: `_dispatcher_admission.py`
+is absent from its diff (`git show f41f4578 --stat`). So the deferral still emits
+`advance_rows=<ids>` for green-terminal rows that hold no slot — the exact "no-op
+that reads as a fix" this note warned about, now shipped — while
+`journal_unreadable_active_ids`, which *do* count, are never named. Filed as
+`bd-ib-nd4ir6`. The repo's own test
+`test_capacity_deferral_detail_names_live_slots_after_green_reclamation` pins the
+wrong string, so the fix must update that test rather than work around it.
+
+*Recorded by session `wip-cap-accounting-honesty`. Dated because a research note
+that stops being current while still reading as authoritative is the failure mode
+`AGENTS.md` §"Verification discipline" Rule 3 exists to prevent.*
