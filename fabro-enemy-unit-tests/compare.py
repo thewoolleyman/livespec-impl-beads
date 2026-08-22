@@ -11,7 +11,7 @@ from pathlib import Path
 
 __all__: list[str] = []
 
-_TEST_ROOT = "fabro-enemy-unit-tests"
+_TEST_ROOT = "fabro-enemy-unit-tests/test_tier0_*.py"
 _DEFAULT_SERVER_URL = "http://127.0.0.1:32276"
 _TESTCASE_PATTERN = re.compile(
     r"<testcase\b(?P<empty_attrs>[^>]*)/>|"

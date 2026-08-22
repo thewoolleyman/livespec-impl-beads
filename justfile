@@ -51,7 +51,16 @@ acceptance-live item:
 # evaluating the pinned build or an upgrade candidate:
 #   FABRO_EUT_BIN=/path/to/fabro just fabro-enemy-tier0
 fabro-enemy-tier0:
-    uv run pytest fabro-enemy-unit-tests -q
+    uv run pytest fabro-enemy-unit-tests/test_tier0_*.py -q
+
+# Fabro Enemy Unit Tests tier 1. Launches real, intentionally tiny workflows
+# against the configured Fabro server to assert terminal stop reasons, failed
+# inspect payload shape, event stream liveness fields, and forced removal.
+# This spends real runtime; run only when deliberately evaluating the pinned
+# build or an upgrade candidate:
+#   FABRO_EUT_BIN=/path/to/fabro just fabro-enemy-tier1
+fabro-enemy-tier1:
+    uv run pytest fabro-enemy-unit-tests/test_tier1_*.py -q
 
 # Compare the tier-0 Enemy Unit Tests across two independently configured Fabro
 # client/server pairs and write a Markdown delta artifact. Defaults compare the
