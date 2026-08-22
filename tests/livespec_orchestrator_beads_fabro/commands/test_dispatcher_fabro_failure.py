@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -61,6 +62,60 @@ def test_fabro_port_inspect_accepts_category_without_causes(tmp_path: Path) -> N
     )
 
     assert detail == FabroFailureDetail(cause=None, category="infra", signature=None)
+
+
+def test_fabro_port_inspect_reclassifies_codex_remote_compaction_404(tmp_path: Path) -> None:
+    cause = (
+        'Internal error: {"data": {"message": "Error running remote compact task: '
+        'unexpected status 404 Not Found: {\\"detail\\":\\"Not Found\\"}, '
+        "url: https://chatgpt.com/backend-api/codex/responses/compact, "
+        'cf-ray: a2e713303af7ed35-SJC, request id: deb42542"}}'
+    )
+
+    detail = _inspect_failure(
+        tmp_path=tmp_path,
+        stdout=json.dumps(
+            {
+                "failure": {
+                    "message": "ACP turn failed",
+                    "causes": ["ACP protocol error", cause],
+                    "category": "transient_infra",
+                    "signature": "implement|transient_infra|acp turn failed",
+                }
+            }
+        ),
+    )
+
+    assert detail == FabroFailureDetail(
+        cause=cause,
+        category="deterministic",
+        signature="implement|deterministic|acp turn failed",
+    )
+
+
+def test_fabro_port_inspect_does_not_reclassify_unrelated_404(tmp_path: Path) -> None:
+    cause = (
+        "Internal error: model lookup failed: unexpected status 404 Not Found, "
+        "url: https://chatgpt.com/backend-api/codex/responses/not-compact"
+    )
+
+    detail = _inspect_failure(
+        tmp_path=tmp_path,
+        stdout=json.dumps(
+            {
+                "failure": {
+                    "causes": ["ACP protocol error", cause],
+                    "category": "transient_infra",
+                }
+            }
+        ),
+    )
+
+    assert detail == FabroFailureDetail(
+        cause="ACP protocol error",
+        category="transient_infra",
+        signature=None,
+    )
 
 
 def test_fabro_failure_outcome_detail_formats_available_fields() -> None:

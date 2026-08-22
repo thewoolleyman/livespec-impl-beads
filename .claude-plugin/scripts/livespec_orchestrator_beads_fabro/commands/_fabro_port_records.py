@@ -21,6 +21,8 @@ __all__: list[str] = [
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
 _RUN_ID_RE = re.compile(r"Run:\s*([0-9A-Za-z-]+)")
 _WORK_ITEM_RE = re.compile(r"^Work-item:\s*(\S+)", re.MULTILINE)
+_REMOTE_COMPACTION_CATEGORY = "deterministic"
+_TRANSIENT_SIGNATURE_SEGMENT = "|transient_infra|"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -169,23 +171,60 @@ def _failure_blocks(*, value: object) -> tuple[dict[object, object], ...]:
 
 
 def _failure_detail(*, block: dict[object, object]) -> FabroFailureDetail | None:
-    cause = _first_cause(value=block.get("causes"))
-    category = _str_value(value=block.get("category"))
-    signature = _str_value(value=block.get("signature"))
+    causes = _cause_values(value=block.get("causes"))
+    remote_compaction_cause = _remote_compaction_cause(causes=causes)
+    cause = remote_compaction_cause or _first_cause(causes=causes)
+    reclassified = remote_compaction_cause is not None
+    category = _failure_category(
+        category=_str_value(value=block.get("category")),
+        reclassified=reclassified,
+    )
+    signature = _failure_signature(
+        signature=_str_value(value=block.get("signature")),
+        reclassified=reclassified,
+    )
     if cause is None and category is None and signature is None:
         return None
     return FabroFailureDetail(cause=cause, category=category, signature=signature)
 
 
-def _first_cause(*, value: object) -> str | None:
+def _cause_values(*, value: object) -> tuple[str, ...]:
     if not isinstance(value, list):
-        return None
+        return ()
     values = cast("list[object]", value)
-    for item in values:
-        text = _str_value(value=item)
-        if text is not None:
+    return tuple(text for item in values if (text := _str_value(value=item)) is not None)
+
+
+def _first_cause(*, causes: tuple[str, ...]) -> str | None:
+    return next(iter(causes), None)
+
+
+def _remote_compaction_cause(*, causes: tuple[str, ...]) -> str | None:
+    for text in causes:
+        if _is_remote_compaction_404(text=text):
             return text
     return None
+
+
+def _is_remote_compaction_404(*, text: str) -> bool:
+    lowered = text.lower()
+    return (
+        "error running remote compact task" in lowered
+        and "404 not found" in lowered
+        and "responses/compact" in lowered
+    )
+
+
+def _failure_category(*, category: str | None, reclassified: bool) -> str | None:
+    if reclassified:
+        return _REMOTE_COMPACTION_CATEGORY
+    return category
+
+
+def _failure_signature(*, signature: str | None, reclassified: bool) -> str | None:
+    if not reclassified or signature is None:
+        return signature
+    return signature.replace(_TRANSIENT_SIGNATURE_SEGMENT, f"|{_REMOTE_COMPACTION_CATEGORY}|")
 
 
 def _str_value(*, value: object) -> str | None:
