@@ -3161,12 +3161,12 @@ def test_admission_reclaims_dead_active_claim_and_journals_abandonment(
     assert len(abandoned) == 1
 
 
-def test_admission_counts_green_rework_parks_without_abandonment(
+def test_admission_reclaims_green_terminal_claim_before_capacity_deferral(
     tmp_path: Path,
 ) -> None:
     repo, _workflow = _repo_with_workflow(tmp_path=tmp_path)
-    active = _item(id="bd-rework-park", status="active")
-    ready = _item(id="bd-ready-blocked", status="ready", rank="a1")
+    active = _item(id="bd-green-park", status="active")
+    ready = _item(id="bd-ready-admitted", status="ready", rank="a1")
     append_work_item(path=_config(), item=active)
     append_work_item(path=_config(), item=ready)
     _ = (repo / ".livespec.jsonc").write_text(
@@ -3196,9 +3196,14 @@ def test_admission_counts_green_rework_parks_without_abandonment(
         enforce_cap=True,
     )
 
-    assert admission.admitted == []
+    assert [item.id for item in admission.admitted] == [ready.id]
     records = [json.loads(line) for line in journal.path.read_text(encoding="utf-8").splitlines()]
-    assert "dispatch-claim-abandoned" not in {record["stage"] for record in records}
+    abandoned = [
+        record
+        for record in records
+        if record["stage"] == "dispatch-claim-abandoned" and record["work_item_id"] == active.id
+    ]
+    assert [record["reason"] for record in abandoned] == ["green-terminal-active-reclaimed"]
 
 
 def test_admission_counts_live_dispatch_lock_against_cap(tmp_path: Path) -> None:
@@ -3236,7 +3241,7 @@ def test_admission_counts_live_dispatch_lock_against_cap(tmp_path: Path) -> None
     assert "dispatch-claim-abandoned" not in {record["stage"] for record in records}
 
 
-def test_capacity_deferral_detail_names_live_and_green_terminal_slots(
+def test_capacity_deferral_detail_names_live_slots_after_green_reclamation(
     tmp_path: Path,
 ) -> None:
     repo, _workflow = _repo_with_workflow(tmp_path=tmp_path)
@@ -3248,7 +3253,7 @@ def test_capacity_deferral_detail_names_live_and_green_terminal_slots(
     append_work_item(path=_config(), item=ready)
     _ = (repo / ".livespec.jsonc").write_text(
         '{"livespec-orchestrator-beads-fabro": {"connection": {"prefix": "bd-ib"},'
-        ' "dispatcher": {"wip_cap": 2}}}',
+        ' "dispatcher": {"wip_cap": 1}}}',
         encoding="utf-8",
     )
     _ = _dispatcher_dispatch_lock.write_dispatch_lock(
@@ -3279,19 +3284,26 @@ def test_capacity_deferral_detail_names_live_and_green_terminal_slots(
 
     assert admission.admitted == []
     assert [outcome.detail for outcome in admission.deferred] == [
-        "capacity deferred: active_count=2 wip_cap=2 free_slots=0 "
+        "capacity deferred: active_count=1 wip_cap=1 free_slots=0 "
         "live_lock_active_ids=bd-live-claim "
         "green_terminal_active_ids=bd-green-park "
         "advance_rows=bd-green-park"
     ]
+    records = [json.loads(line) for line in journal.path.read_text(encoding="utf-8").splitlines()]
+    abandoned = [
+        record
+        for record in records
+        if record["stage"] == "dispatch-claim-abandoned" and record["work_item_id"] == green.id
+    ]
+    assert [record["reason"] for record in abandoned] == ["green-terminal-active-reclaimed"]
 
 
-def test_capacity_deferral_detail_omits_absent_live_slot_branch(
+def test_capacity_recovers_when_green_terminal_row_is_only_active_slot(
     tmp_path: Path,
 ) -> None:
     repo, _workflow = _repo_with_workflow(tmp_path=tmp_path)
     green = _item(id="bd-green-only", status="active")
-    ready = _item(id="bd-ready-blocked", status="ready", rank="a1")
+    ready = _item(id="bd-ready-admitted", status="ready", rank="a1")
     append_work_item(path=_config(), item=green)
     append_work_item(path=_config(), item=ready)
     _ = (repo / ".livespec.jsonc").write_text(
@@ -3320,10 +3332,15 @@ def test_capacity_deferral_detail_omits_absent_live_slot_branch(
         enforce_cap=True,
     )
 
-    detail = admission.deferred[0].detail
-    assert "live_lock_active_ids=" not in detail
-    assert "green_terminal_active_ids=bd-green-only" in detail
-    assert "advance_rows=bd-green-only" in detail
+    assert [item.id for item in admission.admitted] == [ready.id]
+    assert admission.deferred == []
+    records = [json.loads(line) for line in journal.path.read_text(encoding="utf-8").splitlines()]
+    abandoned = [
+        record
+        for record in records
+        if record["stage"] == "dispatch-claim-abandoned" and record["work_item_id"] == green.id
+    ]
+    assert [record["reason"] for record in abandoned] == ["green-terminal-active-reclaimed"]
 
 
 def test_capacity_deferral_detail_omits_absent_green_terminal_branch(
