@@ -30,13 +30,16 @@ section was written for; these are live instances rather than hypotheticals.
 
 ## Members
 
-| Item | Tenant | What is silent |
-|---|---|---|
-| `bd-ib-9ek4` | this repo | Codex remote-compaction 404 kills context-heavy implement turns; `fabro logs` shows only `ACP turn failed` while the cause sits in `checkpoint.node_outcomes.implement.failure.causes`. Classified `transient_infra` and retried, though retry can never succeed. |
-| `bd-ib-h2zj` | this repo | The **conformant** store path silently destroys unmodeled metadata keys. The sanctioned close wrapper erased audit provenance a raw write had just preserved. |
-| `livespec-dev-tooling-mt24` | livespec-dev-tooling | The gate runner's evidence probe reads only the parallel emitter's bracketed line, so every green **serial** aggregate reports `zero check targets completed`. The discriminator between a kill and a real pass fires on every real pass. |
-| `livespec-dev-tooling-h7qp` | livespec-dev-tooling | The background guard prescribes `gate-start`/`gate-wait` and a doc, none of which exist in a fresh consumer worktree. A guard whose sanctioned alternative is missing invites engineering around the guard. |
-| `overseer-izh7` | livespec-overseer | A caller passes the beads-native `--status open`; the guard correctly refuses it (exit 3). 13 blocked ops in 3 days. The trigger flaps, so a resolved alert reads as "over" when it is not. |
+**Status column added 2026-08-22.** `closed` = closed with verification;
+`backlog` = filed and accepted, not yet started.
+
+| Item | Tenant | Status | What is silent |
+|---|---|---|---|
+| `bd-ib-9ek4` | this repo | **closed** 2026-08-22, PR #1712 | Codex remote-compaction 404 kills context-heavy implement turns; `fabro logs` shows only `ACP turn failed` while the cause sits in `checkpoint.node_outcomes.implement.failure.causes`. Classified `transient_infra` and retried, though retry can never succeed. |
+| `bd-ib-h2zj` | this repo | **closed** 2026-08-22, PR #1701 | The **conformant** store path silently destroys unmodeled metadata keys. The sanctioned close wrapper erased audit provenance a raw write had just preserved. |
+| `livespec-dev-tooling-mt24` | livespec-dev-tooling | backlog | The gate runner's evidence probe reads only the parallel emitter's bracketed line, so every green **serial** aggregate reports `zero check targets completed`. The discriminator between a kill and a real pass fires on every real pass. |
+| `livespec-dev-tooling-h7qp` | livespec-dev-tooling | backlog | The background guard prescribes `gate-start`/`gate-wait` and a doc, none of which exist in a fresh consumer worktree. A guard whose sanctioned alternative is missing invites engineering around the guard. |
+| `overseer-izh7` | livespec-overseer | **closed** 2026-08-21 | A caller passes the beads-native `--status open`; the guard correctly refuses it (exit 3). 13 blocked ops in 3 days. The trigger flaps, so a resolved alert reads as "over" when it is not. |
 
 ## How this track was found
 
@@ -114,7 +117,45 @@ implemented via its local-inference worker route.
 
 ## Next action
 
-Await prioritization. None of the five is claimed. `bd-ib-9ek4` is the most
-operationally urgent of the local pair: the host still runs `codex-cli 0.147.0`,
-so the remote-compaction failure remains live and deterministic, and it blocks new
-factory dispatch for the beads-upgrade track.
+**Superseded 2026-08-22.** The paragraph this section used to carry — "await
+prioritization; the host still runs `codex-cli 0.147.0`" — was both stale and
+aimed at the wrong artifact, and is corrected below rather than deleted, because
+it is a worked instance of this track's own subject.
+
+Both local members are **closed with verification**. The current next action is a
+maintainer call on the epic's disposition: close `bd-ib-cewr` now, recording the
+two `livespec-dev-tooling` members as tracked-elsewhere, or hold it open until
+that tenant disposes them. The plan is deliberately **not archived** — archiving
+would assert a completeness the stated member set does not have.
+
+### The `codex-cli 0.147.0` claim was wrong, and how
+
+No `codex` CLI participates in a dispatch at all. The compaction request comes
+from `codex-core` as pinned inside `@zed-industries/codex-acp`, running in the
+Fabro **sandbox** — the run spec's `acp.command` is
+`npx --no-install @zed-industries/codex-acp`. Factory host `hp-xubuntu` carries
+no node, npm, npx or `codex-acp` anywhere on disk; its `~/.local/bin/codex`
+(0.147.0) is never invoked. The sandbox image
+`ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-agent-v1.32.0` bakes
+`codex-acp@0.16.0`, and **0.16.0 is the newest published version** (46 on npm,
+none later) — so the upgrade direction had no target, and the reclassification
+was the only available remedy. That is what shipped.
+
+The general shape, which is this track's whole subject: three separate
+measurements of "which codex version runs" were each **healthy instruments
+pointed at the wrong population**, and each returned a plausible answer with no
+error. The discriminator that worked every time was a **known-positive control** —
+*what must this return if it is aimed correctly, and does it?*
+
+### Instrument correction for anyone re-measuring this
+
+`fabro inspect <run> --json` **cannot** observe a compaction failure and returns
+a clean zero even on known positives: its `conclusion.failure` records only the
+last, downstream failure, and its `checkpoint.node_outcomes` may hold nothing but
+`start`. Probed that way, all 30 recent failed runs read negative — including the
+two that are positive. Use instead:
+
+```
+fabro dump <run> --server https://hp-xubuntu.perch-rudd.ts.net:32276 -o <dir>
+grep responses/compact <dir>/events.jsonl
+```
