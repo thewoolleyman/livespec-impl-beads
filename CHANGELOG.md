@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.67.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.66.1...v0.67.0) (2026-08-22)
+
+
+### Features
+
+* refuse templated dispatcher goals ([c44f13d](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/c44f13dd3ffc904e1d5b081101dd9c0db6aa24cd))
+
 ## [0.66.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.66.0...v0.66.1) (2026-08-22)
 
 
