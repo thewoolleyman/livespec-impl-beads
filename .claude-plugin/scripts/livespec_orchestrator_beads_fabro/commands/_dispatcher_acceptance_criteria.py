@@ -155,7 +155,7 @@ def _judge_criterion(
 
 def _has_diff_evidence(*, terms: tuple[str, ...], normalized_diff: str) -> bool:
     matched = tuple(term for term in terms if term in normalized_diff)
-    return len(matched) >= _DIFF_EVIDENCE_MINIMUM_TERMS and len(matched) == len(terms)
+    return len(matched) >= _DIFF_EVIDENCE_MINIMUM_TERMS
 
 
 def _failure_reason(*, terms: tuple[str, ...], normalized_diff: str) -> str:
