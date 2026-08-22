@@ -162,13 +162,37 @@ needs (never a subset, so the branch is always the whole truth about what runs):
 | fork-local **O1** — worker OTLP env re-injection (`bd-ib-98c.4`) | the server forwards its non-secret `OTEL_*` export config into the `__run-worker` subprocess (`apply_worker_otel_export_env`), deliberately stripping the credential-bearing `OTEL_EXPORTER_OTLP_HEADERS` | #576 alone is inert in the factory: the ACP work runs in a server-spawned worker whose env is `env_clear`ed by `apply_worker_env`, so without re-injection the worker exports nothing |
 | fork-local **O2** — W3C `traceparent` join (`bd-ib-98c.5`) | the server serializes its `run`-span context to a per-run `TRACEPARENT` env at the worker-launch seam; the worker parents its `run` span on it | without it the server and worker each emit a SEPARATE root `run` span in a distinct trace, so one dispatch is unviewable as one trace |
 | fork-local **P2** — decouple OTLP export from `FABRO_LOG` (`bd-ib-98c.12`) | `FABRO_LOG` was a GLOBAL registry filter gating the otel layer too; the fix filters per-layer (`FABRO_LOG` on the fmt layers, a fixed `INFO` floor on the otel layer) | otherwise raising the log level silently zeroes ALL telemetry at both ends (the server injects its level into the worker), with no error — an operator quieting logs could kill the Honeycomb dataset |
-| fork-local **O4** — `run_turn` ACP turn span (`bd-ib-98c.7`) | a `tracing::info_span!("run_turn", …)` at the ACP seam (`fabro-workflow/src/handler/llm/acp.rs::run_turn`) carrying `node_id` / `command` / `config_name` / `visit` plus a deferred `stop_reason`; it nests under the worker `run` span (fabro-workflow has no spans of its own, so the `Stage started/completed` telemetry — which are EVENTS, not spans — is not the parent) | without it the finest per-agent granularity is the `handler_type=agent` Stage telemetry, which never records WHICH command an agent turn ran or HOW it ended; O4 is what makes per-turn command/stop-reason queryable in Honeycomb |
+| fork-local **O4** — `run_turn` ACP turn span (`bd-ib-98c.7`) | a `tracing::info_span!("run_turn", …)` at the ACP seam (`fabro-workflow/src/handler/llm/acp.rs::run_turn`) carrying `node_id` / `command` / `config_name` (ALWAYS EMPTY here — see below) / `visit` plus a deferred `stop_reason`; it nests under the worker `run` span (fabro-workflow has no spans of its own, so the `Stage started/completed` telemetry — which are EVENTS, not spans — is not the parent) | without it the finest per-agent granularity is the `handler_type=agent` Stage telemetry, which never records WHICH command an agent turn ran or HOW it ended; O4 is what makes per-turn command/stop-reason queryable in Honeycomb |
 
 Failure-cause attributes are queryable in Honeycomb, but not as `run_turn`
 span attributes. Filter the separate failure-event span in the same trace as
 `run_turn` instead: the failure-event span has `error=true` and `level=ERROR`
 and carries `category`, `signature`, and `cause_count` (for example, a
 `Pipeline cancelled` span with `category=canceled` and `cause_count=0`).
+
+`config_name` reaches Honeycomb as an EMPTY STRING on every `run_turn` span this
+repo's workflow produces, and that is BY DESIGN — the attribute is neither dropped
+by the receiver nor lost in transit. Measured 2026-08-22 on the `fabro` dataset:
+present on 381/381 `run_turn` spans in a 24h window, `distinct_values = 1`, and
+that one value is `""`.
+
+The reason is structural. O4 populates `config_name` from the ACP process spec's
+name, which is set only when a node resolves a NAMED `acp.config`. Every acp node
+in `.claude-plugin/.fabro/workflows/implement-work-item/workflow.fabro` declares an
+inline `acp.command` instead, and `AcpProcessSpec::from_command_attr`
+(`lib/crates/fabro-acp/src/command.rs` at the pinned build) sets that name to
+`None` explicitly, which the span records as the empty string. The two attributes
+are MUTUALLY EXCLUSIVE — supplying both is an error, not a merge — so populating
+`config_name` would mean replacing the workflow's templated per-node adapter
+inputs with static configs, on the one surface the 0.254 version ceiling already
+constrains. That trade was declined (ledger `bd-ib-98c.16`).
+
+Nothing is lost by this. `command` is populated on 381/381 spans and carries the
+full argv, so it already answers WHICH agent invocation ran at strictly finer
+grain than `config_name` could. Do not read the empty column as a telemetry
+defect, and do not "fix" it by widening the receiver's allowlist — `config_name`
+is already allowlisted, and was allowlisted throughout the window in which every
+value was empty.
 
 ### Dispatch Traps
 
