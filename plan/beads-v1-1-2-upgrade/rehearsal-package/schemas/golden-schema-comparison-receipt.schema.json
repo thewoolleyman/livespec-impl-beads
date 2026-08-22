@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "livespec.beads_v112_rehearsal.golden_schema_comparison.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "migrated_schema_path",
+    "migrated_schema_sha256",
+    "golden_schema_path",
+    "golden_schema_sha256",
+    "golden_client_dir",
+    "schema_hash_matches"
+  ],
+  "properties": {
+    "schema": {
+      "const": "livespec.beads_v112_rehearsal.golden_schema_comparison.v1"
+    },
+    "migrated_schema_path": {
+      "type": "string"
+    },
+    "migrated_schema_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "golden_schema_path": {
+      "type": "string"
+    },
+    "golden_schema_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "golden_client_dir": {
+      "type": "string"
+    },
+    "schema_hash_matches": {
+      "const": true
+    }
+  },
+  "additionalProperties": false
+}

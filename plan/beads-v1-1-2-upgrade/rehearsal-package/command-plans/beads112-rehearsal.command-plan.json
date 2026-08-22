@@ -61,11 +61,11 @@
       "name": "topology-preflight",
       "commands": [
         "\"$RUN_ROOT/package/wrappers/preflight-topology.sh\" \"$TOPOLOGY_MANIFEST\" \"$RUN_ID\" \"$RUN_ROOT\"",
-        "\"$RUN_ROOT/package/wrappers/preflight-backup-namespace.sh\" \"$TOPOLOGY_MANIFEST\" \"$RUN_ID\" \"$RECEIPT_ROOT/topology-preflight.json\""
+        "\"$RUN_ROOT/package/wrappers/preflight-backup-namespace.sh\" \"$TOPOLOGY_MANIFEST\" \"$RUN_ID\" \"$BACKUP_BUCKET_PREFIX\" \"$RECEIPT_ROOT/backup-namespace-preflight.json\""
       ],
       "argv_templates": [
         "\"$RUN_ROOT/package/wrappers/preflight-topology.sh\" \"$TOPOLOGY_MANIFEST\" \"$RUN_ID\" \"$RUN_ROOT\"",
-        "\"$RUN_ROOT/package/wrappers/preflight-backup-namespace.sh\" \"$TOPOLOGY_MANIFEST\" \"$RUN_ID\" \"$RECEIPT_ROOT/topology-preflight.json\""
+        "\"$RUN_ROOT/package/wrappers/preflight-backup-namespace.sh\" \"$TOPOLOGY_MANIFEST\" \"$RUN_ID\" \"$BACKUP_BUCKET_PREFIX\" \"$RECEIPT_ROOT/backup-namespace-preflight.json\""
       ],
       "writes": "receipt-root-only"
     },
@@ -214,18 +214,20 @@
         "$CAPTURE_INVENTORY \"$SPARSE_MIGRATED_CLIENT_KEY\" \"$RECEIPT_ROOT/inventory/sparse_closed/migrated/golden-compare\" post-migration-v53",
         "$CAPTURE_INVENTORY \"$RIG_MIGRATED_CLIENT_KEY\" \"$RECEIPT_ROOT/inventory/rig_wisp/migrated/golden-compare\" post-migration-v53",
         "$WITH_CLIENT \"$GOLDEN_CLIENT_KEY\" \"$BD112\" -C \"$GOLDEN_CLIENT_DIR\" schema create-golden --json",
-        "\"$RUN_ROOT/package/wrappers/compare-golden-schema.sh\" \"$RECEIPT_ROOT/inventory/dense_policy/migrated/golden-compare/schema.json\" \"$GOLDEN_CLIENT_DIR\" \"$RECEIPT_ROOT/golden-schema/dense_policy.json\"",
-        "\"$RUN_ROOT/package/wrappers/compare-golden-schema.sh\" \"$RECEIPT_ROOT/inventory/sparse_closed/migrated/golden-compare/schema.json\" \"$GOLDEN_CLIENT_DIR\" \"$RECEIPT_ROOT/golden-schema/sparse_closed.json\"",
-        "\"$RUN_ROOT/package/wrappers/compare-golden-schema.sh\" \"$RECEIPT_ROOT/inventory/rig_wisp/migrated/golden-compare/schema.json\" \"$GOLDEN_CLIENT_DIR\" \"$RECEIPT_ROOT/golden-schema/rig_wisp.json\""
+        "$CAPTURE_INVENTORY \"$GOLDEN_CLIENT_KEY\" \"$RECEIPT_ROOT/inventory/golden/golden-compare\" post-migration-v53",
+        "\"$RUN_ROOT/package/wrappers/compare-golden-schema.sh\" \"$RECEIPT_ROOT/inventory/dense_policy/migrated/golden-compare/schema.json\" \"$RECEIPT_ROOT/inventory/golden/golden-compare/schema.json\" \"$GOLDEN_CLIENT_DIR\" \"$RECEIPT_ROOT/golden-schema/dense_policy.json\"",
+        "\"$RUN_ROOT/package/wrappers/compare-golden-schema.sh\" \"$RECEIPT_ROOT/inventory/sparse_closed/migrated/golden-compare/schema.json\" \"$RECEIPT_ROOT/inventory/golden/golden-compare/schema.json\" \"$GOLDEN_CLIENT_DIR\" \"$RECEIPT_ROOT/golden-schema/sparse_closed.json\"",
+        "\"$RUN_ROOT/package/wrappers/compare-golden-schema.sh\" \"$RECEIPT_ROOT/inventory/rig_wisp/migrated/golden-compare/schema.json\" \"$RECEIPT_ROOT/inventory/golden/golden-compare/schema.json\" \"$GOLDEN_CLIENT_DIR\" \"$RECEIPT_ROOT/golden-schema/rig_wisp.json\""
       ],
       "argv_templates": [
         "$CAPTURE_INVENTORY \"$DENSE_MIGRATED_CLIENT_KEY\" \"$RECEIPT_ROOT/inventory/dense_policy/migrated/golden-compare\" post-migration-v53",
         "$CAPTURE_INVENTORY \"$SPARSE_MIGRATED_CLIENT_KEY\" \"$RECEIPT_ROOT/inventory/sparse_closed/migrated/golden-compare\" post-migration-v53",
         "$CAPTURE_INVENTORY \"$RIG_MIGRATED_CLIENT_KEY\" \"$RECEIPT_ROOT/inventory/rig_wisp/migrated/golden-compare\" post-migration-v53",
         "$WITH_CLIENT \"$GOLDEN_CLIENT_KEY\" \"$BD112\" -C \"$GOLDEN_CLIENT_DIR\" schema create-golden --json",
-        "\"$RUN_ROOT/package/wrappers/compare-golden-schema.sh\" \"$RECEIPT_ROOT/inventory/dense_policy/migrated/golden-compare/schema.json\" \"$GOLDEN_CLIENT_DIR\" \"$RECEIPT_ROOT/golden-schema/dense_policy.json\"",
-        "\"$RUN_ROOT/package/wrappers/compare-golden-schema.sh\" \"$RECEIPT_ROOT/inventory/sparse_closed/migrated/golden-compare/schema.json\" \"$GOLDEN_CLIENT_DIR\" \"$RECEIPT_ROOT/golden-schema/sparse_closed.json\"",
-        "\"$RUN_ROOT/package/wrappers/compare-golden-schema.sh\" \"$RECEIPT_ROOT/inventory/rig_wisp/migrated/golden-compare/schema.json\" \"$GOLDEN_CLIENT_DIR\" \"$RECEIPT_ROOT/golden-schema/rig_wisp.json\""
+        "$CAPTURE_INVENTORY \"$GOLDEN_CLIENT_KEY\" \"$RECEIPT_ROOT/inventory/golden/golden-compare\" post-migration-v53",
+        "\"$RUN_ROOT/package/wrappers/compare-golden-schema.sh\" \"$RECEIPT_ROOT/inventory/dense_policy/migrated/golden-compare/schema.json\" \"$RECEIPT_ROOT/inventory/golden/golden-compare/schema.json\" \"$GOLDEN_CLIENT_DIR\" \"$RECEIPT_ROOT/golden-schema/dense_policy.json\"",
+        "\"$RUN_ROOT/package/wrappers/compare-golden-schema.sh\" \"$RECEIPT_ROOT/inventory/sparse_closed/migrated/golden-compare/schema.json\" \"$RECEIPT_ROOT/inventory/golden/golden-compare/schema.json\" \"$GOLDEN_CLIENT_DIR\" \"$RECEIPT_ROOT/golden-schema/sparse_closed.json\"",
+        "\"$RUN_ROOT/package/wrappers/compare-golden-schema.sh\" \"$RECEIPT_ROOT/inventory/rig_wisp/migrated/golden-compare/schema.json\" \"$RECEIPT_ROOT/inventory/golden/golden-compare/schema.json\" \"$GOLDEN_CLIENT_DIR\" \"$RECEIPT_ROOT/golden-schema/rig_wisp.json\""
       ],
       "writes": "isolated-migrated-and-golden-databases-only"
     },
@@ -294,12 +296,12 @@
     {
       "name": "cleanup-after-acceptance",
       "commands": [
-        "\"$RUN_ROOT/package/wrappers/cleanup-run-scoped-resources.sh\" \"$TOPOLOGY_MANIFEST\" \"$RUN_ROOT\" \"$RECEIPT_ROOT/cleanup.json\"",
-        "\"$RUN_ROOT/package/wrappers/prove-production-unchanged.sh\" \"$PRODUCTION_PORT_BEFORE\" \"$PRODUCTION_REGISTRY_SHA256_BEFORE\" \"$PRODUCTION_BACKUP_CONFIG_SHA256_BEFORE\" \"$RECEIPT_ROOT/production-unchanged.json\""
+        "\"$RUN_ROOT/package/wrappers/prove-production-unchanged.sh\" \"$PRODUCTION_PORT_BEFORE\" \"$PRODUCTION_PORT_AFTER\" \"$PRODUCTION_REGISTRY_SHA256_BEFORE\" \"$PRODUCTION_REGISTRY_SHA256_AFTER\" \"$PRODUCTION_BACKUP_CONFIG_SHA256_BEFORE\" \"$PRODUCTION_BACKUP_CONFIG_SHA256_AFTER\" \"$RECEIPT_ROOT/production-unchanged.json\"",
+        "\"$RUN_ROOT/package/wrappers/cleanup-run-scoped-resources.sh\" \"$TOPOLOGY_MANIFEST\" \"$RUN_ROOT\" \"$RECEIPT_ROOT/production-unchanged.json\" \"$RECEIPT_ROOT/cleanup.json\""
       ],
       "argv_templates": [
-        "\"$RUN_ROOT/package/wrappers/cleanup-run-scoped-resources.sh\" \"$TOPOLOGY_MANIFEST\" \"$RUN_ROOT\" \"$RECEIPT_ROOT/cleanup.json\"",
-        "\"$RUN_ROOT/package/wrappers/prove-production-unchanged.sh\" \"$PRODUCTION_PORT_BEFORE\" \"$PRODUCTION_REGISTRY_SHA256_BEFORE\" \"$PRODUCTION_BACKUP_CONFIG_SHA256_BEFORE\" \"$RECEIPT_ROOT/production-unchanged.json\""
+        "\"$RUN_ROOT/package/wrappers/prove-production-unchanged.sh\" \"$PRODUCTION_PORT_BEFORE\" \"$PRODUCTION_PORT_AFTER\" \"$PRODUCTION_REGISTRY_SHA256_BEFORE\" \"$PRODUCTION_REGISTRY_SHA256_AFTER\" \"$PRODUCTION_BACKUP_CONFIG_SHA256_BEFORE\" \"$PRODUCTION_BACKUP_CONFIG_SHA256_AFTER\" \"$RECEIPT_ROOT/production-unchanged.json\"",
+        "\"$RUN_ROOT/package/wrappers/cleanup-run-scoped-resources.sh\" \"$TOPOLOGY_MANIFEST\" \"$RUN_ROOT\" \"$RECEIPT_ROOT/production-unchanged.json\" \"$RECEIPT_ROOT/cleanup.json\""
       ],
       "writes": "run-id-scoped-resources-only"
     }
@@ -307,13 +309,17 @@
   "receipt_contracts": [
     "manifest",
     "topology",
+    "backup_namespace_preflight",
     "anchor",
     "inventory",
     "backup",
     "migration_gate",
     "designated_migrator",
+    "golden_schema_comparison",
     "round_trip_delta",
     "restore_baseline_comparison",
+    "stop_boundary",
+    "production_unchanged",
     "cleanup",
     "SHA256SUMS"
   ]

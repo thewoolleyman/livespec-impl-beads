@@ -38,8 +38,8 @@ from each target root through its configured wrapper and public
 | `fixtures/deterministic-fixtures.json` | Canonical v1.0.5 fixture definitions, including the synthetic rig/wisp shape that production did not contain. |
 | `queries/inventory.json` | Canonical read-only inventory commands and expected JSON output classes. |
 | `command-plans/beads112-rehearsal.command-plan.json` | Concrete attended rehearsal command-plan instance, including migration gate, round trip, restore, receipt, stop, and cleanup boundaries. |
-| `schemas/*.schema.json` | Receipt schemas for artifact fetch, v1.0.5 producer build, shape survey, identity probe, and rehearsal command plans. |
-| `wrappers/*.sh` | Bounded command wrappers. They default to printing planned commands and require explicit output directories for receipts. |
+| `schemas/*.schema.json` | Receipt schemas for every receipt the command plan produces. Each assertion field is pinned `const: true`, so a producer that computes `false` is REJECTED at validation rather than reported as a pass. |
+| `wrappers/*.sh` | Bounded command wrappers. They default to printing planned commands and require explicit output directories for receipts. Every assertion a wrapper publishes is computed from inputs it holds: a wrapper is handed BOTH sides of any comparison it asserts on, and the refusal gates (`preflight-backup-namespace.sh`, `stop-manifest-pid.sh`) write their receipt and then exit non-zero when a check fails. |
 | `wrappers/anchor-probe.py` | Hermetic version-neutral anchor-probe contract with one compile-time read-only identity statement and pre-socket refusal tests. |
 | `locks/dependencies.lock` | Tool and dependency lock for this preparation package. |
 

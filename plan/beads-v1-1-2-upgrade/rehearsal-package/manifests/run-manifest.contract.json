@@ -34,6 +34,7 @@
     "required_receipts": [
       "provenance",
       "topology",
+      "backup_namespace_preflight",
       "fixture_sql_hashes",
       "database_client_user_map",
       "pointer_hashes",
@@ -48,8 +49,11 @@
       "designated_migrator",
       "migration_gate",
       "inventory_hashes",
+      "golden_schema_comparison",
       "round_trip_delta",
       "restore_baseline_comparison",
+      "stop_boundary",
+      "production_unchanged",
       "cleanup"
     ]
   }

@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "livespec.beads_v112_rehearsal.production_unchanged_receipt.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "production_port_before",
+    "production_port_after",
+    "production_port_3307_unchanged",
+    "production_registry_sha256_before",
+    "production_registry_sha256_after",
+    "production_registry_digest_unchanged",
+    "production_backup_config_sha256_before",
+    "production_backup_config_sha256_after",
+    "production_backup_config_digest_unchanged"
+  ],
+  "properties": {
+    "schema": {
+      "const": "livespec.beads_v112_rehearsal.production_unchanged_receipt.v1"
+    },
+    "production_port_before": {
+      "type": "string"
+    },
+    "production_port_after": {
+      "type": "string"
+    },
+    "production_port_3307_unchanged": {
+      "const": true
+    },
+    "production_registry_sha256_before": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "production_registry_sha256_after": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "production_registry_digest_unchanged": {
+      "const": true
+    },
+    "production_backup_config_sha256_before": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "production_backup_config_sha256_after": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "production_backup_config_digest_unchanged": {
+      "const": true
+    }
+  },
+  "additionalProperties": false
+}

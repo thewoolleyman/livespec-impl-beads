@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "livespec.beads_v112_rehearsal.backup_namespace_preflight.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "run_id",
+    "backup_bucket_prefix",
+    "examined_value_count",
+    "offending_values",
+    "bucket_prefix_contains_run_id",
+    "manifest_namespace_contains_run_id",
+    "production_values_refused"
+  ],
+  "properties": {
+    "schema": {
+      "const": "livespec.beads_v112_rehearsal.backup_namespace_preflight.v1"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[0-9]{8}t[0-9]{6}z$"
+    },
+    "backup_bucket_prefix": {
+      "type": "string"
+    },
+    "examined_value_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "offending_values": {
+      "type": "array",
+      "maxItems": 0
+    },
+    "bucket_prefix_contains_run_id": {
+      "const": true
+    },
+    "manifest_namespace_contains_run_id": {
+      "const": true
+    },
+    "production_values_refused": {
+      "const": true
+    }
+  },
+  "additionalProperties": false
+}
