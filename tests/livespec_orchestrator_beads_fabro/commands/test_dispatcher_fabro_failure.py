@@ -86,8 +86,15 @@ def test_fabro_port_inspect_reclassifies_codex_remote_compaction_404(tmp_path: P
         ),
     )
 
+    # The cause is the provider's own sentence, lifted out of the embedded
+    # payload -- not the raw text, which leads with a `spawned_at` path.
     assert detail == FabroFailureDetail(
-        cause=cause,
+        cause=(
+            "Error running remote compact task: unexpected status 404 Not Found: "
+            '{"detail":"Not Found"}, '
+            "url: https://chatgpt.com/backend-api/codex/responses/compact, "
+            "cf-ray: a2e713303af7ed35-SJC, request id: deb42542"
+        ),
         category="deterministic",
         signature="implement|deterministic|acp turn failed",
     )
@@ -111,8 +118,12 @@ def test_fabro_port_inspect_does_not_reclassify_unrelated_404(tmp_path: Path) ->
         ),
     )
 
+    # The CONTROL is `category`: an unrelated 404 must stay transient_infra.
+    # `cause` is now the innermost element rather than the "ACP protocol error"
+    # transport wrapper -- that wrapper is a fixed string in every measured
+    # chain, so asserting it was asserting the defect.
     assert detail == FabroFailureDetail(
-        cause="ACP protocol error",
+        cause=cause,
         category="transient_infra",
         signature=None,
     )
@@ -153,3 +164,31 @@ def _inspect_failure(*, tmp_path: Path, stdout: str) -> FabroFailureDetail | Non
         .inspect(run_id="01RUN", timeout_seconds=1)
         .failure
     )
+
+
+def test_provider_message_extraction_falls_back_on_unparseable_braces(
+    tmp_path: Path,
+) -> None:
+    """Braces that are not JSON leave the raw cause intact rather than blanking it."""
+    cause = "Internal error: {not json at all}"
+    detail = _inspect_failure(
+        tmp_path=tmp_path,
+        stdout=json.dumps({"failure": {"causes": ["ACP protocol error", cause]}}),
+    )
+
+    assert detail is not None
+    assert detail.cause == cause
+
+
+def test_provider_message_extraction_falls_back_when_data_is_not_an_object(
+    tmp_path: Path,
+) -> None:
+    """A payload whose `data` is not an object keeps the raw cause."""
+    cause = 'Internal error: {"data": "a string, not an object"}'
+    detail = _inspect_failure(
+        tmp_path=tmp_path,
+        stdout=json.dumps({"failure": {"causes": ["ACP protocol error", cause]}}),
+    )
+
+    assert detail is not None
+    assert detail.cause == cause
