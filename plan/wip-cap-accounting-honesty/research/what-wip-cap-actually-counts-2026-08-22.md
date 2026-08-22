@@ -221,3 +221,81 @@ false.** An epic that was never dispatched has no live lock and no journal
 history, so `_claim_still_counts(history=None)` returns `False` at its
 first line and the row falls through to the abandoned-record branch
 uncounted. The claim was withdrawn.
+
+## ADDENDUM, 2026-08-22 evening — three findings have been overtaken
+
+This note is item 1 of the read-first chain in every handoff on this thread, which
+makes it the highest-risk place in the plan for a claim that was true when written
+and has since stopped being true. Three of its five findings are now dated. Nothing
+above is deleted; read the original and then this.
+
+### Finding 1's TITLE is one level too coarse — the body is still correct
+
+The heading says "the counter is per-repo and ledger-derived". Measured
+2026-08-22, `wip_cap` is scoped to the **CHECKOUT**, not the repository. Two
+checkouts of ONE repo, read in the same second from `claimed_active_accounting`
+itself against ONE ledger holding 11 rows at `active`, reported DISJOINT counts:
+
+    /data/projects/livespec-orchestrator-beads-fabro   active_count 2
+    ~/.worktrees/.../control-wip-cap-enforce-asymmetry  active_count 1
+
+Both counting inputs resolve from the `--repo` path — the dispatch-lock directory,
+and `<repo>/tmp/fabro-dispatch-journal.jsonl`. A second checkout starts with an
+empty lock directory and its own journal, so N checkouts admit up to N x `wip_cap`.
+
+WHY THE ORIGINAL FINDING IS NOT WRONG, which matters for how much to distrust it.
+Finding 1 was answering "is this counter host-wide?", and its answer — no, it never
+calls `fabro`, never contacts a factory, never learns of another repository — is
+correct and its control settles that question. What its control COULD NOT have
+detected is the checkout axis, because all three of its readings were taken from
+ONE checkout; a single-vantage control cannot see a per-vantage split. So the
+finding is right about what it tested, and its title overstates the scope by one
+level. "Per-repo" reads as a guarantee about the repository, and it is not one.
+
+Recorded on `bd-ib-snyquw.5` and in BOTH pending proposal files, because the
+proposal's locality clause ("this repository's own ledger rows, its dispatch locks,
+and its own journal") inherits the same ambiguity and would ratify it.
+
+### Finding 2 is SUPERSEDED by PR #1718 — green rows no longer count
+
+"Branch 2 counts success, forever" was true when written and is now false.
+`claimed_active_accounting` computes
+`active_count = len(live_lock_active_ids) + len(journal_unreadable_active_ids)`:
+green-terminal rows are still IDENTIFIED and reported, but no longer COUNTED. The
+remedy chosen was RECLAIM, and it is fail-closed — a row whose journal cannot be
+READ lands in `journal_unreadable_active_ids` and IS counted, so an unreadable
+journal makes the predicate count MORE, never fewer.
+
+The sibling note `uncounted-active-rows-measured-2026-08-22.md` already carries a
+#1718 addendum. This note did not, and this note is the one the read-first chain
+sends people to first — which is exactly how a superseded claim keeps being
+re-derived.
+
+### Finding 5 has been EXECUTED, and its remedy has SHIPPED
+
+Finding 5 states its own evidence grade carefully: "a test-pinned static reading …
+It has NOT been executed." That is no longer the case. The control it specifies was
+run on 2026-08-22, using a cheaper design than the one it describes — cap forced to
+`0` in a throwaway worktree's uncommitted `.livespec.jsonc`, so saturation did not
+have to be waited for:
+
+    drive --action impl:<id>            -> stage "capacity-deferred"
+                                           active_count=0 wip_cap=0 free_slots=0
+    dispatcher.py dispatch --item <id>  -> stage "ledger-admit", then "dispatch-id"
+
+Same item, same repo path, same cap, 45 seconds apart. CONFIRMED. Leg 1 cost
+nothing (a deferral claims nothing); leg 2 cost the one real dispatch the control
+always had to budget.
+
+The finding's framing has also been CORRECTED by that work: the override is not
+unreachable, it is UNDISCOVERABLE. `dispatcher.py dispatch --item` reaches it, and
+AGENTS.md already names that command as the preferred operator dispatch route. Only
+`drive` cannot express it.
+
+REMEDY SHIPPED as `bd-ib-snyquw.3`, PR #1754 (c279c108). Direction chosen: keep
+`drive` cap-enforcing — no bypass flag — because `drive --action impl:` is what the
+DRAIN surfaces hand out (`_needs_attention_work_items.py:69`, `prose/plan.md:231`),
+so a flag there would sit on the unattended side of the line the 2026-07-30
+`bd-ib-aabn` ruling draws. Instead the capacity deferral now names the override with
+the item id interpolated, and the `admit_and_select` docstring states which surfaces
+reach it. Verified end-to-end against the shipped build, not from the diff.
