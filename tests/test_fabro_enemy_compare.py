@@ -8,6 +8,8 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
+import pytest
+
 __all__: list[str] = []
 
 
@@ -20,14 +22,14 @@ def test_comparison_harness_writes_per_assertion_delta(
 
     assert module_path.is_file()
     compare = _load_compare_module(module_path=module_path)
-    calls: list[tuple[str, str, Path]] = []
+    calls: list[tuple[str, str, list[str], Path]] = []
 
     def fake_run(
         *, args: list[str], env: dict[str, str], check: bool
     ) -> subprocess.CompletedProcess[str]:
         assert check is False
         junit_path = _junit_path(args=args)
-        calls.append((env["FABRO_EUT_BIN"], env["FABRO_EUT_SERVER"], junit_path))
+        calls.append((env["FABRO_EUT_BIN"], env["FABRO_EUT_SERVER"], args, junit_path))
         if len(calls) == 1:
             _write_junit(
                 path=junit_path,
@@ -69,6 +71,11 @@ def test_comparison_harness_writes_per_assertion_delta(
     assert [(call[0], call[1]) for call in calls] == [
         ("/opt/fabro-pinned", "http://127.0.0.1:32276"),
         ("/opt/fabro-candidate", "http://127.0.0.1:32286"),
+    ]
+    test_args = [arg for arg in calls[0][2] if arg.startswith("fabro-enemy-unit-tests/")]
+    assert test_args == [
+        "fabro-enemy-unit-tests/test_tier0_fabro.py",
+        "fabro-enemy-unit-tests/test_tier0_watchdog_gap.py",
     ]
     artifact = artifact_path.read_text()
     assert "| Assertion | Pinned | Candidate | Delta |" in artifact
@@ -187,6 +194,25 @@ def test_comparison_harness_maps_target_specific_expected_values(
 
     assert compare.main(argv=["--artifact", str(tmp_path / "comparison.md")]) == 0
     assert seen_versions == ["0.254.0", "0.255.0"]
+
+
+def test_comparison_harness_fails_clearly_when_tier0_tests_are_absent(
+    *,
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    module_path = Path("fabro-enemy-unit-tests/compare.py")
+
+    assert module_path.is_file()
+    compare = _load_compare_module(module_path=module_path)
+    monkeypatch.setattr(compare, "_TEST_ROOT", tmp_path)
+
+    with pytest.raises(FileNotFoundError) as error:
+        compare.main(argv=["--artifact", str(tmp_path / "comparison.md")])
+
+    assert (
+        str(error.value) == f"no Fabro Enemy Unit Test files matched {tmp_path / 'test_tier0_*.py'}"
+    )
 
 
 def _load_compare_module(*, module_path: Path) -> ModuleType:

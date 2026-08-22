@@ -11,7 +11,7 @@ from pathlib import Path
 
 __all__: list[str] = []
 
-_TEST_ROOT = "fabro-enemy-unit-tests/test_tier0_*.py"
+_TEST_ROOT = Path("fabro-enemy-unit-tests")
 _DEFAULT_SERVER_URL = "http://127.0.0.1:32276"
 _TESTCASE_PATTERN = re.compile(
     r"<testcase\b(?P<empty_attrs>[^>]*)/>|"
@@ -104,8 +104,9 @@ def _run_comparison(*, pinned: _Target, candidate: _Target) -> _Comparison:
 
 
 def _run_target(*, target: _Target, junit_path: Path) -> _RunResult:
+    test_paths = _tier0_test_paths(test_root=_TEST_ROOT)
     completed = subprocess.run(
-        args=["uv", "run", "pytest", _TEST_ROOT, "-q", f"--junitxml={junit_path}"],
+        args=["uv", "run", "pytest", *test_paths, "-q", f"--junitxml={junit_path}"],
         env=_target_env(target=target),
         check=False,
     )
@@ -114,6 +115,15 @@ def _run_target(*, target: _Target, junit_path: Path) -> _RunResult:
         exit_code=completed.returncode,
         assertions=_read_assertions(junit_path=junit_path),
     )
+
+
+def _tier0_test_paths(*, test_root: Path) -> list[str]:
+    paths = sorted(test_root.glob("test_tier0_*.py"))
+    if not paths:
+        raise FileNotFoundError(
+            f"no Fabro Enemy Unit Test files matched {test_root / 'test_tier0_*.py'}"
+        )
+    return [str(path) for path in paths]
 
 
 def _target_env(*, target: _Target) -> dict[str, str]:
