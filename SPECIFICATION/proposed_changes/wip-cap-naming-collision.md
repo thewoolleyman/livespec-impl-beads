@@ -153,3 +153,37 @@ Both proposals also append to §"Host concurrency belongs to the Fabro scheduler
 The two additions are complementary, not contradictory — this one forbids
 reporting the Fabro limit as ours, the sibling records that the counted-claim
 definition is computed from local state only — and both SHOULD be taken.
+
+### The recommended label presumes a scope that is NOT yet settled (added 2026-08-22)
+
+A rider to the section above, recorded here because a `--only-topic` revise pass
+over THIS file alone would otherwise adopt the label without knowing the question
+below is open. The finding itself is on the sibling proposal
+`wip-cap-bound-honesty`, under "The locality clause does not say WHICH local
+state, and it matters", and on `bd-ib-snyquw.5`.
+
+"PER-REPO claim cap" CONTAINS A SCOPE WORD, and that word is the unsettled one.
+Measured 2026-08-22, `wip_cap` is scoped to the `--repo` PATH, not to the tenant:
+both of the counter's inputs — the dispatch-lock directory and
+`<repo>/tmp/fabro-dispatch-journal.jsonl` — resolve from that path, so two
+checkouts of ONE repository, read in the same second against ONE ledger holding 11
+rows at `active`, reported DISJOINT counts of 2 and 1. N checkouts admit up to
+N x `wip_cap`.
+
+So "per-repo" is doing exactly the kind of work this proposal exists to stop a
+label doing: it reads as a guarantee about the repository, and today it is a
+guarantee about one checkout of it. This proposal's own Motivation is that a
+distinction stated in prose was misread in good faith; a label that overstates its
+scope is the same failure one level up.
+
+WHAT THIS DOES AND DOES NOT ASK. It does NOT reject "per-repo CLAIM cap", and it
+does not propose an alternative label here — picking one before the scope is
+settled would repeat the mistake. It asks that the accepting revise pass settle
+the SCOPE question first (the sibling states the two options and recommends one),
+and only then fix the label, so the chosen word is true of the bound that was
+actually ratified. If the scope is settled as tenant-wide, "per-repo CLAIM cap"
+is correct as recommended and nothing here changes. If it is settled as
+per-checkout, the label MUST say so instead of saying "per-repo".
+
+This does not disturb anything else in the reconciliation above: one label across
+both proposals, and neither accepted without settling it, still stand.
