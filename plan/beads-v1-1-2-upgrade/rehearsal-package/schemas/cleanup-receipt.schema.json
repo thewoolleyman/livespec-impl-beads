@@ -8,9 +8,11 @@
     "pid_absent",
     "port_13307_absent",
     "receipt_root_retained",
+    "production_unchanged_receipt",
     "production_port_3307_unchanged",
     "production_registry_digest_unchanged",
     "production_backup_config_digest_unchanged",
+    "isolated_data_dir_absent",
     "sql_users_absent",
     "client_directories_absent",
     "run_root_absent",
@@ -32,6 +34,9 @@
     "receipt_root_retained": {
       "const": true
     },
+    "production_unchanged_receipt": {
+      "type": "string"
+    },
     "production_port_3307_unchanged": {
       "const": true
     },
@@ -39,6 +44,9 @@
       "const": true
     },
     "production_backup_config_digest_unchanged": {
+      "const": true
+    },
+    "isolated_data_dir_absent": {
       "const": true
     },
     "sql_users_absent": {

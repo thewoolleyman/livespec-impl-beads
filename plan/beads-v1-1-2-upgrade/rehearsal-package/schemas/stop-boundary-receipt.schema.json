@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "livespec.beads_v112_rehearsal.stop_boundary_receipt.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "pid_file",
+    "pid_file_state",
+    "pid",
+    "process_state",
+    "isolated_state_markers",
+    "cmdline_references_isolated_state",
+    "production_port_absent_from_cmdline",
+    "pid_scope_verified"
+  ],
+  "properties": {
+    "schema": {
+      "const": "livespec.beads_v112_rehearsal.stop_boundary_receipt.v1"
+    },
+    "pid_file": {
+      "type": "string"
+    },
+    "pid_file_state": {
+      "const": "present"
+    },
+    "pid": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "process_state": {
+      "const": "running"
+    },
+    "isolated_state_markers": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "cmdline_references_isolated_state": {
+      "const": true
+    },
+    "production_port_absent_from_cmdline": {
+      "const": true
+    },
+    "pid_scope_verified": {
+      "const": true
+    }
+  },
+  "additionalProperties": false
+}

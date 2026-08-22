@@ -270,16 +270,20 @@ def test_receipt_schemas_are_machine_readable_and_strict() -> None:
         "anchor-receipt.schema.json",
         "artifact-fetch-receipt.schema.json",
         "backup-identity-receipt.schema.json",
+        "backup-namespace-preflight-receipt.schema.json",
         "cleanup-receipt.schema.json",
         "designated-migrator-receipt.schema.json",
         "fixture-producer-build-receipt.schema.json",
+        "golden-schema-comparison-receipt.schema.json",
         "identity-probe-receipt.schema.json",
         "inventory-receipt.schema.json",
         "migration-gate-receipt.schema.json",
+        "production-unchanged-receipt.schema.json",
         "rehearsal-command-plan.schema.json",
         "restored-baseline-comparison-receipt.schema.json",
         "round-trip-delta-receipt.schema.json",
         "shape-survey-receipt.schema.json",
+        "stop-boundary-receipt.schema.json",
         "top-level-sha256sums.schema.json",
     ]
     for path in schema_paths:
@@ -859,13 +863,59 @@ def test_receipt_schemas_accept_positive_examples_and_reject_placeholders() -> N
             "pid_absent": True,
             "port_13307_absent": True,
             "receipt_root_retained": True,
+            "production_unchanged_receipt": "/receipts/production-unchanged.json",
             "production_port_3307_unchanged": True,
             "production_registry_digest_unchanged": True,
             "production_backup_config_digest_unchanged": True,
+            "isolated_data_dir_absent": True,
             "sql_users_absent": True,
             "client_directories_absent": True,
             "run_root_absent": True,
             "removed_manifest_scoped_resources": [],
+        },
+        "golden-schema-comparison-receipt.schema.json": {
+            "schema": "livespec.beads_v112_rehearsal.golden_schema_comparison.v1",
+            "migrated_schema_path": "/receipts/inventory/dense_policy/schema.json",
+            "migrated_schema_sha256": "a" * 64,
+            "golden_schema_path": "/receipts/inventory/golden/schema.json",
+            "golden_schema_sha256": "a" * 64,
+            "golden_client_dir": "/var/tmp/beads112-rehearsal.20260817t010203z/clients/golden",
+            "schema_hash_matches": True,
+        },
+        "production-unchanged-receipt.schema.json": {
+            "schema": "livespec.beads_v112_rehearsal.production_unchanged_receipt.v1",
+            "production_port_before": "3307",
+            "production_port_after": "3307",
+            "production_port_3307_unchanged": True,
+            "production_registry_sha256_before": "b" * 64,
+            "production_registry_sha256_after": "b" * 64,
+            "production_registry_digest_unchanged": True,
+            "production_backup_config_sha256_before": "c" * 64,
+            "production_backup_config_sha256_after": "c" * 64,
+            "production_backup_config_digest_unchanged": True,
+        },
+        "backup-namespace-preflight-receipt.schema.json": {
+            "schema": "livespec.beads_v112_rehearsal.backup_namespace_preflight.v1",
+            "run_id": "20260817t010203z",
+            "backup_bucket_prefix": "beads112-20260817t010203z",
+            "examined_value_count": 7,
+            "offending_values": [],
+            "bucket_prefix_contains_run_id": True,
+            "manifest_namespace_contains_run_id": True,
+            "production_values_refused": True,
+        },
+        "stop-boundary-receipt.schema.json": {
+            "schema": "livespec.beads_v112_rehearsal.stop_boundary_receipt.v1",
+            "pid_file": "/var/tmp/beads112-rehearsal.20260817t010203z/dolt/dolt.pid",
+            "pid_file_state": "present",
+            "pid": 4321,
+            "process_state": "running",
+            "isolated_state_markers": [
+                "/var/tmp/beads112-rehearsal.20260817t010203z/dolt/data",
+            ],
+            "cmdline_references_isolated_state": True,
+            "production_port_absent_from_cmdline": True,
+            "pid_scope_verified": True,
         },
         "top-level-sha256sums.schema.json": {
             "schema": "livespec.beads_v112_rehearsal.top_level_sha256sums.v1",
@@ -923,3 +973,330 @@ def test_inventory_queries_cover_all_required_rehearsal_projections() -> None:
         "factory-safety:",
         "blocked-reason:",
     ]
+
+
+# --- Receipt producers must MEASURE, not assert -----------------------------
+#
+# Five producers used to publish sixteen assertion fields as a hardcoded True
+# while holding one side of the comparison, or none. Schema validation could
+# not catch that: the schemas pin `const: true` and the producers wrote exactly
+# that, so validation passed by construction and reported a clean green
+# carrying no information. The tests below feed each producer inputs that MUST
+# drive its assertion false, which is the only shape of check a fabricated
+# receipt cannot survive.
+
+WRAPPERS = PACKAGE / "wrappers"
+# assert-client-anchor.sh's `read_only_transaction` describes the script's own
+# behaviour -- it issues one literal read-only SELECT -- rather than measured
+# external state, so it is the one legitimate hardcoded assertion.
+_ALLOWED_HARDCODED_ASSERTIONS = {("assert-client-anchor.sh", "read_only_transaction")}
+
+
+def _run_wrapper(script: str, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [str(WRAPPERS / script), *args],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def _topology(tmp_path: Path, *, run_id: str = "20260817t010203z") -> Path:
+    run_root = tmp_path / f"beads112-rehearsal.{run_id}"
+    manifest = {
+        "run_id": run_id,
+        "isolated_server": {
+            "port": 13307,
+            "data_dir": str(run_root / "dolt" / "data"),
+            "config_dir": str(run_root / "dolt" / "config"),
+            "pid_file": str(run_root / "dolt" / "dolt.pid"),
+        },
+        "clients": [
+            {
+                "client_key": f"dense_policy/source/{run_id}",
+                "client_dir": str(run_root / "clients" / f"beads112_{run_id}_dense_source"),
+                "database": f"beads112_{run_id}_dense_policy_source",
+                "sql_user": f"b112_{run_id}_dp_s",
+            },
+        ],
+    }
+    path = tmp_path / "topology.json"
+    path.write_text(json.dumps(manifest))
+    return path
+
+
+def test_no_wrapper_publishes_an_unmeasured_assertion(tmp_path: Path) -> None:
+    del tmp_path
+    hardcoded = {
+        (path.name, line.split('"')[1])
+        for path in sorted(WRAPPERS.glob("*"))
+        if path.is_file()
+        for line in path.read_text().splitlines()
+        if line.strip().startswith('"') and line.strip().endswith('": True,')
+    }
+    assert hardcoded == _ALLOWED_HARDCODED_ASSERTIONS
+
+
+def test_compare_golden_schema_computes_both_sides(tmp_path: Path) -> None:
+    migrated = tmp_path / "migrated.json"
+    golden = tmp_path / "golden.json"
+    receipt = tmp_path / "receipts" / "golden.json"
+    migrated.write_text('{"columns": 12}')
+
+    golden.write_text('{"columns": 13}')
+    assert (
+        _run_wrapper(
+            "compare-golden-schema.sh", *map(str, (migrated, golden, "/g", receipt))
+        ).returncode
+        == 0
+    )
+    diverged = json.loads(receipt.read_text())
+    assert diverged["schema_hash_matches"] is False
+    assert diverged["migrated_schema_sha256"] != diverged["golden_schema_sha256"]
+    schema = _json(PACKAGE / "schemas" / "golden-schema-comparison-receipt.schema.json")
+    assert isinstance(schema, dict)
+    assert not _schema_accepts(schema=schema, instance=diverged)
+
+    golden.write_text('{"columns": 12}')
+    _run_wrapper("compare-golden-schema.sh", *map(str, (migrated, golden, "/g", receipt)))
+    agreed = json.loads(receipt.read_text())
+    assert agreed["schema_hash_matches"] is True
+    assert _schema_accepts(schema=schema, instance=agreed)
+
+
+def test_prove_production_unchanged_detects_each_changed_side(tmp_path: Path) -> None:
+    receipt = tmp_path / "production-unchanged.json"
+    before = ("3307", "a" * 64, "b" * 64)
+    unchanged = _run_wrapper(
+        "prove-production-unchanged.sh",
+        before[0],
+        before[0],
+        before[1],
+        before[1],
+        before[2],
+        before[2],
+        str(receipt),
+    )
+    assert unchanged.returncode == 0
+    assert all(
+        json.loads(receipt.read_text())[field] is True
+        for field in (
+            "production_port_3307_unchanged",
+            "production_registry_digest_unchanged",
+            "production_backup_config_digest_unchanged",
+        )
+    )
+
+    changed = {
+        "production_port_3307_unchanged": ("3308", before[1], before[2]),
+        "production_registry_digest_unchanged": (before[0], "c" * 64, before[2]),
+        "production_backup_config_digest_unchanged": (before[0], before[1], "d" * 64),
+    }
+    schema = _json(PACKAGE / "schemas" / "production-unchanged-receipt.schema.json")
+    assert isinstance(schema, dict)
+    for field, after in changed.items():
+        _run_wrapper(
+            "prove-production-unchanged.sh",
+            before[0],
+            after[0],
+            before[1],
+            after[1],
+            before[2],
+            after[2],
+            str(receipt),
+        )
+        payload = json.loads(receipt.read_text())
+        assert payload[field] is False, field
+        assert not _schema_accepts(schema=schema, instance=payload)
+
+
+def test_preflight_backup_namespace_refuses_production_and_stray_namespaces(tmp_path: Path) -> None:
+    run_id = "20260817t010203z"
+    manifest_path = _topology(tmp_path, run_id=run_id)
+    receipt = tmp_path / "backup-namespace-preflight.json"
+    prefix = f"beads112-{run_id}"
+
+    clean = _run_wrapper(
+        "preflight-backup-namespace.sh", str(manifest_path), run_id, prefix, str(receipt)
+    )
+    assert clean.returncode == 0
+    payload = json.loads(receipt.read_text())
+    assert payload["production_values_refused"] is True
+    assert payload["offending_values"] == []
+    assert payload["examined_value_count"] >= 4
+
+    # A bucket prefix that does not carry the run id would let the rehearsal
+    # write beside production backups.
+    strayed = _run_wrapper(
+        "preflight-backup-namespace.sh", str(manifest_path), run_id, "beads-backups", str(receipt)
+    )
+    assert strayed.returncode != 0
+    assert json.loads(receipt.read_text())["bucket_prefix_contains_run_id"] is False
+
+    # A manifest naming the production port must halt, and must say what it saw.
+    production = json.loads(manifest_path.read_text())
+    production["clients"][0]["database"] = f"beads112_{run_id}_on_3307"
+    manifest_path.write_text(json.dumps(production))
+    refused = _run_wrapper(
+        "preflight-backup-namespace.sh", str(manifest_path), run_id, prefix, str(receipt)
+    )
+    assert refused.returncode != 0
+    assert "HALT" in refused.stderr
+    halted = json.loads(receipt.read_text())
+    assert halted["production_values_refused"] is False
+    assert halted["offending_values"] == [f"beads112_{run_id}_on_3307"]
+
+
+def _stop_boundary_schema() -> dict[str, object]:
+    schema = _json(PACKAGE / "schemas" / "stop-boundary-receipt.schema.json")
+    assert isinstance(schema, dict)
+    return schema
+
+
+def _pid_file(manifest_path: Path) -> Path:
+    manifest = json.loads(manifest_path.read_text())
+    pid_file = Path(manifest["isolated_server"]["pid_file"])
+    pid_file.parent.mkdir(parents=True, exist_ok=True)
+    return pid_file
+
+
+def test_stop_manifest_pid_refuses_a_pid_it_cannot_scope(tmp_path: Path) -> None:
+    manifest_path = _topology(tmp_path)
+    pid_file = _pid_file(manifest_path)
+    receipt = tmp_path / "stop-boundary.json"
+
+    # No pid file at all: the old wrapper published pid_scope_verified anyway.
+    missing = _run_wrapper("stop-manifest-pid.sh", str(manifest_path), str(receipt))
+    assert missing.returncode != 0
+    unscoped = json.loads(receipt.read_text())
+    assert unscoped["pid_scope_verified"] is False
+    assert unscoped["process_state"] == "absent"
+    assert not _schema_accepts(schema=_stop_boundary_schema(), instance=unscoped)
+
+    # A live process whose cmdline does NOT name the isolated state tree could
+    # be any process on the host, including production's. A plain shell holds
+    # the pid; `sh -c CMD name` puts `name` in the child's own cmdline, which
+    # is the surface the wrapper inspects.
+    stranger = subprocess.Popen(["/bin/sh", "-c", "sleep 30", "/some/other/tree"])
+    try:
+        pid_file.write_text(f"{stranger.pid}\n")
+        wrong = _run_wrapper("stop-manifest-pid.sh", str(manifest_path), str(receipt))
+        assert wrong.returncode != 0
+        assert json.loads(receipt.read_text())["cmdline_references_isolated_state"] is False
+    finally:
+        stranger.kill()
+        stranger.wait()
+
+
+def test_stop_manifest_pid_accepts_the_running_isolated_server(tmp_path: Path) -> None:
+    manifest_path = _topology(tmp_path)
+    manifest = json.loads(manifest_path.read_text())
+    pid_file = _pid_file(manifest_path)
+    receipt = tmp_path / "stop-boundary.json"
+
+    isolated = subprocess.Popen(
+        ["/bin/sh", "-c", "sleep 30", manifest["isolated_server"]["data_dir"]],
+    )
+    try:
+        pid_file.write_text(f"{isolated.pid}\n")
+        scoped = _run_wrapper("stop-manifest-pid.sh", str(manifest_path), str(receipt))
+        assert scoped.returncode == 0
+        payload = json.loads(receipt.read_text())
+        assert payload["pid_scope_verified"] is True
+        assert payload["pid"] == isolated.pid
+        # 13307 contains the digits 3307; a substring test would misread the
+        # isolated port as production and refuse a correct stop target.
+        assert payload["production_port_absent_from_cmdline"] is True
+        assert _schema_accepts(schema=_stop_boundary_schema(), instance=payload)
+    finally:
+        isolated.kill()
+        isolated.wait()
+
+
+def _production_receipt(tmp_path: Path) -> Path:
+    production = tmp_path / "production-unchanged.json"
+    production.write_text(
+        json.dumps(
+            {
+                "schema": "livespec.beads_v112_rehearsal.production_unchanged_receipt.v1",
+                "production_port_3307_unchanged": True,
+                "production_registry_digest_unchanged": True,
+                "production_backup_config_digest_unchanged": True,
+            },
+        ),
+    )
+    return production
+
+
+def _cleanup_schema() -> dict[str, object]:
+    schema = _json(PACKAGE / "schemas" / "cleanup-receipt.schema.json")
+    assert isinstance(schema, dict)
+    return schema
+
+
+def test_cleanup_receipt_measures_residue_rather_than_asserting_its_absence(
+    tmp_path: Path,
+) -> None:
+    manifest_path = _topology(tmp_path)
+    manifest = json.loads(manifest_path.read_text())
+    run_root = Path(manifest["clients"][0]["client_dir"]).parent.parent
+    receipt = tmp_path / "cleanup.json"
+    production = _production_receipt(tmp_path)
+    argv = (str(manifest_path), str(run_root), str(production), str(receipt))
+
+    # Residue left behind: the client directory and the run root still exist.
+    Path(manifest["clients"][0]["client_dir"]).mkdir(parents=True, exist_ok=True)
+    Path(manifest["isolated_server"]["data_dir"]).mkdir(parents=True, exist_ok=True)
+    assert _run_wrapper("cleanup-run-scoped-resources.sh", *argv).returncode == 0
+    residue = json.loads(receipt.read_text())
+    assert residue["run_root_absent"] is False
+    assert residue["client_directories_absent"] is False
+    assert residue["isolated_data_dir_absent"] is False
+    assert residue["sql_users_absent"] is False
+    assert not _schema_accepts(schema=_cleanup_schema(), instance=residue)
+
+    # Cleaned up: everything under the run root is gone.
+    for path in sorted(run_root.rglob("*"), reverse=True):
+        path.rmdir()
+    run_root.rmdir()
+    assert _run_wrapper("cleanup-run-scoped-resources.sh", *argv).returncode == 0
+    cleaned = json.loads(receipt.read_text())
+    assert cleaned["run_root_absent"] is True
+    assert cleaned["sql_users_absent"] is True
+    assert cleaned["production_unchanged_receipt"] == str(production)
+    assert _schema_accepts(schema=_cleanup_schema(), instance=cleaned)
+
+
+def test_cleanup_receipt_refuses_a_foreign_production_receipt(tmp_path: Path) -> None:
+    # The three production digests are propagated from a receipt that measured
+    # them, so an unrelated JSON file must not be able to satisfy them.
+    manifest_path = _topology(tmp_path)
+    foreign = tmp_path / "foreign.json"
+    foreign.write_text(json.dumps({"schema": "something.else.v1"}))
+    refused = _run_wrapper(
+        "cleanup-run-scoped-resources.sh",
+        str(manifest_path),
+        str(tmp_path / "absent-run-root"),
+        str(foreign),
+        str(tmp_path / "cleanup.json"),
+    )
+    assert refused.returncode != 0
+    assert "HALT" in refused.stderr
+
+
+def test_every_produced_receipt_has_a_schema_and_a_contract_entry() -> None:
+    plan = _json(PACKAGE / "command-plans" / "beads112-rehearsal.command-plan.json")
+    assert isinstance(plan, dict)
+    schema_ids = {
+        _json(path)["$id"]  # type: ignore[index]
+        for path in (PACKAGE / "schemas").glob("*.schema.json")
+    }
+    produced = {
+        line.split('"')[3]
+        for path in WRAPPERS.glob("*.sh")
+        for line in path.read_text().splitlines()
+        if line.strip().startswith('"schema": "livespec.beads_v112_rehearsal.')
+    }
+    # Four receipts were produced by wrappers the command plan runs while
+    # having no schema at all, so nothing downstream could reject them.
+    assert produced <= schema_ids
