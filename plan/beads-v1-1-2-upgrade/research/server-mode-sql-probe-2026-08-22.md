@@ -125,6 +125,16 @@ works on the newer binaries too — but that is an **inference, not a measuremen
 and this thread does not ship inferences as measurements. Closing it requires
 fetching those two binaries, which is a separate authorization.
 
+> **CORRECTED 2026-08-22, later the same day, by
+> `rig-blindness-mechanism-2026-08-22.md`.** Gap 1 below is now MEASURED rather
+> than inferred: `bd sql` works in server mode on v1.1.2 and v1.2.2 as well.
+> Gap 2's *reasoning* below is WRONG and is left in place only so the error is
+> legible. v1.1.2 and v1.2.2 reject `-t rig` exactly as v1.0.5 does, so the
+> newer binaries did not unblock the question the way this section predicts.
+> The real mechanism: `rig` records live in the separate `wisps` table, so raw
+> SQL over `issues` is blind in precisely the same way `list --json` is —
+> **raw SQL is not the cure.** Read the newer note before acting on this one.
+
 **2. Rig-blindness is untested, and cannot be tested here.** `route-proof` found
 four SERVED rows to be rig-blind: `list --json` omits `rig`-typed rows. Whether
 raw SQL sees them is the obvious follow-on, and I could not ask it — v1.0.5

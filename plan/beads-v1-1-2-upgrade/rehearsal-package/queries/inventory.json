@@ -129,7 +129,6 @@
     {
       "artifact": "schema-migrations.json",
       "ordered_by": [
-        "table_name",
         "version"
       ],
       "contains": [
