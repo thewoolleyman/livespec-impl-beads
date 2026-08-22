@@ -230,3 +230,78 @@ today's, because both clauses would read as freshly ratified.
 The two appends to §"Host concurrency belongs to the Fabro scheduler" are
 complementary and both SHOULD be taken. The scenario-numbering note above still
 applies.
+
+### The locality clause does not say WHICH local state, and it matters (added 2026-08-22)
+
+Recorded here rather than only on `bd-ib-snyquw.5` for the same reason as the
+section above: the revise pass reads these files, and a rider on a ledger item is
+not something a pass over `proposed_changes/` will see.
+
+THE PROBLEM, in this proposal's own text. The append to §"Host concurrency
+belongs to the Fabro scheduler" says the counted-claim definition is computed
+"ENTIRELY FROM LOCAL STATE — this repository's own ledger rows, its dispatch
+locks, and its own journal". "This repository's own" is ambiguous between the
+TENANT and the CHECKOUT. Every other clause in the section is tenant-scoped, so a
+reader resolves it to the tenant. MEASURED, IT IS THE CHECKOUT.
+
+THE MEASUREMENT, 2026-08-22, both readings taken in the same second from
+`claimed_active_accounting` itself rather than a hand-rolled predicate, against
+journal COPIES so neither real journal was mutated. ONE ledger, 11 rows at status
+`active`:
+
+    /data/projects/livespec-orchestrator-beads-fabro   active_count 2
+        live_lock_active_ids (bd-ib-2os2, bd-ib-62xaj3)
+    ~/.worktrees/.../control-wip-cap-enforce-asymmetry  active_count 1
+        live_lock_active_ids (bd-ib-y4az3g,)
+
+DISJOINT. Neither checkout sees the other's claims. The mechanism is that both
+counting inputs resolve from the `--repo` path: the dispatch-lock directory, and
+`<repo>/tmp/fabro-dispatch-journal.jsonl` (`commands/_dispatcher_paths.py`). A
+second checkout starts with an empty lock directory and its own journal, so every
+claim held by the first is invisible to it. N checkouts of one tenant admit up to
+N x `wip_cap`. Worktrees, janitor checkouts and fresh clones are all normal here,
+so this is a reachable configuration and not a contrived one.
+
+THE SEPARABILITY POINT, which is what keeps this from being a false dilemma. The
+clause conflates two different things: "no HOST observation" and "per-CHECKOUT
+bookkeeping". They are independent. The tenant's ledger rows are SHARED and
+readable from any checkout — counting a tenant's claims across its checkouts
+requires no host observation whatsoever, only bookkeeping that is not
+checkout-local. Ratifying the sentence as written would fuse the two, so a later
+attempt to make the count tenant-wide would appear to be barred by the
+host-observation prohibition when it is not.
+
+WHY THE ANSWER IS NOT OBVIOUS, stated honestly because this proposal exists to
+stop the spec asserting convenient things. Per the 2026-07-30 ruling recorded on
+`bd-ib-aabn`, the cap exists to bound same-repo merge/rebase contention during
+unattended draining. Merge contention is a property of the TENANT — every
+checkout pushes to the same `origin/master` — so a checkout-scoped bound does not
+constrain the thing the cap was created to constrain. That argues for stating the
+requirement tenant-scoped. BUT this proposal's governing principle is that the
+spec must describe what is ACTUALLY bounded, and tenant-scoped is not what the
+code does today. Choosing the requirement over the description here is in real
+tension with this proposal's own thesis, and the revise pass should make that
+trade deliberately rather than inherit it from an ambiguous sentence.
+
+RESOLUTION THE ACCEPTING REVISE PASS MUST MAKE. Settle the scope explicitly —
+do not accept "this repository's own" as drafted. Either:
+
+  (a) State the bound as TENANT-scoped (all checkouts of this repository), keep
+      the host-observation prohibition, and record the current checkout-scoped
+      implementation as a known divergence to be filed as a defect. RECOMMENDED,
+      because ratifying (b) blesses a bound that provably fails to constrain the
+      contention the cap exists for; and
+
+  (b) State the bound as CHECKOUT-scoped and say so in those words, spelling out
+      the consequence — that N checkouts admit up to N x `wip_cap` — so a
+      consumer cannot read a tenant-wide guarantee into it.
+
+Whichever is chosen, the phrase "this repository's own" MUST NOT survive
+unqualified, and the sentence MUST NOT be left implying that tenant-wide counting
+would require host observation.
+
+NOT IN SCOPE OF THIS NOTE, so it does not silently widen the proposal: this is a
+DIFFERENT axis from the fail-open that the green-terminal reclamation closed.
+That guarantee — an UNREADABLE journal counts MORE, never fewer — is intact and
+must stay intact. This is a legitimately EMPTY lock directory on another path, so
+the fail-closed branch never fires and the count simply starts at zero.
