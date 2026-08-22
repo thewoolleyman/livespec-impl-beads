@@ -85,6 +85,8 @@ def items_with_run_turn_absence(*, records: tuple[dict[str, object], ...]) -> tu
     for rec in records:
         if rec.get("stage") != "run-turn-telemetry-check":
             continue
+        if rec.get("run_turn_observable") is False:
+            continue
         if rec.get("run_turn_exported") is not False:
             continue
         item = rec.get("work_item_id")

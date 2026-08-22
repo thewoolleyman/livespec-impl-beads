@@ -11,6 +11,10 @@ import pytest
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import run_turn_sink_path
+from livespec_orchestrator_beads_fabro.commands._dispatcher_reflection_journal import (
+    items_with_run_turn_absence,
+    read_journal_records,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_run_turn_diagnostics import (
     RunTurnTraceRequest,
 )
@@ -267,6 +271,36 @@ def test_append_run_turn_checks_journals_absence_and_skips_failed(tmp_path: Path
             "work_item_id": "bd-ib-demo",
         }
     ]
+
+
+def test_append_run_turn_checks_marks_hp_factory_unobservable_not_absent(
+    tmp_path: Path,
+) -> None:
+    journal_path = tmp_path / "journal.jsonl"
+    journal = JournalFile(path=journal_path)
+    journal.append(
+        record={
+            "stage": "dispatch-id",
+            "work_item_id": "bd-ib-demo",
+            "dispatch_id": "disp-1",
+            "dispatch_factory": "hp",
+            "started_at_epoch": 20.0,
+        }
+    )
+
+    append_run_turn_checks(
+        outcomes=(_outcome(work_item_id="bd-ib-demo"),),
+        journal=journal,
+        journal_path=journal_path,
+        sink=RunTurnSink(path=tmp_path / "run-turn.json"),
+    )
+
+    records = read_journal_records(journal_path=journal_path)
+    check = records[-1]
+    assert check["run_turn_observable"] is False
+    assert check["run_turn_observation"] == "unobservable-remote-factory"
+    assert check["run_turn_exported"] is False
+    assert items_with_run_turn_absence(records=records) == ()
 
 
 def test_append_run_turn_checks_ignores_malformed_dispatch_id_records(tmp_path: Path) -> None:
