@@ -646,9 +646,21 @@ def test_capture_inventory_runs_all_projections_and_writes_hash_manifest(tmp_pat
         bd,
         "#!/bin/sh\n"
         f"printf '%s\\n' \"$*\" >> {str(calls)!r}\n"
+        'case "$1" in inventory) printf "%s\\n" "invented inventory verb called" >&2; exit 91;; esac\n'
         'case "$*" in\n'
-        '  *table-counts*) printf \'[{"base_table_name":"issues","row_count":1}]\\n\' ;;\n'
-        '  *) printf \'[{"id":"b","value":2},{"id":"a","value":1}]\\n\' ;;\n'
+        '  "list --status all --limit 0 --json") printf \'[{"id":"o4-issue","value":2}]\\n\' ;;\n'
+        '  "show o4-issue --json") printf \'[{"id":"o4-issue","value":2}]\\n\' ;;\n'
+        '  "comments o4-issue --json") printf \'[{"id":"comment-1","issue_id":"o4-issue"}]\\n\' ;;\n'
+        '  "dep list o4-issue --json") printf \'[{"id":"dep-1","issue_id":"o4-issue"}]\\n\' ;;\n'
+        '  "children o4-issue --json") printf \'[{"id":"child-1","parent":"o4-issue"}]\\n\' ;;\n'
+        "  \"migrate status\") printf 'schema version: 53\\n' ;;\n"
+        "  sql*)\n"
+        '    case "$*" in\n'
+        '      *"UNION ALL"*"wisps"*) printf \'[{"id":"o4-issue","issue_type":"task"},{"id":"o4-rig-wisp","issue_type":"rig"}]\\n\' ;;\n'
+        '      *) printf \'[{"id":"o4-issue","issue_type":"task"}]\\n\' ;;\n'
+        "    esac\n"
+        "    ;;\n"
+        '  *) printf "%s\\n" "unexpected argv: $*" >&2; exit 92 ;;\n'
         "esac\n",
     )
     output = Path(fixture["receipt_root"]) / "inventory"
@@ -692,26 +704,23 @@ def test_capture_inventory_runs_all_projections_and_writes_hash_manifest(tmp_pat
     assert "planned_only" not in (output / "client-anchor.json").read_text()
     called = calls.read_text().splitlines()
     assert len(called) == 11
-    for line, artifact in zip(
-        called,
-        [
-            "status-type-counts",
-            "issues",
-            "dependencies",
-            "comments",
-            "labels",
-            "policy-metadata",
-            "schema-migrations",
-            "schema",
-            "branches",
-            "table-counts",
-            "remotes",
-        ],
-        strict=False,
-    ):
-        tokens = shlex.split(line)
-        assert tokens[:2] == ["inventory", artifact]
-        assert tokens[-1] == "--json"
+    assert [shlex.split(line) for line in called[:6]] == [
+        ["list", "--status", "all", "--limit", "0", "--json"],
+        ["show", "o4-issue", "--json"],
+        ["dep", "list", "o4-issue", "--json"],
+        ["comments", "o4-issue", "--json"],
+        ["children", "o4-issue", "--json"],
+        ["migrate", "status"],
+    ]
+    assert all(shlex.split(line)[0] == "sql" for line in called[6:])
+    assert all("UNION ALL" in line and "wisps" in line for line in called[6:])
+    for artifact in [
+        "status-type-counts.json",
+        "issues.json",
+        "labels.json",
+        "policy-metadata.json",
+    ]:
+        assert "o4-rig-wisp" in (output / artifact).read_text()
     receipt = json.loads((output / "inventory-receipt.json").read_text())
     assert receipt["schema"] == "livespec.beads_v112_rehearsal.inventory_receipt.v1"
     assert receipt["capture_point"] == "pre-backup-v49-baseline"
