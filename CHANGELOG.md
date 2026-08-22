@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.66.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.65.3...v0.66.0) (2026-08-22)
+
+
+### Features
+
+* compare Fabro enemy unit test pairs ([b97af6e](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/b97af6efee28e85664b1f82b74db4b8f0375ca62))
+
+
+### Bug Fixes
+
+* preserve Fabro EUT identity defaults ([ef6b4c0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/ef6b4c0fe61850656f7d9e1e9495c082c2ca5abb))
+
 ## [0.65.3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.65.2...v0.65.3) (2026-08-22)
 
 
