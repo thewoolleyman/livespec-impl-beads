@@ -53,6 +53,11 @@ def _run_main(*, payload: object, monkeypatch: pytest.MonkeyPatch) -> int:
         "echo hi && bd show x",
         "(bd ready)",
         "$(bd list)",
+        "sudo dolt sql",
+        "sudo mysql -h 127.0.0.1 -P 3307",
+        "env FOO=bar bd list",
+        "BD_IGNORE_SCHEMA_SKEW=1 bd list",
+        "command bd list",
     ],
 )
 def test_should_block_an_unwrapped_bd_or_dolt_invocation(command: str) -> None:
@@ -92,6 +97,9 @@ def test_should_not_block_a_command_running_under_an_env_wrapper(command: str) -
         "git commit -m 'bd-ib-1jye.1 done'",
         "echo embedded-bd-in-a-word",
         "grep -rn beads .",
+        "ONLY_ASSIGNMENT=1",
+        "ONLY_ASSIGNMENT=1 ; echo ok",
+        "env ONLY_ASSIGNMENT=1",
         "",
     ],
 )
