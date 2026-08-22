@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.64.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.64.0...v0.64.1) (2026-08-22)
+
+
+### Bug Fixes
+
+* classify codex remote compaction failures ([4ab62a9](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/4ab62a980a158108b5070469b4d7786c4ae91dd3))
+
 ## [0.64.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.63.0...v0.64.0) (2026-08-22)
 
 
