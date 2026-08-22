@@ -136,7 +136,12 @@ provisions (below); the image's `COPY fabro` stages this same host binary from
 **Current binary (2026-07-30):** `fabro 0.254.0 (8de6611)` — built from the
 `factory-integration` branch (see below). Verify with `~/.fabro/bin/fabro
 --version`; the parenthesized short SHA is the integration commit, and it MUST be
-reachable from `factory-integration` (`origin/factory-integration` = `8de661118`).
+reachable from `factory-integration` — **reachability, not equality**. The branch
+tip advances past the pinned build whenever a fix or a test lands, so a recorded
+`origin/factory-integration` = `<sha>` snapshot goes stale without becoming
+visibly wrong, which is how a true statement keeps reading as authoritative after
+it stops being true. Check the property itself rather than a snapshot of it:
+`git merge-base --is-ancestor 8de661118 origin/factory-integration`.
 
 ### `factory-integration` — the carrier branch for unreleased fixes
 
