@@ -252,6 +252,7 @@ def _ready_ai_accepted_item() -> WorkItem:
         superseded_by=None,
         admission_policy="auto",
         acceptance_policy="ai-only",
+        acceptance_criteria="tests are green",
     )
 
 

@@ -34,13 +34,13 @@ class _Runner:
         return self.result
 
 
-def _item(*, criteria: str | None) -> WorkItem:
+def _item(*, criteria: str | None, description: str = "Do it.") -> WorkItem:
     return WorkItem(
         id="bd-ib-test",
         type="task",
         status="active",
         title="Task",
-        description="Do it.",
+        description=description,
         origin="freeform",
         gap_id=None,
         rank="a1",
@@ -156,7 +156,22 @@ def test_acceptance_pass_fails_criteria_when_diff_is_unobservable(tmp_path: Path
     assert result.diff_reason == "git show failed"
 
 
-def test_acceptance_pass_no_criteria_passes_on_green_pr_without_merge_sha(tmp_path: Path) -> None:
+def test_acceptance_pass_fails_empty_criteria_even_with_readable_diff(tmp_path: Path) -> None:
+    runner = _Runner(result=CommandResult(exit_code=0, stdout="diff --git a/x b/x\n", stderr=""))
+
+    result = run_acceptance_pass(
+        repo=tmp_path,
+        item=_item(criteria=""),
+        outcome=_outcome(),
+        runner=runner,
+    )
+
+    assert result.verdict == "FAIL"
+    assert result.criteria == ()
+    assert result.diff_reason == "merged diff read"
+
+
+def test_acceptance_pass_fails_empty_criteria_when_diff_is_unreadable(tmp_path: Path) -> None:
     runner = _Runner(result=CommandResult(exit_code=0, stdout="ignored", stderr=""))
 
     result = run_acceptance_pass(
@@ -166,11 +181,47 @@ def test_acceptance_pass_no_criteria_passes_on_green_pr_without_merge_sha(tmp_pa
         runner=runner,
     )
 
-    assert result.verdict == "PASS"
+    assert result.verdict == "FAIL"
     assert result.criteria == ()
     assert result.diff_reason == "merge sha unavailable"
-    assert result.telemetry_reason == "green merged dispatch with PR; merge sha unavailable"
     assert runner.calls == []
+
+
+def test_acceptance_pass_uses_description_exit_criteria_when_field_is_empty(
+    tmp_path: Path,
+) -> None:
+    runner = _Runner(
+        result=CommandResult(
+            exit_code=0,
+            stdout="diff --git a/x b/x\n+acceptance journal records the verdict\n",
+            stderr="",
+        )
+    )
+
+    result = run_acceptance_pass(
+        repo=tmp_path,
+        item=_item(
+            criteria=None,
+            description=(
+                "Implement the fix.\n\n"
+                "## Exit criteria\n\n"
+                "- acceptance journal records the verdict\n\n"
+                "## Notes\n\n"
+                "- not a criterion\n"
+            ),
+        ),
+        outcome=_outcome(),
+        runner=runner,
+    )
+
+    assert result.verdict == "PASS"
+    assert result.criteria == (
+        CriterionCheck(
+            text="acceptance journal records the verdict",
+            passed=True,
+            reason="matched merged diff evidence",
+        ),
+    )
 
 
 def test_acceptance_pass_fails_when_dispatch_telemetry_is_not_green(tmp_path: Path) -> None:

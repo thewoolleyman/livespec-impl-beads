@@ -62,6 +62,9 @@ from livespec_orchestrator_beads_fabro.commands import (
 )
 from livespec_orchestrator_beads_fabro.commands import next as next_command
 from livespec_orchestrator_beads_fabro.commands._config import FactoryTarget
+from livespec_orchestrator_beads_fabro.commands._dispatcher_acceptance_ai import (
+    run_acceptance_pass,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_claim_reclaim import (
     ActiveClaimAccounting,
 )
@@ -427,6 +430,34 @@ def _post_merge_green_tail() -> list[CommandResult]:
 
 def _err(stderr: str = "boom") -> CommandResult:
     return CommandResult(exit_code=1, stdout="", stderr=stderr)
+
+
+def test_acceptance_pass_ignores_description_headings_before_exit_criteria(
+    tmp_path: Path,
+) -> None:
+    runner = _FakeRunner(
+        queue=[
+            _ok(stdout="diff --git a/x b/x\n+description exit criterion landed\n"),
+        ]
+    )
+
+    result = run_acceptance_pass(
+        repo=tmp_path,
+        item=_item(
+            acceptance_criteria=None,
+            description=(
+                "## Context\n\n"
+                "- not acceptance\n\n"
+                "## Exit criteria\n\n"
+                "- description exit criterion landed\n"
+            ),
+        ),
+        outcome=_green_outcome(item_id="livespec-impl-beads-t1"),
+        runner=runner,
+    )
+
+    assert result.verdict == "PASS"
+    assert [check.text for check in result.criteria] == ["description exit criterion landed"]
 
 
 def _pr_json(
@@ -3541,6 +3572,12 @@ def test_dispatch_green_closes_item_and_journals(
     append_work_item(path=_config(), item=item)
     fake = _FakeRunDispatch(outcomes={item.id: _green_outcome(item_id=item.id)})
     monkeypatch.setattr(_dispatcher_loop, "run_dispatch", fake)
+    monkeypatch.setattr(
+        _dispatcher_completion,
+        "run_acceptance_pass",
+        lambda **_: _FakeAcceptancePass(verdict="PASS"),
+        raising=False,
+    )
     monkeypatch.setattr(_dispatcher_run_commands, "cost_gate_after_verdict", lambda **_: None)
     monkeypatch.setattr(
         "livespec_orchestrator_beads_fabro.commands._dispatcher_loop.tempfile.gettempdir",
@@ -4314,7 +4351,7 @@ def test_dispatch_overlay_provisions_sibling_clones_for_fleet(
     assert "github.com/thewoolleyman/repo" not in overlay_text
 
 
-def test_dispatch_green_without_sha_closes_without_audit(
+def test_dispatch_green_without_sha_keeps_item_active_for_rework(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -4328,7 +4365,7 @@ def test_dispatch_green_without_sha_closes_without_audit(
         == 0
     )
     stored = _stored()[item.id]
-    assert (stored.status, stored.audit) == ("done", None)
+    assert (stored.status, stored.audit) == ("active", None)
 
 
 def test_dispatch_failed_outcome_leaves_item_open(

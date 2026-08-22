@@ -122,7 +122,7 @@ def run_acceptance_pass(
     diff_result = _read_merged_diff(repo=repo, outcome=outcome, runner=active_runner)
     telemetry_passed, telemetry_reason = _telemetry_verdict(outcome=outcome)
     checks = _criteria_checks(
-        criteria_text=item.acceptance_criteria,
+        criteria_text=_effective_criteria_text(item=item),
         merged_diff=diff_result.merged_diff,
         telemetry_passed=telemetry_passed,
     )
@@ -175,6 +175,36 @@ def _telemetry_verdict(*, outcome: DispatchOutcome) -> tuple[bool, str]:
     if outcome.merge_sha is None:
         return True, "green merged dispatch with PR; merge sha unavailable"
     return True, "green merged dispatch with PR and merge sha"
+
+
+def _effective_criteria_text(*, item: WorkItem) -> str | None:
+    if _criteria_lines(criteria_text=item.acceptance_criteria):
+        return item.acceptance_criteria
+    return _description_exit_criteria(description=item.description)
+
+
+def _description_exit_criteria(*, description: str) -> str | None:
+    lines = description.splitlines()
+    section_lines: list[str] = []
+    in_section = False
+    section_level = 0
+    for raw in lines:
+        heading = re.match(r"^(#{1,6})\s+(.+?)\s*$", raw)
+        if heading is not None:
+            level = len(heading.group(1))
+            title = heading.group(2).strip().casefold()
+            if in_section and level <= section_level:
+                break
+            if title == "exit criteria":
+                in_section = True
+                section_level = level
+                continue
+        if in_section:
+            section_lines.append(raw)
+    text = "\n".join(section_lines).strip()
+    if not text:
+        return None
+    return text
 
 
 def _criteria_checks(
@@ -231,6 +261,6 @@ def _significant_terms(*, text: str) -> tuple[str, ...]:
 def _passes(*, diff: _DiffResult, telemetry: bool, checks: tuple[CriterionCheck, ...]) -> bool:
     if not telemetry:
         return False
-    if checks:
-        return diff.merged_diff is not None and all(check.passed for check in checks)
-    return True
+    if diff.merged_diff is None:
+        return False
+    return bool(checks) and all(check.passed for check in checks)
