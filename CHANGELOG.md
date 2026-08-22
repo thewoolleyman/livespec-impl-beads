@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.64.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.63.0...v0.64.0) (2026-08-22)
+
+
+### Features
+
+* pin Codex model tiers for factory ACP nodes ([7ca091d](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/7ca091d67c6f85a94d6ae28ae13d3c9299db1c10))
+
 ## [0.63.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.17...v0.63.0) (2026-08-22)
 
 
