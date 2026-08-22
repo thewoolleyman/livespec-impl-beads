@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.65.3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.65.2...v0.65.3) (2026-08-22)
+
+
+### Bug Fixes
+
+* request pr write permissions for app tokens ([b6a85cd](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/b6a85cd8a0c922b126572c0a0d06fa8af10ff4ef))
+
 ## [0.65.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.65.1...v0.65.2) (2026-08-22)
 
 
