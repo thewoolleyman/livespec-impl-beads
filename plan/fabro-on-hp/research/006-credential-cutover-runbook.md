@@ -144,3 +144,83 @@ home kept. homelab's arrangement may differ (its server has **zero runs ever**
 and a deleted binary), but establish that its home is not load-bearing before
 removing it, rather than inheriting `.11`'s answer or this runbook's original
 wording.
+
+## The homelab reset constraint — maintainer-directed, persisted here
+
+**Recorded 2026-08-22 at the maintainer's direction**, communicated through the
+`homelab-rewrite` session and persisted in this runbook so the constraint
+survives the session that received it.
+
+> **`.10` step (3) — "prove a real dispatch on hp" — MUST NOT run through the
+> homelab repository.** Prove it on orchestrator, openbrain, resume, or
+> dolt-server instead. Nothing may touch homelab.
+
+**Why, measured rather than asserted.** homelab is mid-way through the
+Talos/Omni repo reset (`docs/talos-omni-reset.md`). Its Phase 0 quiesce landed
+on homelab `main` at 2026-08-22T02:44Z as PR #942, merge `0297e8f`, setting in
+homelab's `.livespec.jsonc`:
+
+| key | before | after |
+|---|---|---|
+| `dispatcher.wip_cap` | `10` | **`0`** |
+| `spec_governance.spec_pr_merge` | `auto-on-green` | `manual` |
+
+`wip_cap: 0` means homelab admits nothing. A homelab dispatch will not admit —
+**and it presents as a factory or App failure when the real cause is the
+quiesce.** That is the expensive part: you would be debugging App `3668528`'s
+installation against a repo whose admission was capped minutes earlier. This
+runbook's own `.10` line numbers (198, 173–174, 105) already reflect the
+post-quiesce tree.
+
+**Why another repo is sufficient, not a workaround.** What step (3) proves is
+that identity `3668528` can open a pull request from the hp factory host. That
+is a property of the App and the factory, not of homelab — any repo registered
+with hp demonstrates it. homelab's own registration is re-established later by
+the reset's Phase 8 against the **destination organisation**, so proving it
+against homelab's current registration would prove something the reset is about
+to invalidate.
+
+### How this resolved in practice
+
+`.10` step (3) was **waived**, not redirected — homelab's quiesce made a
+dispatch impossible, and Gate 3 had already waived the same requirement for
+`.12`. The credential is independently proven: homelab's own wrapper mints a
+valid App JWT as `3668528` (it returned **401** before the switch, so step (1)
+was a repair), and `.11` demonstrated the shared App publishing end to end from
+hp — dolt-server PR #74, authored by `app/thewoolleyman-factory-bot`, merged.
+
+**Note what that evidence does and does not cover.** The resume
+`auto-enable-merge` re-run at 03:43:43Z proves resume's Actions secrets; it
+exercises nothing in homelab, and must not be cited as homelab's dispatch
+proof. Different population, same trap this thread hit repeatedly.
+
+### Division of ownership, agreed by both threads
+
+- **`.10` step (2) was dropped, not deferred.** The reset rewrites
+  `.livespec.jsonc` wholesale in its purge commit and has recorded that the
+  rewrite must not reintroduce `fabro_home` or the retired identifiers. The key
+  is inert meanwhile — no plugin code reads `dispatcher.fabro_home` (zero
+  non-test hits across `.claude-plugin/scripts/` and `commands/`). Editing it
+  would have collided with another thread's in-flight rewrite of the same file.
+- **`~/.fabro-homelab` and App `4331220` were `.10`'s**, per the reset's
+  preserve-list reconciliation item 3, and its Phase 0 carves the legacy
+  `127.0.0.1:32278` server out of the quiesce by name. **Both are now
+  discharged**: `:32278` stopped 2026-08-22 (pid `662038`, no systemd unit, zero
+  runs ever), `~/.fabro-homelab` removed, App `4331220` deleted.
+- The shared per-host factory servers on hp and vps (`:32276`) are carved out by
+  the reset and stay up.
+
+### Load-bearing input supplied to the reset
+
+The reset's Phase 6 step 2 needs to know which App identity the shared factories
+publish with, so it can be installed on the destination org **before** Phase 8
+restores dispatch. The answer, measured repeatedly on 2026-08-22 by App-JWT
+`GET /app`:
+
+- **App `3668528`** (`thewoolleyman-factory-bot`), **installation `131208965`**,
+  `repository_selection=all`, permissions exactly `contents:write`,
+  `metadata:read`, `pull_requests:write`, `statuses:write`, `workflows:write` —
+  `administration` **absent**.
+
+If that ever changes, the reset must be told: it is the input its reseeded
+world's first dispatch depends on.
