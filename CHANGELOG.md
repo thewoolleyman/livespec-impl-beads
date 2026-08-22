@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.68.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.68.0...v0.68.1) (2026-08-22)
+
+
+### Bug Fixes
+
+* keep parsed fabro failure on failed outcomes ([36026f9](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/36026f97eee381671839bf1d3f7c8b2a5822d818))
+* re-inspect when the fabro failure block lands after the terminal inspect ([ac7ebb0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/ac7ebb0f8e5ddd73aff24e001bd6e40634773c84))
+* surface fabro failure and calibration telemetry ([89997f9](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/89997f93d91b936b9721ab72391a20a81a0843dd))
+
 ## [0.68.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.67.2...v0.68.0) (2026-08-22)
 
 
