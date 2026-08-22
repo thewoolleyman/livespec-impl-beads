@@ -16,14 +16,16 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 import sys
 
 __all__: list[str] = ["main", "should_block"]
 
 _WRAPPER_RE = re.compile(r"with-[a-z0-9-]+-env\.sh")
-_BD = re.compile(r"(?:^|[\s;&|()`$])bd(?:\s|$)")
-_DOLT = re.compile(r"(?:^|[\s;&|()`$])dolt(?:\s|$)")
-_MYSQL = re.compile(r"(?:^|[\s;&|()`$])mysql(?:\s|$)")
+_COMMAND_SEPARATORS = {";", "&", "&&", "|", "||", "(", ")"}
+_COMMAND_SUBSTITUTION_PREFIX = "$"
+_HEREDOC_OPERATORS = {"<<", "<<-"}
+_TENANT_COMMANDS = {"bd", "dolt"}
 _TENANT_HINTS = ("3307", "127.0.0.1")
 
 _REASON = (
@@ -46,9 +48,71 @@ def should_block(*, command: str) -> bool:
     """
     if _WRAPPER_RE.search(command):
         return False
-    if _BD.search(command) or _DOLT.search(command):
+    command_tokens = _command_position_tokens(command=command)
+    if any(token in _TENANT_COMMANDS for token in command_tokens):
         return True
-    return bool(_MYSQL.search(command)) and any(hint in command for hint in _TENANT_HINTS)
+    return "mysql" in command_tokens and any(hint in command for hint in _TENANT_HINTS)
+
+
+def _command_position_tokens(*, command: str) -> list[str]:
+    """Return shell words that occupy command position in `command`."""
+    try:
+        tokens = _shell_tokens(command=_without_heredoc_bodies(command=command))
+    except ValueError:
+        return []
+
+    command_position_tokens: list[str] = []
+    expect_command = True
+    for token in tokens:
+        if token == _COMMAND_SUBSTITUTION_PREFIX:
+            continue
+        if token in _COMMAND_SEPARATORS:
+            expect_command = True
+            continue
+        if not expect_command:
+            continue
+        command_position_tokens.append(token)
+        expect_command = False
+    return command_position_tokens
+
+
+def _shell_tokens(*, command: str) -> list[str]:
+    """Split `command` into shell-like words and control operators."""
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    return list(lexer)
+
+
+def _without_heredoc_bodies(*, command: str) -> str:
+    """Return `command` with here-document body lines removed."""
+    stripped_lines: list[str] = []
+    pending_delimiters: list[str] = []
+    for line in command.splitlines():
+        if pending_delimiters:
+            if line == pending_delimiters[0]:
+                pending_delimiters.pop(0)
+            continue
+        stripped_lines.append(line)
+        pending_delimiters.extend(_heredoc_delimiters(line=line))
+    return "\n".join(stripped_lines)
+
+
+def _heredoc_delimiters(*, line: str) -> list[str]:
+    """Return here-document delimiters introduced on a command line."""
+    try:
+        tokens = _shell_tokens(command=line)
+    except ValueError:
+        return []
+
+    delimiters: list[str] = []
+    iterator = iter(tokens)
+    for token in iterator:
+        if token in _HEREDOC_OPERATORS:
+            delimiter = next(iterator, "")
+            delimiters.append(delimiter)
+            continue
+    return delimiters
 
 
 def main() -> int:
