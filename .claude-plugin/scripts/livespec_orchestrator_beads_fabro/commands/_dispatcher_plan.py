@@ -67,7 +67,12 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_argv import (
     pr_view_argv,
     pull_primary_argv,
 )
-from livespec_orchestrator_beads_fabro.commands._dispatcher_goal import render_goal
+from livespec_orchestrator_beads_fabro.commands._dispatcher_goal import (
+    GoalBriefMiniJinjaFinding,
+    minijinja_findings_detail,
+    minijinja_openers_in_goal_sources,
+    render_goal,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_host_only import (
     WORKFLOW_SCOPE_OVERRIDE_LABEL,
     declares_workflow_scope_refusal,
@@ -122,6 +127,7 @@ __all__: list[str] = [
     "CodexFreshnessVerdict",
     "DispatchPlan",
     "FleetMembers",
+    "GoalBriefMiniJinjaFinding",
     "PrView",
     "SiblingClones",
     "assess_codex_credential_freshness",
@@ -144,6 +150,8 @@ __all__: list[str] = [
     "janitor_trust_argv",
     "janitor_worktree_add_argv",
     "janitor_worktree_remove_argv",
+    "minijinja_findings_detail",
+    "minijinja_openers_in_goal_sources",
     "parse_fleet_members",
     "parse_pr_view",
     "pr_arm_argv",

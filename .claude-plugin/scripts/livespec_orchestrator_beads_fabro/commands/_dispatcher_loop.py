@@ -60,11 +60,14 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_selection impor
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
     spans_path,
+    store_config,
     workflow_toml,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     build_plan,
     janitor_checkout_path,
+    minijinja_findings_detail,
+    minijinja_openers_in_goal_sources,
     render_goal,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings import (
@@ -77,6 +80,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_review_gate import (
     ReviewGateEmission,
     emit_review_gate_from_fabro_events,
 )
+from livespec_orchestrator_beads_fabro.store import update_work_item_status
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
 __all__: list[str] = [
@@ -211,6 +215,17 @@ def _dispatch_one_locked(
     # exactly like `comments` above; only committed content is read, so an
     # unmerged reflector proposal never influences a brief.
     lessons = read_ratified_lessons(lessons_root=repo)
+    findings = minijinja_openers_in_goal_sources(item=item, comments=comments, lessons=lessons)
+    if findings:
+        update_work_item_status(
+            path=store_config(repo=repo), item_id=item.id, status="ready", clear_assignee=True
+        )
+        return failed_dispatch_outcome(
+            journal=journal,
+            work_item_id=item.id,
+            stage="goal-minijinja-preflight",
+            detail=minijinja_findings_detail(findings=findings),
+        )
     goal_text = render_goal(
         item=item, repo=repo, branch=plan.branch, comments=comments, lessons=lessons
     )
