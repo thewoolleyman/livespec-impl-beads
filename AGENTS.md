@@ -752,13 +752,40 @@ answer to give, and Retry could only meet the same rejection.
 The invisible end state is reviewed work published on a branch with no open PR. It
 is not unpublished, so an unpublished-work reap watcher does not fire; it is not a
 PR, so forge queries keyed on pull requests miss it; and it disappears from
-ordinary `fabro ps` once the run exits. A blocked run also holds its scheduler slot
-for a bounded but material interval: run `01M0KXYZRWXN` self-terminated exactly at
-`240m00s` with status `{"kind":"failed","reason":"workflow_error"}`. `fabro rm`
-refusing a blocked run without `--force` proves only that the run has not reached
-that ceiling yet, not that no ceiling exists. The discriminator between
-self-termination and human removal is `fabro ps -a`: a ceiling-terminated run
-remains with terminal status, while `fabro rm --force` deletes it from `ps -a`.
+ordinary `fabro ps` once the run exits. A blocked run does eventually reach a
+terminal status, and `fabro rm` refusing one without `--force` proves only that it
+has not reached that point yet. The discriminator between a run that ended on its
+own and one a human removed is `fabro ps -a`: the former remains listed with a
+terminal status, while `fabro rm --force` deletes it from `ps -a`.
+
+**But do NOT read that terminal duration as the moment the run was reaped or its
+scheduler slot came back. CORRECTED 2026-08-22 — this paragraph originally said
+the opposite, and the retraction is the point.** It cited run `01M0KXYZRWXN`
+"self-terminating exactly at `240m00s`" as proof a configured ceiling had fired,
+treating the ROUNDNESS as evidence the mechanism acted. That inference is
+inverted. **An exact round number is the signature of a CONSTANT, not of a
+measurement:** it tells you what was configured and never that the configured
+thing did anything.
+
+Measured first-hand on 2026-08-22. That run's `conclusion.timing.wall_time_ms` is
+`14400071`, which reproduces this repo's own `implement` node `timeout="14400s"`
+(`.claude-plugin/.fabro/workflows/implement-work-item/workflow.fabro`) to 71
+milliseconds — the duration IS the timeout constant. Every per-node
+`wall_time_ms` on the same record is `0`, so the record carries no independent
+timing to check it against. The control settles it: `01M0M9AHRXEX` in
+`livespec-overseer` is terminal at exactly `360m00s` — the SAME
+`ImplementWorkItem` workflow, a different repo's configured timeout. If 240 were
+a fleet-wide ceiling, 360 could not exist. (A peer session reports the run's
+container had been dead roughly 52 minutes before that value was written; that
+part is cited here, not verified here.)
+
+WHAT IS NOW OPEN, and it is worth more than the retracted claim: if the recorded
+duration is a constant stamped at finalisation, then **a run's own record cannot
+tell an operator when its capacity actually returned** — slot accounting keyed on
+that number reports a figure nobody can act on. That question belongs to
+`bd-ib-rnlks6` (a blocked run holding its scheduler concurrency slot), NOT to the
+storage-reclamation epic whose child originally recorded this paragraph: that
+epic governs disk headroom, and a scheduler slot is not disk.
 
 **Factory ENOSPC is a FACTORY-HOST failure, not an item failure.** The signature
 measured on 2026-08-22 is: `drive.py` exits 1, the dispatcher exits 1, the failed
