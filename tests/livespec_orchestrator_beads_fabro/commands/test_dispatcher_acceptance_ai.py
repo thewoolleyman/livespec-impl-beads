@@ -187,6 +187,48 @@ def test_acceptance_pass_folds_hard_wrapped_fragments_into_one_assertion(
     )
 
 
+def test_acceptance_pass_keeps_unmarked_one_assertion_per_line_separate(
+    tmp_path: Path,
+) -> None:
+    runner = _Runner(
+        result=CommandResult(
+            exit_code=0,
+            stdout=(
+                "diff --git a/x b/x\n"
+                "+verdict journal records every failing criterion\n"
+                "+dispatch telemetry records every merged outcome\n"
+            ),
+            stderr="",
+        )
+    )
+
+    result = run_acceptance_pass(
+        repo=tmp_path,
+        item=_item(
+            criteria=(
+                "The verdict journal records every failing criterion.\n"
+                "The dispatch telemetry records every merged outcome.\n"
+            )
+        ),
+        outcome=_outcome(),
+        runner=runner,
+    )
+
+    assert result.verdict == "PASS"
+    assert result.criteria == (
+        CriterionCheck(
+            text="The verdict journal records every failing criterion.",
+            passed=True,
+            reason="matched merged diff evidence",
+        ),
+        CriterionCheck(
+            text="The dispatch telemetry records every merged outcome.",
+            passed=True,
+            reason="matched merged diff evidence",
+        ),
+    )
+
+
 def test_acceptance_pass_fails_when_only_one_term_matches_unrelated_diff(
     tmp_path: Path,
 ) -> None:

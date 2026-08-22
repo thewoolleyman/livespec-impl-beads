@@ -99,9 +99,10 @@ def criteria_lines(*, criteria_text: str | None) -> tuple[str, ...]:
             _flush_criterion(lines=lines, current=current)
             current.append(line)
             continue
-        if current:
+        if current and raw[:1].isspace():
             current.append(line)
             continue
+        _flush_criterion(lines=lines, current=current)
         current.append(line)
     _flush_criterion(lines=lines, current=current)
     return tuple(lines)
