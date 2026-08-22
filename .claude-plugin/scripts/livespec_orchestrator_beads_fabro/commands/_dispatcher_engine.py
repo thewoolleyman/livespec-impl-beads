@@ -293,6 +293,19 @@ def run_dispatch(
         )
     run_id = launched.run_id
     inspect = inspect_run(plan=plan, runner=runner, journal=journal, run_id=run_id)
+    if (
+        fabro.exit_code != 0
+        and run_id is not None
+        and (
+            inspect is not None
+            and inspect.command.exit_code == 0
+            and inspect.status_kind == "failed"
+            and inspect.failure is None
+        )
+    ):
+        refreshed = inspect_run(plan=plan, runner=runner, journal=journal, run_id=run_id)
+        if refreshed is not None and refreshed.failure is not None:
+            inspect = refreshed
     terminal = fabro_run_terminal_outcome(
         outcome_type=DispatchOutcome,
         plan=plan,
