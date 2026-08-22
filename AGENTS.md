@@ -337,6 +337,23 @@ said so all along, but a docstring is not a surface a hand-driving operator
 reads. Note also that `bd show --json` returns a **one-element array**, not an
 object, so `payload["id"]` raises rather than returning the id.
 
+**And the comment body lives under `text` — NOT `body`, and NOT `content`.**
+This is the tail of the trap above and it defeats the remedy the paragraph
+just prescribed, which is why it belongs here rather than as its own entry.
+An agent that follows the advice, reaches the right verb, and then indexes
+the wrong key gets an EMPTY STRING PER COMMENT — the identical observation
+to the loss it was checking for, and equally silent. Measured 2026-08-22 on
+`bd-ib-vfsg`: a 3,021-character comment read back through an accessor
+reaching for `body` rendered as nine empty comments; the same records
+carry keys `author`, `created_at`, `id`, `issue_id`, `text`, and the text
+was never anywhere but present. Note that the sentence above SAYS "bodies",
+so this file's own wording is what points at the wrong key. Two sessions hit
+this independently on 2026-08-22, one of them while writing up the other's
+instance, so treat it as structural rather than as one agent's slip. The
+discriminator is the one this catalogue already prescribes for a surprising
+empty result: dump the raw JSON and PROVE THE KEY SHAPE before treating an
+absence as a finding — `sorted(record.keys())` settles it in one line.
+
 **Records are `omitempty`-sparse, so A MISSING KEY IS NOT EVIDENCE OF LOSS.**
 This one is different in kind from the rest of this catalogue: it produces a
 WRONG CONCLUSION FROM A CORRECT OBSERVATION, which is why cross-checking does
