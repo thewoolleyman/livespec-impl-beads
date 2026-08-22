@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_review_gate_parse import (
@@ -12,6 +13,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_review_gate_parse im
 from livespec_orchestrator_beads_fabro.commands._otel_scrub import attr as _attr
 
 __all__: list[str] = [
+    "ReviewGateSpanIdentity",
     "emit_review_gate_span",
     "review_gate_request_line",
 ]
@@ -23,21 +25,30 @@ _OTLP_SCOPE_VERSION = "0.1.0"
 _SPAN_KIND_INTERNAL = 1
 
 
+@dataclass(frozen=True, kw_only=True)
+class ReviewGateSpanIdentity:
+    """Dispatch identity fields stamped onto a review-gate span."""
+
+    work_item_id: str
+    dispatch_id: str
+    run_id: str
+    dispatch_factory: str | None = None
+
+
 def emit_review_gate_span(
     *,
     telemetry: ReviewGateTelemetry,
     spans_path: Path,
-    work_item_id: str,
-    dispatch_id: str,
-    run_id: str,
+    identity: ReviewGateSpanIdentity,
     now_ns: int,
 ) -> None:
     """Append one OTLP/HTTP JSON span carrying review-gate telemetry."""
     line = review_gate_request_line(
         telemetry=telemetry,
-        work_item_id=work_item_id,
-        dispatch_id=dispatch_id,
-        run_id=run_id,
+        work_item_id=identity.work_item_id,
+        dispatch_id=identity.dispatch_id,
+        run_id=identity.run_id,
+        dispatch_factory=identity.dispatch_factory,
         now_ns=now_ns,
     )
     spans_path.parent.mkdir(parents=True, exist_ok=True)
@@ -52,6 +63,7 @@ def review_gate_request_line(
     dispatch_id: str,
     run_id: str,
     now_ns: int,
+    dispatch_factory: str | None = None,
 ) -> str:
     """Build one OTLP `ExportTraceServiceRequest` JSON line."""
     attrs: dict[str, object] = {
@@ -63,6 +75,8 @@ def review_gate_request_line(
         "review.hit_cap": telemetry.hit_cap,
         "pr.shipped_on_cap": telemetry.shipped_on_cap,
     }
+    if dispatch_factory is not None:
+        attrs["livespec.dispatch.factory"] = dispatch_factory
     span = {
         "traceId": _hex_id(key=f"review-gate-trace:{dispatch_id}:{run_id}", nbytes=16),
         "spanId": _hex_id(key=f"review-gate-span:{run_id}", nbytes=8),

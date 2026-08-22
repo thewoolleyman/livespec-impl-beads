@@ -13,6 +13,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import Comman
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import DispatchPlan, build_plan
 from livespec_orchestrator_beads_fabro.commands._dispatcher_review_gate import (
     ReviewGateEmission,
+    ReviewGateSpanIdentity,
     ReviewGateTelemetry,
     emit_review_gate_from_fabro_events,
     emit_review_gate_span,
@@ -354,9 +355,11 @@ def test_emit_review_gate_span_appends_one_jsonl_request(tmp_path: Path) -> None
             shipped_on_cap=False,
         ),
         spans_path=spans_path,
-        work_item_id="bd-1",
-        dispatch_id="dispatch-1",
-        run_id="run-1",
+        identity=ReviewGateSpanIdentity(
+            work_item_id="bd-1",
+            dispatch_id="dispatch-1",
+            run_id="run-1",
+        ),
         now_ns=123,
     )
 
@@ -588,12 +591,10 @@ def test_emit_review_gate_from_fabro_events_propagates_span_write_failure(
         *,
         telemetry: ReviewGateTelemetry,
         spans_path: Path,
-        work_item_id: str,
-        dispatch_id: str,
-        run_id: str,
+        identity: ReviewGateSpanIdentity,
         now_ns: int,
     ) -> None:
-        _ = (telemetry, spans_path, work_item_id, dispatch_id, run_id, now_ns)
+        _ = (telemetry, spans_path, identity, now_ns)
         raise OSError("span sink unavailable")
 
     monkeypatch.setattr(review_gate, "emit_review_gate_span", raise_os_error)

@@ -67,6 +67,7 @@ ATTRIBUTE_ALLOWLIST: frozenset[str] = frozenset(
         "work.item.id",
         "livespec.dispatch.id",
         "fabro.run_id",
+        "livespec.dispatch.factory",
         # CC session correlation (native; backfilled by the join map).
         "session.id",
         # Reflection stage scalars (already shipped by _dispatcher_reflection).

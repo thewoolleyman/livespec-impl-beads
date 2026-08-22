@@ -38,6 +38,7 @@ import sys
 import tempfile
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+from typing import cast
 
 import pytest
 from coverage import Coverage
@@ -106,6 +107,11 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     render_goal,
     render_run_config_overlay,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_review_gate import (
+    ReviewGateEmission,
+    ReviewGateTelemetry,
+    review_gate_request_line,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_self_update import (
     github_token_supplier,
     post_verdict_runner,
@@ -119,6 +125,14 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_spec_commitments imp
     collect_obligations_and_supersedes,
 )
 from livespec_orchestrator_beads_fabro.commands._fabro_port import FabroPort, FabroTarget
+from livespec_orchestrator_beads_fabro.commands._otel_enrich import (
+    CorrelationJoin,
+    correlation_keys_from_attrs,
+)
+from livespec_orchestrator_beads_fabro.commands._otel_scrub import (
+    ATTRIBUTE_ALLOWLIST,
+    is_allowed_attr,
+)
 from livespec_orchestrator_beads_fabro.commands.detect_impl_gaps import detect_rules
 from livespec_orchestrator_beads_fabro.commands.dispatcher import main
 from livespec_orchestrator_beads_fabro.errors import BeadsCommandError
@@ -239,6 +253,21 @@ _FLEET_MANIFEST_TEXT = (
 # the real implementations stay directly testable.
 _real_fetch_fleet_manifest_text = fetch_fleet_manifest_text
 _real_github_token_supplier = github_token_supplier
+
+
+def _span_attrs(*, line: str) -> dict[str, object]:
+    request = json.loads(line)
+    resource_spans = cast("list[dict[str, object]]", request["resourceSpans"])
+    scope_spans = cast("list[dict[str, object]]", resource_spans[0]["scopeSpans"])
+    spans = cast("list[dict[str, object]]", scope_spans[0]["spans"])
+    entries = cast("list[dict[str, object]]", spans[0]["attributes"])
+    attrs: dict[str, object] = {}
+    for entry in entries:
+        value = cast("dict[str, object]", entry["value"])
+        attrs[str(entry["key"])] = value.get(
+            "stringValue", value.get("intValue", value.get("boolValue"))
+        )
+    return attrs
 
 
 @pytest.fixture(autouse=True)
@@ -3370,7 +3399,12 @@ def test_dispatch_id_journal_records_resolved_factory_without_rewriting_existing
     fake = _FakeRunDispatch(outcomes={item.id: _green_outcome(item_id=item.id)})
     monkeypatch.setattr(_dispatcher_loop, "run_dispatch", fake)
     monkeypatch.setattr(_dispatcher_loop, "post_run_dispositions", lambda **_: None)
-    monkeypatch.setattr(_dispatcher_loop, "emit_review_gate_from_fabro_events", lambda **_: None)
+    review_gate_emissions: list[ReviewGateEmission] = []
+    monkeypatch.setattr(
+        _dispatcher_loop,
+        "emit_review_gate_from_fabro_events",
+        lambda *, emission: review_gate_emissions.append(emission),
+    )
 
     outcome = _dispatcher_loop.dispatch_one(
         args=argparse.Namespace(
@@ -3399,6 +3433,73 @@ def test_dispatch_id_journal_records_resolved_factory_without_rewriting_existing
     assert "dispatch_factory" not in records[0]
     dispatch_records = [record for record in records if record["stage"] == "dispatch-id"]
     assert dispatch_records[1]["dispatch_factory"] == "resolved-hp"
+    assert len(review_gate_emissions) == 1
+    assert review_gate_emissions[0].dispatch_factory == "resolved-hp"
+
+
+def test_dispatch_factory_telemetry_is_allowlisted_and_backfilled() -> None:
+    assert "livespec.dispatch.factory" in ATTRIBUTE_ALLOWLIST
+    assert is_allowed_attr(key="livespec.dispatch.factory") is True
+    dispatcher_span = {
+        "attributes": [
+            {"key": "work.item.id", "value": {"stringValue": "bd-1"}},
+            {"key": "livespec.dispatch.id", "value": {"stringValue": "dispatch-1"}},
+            {"key": "fabro.run_id", "value": {"stringValue": "run-1"}},
+            {"key": "livespec.dispatch.factory", "value": {"stringValue": "hp"}},
+        ]
+    }
+
+    keys = correlation_keys_from_attrs(span=dispatcher_span)
+    join = CorrelationJoin()
+    join.observe(keys=keys)
+
+    assert keys == {
+        "work.item.id": "bd-1",
+        "livespec.dispatch.id": "dispatch-1",
+        "fabro.run_id": "run-1",
+        "livespec.dispatch.factory": "hp",
+    }
+    assert join.backfill(keys={"fabro.run_id": "run-1"}) == {
+        "work.item.id": "bd-1",
+        "livespec.dispatch.id": "dispatch-1",
+        "fabro.run_id": "run-1",
+        "livespec.dispatch.factory": "hp",
+    }
+
+
+def test_review_gate_span_emits_resolved_dispatch_factory_and_omits_unknown() -> None:
+    resolved_line = review_gate_request_line(
+        telemetry=ReviewGateTelemetry(
+            verdict="fix",
+            fix_rounds=1,
+            hit_cap=False,
+            shipped_on_cap=False,
+        ),
+        work_item_id="bd-1",
+        dispatch_id="dispatch-1",
+        run_id="run-1",
+        dispatch_factory="hp",
+        now_ns=123,
+    )
+    unresolved_line = review_gate_request_line(
+        telemetry=ReviewGateTelemetry(
+            verdict="fix",
+            fix_rounds=1,
+            hit_cap=False,
+            shipped_on_cap=False,
+        ),
+        work_item_id="bd-1",
+        dispatch_id="dispatch-1",
+        run_id="run-1",
+        dispatch_factory=None,
+        now_ns=123,
+    )
+
+    resolved_attrs = _span_attrs(line=resolved_line)
+    unresolved_attrs = _span_attrs(line=unresolved_line)
+
+    assert resolved_attrs["livespec.dispatch.factory"] == "hp"
+    assert "livespec.dispatch.factory" not in unresolved_attrs
 
 
 def test_dispatch_id_journal_omits_factory_when_target_was_not_resolved(
@@ -3412,7 +3513,12 @@ def test_dispatch_id_journal_omits_factory_when_target_was_not_resolved(
     fake = _FakeRunDispatch(outcomes={item.id: _green_outcome(item_id=item.id)})
     monkeypatch.setattr(_dispatcher_loop, "run_dispatch", fake)
     monkeypatch.setattr(_dispatcher_loop, "post_run_dispositions", lambda **_: None)
-    monkeypatch.setattr(_dispatcher_loop, "emit_review_gate_from_fabro_events", lambda **_: None)
+    review_gate_emissions: list[ReviewGateEmission] = []
+    monkeypatch.setattr(
+        _dispatcher_loop,
+        "emit_review_gate_from_fabro_events",
+        lambda *, emission: review_gate_emissions.append(emission),
+    )
 
     outcome = _dispatcher_loop.dispatch_one(
         args=argparse.Namespace(
@@ -3433,6 +3539,8 @@ def test_dispatch_id_journal_omits_factory_when_target_was_not_resolved(
     records = [json.loads(line) for line in journal.path.read_text(encoding="utf-8").splitlines()]
     dispatch_record = next(record for record in records if record["stage"] == "dispatch-id")
     assert "dispatch_factory" not in dispatch_record
+    assert len(review_gate_emissions) == 1
+    assert review_gate_emissions[0].dispatch_factory is None
 
 
 def test_complete_and_accept_ai_only_pass_journals_verdict_and_closes(

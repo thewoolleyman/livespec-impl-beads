@@ -246,6 +246,7 @@ def _dispatch_one_locked(
             work_item_id=item.id,
             dispatch_id=identity.dispatch_id,
             run_id=outcome.fabro_run_id,
+            dispatch_factory=identity.dispatch_factory,
         )
     )
     return outcome
