@@ -1,4 +1,12 @@
-"""WIP-cap accounting for active dispatch claims."""
+"""WIP-cap accounting for active dispatch claims.
+
+This module deliberately chooses WIP-slot reclamation for readable
+green-terminal active rows. Bounding by age would still delay recovery behind
+an arbitrary clock threshold, and deferral-only surfacing was already shipped
+by bd-ib-snyquw.1 but fires after capacity has been refused. Reclaiming here
+addresses accumulated stale occupancy; bd-ib-vfsg addresses the upstream
+green-outcome race that creates new rows in this state.
+"""
 
 from __future__ import annotations
 
@@ -21,6 +29,7 @@ class ActiveClaimAccounting:
     active_count: int
     live_lock_active_ids: tuple[str, ...]
     green_terminal_active_ids: tuple[str, ...]
+    journal_unreadable_active_ids: tuple[str, ...]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -40,6 +49,7 @@ def claimed_active_accounting(
     histories: dict[str, _TerminalHistory] | None = None
     live_lock_active_ids: list[str] = []
     green_terminal_active_ids: list[str] = []
+    journal_unreadable_active_ids: list[str] = []
     for item in items:
         if item.status != "active":
             continue
@@ -48,19 +58,22 @@ def claimed_active_accounting(
             continue
         if histories is None:
             histories = _terminal_histories(journal=journal)
-        history = histories.get(item.id)
-        if _claim_still_counts(history=history):
-            green_terminal_active_ids.append(item.id)
+        if histories is None:
+            journal_unreadable_active_ids.append(item.id)
             continue
+        history = histories.get(item.id)
+        if _green_terminal_after_latest_admit(history=history):
+            green_terminal_active_ids.append(item.id)
         journal.append(record=_abandoned_record(item=item, history=history))
     return ActiveClaimAccounting(
-        active_count=len(live_lock_active_ids) + len(green_terminal_active_ids),
+        active_count=(len(live_lock_active_ids) + len(journal_unreadable_active_ids)),
         live_lock_active_ids=tuple(live_lock_active_ids),
         green_terminal_active_ids=tuple(green_terminal_active_ids),
+        journal_unreadable_active_ids=tuple(journal_unreadable_active_ids),
     )
 
 
-def _claim_still_counts(*, history: _TerminalHistory | None) -> bool:
+def _green_terminal_after_latest_admit(*, history: _TerminalHistory | None) -> bool:
     if history is None or history.last_outcome_index is None:
         return False
     if (
@@ -71,8 +84,10 @@ def _claim_still_counts(*, history: _TerminalHistory | None) -> bool:
     return history.last_outcome_status == "green"
 
 
-def _terminal_histories(*, journal: JournalFile) -> dict[str, _TerminalHistory]:
+def _terminal_histories(*, journal: JournalFile) -> dict[str, _TerminalHistory] | None:
     lines = _journal_lines(path=journal.path)
+    if lines is None:
+        return None
     histories: dict[str, _TerminalHistory] = {}
     for index, line in enumerate(lines):
         record = _journal_record(line=line)
@@ -82,10 +97,10 @@ def _terminal_histories(*, journal: JournalFile) -> dict[str, _TerminalHistory]:
     return histories
 
 
-def _journal_lines(*, path: Path) -> tuple[str, ...]:
+def _journal_lines(*, path: Path) -> tuple[str, ...] | None:
     read = attempt(action=lambda: path.read_text(encoding="utf-8"), exceptions=(OSError,))
     if isinstance(read, AttemptFailure):
-        return ()
+        return None
     return tuple(line for line in read.splitlines() if line)
 
 
@@ -154,6 +169,8 @@ def _abandoned_record(*, item: WorkItem, history: _TerminalHistory | None) -> di
         )
     ):
         reason = "no-outcome-since-ledger-admit"
+    elif history.last_outcome_status == "green":
+        reason = "green-terminal-active-reclaimed"
     else:
         reason = "terminal-outcome-non-green"
     return {

@@ -59,8 +59,19 @@ def test_claimed_active_count_reclaims_active_claim_with_missing_journal(
 
     count = claimed_active_count(repo=tmp_path, items=[item], journal=journal)
 
-    assert count == 0
-    assert _records(path=journal.path)[-1]["reason"] == "no-outcome-since-ledger-admit"
+    assert count == 1
+    assert not journal.path.exists()
+
+
+def test_claimed_active_count_counts_active_claim_with_unreadable_journal(
+    tmp_path: Path,
+) -> None:
+    item = _item(item_id="bd-unreadable-journal", status="active")
+    journal = JournalFile(path=tmp_path)
+
+    count = claimed_active_count(repo=tmp_path, items=[item], journal=journal)
+
+    assert count == 1
 
 
 def test_claimed_active_count_tolerates_malformed_journal_for_active_items(
@@ -86,7 +97,7 @@ def test_claimed_active_count_tolerates_malformed_journal_for_active_items(
     assert last_record["reason"] == "no-outcome-since-ledger-admit"
 
 
-def test_claimed_active_count_reuses_loaded_history_for_multiple_dead_claims(
+def test_claimed_active_count_reclaims_green_terminal_claim_and_failed_claim(
     tmp_path: Path,
 ) -> None:
     green = _item(item_id="bd-green-park", status="active")
@@ -109,8 +120,17 @@ def test_claimed_active_count_reuses_loaded_history_for_multiple_dead_claims(
 
     count = claimed_active_count(repo=tmp_path, items=[green, failed], journal=journal)
 
-    assert count == 1
-    assert _records(path=journal.path)[-1]["work_item_id"] == failed.id
+    assert count == 0
+    abandoned = [
+        record
+        for record in _records(path=journal.path)
+        if record["stage"] == "dispatch-claim-abandoned"
+    ]
+    assert [record["work_item_id"] for record in abandoned] == [green.id, failed.id]
+    assert [record["reason"] for record in abandoned] == [
+        "green-terminal-active-reclaimed",
+        "terminal-outcome-non-green",
+    ]
 
 
 def test_claimed_active_count_ignores_malformed_journal_for_inactive_items(
