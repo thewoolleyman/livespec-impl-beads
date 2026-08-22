@@ -21,12 +21,12 @@ from __future__ import annotations
 import json
 import tempfile
 from collections.abc import Callable
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import pytest
 from livespec_orchestrator_beads_fabro._beads_client import fake_singleton, reset_fake_singleton
-from livespec_orchestrator_beads_fabro.commands import _dispatcher_loop
+from livespec_orchestrator_beads_fabro.commands import _dispatcher_completion, _dispatcher_loop
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import DispatchPlan
 from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings import resolve_wip_cap
@@ -59,6 +59,22 @@ _FLEET_MANIFEST_TEXT = (
 _COMMITTED_WORKFLOW_TOML = (
     '[workflow]\ngraph = "graph.toml"\n\n[run.environment]\nid = "fabro-sandbox"\n'
 )
+
+
+@dataclass(frozen=True, kw_only=True)
+class _FakeAcceptancePass:
+    verdict: str
+
+    def journal_record(self, *, work_item_id: str, policy: str) -> dict[str, object]:
+        return {
+            "stage": "acceptance-ai-pass",
+            "work_item_id": work_item_id,
+            "verdict": self.verdict,
+            "acceptance_policy": policy,
+            "diff": {"observed": True},
+            "criteria": {"observed": True},
+            "telemetry": {"observed": True},
+        }
 
 
 @pytest.fixture(autouse=True)
@@ -528,6 +544,12 @@ def test_complete_merges_on_green_into_acceptance(
     item = _item(id="bd-ib-acc")
     append_work_item(path=_config(), item=item)
     monkeypatch.setattr(_dispatcher_loop, "run_dispatch", _green_recording([]))
+    monkeypatch.setattr(
+        _dispatcher_completion,
+        "run_acceptance_pass",
+        lambda **_: _FakeAcceptancePass(verdict="PASS"),
+        raising=False,
+    )
 
     exit_code = main(
         argv=["dispatch", "--repo", str(repo), "--item", item.id, "--workflow", str(workflow)]
@@ -560,6 +582,12 @@ def test_accept_ai_then_human_parks_until_human(
     item = _item(id="bd-ib-park", acceptance_policy="ai-then-human")
     append_work_item(path=_config(), item=item)
     monkeypatch.setattr(_dispatcher_loop, "run_dispatch", _green_recording([]))
+    monkeypatch.setattr(
+        _dispatcher_completion,
+        "run_acceptance_pass",
+        lambda **_: _FakeAcceptancePass(verdict="PASS"),
+        raising=False,
+    )
 
     exit_code = main(
         argv=["dispatch", "--repo", str(repo), "--item", item.id, "--workflow", str(workflow)]
@@ -579,6 +607,12 @@ def test_accept_ai_only_confirms_to_done(
     item = _item(id="bd-ib-aionly", acceptance_policy="ai-only")
     append_work_item(path=_config(), item=item)
     monkeypatch.setattr(_dispatcher_loop, "run_dispatch", _green_recording([]))
+    monkeypatch.setattr(
+        _dispatcher_completion,
+        "run_acceptance_pass",
+        lambda **_: _FakeAcceptancePass(verdict="PASS"),
+        raising=False,
+    )
 
     exit_code = main(
         argv=["dispatch", "--repo", str(repo), "--item", item.id, "--workflow", str(workflow)]
