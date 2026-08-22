@@ -112,6 +112,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     render_goal,
     render_run_config_overlay,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_pre_run_claim import (
+    release_pre_run_claim_if_needed,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_review_gate import (
     ReviewGateEmission,
     ReviewGateTelemetry,
@@ -3762,6 +3765,133 @@ def test_dispatch_pre_run_failure_releases_admitted_claim(
             "outcome_stage": "ledger-comments",
         }.items()
     )
+
+
+def test_dispatch_fabro_run_failure_without_run_id_releases_admitted_claim(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, workflow = _repo_with_workflow(tmp_path=tmp_path)
+    item = _item(status="active", assignee="fabro")
+    append_work_item(path=_config(), item=item)
+    journal = JournalFile(path=repo / "tmp" / "fabro-dispatch-journal.jsonl")
+    journal.append(record={"stage": "ledger-admit", "work_item_id": item.id, "assignee": "fabro"})
+    journal.append(
+        record={
+            "stage": "fabro-run",
+            "work_item_id": item.id,
+            "exit_code": 1,
+            "detail": "factory refused before run creation",
+        }
+    )
+    fake = _FakeRunDispatch(
+        outcomes={
+            item.id: DispatchOutcome(
+                work_item_id=item.id,
+                status="failed",
+                stage="fabro-run",
+                pr_number=None,
+                merge_sha=None,
+                detail="factory refused before run creation",
+                fabro_run_id=None,
+            )
+        }
+    )
+    monkeypatch.setattr(_dispatcher_loop, "run_dispatch", fake)
+    monkeypatch.setattr(_dispatcher_loop, "post_run_dispositions", lambda **_: None)
+    monkeypatch.setattr(_dispatcher_loop, "emit_review_gate_from_fabro_events", lambda **_: None)
+
+    outcome = _dispatcher_loop.dispatch_one(
+        args=argparse.Namespace(
+            fabro_bin="fabro",
+            workflow=workflow,
+            repo=repo,
+            journal=None,
+            poll_attempts=1,
+            poll_interval_seconds=0.1,
+        ),
+        repo=repo,
+        item=item,
+        journal=journal,
+        janitor=None,
+    )
+
+    assert (outcome.status, outcome.stage, outcome.fabro_run_id) == ("failed", "fabro-run", None)
+    stored = _stored()[item.id]
+    assert (stored.status, stored.assignee) == ("ready", None)
+    records = [json.loads(line) for line in journal.path.read_text(encoding="utf-8").splitlines()]
+    assert (
+        records[-1].items()
+        >= {
+            "stage": "ledger-admit-release",
+            "work_item_id": item.id,
+            "status": "ready",
+            "reason": "pre-run-failure-without-fabro-run-id",
+            "outcome_stage": "fabro-run",
+        }.items()
+    )
+
+
+def test_dispatch_fabro_run_claim_release_fails_closed_on_unreadable_journal(
+    tmp_path: Path,
+) -> None:
+    item = _item(status="active", assignee="fabro")
+    journal = JournalFile(path=tmp_path)
+    outcome = DispatchOutcome(
+        work_item_id=item.id,
+        status="failed",
+        stage="fabro-run",
+        pr_number=None,
+        merge_sha=None,
+        detail="factory refused before run creation",
+        fabro_run_id=None,
+    )
+
+    release_pre_run_claim_if_needed(repo=tmp_path, item=item, outcome=outcome, journal=journal)
+
+    assert journal.path.is_dir()
+
+
+def test_dispatch_fabro_run_claim_release_fails_closed_on_malformed_journal(
+    tmp_path: Path,
+) -> None:
+    item = _item(status="active", assignee="fabro")
+    journal = JournalFile(path=tmp_path / "journal.jsonl")
+    _ = journal.path.write_text("not-json\n", encoding="utf-8")
+    outcome = DispatchOutcome(
+        work_item_id=item.id,
+        status="failed",
+        stage="fabro-run",
+        pr_number=None,
+        merge_sha=None,
+        detail="factory refused before run creation",
+        fabro_run_id=None,
+    )
+
+    release_pre_run_claim_if_needed(repo=tmp_path, item=item, outcome=outcome, journal=journal)
+
+    assert journal.path.read_text(encoding="utf-8") == "not-json\n"
+
+
+def test_dispatch_fabro_run_claim_release_fails_closed_on_non_object_journal_record(
+    tmp_path: Path,
+) -> None:
+    item = _item(status="active", assignee="fabro")
+    journal = JournalFile(path=tmp_path / "journal.jsonl")
+    _ = journal.path.write_text("[]\n", encoding="utf-8")
+    outcome = DispatchOutcome(
+        work_item_id=item.id,
+        status="failed",
+        stage="fabro-run",
+        pr_number=None,
+        merge_sha=None,
+        detail="factory refused before run creation",
+        fabro_run_id=None,
+    )
+
+    release_pre_run_claim_if_needed(repo=tmp_path, item=item, outcome=outcome, journal=journal)
+
+    assert journal.path.read_text(encoding="utf-8") == "[]\n"
 
 
 def test_dispatch_does_not_release_claim_after_fabro_run_exists(
