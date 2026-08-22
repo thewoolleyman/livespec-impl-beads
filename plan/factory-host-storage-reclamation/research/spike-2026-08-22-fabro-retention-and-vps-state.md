@@ -237,12 +237,42 @@ Two fabro build trees alone — `/data/projects/fabro/target` at 98 GB and the
 used on this disk**, and are a direct cost of the repo's own "build the pinned fork"
 instruction.
 
-And the worktrees are not being cleaned up as the mutation protocol requires. For
-this repo alone: `git worktree list` reports 32 registrations while
-`~/.worktrees/livespec-orchestrator-beads-fabro/` holds **48 directories** — 16 are
-not registered with git at all. `AGENTS.md` says "Do not leave orphaned worktrees";
-at fleet scale that rule is being violated, and it is now the single largest
-storage cost on a factory host.
+The worktrees are also not being cleaned up as the mutation protocol requires. The
+first pass at this counted directories under one repo's worktree root and reported
+"16 orphans in this repo alone", then called the rule violated "at fleet scale".
+That was an extrapolation from a population of one, which this repo's verification
+discipline does not permit, so it was replaced with a measurement.
+
+**Fleet-wide, measured 2026-08-22T03:57:41Z** by the defining property of a
+worktree — a `.git` entry — rather than by counting directories, and compared
+against what every clone under `/data/projects` actually registers:
+
+    worktrees on disk under ~/.worktrees      575
+    registered by a clone in /data/projects   505
+    clones scanned                             42
+    ORPHANS (on disk, registered by nothing)   70   = 6.4 GB
+
+    by repo:  livespec-overseer 35 | livespec-orchestrator-beads-fabro 17
+              livespec-console-beads-fabro 14 | livespec-dev-tooling 2
+
+`AGENTS.md` says "Do not leave orphaned worktrees" and treats leaving dirty state
+as a failure of the workflow. Seventy orphans across four of forty-two clones is a
+real and ongoing violation of it — but it is a **compliance** finding, not a
+capacity one, and conflating the two would size the fix against the wrong
+population.
+
+**That is the correction that matters for `bd-ib-bdcmok.6`'s design.** The 70
+orphans hold **6.4 GB** of the **244 GB** under `~/.worktrees` — **2.6%**.
+Reclaiming every orphaned worktree on the fleet, perfectly, would move vps from
+110 GB free to about 116 GB. **The capacity problem is build artifacts inside
+LIVE, REGISTERED worktrees — roughly 238 GB of it — which is the harder and more
+dangerous target, because those worktrees have owners.** Orphan removal is the
+safe, secondary, compliance leg.
+
+Two figures in this note also moved between measurements taken about forty minutes
+apart (`~/.worktrees` 250 GB → 244 GB; this repo 48 directories → 44). That is live
+churn from other sessions creating and removing worktrees, not measurement error.
+Treat every figure here as point-in-time.
 
 **This is a third accumulation layer the plan had not scoped**, and no mechanism
 under consideration reaches it: `docker image prune` does not, `docker container
@@ -260,8 +290,11 @@ does not. A reclamation plan that ships R1 exactly as written would leave vps at
    images, which are the layer on hp.
 2. **A new requirement carrier is owed** for build-artifact / worktree reclamation.
    It is the dominant consumer on vps by an order of magnitude and no other carrier
-   touches it. It should also address the 16 orphaned unregistered worktrees, which
-   are a protocol-compliance failure and not merely disk cost.
+   touches it. **It must be aimed primarily at build artifacts inside LIVE,
+   REGISTERED worktrees**, which are ~238 GB of the 244 GB. The 70 fleet-wide
+   orphaned worktrees are a genuine protocol-compliance failure and should also be
+   addressed, but they are 6.4 GB — 2.6% — so they cannot be the design's centre of
+   gravity without sizing it against the wrong population.
 3. **R4's horizon question is answered for the fabro layer and is nearly moot
    there.** `fabro system prune --older-than <dump window>` is the mechanism; the
    layer is ~430 MB. The horizons that actually matter are image re-pull cost
@@ -287,3 +320,18 @@ caught them, both matching the `AGENTS.md` catalogue:
   the repo root.
 - `du` as an unprivileged user returned `460M` for `/var/lib` with no `docker` row,
   silently omitting a root-only subtree. No error, no warning.
+
+A third instrument was replaced before it produced a wrong answer, and the
+replacement is reusable. Counting orphaned worktrees by comparing
+`ls ~/.worktrees/<repo> | wc -l` against `git worktree list | wc -l` is wrong twice
+over: the numerator counts directories rather than worktrees (a branch name
+containing a slash nests one a level deeper, and a stray non-worktree directory
+inflates it), and the denominator includes the primary checkout, which is not under
+`~/.worktrees` at all. Enumerate instead by the defining property — a `.git` entry —
+and difference against the registered set of every clone:
+
+    find ~/.worktrees -mindepth 1 -name .git -printf '%h\n' | sort -u
+    git -C <clone> worktree list --porcelain | awk '/^worktree /{print substr($0,10)}'
+
+The first method gave 16 for this repo; the second gives 17, and generalises to the
+whole fleet without an extrapolation.
