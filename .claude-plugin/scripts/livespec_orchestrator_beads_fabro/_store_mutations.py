@@ -10,7 +10,11 @@ from livespec_orchestrator_beads_fabro._beads_client import (
     IssueDraft,
     make_beads_client,
 )
-from livespec_orchestrator_beads_fabro.types import AuditRecord, DependsOnRaw, WorkItem
+from livespec_orchestrator_beads_fabro._store_metadata import (
+    work_item_metadata,
+    work_item_metadata_preserving_existing,
+)
+from livespec_orchestrator_beads_fabro.types import WorkItem
 
 if TYPE_CHECKING:
     from livespec_orchestrator_beads_fabro._beads_client import BeadsClient
@@ -37,10 +41,6 @@ _LABEL_BLOCKED_REASON = "blocked-reason:"
 _LABEL_FACTORY_SAFETY = "factory-safety:"
 _LABEL_WORKFLOW_SCOPE_OVERRIDE = "workflow-scope-override:"
 _LABEL_AWAITS_SCOPE_OVERRIDE = "awaits-scope-override"
-
-_META_AUDIT = "audit"
-_META_NON_LOCAL_DEPENDS_ON = "non_local_depends_on"
-_META_RANK = "rank"
 
 _LIVESPEC_DONE = "done"
 _BEADS_CLOSED = "closed"
@@ -89,7 +89,13 @@ def update_work_item_rank(*, path: StoreConfig, item: WorkItem) -> None:
     or evidence-carrying issue holds. The status/labels/edges are untouched.
     """
     client = make_beads_client(config=path)
-    client.update_issue(issue_id=item.id, metadata=_work_item_metadata(item=item))
+    client.update_issue(
+        issue_id=item.id,
+        metadata=work_item_metadata_preserving_existing(
+            existing_metadata=_existing_metadata(client=client, issue_id=item.id),
+            item=item,
+        ),
+    )
 
 
 def update_work_item_status(
@@ -253,7 +259,7 @@ def create_work_item(*, client: BeadsClient, item: WorkItem) -> None:
             assignee=item.assignee,
             created_at=item.captured_at,
             labels=_work_item_labels(item=item),
-            metadata=_work_item_metadata(item=item),
+            metadata=work_item_metadata(item=item),
             spec_id=item.spec_commitment_hint,
             acceptance_criteria=item.acceptance_criteria,
             notes=item.notes,
@@ -296,11 +302,15 @@ def _add_dependency_edges(*, client: BeadsClient, item: WorkItem) -> None:
 
 def _close_in_place(*, client: BeadsClient, item: WorkItem) -> None:
     """Close an existing issue: bd close + resolution label + audit metadata."""
+    existing_metadata = _existing_metadata(client=client, issue_id=item.id)
     client.close_issue(issue_id=item.id, reason=item.reason)
     add_labels: list[str] = []
     if item.resolution is not None:
         add_labels.append(f"{_LABEL_RESOLUTION}{item.resolution}")
-    metadata = _work_item_metadata(item=item)
+    metadata = work_item_metadata_preserving_existing(
+        existing_metadata=existing_metadata,
+        item=item,
+    )
     client.update_issue(
         issue_id=item.id,
         add_labels=add_labels if add_labels else None,
@@ -335,48 +345,10 @@ def _work_item_labels(*, item: WorkItem) -> list[str]:
     return labels
 
 
-def _work_item_metadata(*, item: WorkItem) -> dict[str, Any]:
-    """Build metadata: rank + AuditRecord + non-local depends_on.
-
-    `rank` is the sole ordering authority and a strictly-required non-null
-    field, so it is ALWAYS written into `metadata.rank` (both on create and
-    on the in-place close, which re-writes metadata).
-
-    Acceptance criteria and notes are intentionally absent here. They are
-    top-level beads fields so `bd show` and dispatcher reads share one source
-    of truth; legacy metadata copies remain read-only fallback in `store.py`.
-    """
-    metadata: dict[str, Any] = {_META_RANK: item.rank}
-    if item.audit is not None:
-        metadata[_META_AUDIT] = _audit_to_dict(audit=item.audit)
-    non_local = _non_local_depends_on_list(depends_on=item.depends_on)
-    if non_local:
-        metadata[_META_NON_LOCAL_DEPENDS_ON] = non_local
-    return metadata
-
-
-def _non_local_depends_on_list(*, depends_on: tuple[DependsOnRaw, ...]) -> list[dict[str, Any]]:
-    """Collect non-local depends_on entries for metadata storage.
-
-    Local entries (bare strings or {"kind": "local", ...} dicts) are stored as
-    beads blocks edges. Non-local dict entries have no edge home and ride in
-    metadata so cross-repo DAGs survive the round-trip.
-    """
-    result: list[dict[str, Any]] = []
-    for raw in depends_on:
-        if isinstance(raw, dict) and raw.get("kind") != "local":
-            result.append(dict(raw))
-    return result
-
-
-def _audit_to_dict(*, audit: AuditRecord) -> dict[str, Any]:
-    return {
-        "verification_timestamp": audit.verification_timestamp,
-        "commits": list(audit.commits),
-        "files_changed": list(audit.files_changed),
-        "merge_sha": audit.merge_sha,
-        "pr_number": audit.pr_number,
-    }
+def _existing_metadata(*, client: BeadsClient, issue_id: str) -> dict[str, Any]:
+    raw = client.show_issue(issue_id=issue_id).get("metadata")
+    metadata = cast("dict[str, Any] | None", raw)
+    return dict(metadata or {})
 
 
 def _local_depends_on_id(*, raw: object) -> str | None:
