@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.68.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.67.2...v0.68.0) (2026-08-22)
+
+
+### Features
+
+* flag ledger MiniJinja opener contamination ([2dc9f1c](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/2dc9f1cd05e6357289801740dcb8d565127dd6eb))
+
 ## [0.67.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.67.1...v0.67.2) (2026-08-22)
 
 
