@@ -74,6 +74,17 @@ def test_claimed_active_count_counts_active_claim_with_unreadable_journal(
     assert count == 1
 
 
+def test_claimed_active_count_counts_null_run_terminal_claim_with_unreadable_journal(
+    tmp_path: Path,
+) -> None:
+    item = _item(item_id="bd-unreadable-terminal", status="active")
+    journal = JournalFile(path=tmp_path)
+
+    count = claimed_active_count(repo=tmp_path, items=[item], journal=journal)
+
+    assert count == 1
+
+
 def test_claimed_active_count_tolerates_malformed_journal_for_active_items(
     tmp_path: Path,
 ) -> None:

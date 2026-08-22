@@ -20,11 +20,35 @@ def not_ready_requested_items_error(
     repo: Path,
 ) -> str:
     missing = ", ".join(sorted(requested_ids))
+    claimed = _claimed_diagnostics(requested_ids=requested_ids, items=items)
+    if claimed:
+        return (
+            f"ERROR: requested work-item(s) already claimed by a dispatch: {missing}; {claimed}\n"
+        )
     diagnostics = _sibling_diagnostics(requested_ids=requested_ids, items=items, repo=repo)
     if diagnostics:
         detail = "; ".join(diagnostics)
         return f"ERROR: requested work-item(s) blocked by sibling dependency: {missing}: {detail}\n"
     return f"ERROR: requested work-item(s) not in the ready set: {missing}\n"
+
+
+def _claimed_diagnostics(*, requested_ids: set[str], items: list[WorkItem]) -> str | None:
+    item_by_id = {item.id: item for item in items}
+    claimed = [item_by_id[item_id] for item_id in sorted(requested_ids) if item_id in item_by_id]
+    if not claimed or any(item.status != "active" for item in claimed):
+        return None
+    details = [
+        f"status={item.status} assignee={item.assignee or '<unassigned>'}" for item in claimed
+    ]
+    details.append(
+        " ".join(
+            (
+                "Inspect the dispatch journal and stale-run-sweep for a stranded claim",
+                "before checking dependencies.",
+            )
+        )
+    )
+    return "; ".join(details)
 
 
 def _sibling_diagnostics(

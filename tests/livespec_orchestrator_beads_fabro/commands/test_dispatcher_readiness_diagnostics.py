@@ -163,6 +163,18 @@ def test_not_ready_requested_items_error_tolerates_absent_item(tmp_path: Path) -
     )
 
 
+def test_not_ready_requested_items_error_names_claimed_item(tmp_path: Path) -> None:
+    assert not_ready_requested_items_error(
+        requested_ids={"claimed"},
+        items=[_item(id_="claimed", status="active")],
+        repo=tmp_path,
+    ) == (
+        "ERROR: requested work-item(s) already claimed by a dispatch: claimed; "
+        "status=active assignee=<unassigned>; Inspect the dispatch journal and "
+        "stale-run-sweep for a stranded claim before checking dependencies.\n"
+    )
+
+
 class _LookupWithoutDiagnostics:
     def __call__(self, repo: str, work_item_id: str) -> RefStatus:
         _ = (repo, work_item_id)

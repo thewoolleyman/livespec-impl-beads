@@ -60,7 +60,6 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_selection impor
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
     spans_path,
-    store_config,
     workflow_toml,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
@@ -76,11 +75,13 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings impo
     effective_merge_on_review_cap,
     effective_review_fix_cap,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_pre_run_claim import (
+    release_pre_run_claim_if_needed,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_review_gate import (
     ReviewGateEmission,
     emit_review_gate_from_fabro_events,
 )
-from livespec_orchestrator_beads_fabro.store import update_work_item_status
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
 __all__: list[str] = [
@@ -111,7 +112,7 @@ def dispatch_one(
         lock_path = dispatch_lock_path(repo=repo, work_item_id=item.id)
     with ExitStack() as stack:
         _ = stack.callback(lambda: release_dispatch_lock(path=lock_path))
-        return _dispatch_one_locked(
+        outcome = _dispatch_one_locked(
             args=args,
             repo=repo,
             item=item,
@@ -122,6 +123,8 @@ def dispatch_one(
                 dispatch_factory=dispatch_factory,
             ),
         )
+        release_pre_run_claim_if_needed(repo=repo, item=item, outcome=outcome, journal=journal)
+        return outcome
 
 
 def _dispatch_one_locked(
@@ -217,9 +220,6 @@ def _dispatch_one_locked(
     lessons = read_ratified_lessons(lessons_root=repo)
     findings = minijinja_openers_in_goal_sources(item=item, comments=comments, lessons=lessons)
     if findings:
-        update_work_item_status(
-            path=store_config(repo=repo), item_id=item.id, status="ready", clear_assignee=True
-        )
         return failed_dispatch_outcome(
             journal=journal,
             work_item_id=item.id,
