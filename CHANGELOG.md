@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.68.4](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.68.3...v0.68.4) (2026-08-22)
+
+
+### Bug Fixes
+
+* model no-change dispatch closure ([0030a7c](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/0030a7c01e8c8b8c8d342486211a028dc6e50712))
+* reject net-zero dispatch completion ([2e11405](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/2e114059c9ebe3320e0193238e565a314539bfcb))
+
 ## [0.68.3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.68.2...v0.68.3) (2026-08-22)
 
 
