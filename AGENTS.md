@@ -354,6 +354,34 @@ discriminator is the one this catalogue already prescribes for a surprising
 empty result: dump the raw JSON and PROVE THE KEY SHAPE before treating an
 absence as a finding — `sorted(record.keys())` settles it in one line.
 
+**`bd update --metadata` MERGES AT THE TOP LEVEL AND REPLACES NESTED OBJECTS
+WHOLESALE — so a nested sub-key you did not resend is GONE, while a top-level one
+you did not resend survives.** This asymmetry is invisible in any single write and
+it decides how much data an incident actually lost, in both directions. Measured
+2026-08-22 on this tenant with two throwaway records: starting from
+`{rank, unmodeled_top_level, audit{...}}`, a write of `{"rank": ..., "probe_key":
+...}` returned `{rank, probe_key, unmodeled_top_level, audit}` — the two keys
+absent from the payload were untouched. But a write that DOES include `audit`
+replaces that whole object, so every sub-key of it that the payload omits is
+destroyed.
+
+The practical consequence, which is what makes it worth a catalogue entry: a
+caller that reads metadata, edits one nested field and writes the nested object
+back is performing a read-modify-write that only preserves what it happened to
+carry, while the same caller doing the same thing at the top level is safe.
+Nothing in the output distinguishes the two.
+
+This is the real mechanism behind `bd-ib-h2zj`, and knowing it CORRECTS that
+item's own account: it attributed the loss to the Python side rebuilding the
+whole metadata dict, and concluded that unmodeled keys die "at the `audit` level
+or the metadata top level". Measured against the pre-fix build on the live store,
+`audit.supersedes` was destroyed and `unmodeled_top_level` survived the identical
+close. The Python side does rebuild the dict; what reaches the database is
+governed by bd's merge, which the reasoning had not accounted for. So an audit of
+this tenant for silently-lost provenance should hunt NESTED keys and can ignore
+top-level ones. (The fix in PR #1701 now preserves both, which is the right place
+for the guarantee — bd's merge semantics are not ours to depend on.)
+
 **Records are `omitempty`-sparse, so A MISSING KEY IS NOT EVIDENCE OF LOSS.**
 This one is different in kind from the rest of this catalogue: it produces a
 WRONG CONCLUSION FROM A CORRECT OBSERVATION, which is why cross-checking does
