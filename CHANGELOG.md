@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.65.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.65.1...v0.65.2) (2026-08-22)
+
+
+### Bug Fixes
+
+* pin shell-aware beads guard matching ([3377f7d](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/3377f7d4758eb2b204ad2b0751b2c7ea454546eb))
+* unwrap tenant command prefixes ([6c77644](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/6c77644134e91d79dfee472bee58bbb88810b699))
+
 ## [0.65.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.65.0...v0.65.1) (2026-08-22)
 
 
