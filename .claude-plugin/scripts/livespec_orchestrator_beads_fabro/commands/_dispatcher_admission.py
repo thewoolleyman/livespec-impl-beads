@@ -73,6 +73,7 @@ class _CapacitySnapshot:
     wip_cap: int
     free_slots: int
     live_lock_active_ids: tuple[str, ...]
+    journal_unreadable_active_ids: tuple[str, ...]
     green_terminal_active_ids: tuple[str, ...]
 
 
@@ -160,6 +161,7 @@ def admit_and_select(
                 wip_cap=wip_cap,
                 free_slots=free_slots,
                 live_lock_active_ids=accounting.live_lock_active_ids,
+                journal_unreadable_active_ids=accounting.journal_unreadable_active_ids,
                 green_terminal_active_ids=accounting.green_terminal_active_ids,
             ),
             journal=journal,
@@ -272,8 +274,16 @@ def _capacity_deferred_detail(*, capacity: _CapacitySnapshot) -> str:
     ]
     if capacity.live_lock_active_ids:
         parts.append(f"live_lock_active_ids={','.join(capacity.live_lock_active_ids)}")
+    if capacity.journal_unreadable_active_ids:
+        parts.append(
+            f"journal_unreadable_active_ids={','.join(capacity.journal_unreadable_active_ids)}"
+        )
+        live_lock_response = ((), ("wait_for_live_locks",))[
+            min(len(capacity.live_lock_active_ids), 1)
+        ]
+        operator_responses = (*live_lock_response, "inspect_unreadable_journals")
+        parts.append(f"operator_response={','.join(operator_responses)}")
     if capacity.green_terminal_active_ids:
-        green_ids = ",".join(capacity.green_terminal_active_ids)
-        parts.append(f"green_terminal_active_ids={green_ids}")
-        parts.append(f"advance_rows={green_ids}")
+        parts.append(f"green_terminal_active_ids={','.join(capacity.green_terminal_active_ids)}")
+        parts.append("green_terminal_active_status=already_reclaimed_no_slot")
     return " ".join(parts)

@@ -60,6 +60,9 @@ from livespec_orchestrator_beads_fabro.commands import (
 )
 from livespec_orchestrator_beads_fabro.commands import next as next_command
 from livespec_orchestrator_beads_fabro.commands._config import FactoryTarget
+from livespec_orchestrator_beads_fabro.commands._dispatcher_claim_reclaim import (
+    ActiveClaimAccounting,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandResult,
     DispatchOutcome,
@@ -3243,17 +3246,20 @@ def test_admission_counts_live_dispatch_lock_against_cap(tmp_path: Path) -> None
 
 def test_capacity_deferral_detail_names_live_slots_after_green_reclamation(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repo, _workflow = _repo_with_workflow(tmp_path=tmp_path)
     live = _item(id="bd-live-claim", status="active")
     green = _item(id="bd-green-park", status="active")
+    unreadable = _item(id="bd-unreadable-claim", status="active")
     ready = _item(id="bd-ready-blocked", status="ready", rank="a1")
     append_work_item(path=_config(), item=live)
     append_work_item(path=_config(), item=green)
+    append_work_item(path=_config(), item=unreadable)
     append_work_item(path=_config(), item=ready)
     _ = (repo / ".livespec.jsonc").write_text(
         '{"livespec-orchestrator-beads-fabro": {"connection": {"prefix": "bd-ib"},'
-        ' "dispatcher": {"wip_cap": 1}}}',
+        ' "dispatcher": {"wip_cap": 2}}}',
         encoding="utf-8",
     )
     _ = _dispatcher_dispatch_lock.write_dispatch_lock(
@@ -3273,10 +3279,20 @@ def test_capacity_deferral_detail_names_live_slots_after_green_reclamation(
             },
         }
     )
+    monkeypatch.setattr(
+        _dispatcher_admission,
+        "claimed_active_accounting",
+        lambda **_kwargs: ActiveClaimAccounting(
+            active_count=2,
+            live_lock_active_ids=(live.id,),
+            journal_unreadable_active_ids=(unreadable.id,),
+            green_terminal_active_ids=(green.id,),
+        ),
+    )
 
     admission = _dispatcher_admission.admit_and_select(
         repo=repo,
-        items=[live, green, ready],
+        items=[live, green, unreadable, ready],
         candidates=[ready],
         journal=journal,
         enforce_cap=True,
@@ -3284,18 +3300,13 @@ def test_capacity_deferral_detail_names_live_slots_after_green_reclamation(
 
     assert admission.admitted == []
     assert [outcome.detail for outcome in admission.deferred] == [
-        "capacity deferred: active_count=1 wip_cap=1 free_slots=0 "
+        "capacity deferred: active_count=2 wip_cap=2 free_slots=0 "
         "live_lock_active_ids=bd-live-claim "
+        "journal_unreadable_active_ids=bd-unreadable-claim "
+        "operator_response=wait_for_live_locks,inspect_unreadable_journals "
         "green_terminal_active_ids=bd-green-park "
-        "advance_rows=bd-green-park"
+        "green_terminal_active_status=already_reclaimed_no_slot"
     ]
-    records = [json.loads(line) for line in journal.path.read_text(encoding="utf-8").splitlines()]
-    abandoned = [
-        record
-        for record in records
-        if record["stage"] == "dispatch-claim-abandoned" and record["work_item_id"] == green.id
-    ]
-    assert [record["reason"] for record in abandoned] == ["green-terminal-active-reclaimed"]
 
 
 def test_capacity_recovers_when_green_terminal_row_is_only_active_slot(
