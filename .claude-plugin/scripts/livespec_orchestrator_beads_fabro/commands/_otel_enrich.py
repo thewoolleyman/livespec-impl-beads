@@ -102,7 +102,8 @@ __all__: list[str] = [
 _WORK_ITEM_ID = "work.item.id"
 _DISPATCH_ID = "livespec.dispatch.id"
 _FABRO_RUN_ID = "fabro.run_id"
-_TRIPLE_KEYS = (_WORK_ITEM_ID, _DISPATCH_ID, _FABRO_RUN_ID)
+_DISPATCH_FACTORY = "livespec.dispatch.factory"
+_DISPATCH_CONTEXT_KEYS = (_WORK_ITEM_ID, _DISPATCH_ID, _FABRO_RUN_ID, _DISPATCH_FACTORY)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -144,7 +145,7 @@ class CorrelationJoin:
         if work_item is None:
             return
         known = self._by_work_item.setdefault(work_item, {})
-        for triple_key in _TRIPLE_KEYS:
+        for triple_key in _DISPATCH_CONTEXT_KEYS:
             value = keys.get(triple_key)
             if value is not None and triple_key not in known:
                 known[triple_key] = value
@@ -160,7 +161,7 @@ class CorrelationJoin:
         no `work.item.id` can still backfill from a known `fabro.run_id`.
         Unknown keys get only what they brought.
         """
-        result = {k: v for k, v in keys.items() if k in _TRIPLE_KEYS}
+        result = {k: v for k, v in keys.items() if k in _DISPATCH_CONTEXT_KEYS}
         work_item = result.get(_WORK_ITEM_ID)
         if work_item is not None:
             known = self._by_work_item.get(work_item, {})
@@ -198,7 +199,7 @@ def _collect_span_correlation_attrs(*, found: dict[str, str], raw_attrs: object)
             continue
         entry = cast("dict[str, object]", raw)
         key = entry.get("key")
-        if not isinstance(key, str) or key not in _TRIPLE_KEYS:
+        if not isinstance(key, str) or key not in _DISPATCH_CONTEXT_KEYS:
             continue
         string_value = _string_attr_value(entry=entry)
         if string_value is not None:

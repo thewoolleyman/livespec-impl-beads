@@ -21,6 +21,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_review_gate_parse im
     parse_review_gate_events,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_review_gate_span import (
+    ReviewGateSpanIdentity,
     emit_review_gate_span,
     review_gate_request_line,
 )
@@ -28,6 +29,7 @@ from livespec_orchestrator_beads_fabro.commands._fabro_port import fabro_port_fo
 
 __all__: list[str] = [
     "ReviewGateEmission",
+    "ReviewGateSpanIdentity",
     "ReviewGateTelemetry",
     "emit_review_gate_from_fabro_events",
     "emit_review_gate_span",
@@ -86,6 +88,7 @@ class ReviewGateEmission:
     work_item_id: str
     dispatch_id: str
     run_id: str | None
+    dispatch_factory: str | None = None
 
 
 def emit_review_gate_from_fabro_events(*, emission: ReviewGateEmission) -> None:
@@ -134,9 +137,12 @@ def _emit_review_gate_span(*, emission: ReviewGateEmission, telemetry: ReviewGat
     emit_review_gate_span(
         telemetry=telemetry,
         spans_path=emission.spans_path,
-        work_item_id=emission.work_item_id,
-        dispatch_id=emission.dispatch_id,
-        run_id=emission.run_id or "",
+        identity=ReviewGateSpanIdentity(
+            work_item_id=emission.work_item_id,
+            dispatch_id=emission.dispatch_id,
+            run_id=emission.run_id or "",
+            dispatch_factory=emission.dispatch_factory,
+        ),
         now_ns=time.time_ns(),
     )
 

@@ -244,11 +244,13 @@ it forwards, so the reflector joins on ONE key set regardless of source
 | `work.item.id` | the ledger work-item being dispatched | dispatcher journal; injected into sandbox via `OTEL_RESOURCE_ATTRIBUTES` (29f.3) | dispatcher spans (native), CC sandbox (injected), fabro spans (goal regex), CI (PR/branch naming, weak) |
 | `livespec.dispatch.id` | one dispatch attempt (journal-derived) | dispatcher (generated at dispatch); injected into sandbox env | dispatcher spans, CC sandbox (injected) |
 | `fabro.run_id` | the fabro sandbox run | parsed by dispatcher post-`fabro-run`; native on fabro spans | dispatcher spans (post-start), fabro spans |
+| `livespec.dispatch.factory` | resolved Fabro factory target name (`default`, `hp`, etc.) | dispatcher `resolve_dispatch_factory_target()` result | dispatcher spans; fabro spans after enrich backfill |
 | `session.id` | CC session | CC native | CC sandbox spans only |
 | `trace_id` (W3C) | unified host↔sandbox waterfall | dispatcher root span; nested IFF `TRACEPARENT` honored in the ACP `-p`/SDK session (29f.1 V3) | dispatcher root; CC sandbox if V3 verifies |
 
 The enrich stage's join logic: it holds a small in-memory map keyed by
-`work.item.id` → `{livespec.dispatch.id, fabro.run_id}` (populated as
+`work.item.id` → `{livespec.dispatch.id, fabro.run_id,
+livespec.dispatch.factory}` (populated as
 dispatcher spans arrive); when a CC/fabro span arrives carrying ONE key
 of the triple, the stage backfills the others as span attributes before
 forwarding. Reflector queries then `GROUP BY work.item.id` (present on
