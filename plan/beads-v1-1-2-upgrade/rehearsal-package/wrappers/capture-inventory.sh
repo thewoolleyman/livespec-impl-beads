@@ -31,24 +31,13 @@ bd=${BD_PATH:-/usr/local/bin/bd}
 with_client=${WITH_CLIENT:-$(dirname "$0")/with-client.sh}
 sequence=1
 
-for projection in \
-  status-type-counts \
-  issues \
-  dependencies \
-  comments \
-  labels \
-  policy-metadata \
-  schema-migrations \
-  schema \
-  branches \
-  table-counts \
-  remotes
-do
-  artifact="$projection.json"
+capture_json() {
+  artifact=$1
+  shift
   tmp="$output_dir/$artifact.tmp"
   BEADS112_COMMAND_CATEGORY=inventory \
   BEADS112_COMMAND_SEQUENCE=$sequence \
-    "$with_client" "$client_key" "$bd" inventory "$projection" --json > "$tmp"
+    "$with_client" "$client_key" "$bd" "$@" > "$tmp"
   python3 - "$tmp" "$output_dir/$artifact" <<'PY'
 import json
 import sys
@@ -56,14 +45,271 @@ from pathlib import Path
 
 source = Path(sys.argv[1])
 target = Path(sys.argv[2])
-payload = json.loads(source.read_text())
+raw = source.read_text()
+try:
+    payload = json.loads(raw)
+except json.JSONDecodeError:
+    payload = {"text": raw}
 if isinstance(payload, list):
     payload = sorted(payload, key=lambda row: json.dumps(row, sort_keys=True))
 target.write_text(json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n")
 source.unlink()
 PY
   sequence=$((sequence + 1))
+}
+
+capture_sql() {
+  artifact=$1
+  sql=$(printf '%s' "$2" | tr '\n' ' ')
+  capture_json "$artifact" sql "$sql"
+}
+
+capture_sql_bundle() {
+  sql=$(printf '%s' "$1" | tr '\n' ' ')
+  shift
+  tmp="$output_dir/sql-bundle.tmp"
+  BEADS112_COMMAND_CATEGORY=inventory \
+  BEADS112_COMMAND_SEQUENCE=$sequence \
+    "$with_client" "$client_key" "$bd" sql "$sql" > "$tmp"
+  python3 - "$tmp" "$output_dir" "$@" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1])
+output_dir = Path(sys.argv[2])
+artifacts = sys.argv[3:]
+raw = source.read_text()
+try:
+    payload = json.loads(raw)
+except json.JSONDecodeError:
+    payload = {"text": raw}
+if isinstance(payload, list):
+    payload = sorted(payload, key=lambda row: json.dumps(row, sort_keys=True))
+for artifact in artifacts:
+    target_payload = payload
+    if isinstance(payload, dict) and artifact in payload:
+        target_payload = payload[artifact]
+        if isinstance(target_payload, list):
+            target_payload = sorted(
+                target_payload,
+                key=lambda row: json.dumps(row, sort_keys=True),
+            )
+    (output_dir / artifact).write_text(
+        json.dumps(target_payload, sort_keys=True, separators=(",", ":")) + "\n",
+    )
+source.unlink()
+PY
+  sequence=$((sequence + 1))
+}
+
+work_items_union='(
+  SELECT id, title, description, design, acceptance_criteria, notes, status, priority, issue_type,
+         assignee, owner, created_at, created_by, updated_at, closed_at, close_reason,
+         external_ref, spec_id, due_at, defer_until, metadata
+    FROM issues
+  UNION ALL
+  SELECT id, title, description, design, acceptance_criteria, notes, status, priority, issue_type,
+         assignee, owner, created_at, created_by, updated_at, closed_at, close_reason,
+         external_ref, spec_id, due_at, defer_until, metadata
+    FROM wisps
+)'
+
+capture_json "all-issues.json" list --status all --limit 0 --json
+
+issue_ids=$(
+  python3 - "$output_dir/all-issues.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+for row in json.loads(Path(sys.argv[1]).read_text()):
+    issue_id = row.get("id")
+    if isinstance(issue_id, str):
+        print(issue_id)
+PY
+)
+
+tmp_dir="$output_dir/per-issue"
+mkdir -p "$tmp_dir"
+: > "$tmp_dir/dependencies.jsonl"
+: > "$tmp_dir/comments.jsonl"
+: > "$tmp_dir/show.jsonl"
+: > "$tmp_dir/children.jsonl"
+for issue_id in $issue_ids; do
+  capture_json "per-issue/show-$issue_id.json" show "$issue_id" --json
+  cat "$output_dir/per-issue/show-$issue_id.json" >> "$tmp_dir/show.jsonl"
+  capture_json "per-issue/dependencies-$issue_id.json" dep list "$issue_id" --json
+  cat "$output_dir/per-issue/dependencies-$issue_id.json" >> "$tmp_dir/dependencies.jsonl"
+  capture_json "per-issue/comments-$issue_id.json" comments "$issue_id" --json
+  cat "$output_dir/per-issue/comments-$issue_id.json" >> "$tmp_dir/comments.jsonl"
+  capture_json "per-issue/children-$issue_id.json" children "$issue_id" --json
+  cat "$output_dir/per-issue/children-$issue_id.json" >> "$tmp_dir/children.jsonl"
 done
+
+python3 - "$tmp_dir/dependencies.jsonl" "$output_dir/dependencies.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+rows = []
+for line in Path(sys.argv[1]).read_text().splitlines():
+    payload = json.loads(line)
+    if isinstance(payload, list):
+        rows.extend(row for row in payload if isinstance(row, dict))
+Path(sys.argv[2]).write_text(json.dumps(sorted(rows, key=lambda row: json.dumps(row, sort_keys=True)), sort_keys=True, separators=(",", ":")) + "\n")
+PY
+python3 - "$tmp_dir/comments.jsonl" "$output_dir/comments.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+rows = []
+for line in Path(sys.argv[1]).read_text().splitlines():
+    payload = json.loads(line)
+    if isinstance(payload, list):
+        rows.extend(row for row in payload if isinstance(row, dict))
+Path(sys.argv[2]).write_text(json.dumps(sorted(rows, key=lambda row: json.dumps(row, sort_keys=True)), sort_keys=True, separators=(",", ":")) + "\n")
+PY
+rm -rf "$tmp_dir"
+
+capture_json "schema-migrations.json" migrate status
+
+capture_sql_bundle "
+SELECT JSON_OBJECT(
+  'status-type-counts.json', COALESCE((
+    SELECT JSON_ARRAYAGG(row_json)
+    FROM (
+      SELECT JSON_OBJECT('status', status, 'issue_type', issue_type, 'COUNT(*)', COUNT(*)) AS row_json
+      FROM $work_items_union AS work_items
+      GROUP BY status, issue_type
+      ORDER BY status, issue_type
+    ) AS status_rows
+  ), JSON_ARRAY()),
+  'issues.json', COALESCE((
+    SELECT JSON_ARRAYAGG(row_json)
+    FROM (
+      SELECT JSON_OBJECT(
+        'id', id,
+        'title', title,
+        'description', description,
+        'design', design,
+        'acceptance_criteria', acceptance_criteria,
+        'notes', notes,
+        'status', status,
+        'priority', priority,
+        'issue_type', issue_type,
+        'assignee', assignee,
+        'owner', owner,
+        'created_at', created_at,
+        'created_by', created_by,
+        'updated_at', updated_at,
+        'closed_at', closed_at,
+        'close_reason', close_reason,
+        'external_ref', external_ref,
+        'spec_id', spec_id,
+        'due_at', due_at,
+        'defer_until', defer_until,
+        'canonicalized_metadata', metadata
+      ) AS row_json
+      FROM $work_items_union AS work_items
+      ORDER BY id
+    ) AS issue_rows
+  ), JSON_ARRAY()),
+  'labels.json', COALESCE((
+    SELECT JSON_ARRAYAGG(row_json)
+    FROM (
+      SELECT JSON_OBJECT('issue_id', labels.issue_id, 'label', labels.label) AS row_json
+      FROM labels
+      JOIN (
+        SELECT id FROM issues
+        UNION ALL
+        SELECT id FROM wisps
+      ) AS work_item_ids ON work_item_ids.id = labels.issue_id
+      ORDER BY labels.issue_id, labels.label
+    ) AS label_rows
+  ), JSON_ARRAY()),
+  'policy-metadata.json', COALESCE((
+    SELECT JSON_ARRAYAGG(row_json)
+    FROM (
+      SELECT JSON_OBJECT(
+        'issue_id', work_items.id,
+        'complete_canonical_metadata', work_items.metadata,
+        'policy_labels', COALESCE(policy_labels.labels_json, JSON_ARRAY())
+      ) AS row_json
+      FROM $work_items_union AS work_items
+      LEFT JOIN (
+        SELECT issue_id, JSON_ARRAYAGG(label) AS labels_json
+        FROM labels
+        WHERE label LIKE 'acceptance:%'
+           OR label LIKE 'admission:%'
+           OR label LIKE 'intake:%'
+           OR label LIKE 'origin:%'
+           OR label LIKE 'factory-safety:%'
+           OR label LIKE 'blocked-reason:%'
+        GROUP BY issue_id
+      ) AS policy_labels ON policy_labels.issue_id = work_items.id
+      ORDER BY work_items.id
+    ) AS policy_rows
+  ), JSON_ARRAY())
+);
+" \
+  "status-type-counts.json" \
+  "issues.json" \
+  "labels.json" \
+  "policy-metadata.json"
+
+capture_sql "schema.json" "
+/* work-item projections above use issues UNION ALL wisps */
+SELECT COALESCE(JSON_ARRAYAGG(row_json), JSON_ARRAY())
+FROM (
+  SELECT JSON_OBJECT(
+    'object', CONCAT(table_name, '.', column_name),
+    'table_name', table_name,
+    'column_name', column_name,
+    'ordinal_position', ordinal_position,
+    'data_type', data_type,
+    'is_nullable', is_nullable
+  ) AS row_json
+  FROM information_schema.columns
+  WHERE table_schema = DATABASE()
+  ORDER BY table_name, ordinal_position
+) AS rows_json;
+"
+
+capture_sql "branches.json" "
+/* work-item projections above use issues UNION ALL wisps */
+SELECT COALESCE(JSON_ARRAYAGG(row_json), JSON_ARRAY())
+FROM (
+  SELECT JSON_OBJECT('branch_name', name, 'head_hash', hash) AS row_json
+  FROM dolt_branches
+  ORDER BY name
+) AS rows_json;
+"
+
+capture_sql "table-counts.json" "
+/* work-item projections above use issues UNION ALL wisps */
+SELECT COALESCE(JSON_ARRAYAGG(row_json), JSON_ARRAY())
+FROM (
+  SELECT JSON_OBJECT('base_table_name', table_name, 'row_count', table_rows) AS row_json
+  FROM information_schema.tables
+  WHERE table_schema = DATABASE()
+    AND table_type = 'BASE TABLE'
+  ORDER BY table_name
+) AS rows_json;
+"
+
+capture_sql "remotes.json" "
+/* work-item projections above use issues UNION ALL wisps */
+SELECT COALESCE(JSON_ARRAYAGG(row_json), JSON_ARRAY())
+FROM (
+  SELECT JSON_OBJECT('remote_name', name, 'url', url, 'fetch_specs', fetch_specs) AS row_json
+  FROM dolt_remotes
+  ORDER BY name
+) AS rows_json;
+"
+
+rm -f "$output_dir/all-issues.json"
 
 latest_anchor=$(ls -1 "$RECEIPT_ROOT"/anchor-*-inventory.json | tail -1)
 cp "$latest_anchor" "$output_dir/client-anchor.json"
