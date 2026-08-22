@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from livespec_orchestrator_beads_fabro._beads_client import (
     EDGE_BLOCKS,
     EDGE_SUPERSEDES,
@@ -356,6 +357,51 @@ def test_close_in_place_mutates_existing_record_no_second_record() -> None:
     assert record["close_reason"] == "shipped"
     assert "resolution:completed" in record["labels"]
     assert record["metadata"]["audit"]["merge_sha"] == "sha-1"
+
+
+def test_append_work_item_preserves_unmodeled_metadata_keys() -> None:
+    append_work_item(path=_config(), item=_minimal_work_item(id_="li-unknown", status="ready"))
+    _fake().update_issue(
+        issue_id="li-unknown",
+        metadata={
+            "rank": "a0",
+            "unmodeled_top_level": {"source": "raw-bd-update"},
+            "audit": {
+                "verification_timestamp": "2026-05-19T02:00:00Z",
+                "commits": ["c1"],
+                "files_changed": ["f1"],
+                "merge_sha": "sha-1",
+                "pr_number": 11,
+                "supersedes": {"pr_number": 1519},
+            },
+        },
+    )
+    [stale_projection] = list(read_work_items(path=_config()))
+
+    append_work_item(
+        path=_config(),
+        item=_minimal_work_item(
+            id_="li-unknown",
+            status="done",
+            resolution="completed",
+            reason="shipped",
+            audit=stale_projection.audit,
+        ),
+    )
+
+    metadata = _fake().show_issue(issue_id="li-unknown")["metadata"]
+    _assert_unknown_metadata_preserved(metadata=metadata)
+    stripped_metadata = {"rank": metadata["rank"], "audit": {"merge_sha": "sha-1"}}
+    with pytest.raises(AssertionError):
+        _assert_unknown_metadata_preserved(metadata=stripped_metadata)
+
+
+def _assert_unknown_metadata_preserved(*, metadata: object) -> None:
+    assert isinstance(metadata, dict)
+    assert metadata.get("unmodeled_top_level") == {"source": "raw-bd-update"}
+    audit = metadata.get("audit")
+    assert isinstance(audit, dict)
+    assert audit.get("supersedes") == {"pr_number": 1519}
 
 
 def test_close_in_place_without_resolution_adds_no_resolution_label() -> None:
