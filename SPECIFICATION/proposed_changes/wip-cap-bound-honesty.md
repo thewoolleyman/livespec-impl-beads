@@ -205,3 +205,28 @@ remote run liveness, does NOT alter the `0` dispatch-off value or its
 minimum-above-zero guard clause, and does NOT make the operator override reachable
 from `drive`. It makes the specification describe the bound that is actually
 enforced.
+
+### Reconciliation with the sibling pending proposal (added 2026-08-22)
+
+`wip-cap-naming-collision` is pending against the SAME section and must be
+reconciled with this one at revise time. Surfaced by the post-step objective
+doctor phase; recorded here because the revise pass reads these files and MAY
+process them independently via `--only-topic`.
+
+THE TENSION. That proposal mandates the label "per-repo LEDGER cap" as the
+disambiguator against the Fabro scheduler's host limit. This proposal establishes
+that `wip_cap` bounds COUNTED CLAIMS and explicitly NOT rows at ledger status
+`active`. "Ledger cap" therefore invites exactly the reading this proposal
+removes. The word "ledger" is doing SCOPE work there, not COUNTING work, but the
+label does not say so.
+
+RESOLUTION THE ACCEPTING REVISE PASS MUST MAKE. Adopt one disambiguating label
+across BOTH proposals — "per-repo CLAIM cap" is recommended, preserving the scope
+contrast while naming the counted quantity correctly — and let this proposal's
+counted-claims definition govern what it means. Accepting either proposal WITHOUT
+settling the label MUST NOT happen: a half-adopted vocabulary is worse than
+today's, because both clauses would read as freshly ratified.
+
+The two appends to §"Host concurrency belongs to the Fabro scheduler" are
+complementary and both SHOULD be taken. The scenario-numbering note above still
+applies.
