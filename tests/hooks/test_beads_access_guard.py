@@ -99,6 +99,31 @@ def test_should_not_block_unrelated_commands_that_merely_mention_the_tools(comma
     assert guard.should_block(command=command) is False
 
 
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git commit -m 'docs: mention bd in prose'",
+        "gh pr create --body 'Use bd list only under the wrapper.'",
+        "cat <<'EOF'\nThe bd command needs credentials.\nEOF",
+        "cat <<EOF\nThe bd command needs credentials.\nEOF",
+        "cat <<-EOF\nThe bd command needs credentials.\nEOF",
+    ],
+)
+def test_should_not_block_bare_tool_mentions_inside_message_bodies(command: str) -> None:
+    assert guard.should_block(command=command) is False
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git commit -m 'unterminated bd mention",
+        "cat <<'EOF\nThe bd command needs credentials.\nEOF",
+    ],
+)
+def test_should_fail_open_on_malformed_shell_text(command: str) -> None:
+    assert guard.should_block(command=command) is False
+
+
 def test_main_emits_a_deny_decision_for_an_unwrapped_invocation(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
