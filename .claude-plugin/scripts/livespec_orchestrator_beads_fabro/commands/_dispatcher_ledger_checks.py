@@ -40,7 +40,11 @@ from typing import Literal
 from livespec_runtime.cross_repo.types import LocalDependency
 
 from livespec_orchestrator_beads_fabro.commands._cross_repo import parse_entry
-from livespec_orchestrator_beads_fabro.store import ALLOWED_BEADS_STATUSES
+from livespec_orchestrator_beads_fabro.commands._dispatcher_goal import (
+    GoalBriefMiniJinjaFinding,
+    minijinja_openers_in_goal_sources,
+)
+from livespec_orchestrator_beads_fabro.store import ALLOWED_BEADS_STATUSES, WorkItemComment
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
 __all__: list[str] = [
@@ -73,7 +77,11 @@ class LedgerFinding:
     severity: Severity = "fail"
 
 
-def run_ledger_checks(*, items: list[WorkItem]) -> list[LedgerFinding]:
+def run_ledger_checks(
+    *,
+    items: list[WorkItem],
+    comments_by_item: dict[str, tuple[WorkItemComment, ...]] | None = None,
+) -> list[LedgerFinding]:
     """Run the dispatch-safety Ledger checks over the tenant rows.
 
     Returns findings sorted by (check, item_id) so output is stable for
@@ -87,6 +95,13 @@ def run_ledger_checks(*, items: list[WorkItem]) -> list[LedgerFinding]:
     findings.extend(_check_ref_wellformedness(active=active))
     findings.extend(_check_orphan_dependencies(active=active, index=index))
     findings.extend(_check_duplicate_gap_ids(active=active))
+    if comments_by_item is not None:
+        findings.extend(
+            _check_goal_source_minijinja_openers(
+                active=active,
+                comments_by_item=comments_by_item,
+            )
+        )
     return sorted(findings, key=lambda finding: (finding.check, finding.item_id))
 
 
@@ -181,3 +196,73 @@ def _check_duplicate_gap_ids(*, active: list[WorkItem]) -> list[LedgerFinding]:
             for item_id in item_ids
         )
     return findings
+
+
+_GOAL_SOURCE_MINIJINJA_CHECK = "goal-source-minijinja-opener"
+
+
+def _check_goal_source_minijinja_openers(
+    *,
+    active: list[WorkItem],
+    comments_by_item: dict[str, tuple[WorkItemComment, ...]],
+) -> list[LedgerFinding]:
+    findings: list[LedgerFinding] = []
+    for item in active:
+        source_findings = minijinja_openers_in_goal_sources(
+            item=item,
+            comments=comments_by_item.get(item.id, ()),
+            lessons="",
+        )
+        field_hits = tuple(
+            finding for finding in source_findings if not _is_comment_source(finding=finding)
+        )
+        comment_hits = tuple(
+            finding for finding in source_findings if _is_comment_source(finding=finding)
+        )
+        if comment_hits:
+            findings.append(
+                LedgerFinding(
+                    check=_GOAL_SOURCE_MINIJINJA_CHECK,
+                    item_id=item.id,
+                    message=_comment_contamination_message(findings=comment_hits),
+                    severity="fail",
+                )
+            )
+        if field_hits:
+            findings.append(
+                LedgerFinding(
+                    check=_GOAL_SOURCE_MINIJINJA_CHECK,
+                    item_id=item.id,
+                    message=_field_contamination_message(findings=field_hits),
+                    severity="warn",
+                )
+            )
+    return findings
+
+
+def _is_comment_source(*, finding: GoalBriefMiniJinjaFinding) -> bool:
+    return finding.source.startswith("ledger comment ")
+
+
+def _field_contamination_message(
+    *,
+    findings: tuple[GoalBriefMiniJinjaFinding, ...],
+) -> str:
+    return (
+        "goal source contains MiniJinja opening delimiter; recoverable-by-editing "
+        f"field source(s): {_source_list(findings=findings)}"
+    )
+
+
+def _comment_contamination_message(
+    *,
+    findings: tuple[GoalBriefMiniJinjaFinding, ...],
+) -> str:
+    return (
+        "goal source contains MiniJinja opening delimiter; permanent comment "
+        f"contamination source(s): {_source_list(findings=findings)}"
+    )
+
+
+def _source_list(*, findings: tuple[GoalBriefMiniJinjaFinding, ...]) -> str:
+    return ", ".join(f"{finding.source} ({finding.opener})" for finding in findings)
