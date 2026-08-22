@@ -197,6 +197,49 @@ def test_fabro_port_json_operations_parse_payloads_and_run_summaries(tmp_path: P
     ]
 
 
+def test_fabro_port_preflight_builds_livespec_run_configuration_argv(tmp_path: Path) -> None:
+    module = _port_module()
+    runner = _Runner(
+        results=[CommandResult(exit_code=0, stdout='{"ok": true}', stderr="")],
+        calls=[],
+    )
+    port = module.FabroPort(
+        fabro_bin="fabro",
+        target=module.FabroTarget(server_url="http://factory"),
+        runner=runner,
+        cwd=tmp_path,
+    )
+
+    result = port.preflight(
+        workflow_toml=tmp_path / "workflow.toml",
+        goal_file=tmp_path / "goal.md",
+        inputs=("acp_adapter=codex-acp",),
+        timeout_seconds=4.0,
+    )
+
+    assert result.payload == {"ok": True}
+    assert runner.calls == [
+        _Call(
+            argv=[
+                "fabro",
+                "preflight",
+                str(tmp_path / "workflow.toml"),
+                "--goal-file",
+                str(tmp_path / "goal.md"),
+                "--input",
+                "acp_adapter=codex-acp",
+                "--no-upgrade-check",
+                "--json",
+                "--server",
+                "http://factory",
+            ],
+            cwd=tmp_path,
+            timeout_seconds=4.0,
+            env={"FABRO_SERVER": "http://factory"},
+        )
+    ]
+
+
 def test_fabro_port_rm_and_version_stay_on_the_declared_surface(tmp_path: Path) -> None:
     module = _port_module()
     runner = _Runner(
