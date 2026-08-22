@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.68.3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.68.2...v0.68.3) (2026-08-22)
+
+
+### Bug Fixes
+
+* fail ai acceptance without criteria ([3132ace](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/3132aceedee9b1a971eddd2d5e289bd8dd9ba533))
+
 ## [0.68.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.68.1...v0.68.2) (2026-08-22)
 
 
