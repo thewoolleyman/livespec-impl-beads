@@ -37,7 +37,8 @@ section was written for; these are live instances rather than hypotheticals.
 |---|---|---|---|
 | `bd-ib-9ek4` | this repo | **closed** 2026-08-22, PR #1712 | Codex remote-compaction 404 kills context-heavy implement turns; `fabro logs` shows only `ACP turn failed` while the cause sits in `checkpoint.node_outcomes.implement.failure.causes`. Classified `transient_infra` and retried, though retry can never succeed. |
 | `bd-ib-h2zj` | this repo | **closed** 2026-08-22, PR #1701 | The **conformant** store path silently destroys unmodeled metadata keys. The sanctioned close wrapper erased audit provenance a raw write had just preserved. |
-| `bd-ib-2os2` | this repo | **closed** 2026-08-22, PR #1736 | A semicolon-suffixed command satisfied substring matching but failed at runtime; the merged fix was hidden from a single-commit read of the rebase-merged PR tip until the PR commit list exposed it. |
+| `bd-ib-2os2` | this repo | **closed** 2026-08-22, PR #1736 | `beads_access_guard` blocks a `git commit -m` whose message mentions the ledger tool as a bare word, because the matcher tests raw text rather than command position; the merged fix was hidden from a single-commit read of the rebase-merged PR tip until the PR commit list exposed it. |
+| `bd-ib-nf39` | this repo | open, P1 | The Dispatcher's fabro-failure capture journals null on 17 of 17 failed runs, and calibration telemetry never reaches Honeycomb. |
 | `livespec-dev-tooling-mt24` | livespec-dev-tooling | backlog | The gate runner's evidence probe reads only the parallel emitter's bracketed line, so every green **serial** aggregate reports `zero check targets completed`. The discriminator between a kill and a real pass fires on every real pass. |
 | `livespec-dev-tooling-h7qp` | livespec-dev-tooling | backlog | The background guard prescribes `gate-start`/`gate-wait` and a doc, none of which exist in a fresh consumer worktree. A guard whose sanctioned alternative is missing invites engineering around the guard. |
 | `overseer-izh7` | livespec-overseer | **closed** 2026-08-21 | A caller passes the beads-native `--status open`; the guard correctly refuses it (exit 3). 13 blocked ops in 3 days. The trigger flaps, so a resolved alert reads as "over" when it is not. |
@@ -123,11 +124,10 @@ prioritization; the host still runs `codex-cli 0.147.0`" — was both stale and
 aimed at the wrong artifact, and is corrected below rather than deleted, because
 it is a worked instance of this track's own subject.
 
-All local members are **closed with verification**. The only open item is the
-epic-disposition decision: close `bd-ib-cewr` now, recording the two
-`livespec-dev-tooling` members as tracked-elsewhere, or hold it open until that
-tenant disposes them. The plan is deliberately **not archived** — archiving would
-assert a completeness the stated member set does not have.
+The local members `bd-ib-9ek4` and `bd-ib-h2zj` are **closed with verification**.
+`bd-ib-nf39` is a third local child and is still open, so the epic-disposition
+decision is not yet live. The plan is deliberately **not archived** — archiving
+would assert a completeness the stated member set does not have.
 
 ### The `codex-cli 0.147.0` claim was wrong, and how
 
