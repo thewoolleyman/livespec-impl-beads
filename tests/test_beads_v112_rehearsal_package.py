@@ -656,8 +656,10 @@ def test_capture_inventory_runs_all_projections_and_writes_hash_manifest(tmp_pat
         "  \"migrate status\") printf 'schema version: 53\\n' ;;\n"
         "  sql*)\n"
         '    case "$*" in\n'
-        '      *"UNION ALL"*"wisps"*) printf \'[{"id":"o4-issue","issue_type":"task"},{"id":"o4-rig-wisp","issue_type":"rig"}]\\n\' ;;\n'
-        '      *) printf \'[{"id":"o4-issue","issue_type":"task"}]\\n\' ;;\n'
+        '      *"status-type-counts.json"*)\n'
+        '        printf \'%s\\n\' \'JSON_OBJECT(...)\' \'-------------------------\' \'{"issues.json":[{"id":"o4-issue","issue_type":"task"},{"id":"o4-rig-wisp","issue_type":"rig"}],"labels.json":[{"issue_id":"o4-rig-wisp","label":"acceptance:manual"}],"policy-metadata.json":[{"issue_id":"o4-rig-wisp","policy_labels":["acceptance:manual"]}],"status-type-counts.json":[{"status":"open","issue_type":"rig","COUNT(*)":1}]}\' \'(1 row)\' ;;\n'
+        '      *"UNION ALL"*"wisps"*) printf \'%s\\n\' \'COALESCE(...)\' \'-------------------------\' \'[{"id":"o4-rig-wisp","issue_type":"rig"}]\' \'(1 row)\' ;;\n'
+        "      *) printf '%s\\n' 'COALESCE(...)' '-------------------------' '[{\"id\":\"o4-issue\",\"issue_type\":\"task\"}]' '(1 row)' ;;\n"
         "    esac\n"
         "    ;;\n"
         '  *) printf "%s\\n" "unexpected argv: $*" >&2; exit 92 ;;\n'
@@ -714,13 +716,19 @@ def test_capture_inventory_runs_all_projections_and_writes_hash_manifest(tmp_pat
     ]
     assert all(shlex.split(line)[0] == "sql" for line in called[6:])
     assert all("UNION ALL" in line and "wisps" in line for line in called[6:])
-    for artifact in [
-        "status-type-counts.json",
-        "issues.json",
-        "labels.json",
-        "policy-metadata.json",
-    ]:
-        assert "o4-rig-wisp" in (output / artifact).read_text()
+    assert json.loads((output / "status-type-counts.json").read_text()) == [
+        {"COUNT(*)": 1, "issue_type": "rig", "status": "open"},
+    ]
+    assert json.loads((output / "issues.json").read_text()) == [
+        {"id": "o4-issue", "issue_type": "task"},
+        {"id": "o4-rig-wisp", "issue_type": "rig"},
+    ]
+    assert json.loads((output / "labels.json").read_text()) == [
+        {"issue_id": "o4-rig-wisp", "label": "acceptance:manual"},
+    ]
+    assert json.loads((output / "policy-metadata.json").read_text()) == [
+        {"issue_id": "o4-rig-wisp", "policy_labels": ["acceptance:manual"]},
+    ]
     receipt = json.loads((output / "inventory-receipt.json").read_text())
     assert receipt["schema"] == "livespec.beads_v112_rehearsal.inventory_receipt.v1"
     assert receipt["capture_point"] == "pre-backup-v49-baseline"

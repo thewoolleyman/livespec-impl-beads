@@ -53,6 +53,6 @@
   "wrappers": {
     "with_client_sha256": "936d32847b77cc574f603aa29bf0917b255ee0f756ac34ab1d615ea91ca024c9",
     "assert_client_anchor_sha256": "9c77ea89c2674c81ac9f9769d65b9d047ae81e57af4f753b97c97578e1a4459f",
-    "capture_inventory_sha256": "9e71ec569fc5010e3d55970cad9bda96f83f883576f5e189e0aed403632ba305"
+    "capture_inventory_sha256": "4875d7b415fc88a427c24d425aa904f0c53c51d3618f4228b68f0cfbf4082fb6"
   }
 }
