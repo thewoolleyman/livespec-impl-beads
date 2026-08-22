@@ -13,7 +13,14 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFil
 from livespec_orchestrator_beads_fabro.effects import AttemptFailure, attempt, parse_json
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
-__all__: list[str] = ["claimed_active_count"]
+__all__: list[str] = ["ActiveClaimAccounting", "claimed_active_accounting", "claimed_active_count"]
+
+
+@dataclass(frozen=True, kw_only=True)
+class ActiveClaimAccounting:
+    active_count: int
+    live_lock_active_ids: tuple[str, ...]
+    green_terminal_active_ids: tuple[str, ...]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -24,22 +31,33 @@ class _TerminalHistory:
 
 
 def claimed_active_count(*, repo: Path, items: list[WorkItem], journal: JournalFile) -> int:
+    return claimed_active_accounting(repo=repo, items=items, journal=journal).active_count
+
+
+def claimed_active_accounting(
+    *, repo: Path, items: list[WorkItem], journal: JournalFile
+) -> ActiveClaimAccounting:
     histories: dict[str, _TerminalHistory] | None = None
-    count = 0
+    live_lock_active_ids: list[str] = []
+    green_terminal_active_ids: list[str] = []
     for item in items:
         if item.status != "active":
             continue
         if live_dispatch_lock(repo=repo, work_item_id=item.id) is not None:
-            count += 1
+            live_lock_active_ids.append(item.id)
             continue
         if histories is None:
             histories = _terminal_histories(journal=journal)
         history = histories.get(item.id)
         if _claim_still_counts(history=history):
-            count += 1
+            green_terminal_active_ids.append(item.id)
             continue
         journal.append(record=_abandoned_record(item=item, history=history))
-    return count
+    return ActiveClaimAccounting(
+        active_count=len(live_lock_active_ids) + len(green_terminal_active_ids),
+        live_lock_active_ids=tuple(live_lock_active_ids),
+        green_terminal_active_ids=tuple(green_terminal_active_ids),
+    )
 
 
 def _claim_still_counts(*, history: _TerminalHistory | None) -> bool:

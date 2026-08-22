@@ -417,7 +417,10 @@ def test_loop_with_item_at_wip_cap_emits_capacity_deferred_result(
     assert exit_code == 0
     assert payload == [
         {
-            "detail": "capacity deferred: active_count=1 wip_cap=1 free_slots=0",
+            "detail": (
+                "capacity deferred: active_count=1 wip_cap=1 free_slots=0 "
+                "live_lock_active_ids=active-claim"
+            ),
             "fabro_run_id": None,
             "merge_sha": None,
             "pr_number": None,
