@@ -15,10 +15,13 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_io import ShellComma
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
 __all__: list[str] = [
+    "NO_CHANGE_NEEDED_VERDICT",
     "AcceptancePassResult",
     "CriterionCheck",
     "run_acceptance_pass",
 ]
+
+NO_CHANGE_NEEDED_VERDICT = "NO_CHANGE_NEEDED"
 
 _DIFF_TIMEOUT_SECONDS = 30.0
 _EXTERNAL_VERIFICATION_TERMS = frozenset(
@@ -126,9 +129,7 @@ def run_acceptance_pass(
         merged_diff=diff_result.merged_diff,
         telemetry_passed=telemetry_passed,
     )
-    verdict = (
-        "PASS" if _passes(diff=diff_result, telemetry=telemetry_passed, checks=checks) else "FAIL"
-    )
+    verdict = _verdict(diff=diff_result, telemetry=telemetry_passed, checks=checks)
     return AcceptancePassResult(
         verdict=verdict,
         merged_diff=diff_result.merged_diff,
@@ -264,3 +265,11 @@ def _passes(*, diff: _DiffResult, telemetry: bool, checks: tuple[CriterionCheck,
     if diff.merged_diff is None:
         return False
     return bool(checks) and all(check.passed for check in checks)
+
+
+def _verdict(*, diff: _DiffResult, telemetry: bool, checks: tuple[CriterionCheck, ...]) -> str:
+    if telemetry and diff.merged_diff == "":
+        return NO_CHANGE_NEEDED_VERDICT
+    if _passes(diff=diff, telemetry=telemetry, checks=checks):
+        return "PASS"
+    return "FAIL"
