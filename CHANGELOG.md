@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.64.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.64.1...v0.64.2) (2026-08-22)
+
+
+### Bug Fixes
+
+* reclaim green terminal wip slots ([f41f457](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/f41f4578778ed44988c80bcfbaf234d07629eda5))
+
 ## [0.64.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.64.0...v0.64.1) (2026-08-22)
 
 
