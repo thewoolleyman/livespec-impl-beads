@@ -431,8 +431,7 @@ CORRECTLY.** The second needs its own positive case — a query that SHOULD retu
 something, returning it. The discriminating question for aim is therefore: *what
 should this query return if it is pointed correctly, and does it?*
 
-Four measured instances from 2026-08-21, plus a 2026-08-22 factory-cutover
-Docker/containerd instance:
+Four measured instances from 2026-08-21, plus three 2026-08-22 instances:
 
 - **An anchored regex that cannot match the real line.** Claim: "`bd update` has no
   `--description` flag, so a description cannot be edited non-interactively."
@@ -478,6 +477,31 @@ Docker/containerd instance:
   `docker system df` on a large store; it can hang. A whole-tree `du` can time out
   too. Bisect per-subtree under `/var/lib/containerd`, and treat the subtree that
   never returns as the finding rather than as an absence.
+- **A rebase-merged PR read through its series tip.** This repo rebase-merges, so
+  the merge SHA is the LAST COMMIT OF THE REBASED SERIES, not a merge commit that
+  contains the series. `git show <merge-sha>` therefore renders exactly one commit
+  and SILENTLY OMITS the rest of the PR — no warning, no indication that earlier
+  commits exist. Measured 2026-08-22 on PR #1736: the fix for `bd-ib-2os2` landed
+  in the FIRST commit, `3377f7d4` (shell-aware command-position matching), while
+  the PR tip `6c776441` was unrelated hardening. A `git show 6c77644...` read
+  concluded "the merged diff does not address the filed defect at all", a false
+  negative that would reopen settled work and re-dispatch a closed item. The
+  discriminator is the PR's commit list (`gh pr view <n> --json commits`) or a
+  range read (`git log <base>..<merge-sha>`). Never judge a rebase-merged PR from
+  its merge SHA alone.
+- **A killed run presumed to have lost work that it had already published.** A
+  Fabro run that parks on a human gate and is later killed leaves an item stranded.
+  The natural conclusion — "the sandbox is gone, so the work is gone" — is right
+  only when the run had not yet published, and nothing in the stranded item
+  distinguishes the two. Measured 2026-08-22 on `bd-ib-2os2`: the claim-release
+  comment recorded "expected to start from scratch. Any unpublished work in the
+  dead sandbox is gone." Run `01M0KXYZRWXNF7SSRN2KHJ57DK` had in fact published PR
+  #1736 — implement, janitor, review and disposition stages all `(succeeded)` —
+  before parking, and re-dispatch found and merged the PR in five minutes. The
+  discriminator is a forge search for a PR carrying the run id before
+  re-dispatching a killed or stranded run; the run id is stamped into its commits.
+  `bd-ib-6o6h` is the genuine-loss counterpart, `bd-ib-2os2` is the survived case,
+  and one query separates them.
 
 **The existing "state the scope you searched" rule is necessary and NOT sufficient**
 — see "Verification discipline (repo-additive)" below, whose Rule 1 this extends. In
