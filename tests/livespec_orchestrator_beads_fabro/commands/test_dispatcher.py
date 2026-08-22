@@ -521,6 +521,53 @@ def test_ledger_checks_flag_out_of_lifecycle_live_status() -> None:
     assert "status 'open' is outside the livespec lifecycle" in findings[0].message
 
 
+def test_ledger_checks_flag_minijinja_openers_in_goal_sources() -> None:
+    items = [
+        _item(id="field-hit", description="recipe uses {{ value }}"),
+        _item(id="comment-hit"),
+    ]
+    comments_by_item = {
+        "comment-hit": (
+            WorkItemComment(
+                text="rider contains {% statement",
+                author="operator",
+                created_at="2026-08-22T10:11:12Z",
+                comment_id="comment-9",
+            ),
+        ),
+    }
+
+    findings = run_ledger_checks(items=items, comments_by_item=comments_by_item)
+
+    assert [(finding.check, finding.item_id, finding.severity) for finding in findings] == [
+        ("goal-source-minijinja-opener", "comment-hit", "fail"),
+        ("goal-source-minijinja-opener", "field-hit", "warn"),
+    ]
+    assert "permanent comment contamination" in findings[0].message
+    assert "ledger comment comment-9 created 2026-08-22T10:11:12Z" in findings[0].message
+    assert "recoverable-by-editing" in findings[1].message
+    assert "description" in findings[1].message
+
+
+def test_ledger_checks_do_not_flag_clean_goal_sources() -> None:
+    items = [
+        _item(id="clean-field", description="recipe uses square brackets"),
+        _item(id="clean-comment"),
+    ]
+    comments_by_item = {
+        "clean-comment": (
+            WorkItemComment(
+                text="plain rider",
+                author="operator",
+                created_at="2026-08-22T10:11:12Z",
+                comment_id="comment-10",
+            ),
+        ),
+    }
+
+    assert run_ledger_checks(items=items, comments_by_item=comments_by_item) == []
+
+
 def test_dispatch_gate_auto_normalizes_beads_native_open(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

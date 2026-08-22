@@ -48,7 +48,8 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_source_preflight imp
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_spec_checks import run_spec_checks
 from livespec_orchestrator_beads_fabro.io import write_stderr, write_stdout
-from livespec_orchestrator_beads_fabro.types import WorkItem
+from livespec_orchestrator_beads_fabro.store import WorkItemComment, read_work_item_comments
+from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
 
 __all__: list[str] = [
     "dispatch_preamble",
@@ -71,7 +72,10 @@ _PATH_SEPARATORS: tuple[str, ...] = tuple(sep for sep in (os.sep, os.altsep) if 
 
 def run_ledger_check(*, args: argparse.Namespace) -> int:
     project_root = Path(args.project_root) if args.project_root is not None else Path.cwd()
-    findings = run_ledger_checks(items=load_items(repo=project_root))
+    items = load_items(repo=project_root)
+    config = store_config(repo=project_root)
+    comments_by_item = _load_comments_by_item(config=config, items=items)
+    findings = run_ledger_checks(items=items, comments_by_item=comments_by_item)
     return _emit_check_findings(findings=findings, as_json=args.as_json, label="ledger")
 
 
@@ -130,6 +134,18 @@ def _emit_normalize_summary(
         _emit_normalize_text(remaps=remaps, residual=residual, dry_run=dry_run)
     actionable = any(finding.severity != "skipped" for finding in residual)
     return _EXIT_FAILURE if actionable else 0
+
+
+def _load_comments_by_item(
+    *,
+    config: StoreConfig,
+    items: list[WorkItem],
+) -> dict[str, tuple[WorkItemComment, ...]]:
+    return {
+        item.id: read_work_item_comments(path=config, work_item_id=item.id)
+        for item in items
+        if item.status != "done"
+    }
 
 
 def _emit_normalize_text(
