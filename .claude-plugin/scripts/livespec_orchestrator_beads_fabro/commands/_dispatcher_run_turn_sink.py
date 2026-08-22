@@ -176,8 +176,18 @@ def run_turn_check_record(
     work_item_id: str,
     dispatch_id: str,
     started_at_epoch: float | None = None,
+    observable: bool = True,
 ) -> dict[str, object]:
     """Build the post-dispatch telemetry assertion journal record."""
+    if not observable:
+        return {
+            "stage": "run-turn-telemetry-check",
+            "work_item_id": work_item_id,
+            "dispatch_id": dispatch_id,
+            "run_turn_exported": False,
+            "run_turn_observable": False,
+            "run_turn_observation": "unobservable-remote-factory",
+        }
     keys = (work_item_id, dispatch_id)
     exported = sink.has_export(keys=keys, exported_at_or_after=started_at_epoch)
     return {
@@ -186,6 +196,7 @@ def run_turn_check_record(
         "dispatch_id": dispatch_id,
         "run_turn_exported": exported
         or sink.has_receiver_export(exported_at_or_after=started_at_epoch),
+        "run_turn_observable": True,
     }
 
 

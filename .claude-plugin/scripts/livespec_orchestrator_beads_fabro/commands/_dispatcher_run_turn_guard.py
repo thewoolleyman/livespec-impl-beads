@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
@@ -25,6 +26,13 @@ class JournalWriter(Protocol):
         ...
 
 
+@dataclass(frozen=True, kw_only=True)
+class _DispatchRunTurnObservation:
+    dispatch_id: str
+    started_at_epoch: float | None
+    observable: bool
+
+
 def append_run_turn_checks(
     *,
     outcomes: tuple[DispatchOutcome, ...],
@@ -37,28 +45,40 @@ def append_run_turn_checks(
     for outcome in outcomes:
         if outcome.status != "green":
             continue
-        dispatch_id, started_at_epoch = dispatches.get(outcome.work_item_id, ("", None))
+        observation = dispatches.get(
+            outcome.work_item_id,
+            _DispatchRunTurnObservation(
+                dispatch_id="",
+                started_at_epoch=None,
+                observable=True,
+            ),
+        )
         journal.append(
             record=run_turn_check_record(
                 sink=sink,
                 work_item_id=outcome.work_item_id,
-                dispatch_id=dispatch_id,
-                started_at_epoch=started_at_epoch,
+                dispatch_id=observation.dispatch_id,
+                started_at_epoch=observation.started_at_epoch,
+                observable=observation.observable,
             )
         )
 
 
 def _dispatches_by_item(
     *, records: tuple[dict[str, object], ...]
-) -> dict[str, tuple[str, float | None]]:
-    dispatches: dict[str, tuple[str, float | None]] = {}
+) -> dict[str, _DispatchRunTurnObservation]:
+    dispatches: dict[str, _DispatchRunTurnObservation] = {}
     for record in records:
         if record.get("stage") != "dispatch-id":
             continue
         work_item_id = record.get("work_item_id")
         dispatch_id = record.get("dispatch_id")
         if isinstance(work_item_id, str) and isinstance(dispatch_id, str):
-            dispatches[work_item_id] = (dispatch_id, _epoch(record=record))
+            dispatches[work_item_id] = _DispatchRunTurnObservation(
+                dispatch_id=dispatch_id,
+                started_at_epoch=_epoch(record=record),
+                observable=_observable_from_dispatch_record(record=record),
+            )
     return dispatches
 
 
@@ -67,3 +87,10 @@ def _epoch(*, record: dict[str, object]) -> float | None:
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
     return float(value)
+
+
+def _observable_from_dispatch_record(*, record: dict[str, object]) -> bool:
+    factory = record.get("dispatch_factory")
+    if not isinstance(factory, str):
+        return True
+    return factory != "hp"
