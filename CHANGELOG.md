@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.68.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.68.1...v0.68.2) (2026-08-22)
+
+
+### Bug Fixes
+
+* surface bd stderr on zero exit ([45f6761](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/45f67615b46f5a410b2895a5d9471a28ed1c3ff8))
+
 ## [0.68.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.68.0...v0.68.1) (2026-08-22)
 
 
