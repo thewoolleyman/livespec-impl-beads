@@ -431,7 +431,8 @@ CORRECTLY.** The second needs its own positive case — a query that SHOULD retu
 something, returning it. The discriminating question for aim is therefore: *what
 should this query return if it is pointed correctly, and does it?*
 
-Four measured instances, 2026-08-21, all in one night:
+Four measured instances from 2026-08-21, plus a 2026-08-22 factory-cutover
+Docker/containerd instance:
 
 - **An anchored regex that cannot match the real line.** Claim: "`bd update` has no
   `--description` flag, so a description cannot be edited non-interactively."
@@ -467,6 +468,16 @@ Four measured instances, 2026-08-21, all in one night:
   run genuinely holding a human gate, rendered its prompt and accepted an answer. The
   remedy was fully operative the whole time, and defects were filed against a
   capability that already worked.
+- **Docker measured through the wrong storage root.** Claim: "Docker cannot be
+  filling the factory disk." The measurements were aimed at `/var/lib/docker` and
+  were CORRECT — two independent sessions saw small values (12M and 4.3G), and a
+  post-cutover check on the same host saw `/var/lib/docker` at 1.8M. The population
+  was wrong: on Docker 29 the image bytes live in `/var/lib/containerd`, which
+  measured 28G on the same host. A small `/var/lib/docker` reading therefore
+  exonerates the wrong tree while the factory is out of room. Do not rely on
+  `docker system df` on a large store; it can hang. A whole-tree `du` can time out
+  too. Bisect per-subtree under `/var/lib/containerd`, and treat the subtree that
+  never returns as the finding rather than as an absence.
 
 **The existing "state the scope you searched" rule is necessary and NOT sufficient**
 — see "Verification discipline (repo-additive)" below, whose Rule 1 this extends. In
@@ -606,6 +617,27 @@ reached a run holding a live human gate and answered it. Concluding that a remot
 run is unreachable because a bare invocation found nothing is the same trap one
 level on.
 
+**Factory ENOSPC is a FACTORY-HOST failure, not an item failure.** The signature
+measured on 2026-08-22 is: `drive.py` exits 1, the dispatcher exits 1, the failed
+stage is `fabro-run`, no Fabro run is created, a phantom claim is left behind, and
+the error detail names `ENOSPC` on a storage path that the dispatching machine
+cannot see. The discriminator is the path: `/home/cwoolley/...` named the factory
+host user while the dispatching machine was `ubuntu`, so local `df` and local
+process views were clean but irrelevant. The failure happens before
+item-specific processing, so no property of the work item can cause or avoid it.
+Check disk on the selected factory host itself:
+
+```bash
+ssh <factory-host> df -h /
+```
+
+The blast radius is every repo routed to that factory, not the one item that
+reported first; on 2026-08-22 two different repos failed with this signature
+within 44 seconds. If a second declared factory is available, route the dispatch
+there immediately, for example `--factory vps`, while the full factory cleanup
+proceeds. livespec-overseer carries the phantom-claim list where this signature is
+a sibling-repo update; route that update to livespec-overseer instead of editing
+that repo from this one.
 
 - **Start / restart** (OAuth-only — no wrapper, no `ANTHROPIC_API_KEY`):
 
