@@ -76,7 +76,7 @@ def fabro_run_terminal_outcome(
         return blocked
     if exit_code == 0:
         return None
-    failure = inspect.failure if inspect is not None and inspect.command.exit_code == 0 else None
+    failure = None if inspect is None else inspect.failure
     return outcome_type(
         work_item_id=plan.work_item_id,
         status="failed",

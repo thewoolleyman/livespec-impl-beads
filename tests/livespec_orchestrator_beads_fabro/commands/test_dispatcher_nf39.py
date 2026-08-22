@@ -85,6 +85,36 @@ def test_blocked_terminal_outcome_carries_inspected_failure_detail(tmp_path: Pat
     assert outcome.fabro_failure_signature == "implement|deterministic|provider limit"
 
 
+def test_failed_terminal_outcome_uses_parsed_inspect_failure_even_when_command_failed(
+    tmp_path: Path,
+) -> None:
+    failure = FabroFailureDetail(
+        cause="You've hit your usage limit.",
+        category="deterministic",
+        signature="implement|deterministic|provider limit",
+        provider_usage_limit=True,
+    )
+    outcome = fabro_run_terminal_outcome(
+        outcome_type=DispatchOutcome,
+        plan=_plan(tmp_path=tmp_path),
+        run_id="01RUNFAILED",
+        inspect=FabroInspectResult(
+            command=CommandResult(exit_code=1, stdout="{}", stderr="wrapped inspect failure"),
+            payload={},
+            status_kind="failed",
+            failure=failure,
+        ),
+        exit_code=1,
+        stderr="raw fabro run stderr",
+    )
+
+    assert outcome is not None
+    assert outcome.status == "failed"
+    assert outcome.fabro_failure_category == "deterministic"
+    assert outcome.fabro_failure_cause == "You've hit your usage limit."
+    assert outcome.fabro_failure_signature == "implement|deterministic|provider limit"
+
+
 def test_emit_calibration_appends_honeycomb_span_with_failure_fields(tmp_path: Path) -> None:
     journal_file = tmp_path / "journal.jsonl"
     emit_calibration(
