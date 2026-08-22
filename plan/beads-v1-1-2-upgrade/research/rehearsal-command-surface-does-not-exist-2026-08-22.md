@@ -3,11 +3,47 @@
 **Date:** 2026-08-22
 **Thread:** `plan/beads-v1-1-2-upgrade/`
 **Item:** `bd-ib-ao3j` (the attended rehearsal run)
-**Status:** the O4 command plan cannot execute as written
+**Status:** the O4 command plan STILL cannot execute as written — but four of
+the five findings below have since been resolved or routed. See the status
+update immediately after this header before acting on anything in this note.
 **Nothing was installed.** Both release binaries were fetched to a scratch
 directory, checksum-verified against the pins this thread already recorded, and
 invoked only with `--help`. No tenant was contacted; no host path was written;
 `/usr/local/bin` was not touched.
+
+## STATUS UPDATE, 2026-08-22 (added in place, after this note's findings were acted on)
+
+**Read this before the verb table below.** The table records what was true when
+this note was written. Four of its five findings have since been resolved or
+have a measured route; the note's headline conclusion survives on the fifth
+alone. Amended in place rather than superseded, per this thread's practice of
+annotating a note where a reader will actually see it.
+
+| Finding | State now | Carrier |
+|---|---|---|
+| `inventory <projection>` — **176 calls, 16 invocations, 5 stages** | **RESOLVED.** `capture-inventory.sh` was rewritten onto the real command surface and no longer invokes the verb at all. | `bd-ib-2591`, PR #1750 (merged 2026-08-22) |
+| `fixture produce` | **ROUTED.** A measured four-step route exists on v1.0.5: configure `status.custom`, import as JSONL with native statuses only, transition with `update --status`, then add edges and comments separately. | `rehearsal-fixture-route-2026-08-22.md` |
+| `sync push` / `sync fetch` | **ROUTED.** `CALL DOLT_PUSH(...)` and `DOLT_FETCH` work in server mode; projection 11 is SERVED on real divergence. | `sync-leg-divergence-2026-08-22.md` |
+| `remote add` | **ROUTED.** `DOLT_REMOTE('add', …)` and `dolt_remote_branches` measured working in the same probe. | `sync-leg-divergence-2026-08-22.md` |
+| `schema create-golden` | **STILL OUTSTANDING.** The verb does not exist and the command plan still invokes it, at `command-plans/beads112-rehearsal.command-plan.json` lines 216 and 226. | — |
+
+**So the Status line above remains literally true, and it is now true because of
+one verb rather than five.** That distinction matters for scheduling: the
+attended window's largest command-surface obstacle by an order of magnitude —
+176 calls — is gone, and what remains is a single golden-schema step.
+
+Two things this update deliberately does NOT claim. A route being *measured* is
+not the same as the command plan being *rewritten* to use it: the plan JSON still
+names the non-existent verbs for `fixture produce`, `sync`, and `remote add`, so
+executing it as written still fails on those lines even though a working route is
+now known for each. And `remote add`'s route touches `dolt_remote` against a real
+remote, which is `bd-ib-092q` — parked by design pending its own authorization.
+
+*Verified 2026-08-22 by re-reading the wrapper and the command plan rather than
+inferring from the merge: `capture-inventory.sh`'s six remaining occurrences of
+the string `inventory` are HALT messages, an env category label, a filename glob
+and a receipt schema name — zero invocations; and the command plan's one
+`"inventory"` occurrence is a category name in a list, not a verb.*
 
 ## Why this note exists
 
