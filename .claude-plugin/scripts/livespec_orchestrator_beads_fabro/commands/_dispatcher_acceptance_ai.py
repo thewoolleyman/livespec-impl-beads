@@ -6,6 +6,11 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from livespec_orchestrator_beads_fabro.commands._dispatcher_acceptance_criteria import (
+    CriterionCheck,
+    criteria_checks,
+    criteria_lines,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandResult,
     CommandRunner,
@@ -24,59 +29,6 @@ __all__: list[str] = [
 NO_CHANGE_NEEDED_VERDICT = "NO_CHANGE_NEEDED"
 
 _DIFF_TIMEOUT_SECONDS = 30.0
-_EXTERNAL_VERIFICATION_TERMS = frozenset(
-    {
-        "check",
-        "checks",
-        "green",
-        "test",
-        "tests",
-        "verify",
-        "verified",
-        "verification",
-        "validation",
-    }
-)
-_STOP_WORDS = frozenset(
-    {
-        "acceptance",
-        "against",
-        "branch",
-        "computed",
-        "criteria",
-        "criterion",
-        "direction",
-        "effective",
-        "either",
-        "every",
-        "field",
-        "human",
-        "item",
-        "journaled",
-        "minimum",
-        "mode",
-        "policy",
-        "produces",
-        "records",
-        "status",
-        "their",
-        "under",
-        "verdict",
-        "work",
-    }
-)
-
-
-@dataclass(frozen=True, kw_only=True)
-class CriterionCheck:
-    """One acceptance criterion's deterministic read-and-judge result."""
-
-    text: str
-    passed: bool
-    reason: str
-
-    def as_record(self) -> dict[str, object]:
-        return {"text": self.text, "passed": self.passed, "reason": self.reason}
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -124,7 +76,7 @@ def run_acceptance_pass(
     active_runner = ShellCommandRunner() if runner is None else runner
     diff_result = _read_merged_diff(repo=repo, outcome=outcome, runner=active_runner)
     telemetry_passed, telemetry_reason = _telemetry_verdict(outcome=outcome)
-    checks = _criteria_checks(
+    checks = criteria_checks(
         criteria_text=_effective_criteria_text(item=item),
         merged_diff=diff_result.merged_diff,
         telemetry_passed=telemetry_passed,
@@ -179,7 +131,7 @@ def _telemetry_verdict(*, outcome: DispatchOutcome) -> tuple[bool, str]:
 
 
 def _effective_criteria_text(*, item: WorkItem) -> str | None:
-    if _criteria_lines(criteria_text=item.acceptance_criteria):
+    if criteria_lines(criteria_text=item.acceptance_criteria):
         return item.acceptance_criteria
     return _description_exit_criteria(description=item.description)
 
@@ -206,57 +158,6 @@ def _description_exit_criteria(*, description: str) -> str | None:
     if not text:
         return None
     return text
-
-
-def _criteria_checks(
-    *, criteria_text: str | None, merged_diff: str | None, telemetry_passed: bool
-) -> tuple[CriterionCheck, ...]:
-    criteria = _criteria_lines(criteria_text=criteria_text)
-    if not criteria:
-        return ()
-    normalized_diff = "" if merged_diff is None else merged_diff.lower()
-    return tuple(
-        _judge_criterion(
-            criterion=criterion,
-            normalized_diff=normalized_diff,
-            telemetry_passed=telemetry_passed,
-        )
-        for criterion in criteria
-    )
-
-
-def _criteria_lines(*, criteria_text: str | None) -> tuple[str, ...]:
-    if criteria_text is None:
-        return ()
-    lines: list[str] = []
-    for raw in criteria_text.splitlines():
-        line = re.sub(r"^\s*(?:[-*]|\d+[.)])\s*", "", raw).strip()
-        if line:
-            lines.append(line)
-    return tuple(lines)
-
-
-def _judge_criterion(
-    *, criterion: str, normalized_diff: str, telemetry_passed: bool
-) -> CriterionCheck:
-    terms = _significant_terms(text=criterion)
-    if any(term in normalized_diff for term in terms):
-        return CriterionCheck(text=criterion, passed=True, reason="matched merged diff evidence")
-    if telemetry_passed and any(term in _EXTERNAL_VERIFICATION_TERMS for term in terms):
-        return CriterionCheck(
-            text=criterion, passed=True, reason="matched green dispatch telemetry"
-        )
-    return CriterionCheck(
-        text=criterion, passed=False, reason="no merged diff or telemetry evidence"
-    )
-
-
-def _significant_terms(*, text: str) -> tuple[str, ...]:
-    terms: list[str] = []
-    for term in re.findall(r"[a-z0-9_]{4,}", text.lower()):
-        if term not in _STOP_WORDS:
-            terms.append(term)
-    return tuple(terms)
 
 
 def _passes(*, diff: _DiffResult, telemetry: bool, checks: tuple[CriterionCheck, ...]) -> bool:

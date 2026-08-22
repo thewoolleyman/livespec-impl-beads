@@ -125,6 +125,96 @@ def test_acceptance_pass_fails_when_criteria_lack_diff_or_telemetry_evidence(
     )
 
 
+def test_acceptance_pass_ignores_bare_header_lines(tmp_path: Path) -> None:
+    runner = _Runner(
+        result=CommandResult(
+            exit_code=0,
+            stdout="diff --git a/x b/x\n+the receipt proves the control tripped once\n",
+            stderr="",
+        )
+    )
+
+    result = run_acceptance_pass(
+        repo=tmp_path,
+        item=_item(
+            criteria=(
+                "ACCEPTANCE CRITERIA\n" "\n" "- The receipt proves the control tripped once.\n"
+            )
+        ),
+        outcome=_outcome(),
+        runner=runner,
+    )
+
+    assert result.verdict == "PASS"
+    assert result.criteria == (
+        CriterionCheck(
+            text="The receipt proves the control tripped once.",
+            passed=True,
+            reason="matched merged diff evidence",
+        ),
+    )
+
+
+def test_acceptance_pass_folds_hard_wrapped_fragments_into_one_assertion(
+    tmp_path: Path,
+) -> None:
+    runner = _Runner(
+        result=CommandResult(
+            exit_code=0,
+            stdout=(
+                "diff --git a/x b/x\n" "+journal record names every failing criterion and reason\n"
+            ),
+            stderr="",
+        )
+    )
+
+    result = run_acceptance_pass(
+        repo=tmp_path,
+        item=_item(
+            criteria=("1. The journal record names every failing criterion and\n" "   reason.\n")
+        ),
+        outcome=_outcome(),
+        runner=runner,
+    )
+
+    assert result.verdict == "PASS"
+    assert result.criteria == (
+        CriterionCheck(
+            text="The journal record names every failing criterion and reason.",
+            passed=True,
+            reason="matched merged diff evidence",
+        ),
+    )
+
+
+def test_acceptance_pass_fails_when_only_one_term_matches_unrelated_diff(
+    tmp_path: Path,
+) -> None:
+    runner = _Runner(
+        result=CommandResult(
+            exit_code=0,
+            stdout="diff --git a/x b/x\n+rename plan rollup helper\n",
+            stderr="",
+        )
+    )
+
+    result = run_acceptance_pass(
+        repo=tmp_path,
+        item=_item(criteria="The plan-rollup invariant no longer reports a seat anchor epic."),
+        outcome=_outcome(),
+        runner=runner,
+    )
+
+    assert result.verdict == "FAIL"
+    assert result.criteria == (
+        CriterionCheck(
+            text="The plan-rollup invariant no longer reports a seat anchor epic.",
+            passed=False,
+            reason="insufficient merged diff evidence",
+        ),
+    )
+
+
 def test_acceptance_pass_disposes_empty_merged_diff_as_no_change_needed(
     tmp_path: Path,
 ) -> None:
