@@ -103,6 +103,18 @@ pull_requests = "write"
 # Codex credential projection that makes that switch live).
 acp_adapter = "npx -y @agentclientprotocol/claude-agent-acp"
 
+# ACP adapter for the PR node. Defaults to the same un-pinned Claude adapter as
+# `acp_adapter` so a bare `fabro run` of this config still works; the Dispatcher
+# always overrides it via `fabro run --input pr_adapter=...` with the Codex
+# adapter rendered from the target repo's `dispatcher.codex_models.pr` tier
+# (built-in default `gpt-5.4-mini` at `high`).
+#
+# It exists as a SEPARATE input from `acp_adapter` so the publish node's model
+# moves independently of the implementer's. The pr prompt is a fixed `git`/`gh`
+# recipe, so it does not need the implementer tier; implement / fix / review_fix
+# continue to share `acp_adapter`.
+pr_adapter = "npx -y @agentclientprotocol/claude-agent-acp"
+
 # ACP adapter for the REVIEW node (Slice A / bd-ib-egms32) — the Claude
 # subscription, pinned to Opus 4.8 + high thinking. The model CANNOT be set
 # as a node attr or model_stylesheet: `model`/`reasoning_effort` are API-only

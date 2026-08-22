@@ -47,8 +47,10 @@ import re
 from typing import Protocol
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_argv import (
+    CODEX_ADAPTER_BASE,
     CODEX_IMPLEMENTER_ADAPTER,
     FleetMembers,
+    codex_adapter,
     janitor_argv_with_default,
     janitor_bootstrap_argv,
     janitor_checkout_path,
@@ -104,6 +106,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_run_status import (
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
 __all__: list[str] = [
+    "CODEX_ADAPTER_BASE",
     "CODEX_FRESHNESS_MARGIN_SECONDS",
     "CODEX_FRESHNESS_RUN_BUDGET_SECONDS",
     "CODEX_IMPLEMENTER_ADAPTER",
@@ -124,6 +127,7 @@ __all__: list[str] = [
     "assess_codex_credential_freshness",
     "build_plan",
     "cc_otel_overlay_env",
+    "codex_adapter",
     "declares_workflow_scope_refusal",
     "escape_minijinja_literal",
     "host_only_refusal_detail",

@@ -10,11 +10,14 @@ from typing import TYPE_CHECKING, Any, cast
 from livespec_orchestrator_beads_fabro.commands import _jsonc
 
 if TYPE_CHECKING:
+    from livespec_orchestrator_beads_fabro.commands._codex_model_tiers import CodexModelTier
     from livespec_orchestrator_beads_fabro.commands._dispatcher_plan_build import DispatchPlan
 
 __all__: list[str] = [
+    "CODEX_ADAPTER_BASE",
     "CODEX_IMPLEMENTER_ADAPTER",
     "FleetMembers",
+    "codex_adapter",
     "janitor_argv_with_default",
     "janitor_bootstrap_argv",
     "janitor_checkout_path",
@@ -75,10 +78,34 @@ _DEFAULT_JANITOR_CORE_REF = "master"
 # `dispatcher.py loop` and always routes implementer nodes to THIS adapter — so
 # a factory-gated CODEX_ACP_VERSION bump exercises the credential projection
 # end-to-end instead of relying on a manual TODO.
-CODEX_IMPLEMENTER_ADAPTER = (
+CODEX_ADAPTER_BASE = (
     "npx --no-install @zed-industries/codex-acp "
     "-c sandbox_mode=danger-full-access -c approval_policy=never"
 )
+
+# Back-compat alias for the un-pinned adapter. `codex_adapter` is what the
+# engine calls; this name is the base string every tier is built on.
+CODEX_IMPLEMENTER_ADAPTER = CODEX_ADAPTER_BASE
+
+
+def codex_adapter(*, tier: CodexModelTier) -> str:
+    """Render the Codex ACP adapter command for one resolved model tier.
+
+    The overrides ride the SAME `-c key=value` channel the sandbox and
+    approval settings already use, which is what makes this expressible at all:
+    fabro REJECTS `model` / `reasoning_effort` as acp-node attributes
+    (fabro-validate `backend_valid`), so a node attr or a model_stylesheet is
+    not available here. An un-pinned tier renders the base string byte-for-byte,
+    so the opt-out is a true no-op rather than a differently-spelled default.
+    """
+    if not tier.pinned:
+        return CODEX_ADAPTER_BASE
+    return (
+        f"{CODEX_ADAPTER_BASE} "
+        f"-c model={tier.model} "
+        f"-c model_reasoning_effort={tier.reasoning_effort}"
+    )
+
 
 # GitHub owner / repo-name shape. The matched values are spliced into
 # prepare-step clone scripts, so anything outside this conservative
