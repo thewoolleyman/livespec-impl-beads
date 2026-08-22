@@ -5,6 +5,24 @@ queries, and receipt contracts for the later attended rehearsal. It does not run
 the rehearsal and it must not be used against a production tenant for any
 write-capable operation.
 
+## THE COMMAND PLAN IS NOT EXECUTABLE AS WRITTEN
+
+Do not schedule the attended window against this plan yet. Measured 2026-08-22
+by invoking each verb on each binary: **five of the six `bd` verbs the command
+plan uses do not exist** in v1.0.5, v1.1.2, or v1.2.2 — `fixture produce`,
+`sync push`/`sync fetch`, `remote add`, `inventory <projection>` (176 calls, the
+rehearsal's whole evidence spine) and `schema create-golden`. Only `migrate`
+exists, and it is the positive control that proves the probe discriminates.
+
+Each leg has a real counterpart on the same binaries, so this is a rewrite of
+the plan's command surface rather than a dead end. Full measurement, provenance
+of the probed binaries, and the candidate routes:
+`../research/rehearsal-command-surface-does-not-exist-2026-08-22.md`.
+
+The hermetic tests pass on this plan because they check its **shape** — stage
+order, argv/command agreement, absence of placeholder markers — and never ask a
+binary whether a command is real.
+
 ## Boundary
 
 Allowed now:
