@@ -205,3 +205,65 @@ Preserve-by-reference must land BEFORE any shortening of the gate window.
 Shortening first converts a visible stall into faster loss. Similarly, do not
 raise `max_retries` before the classifier is correct: more retries against a
 misclassified quota refusal spends the exhausted allowance harder.
+
+## The evidence base is perishable, and nothing in the ledger says so
+
+Added 2026-08-22 after the opening pass, because this is the one binding fact
+about this thread that lives in no work-item and would be silently destroyed by
+a routine maintenance command.
+
+Every measurement above — the 53-run failed cohort, the 13 diagnosable cause
+chains, the 11 provider-limit refusals, the burst timing, and the three `fabro
+dump` exports the C3 gate sequence was reconstructed from — is derived from runs
+held in the **hp factory's own storage**. Nothing has copied them anywhere. They
+are retained only because nothing has garbage-collected them yet.
+
+**`fabro system prune --yes` with no filters deletes them.** Verified from the
+binary's own help text on the running build: `--older-than <DURATION>` documents
+itself as *"Default: 24h when no explicit filters are set"*, and `--yes` turns
+the default dry run into a real delete. So the unqualified invocation is not a
+narrow cleanup; it is a 24-hour retention cut across every run on the server.
+
+Measured against hp on 2026-08-22 (`fabro ps -a --server
+https://hp-xubuntu.perch-rudd.ts.net:32276 --json`, 338 runs):
+
+| start date | runs |
+|---|---|
+| 2026-08-16 | 1 |
+| 2026-08-17 | 35 |
+| 2026-08-18 | 28 |
+| 2026-08-19 | 63 |
+| 2026-08-20 | 49 |
+| 2026-08-21 | 102 |
+| 2026-08-22 | 60 |
+
+**278 runs started on or before 2026-08-21, of which 54 are failed** — the
+cohort this thread's entire causal analysis rests on, still intact and still
+entirely inside the default prune window.
+
+Two consequences, in the order they bite:
+
+1. **C1 through C6 become unreproducible.** Not merely un-recheckable: the
+   controls that make the numbers usable — the two independent instruments
+   agreeing within three points, the 11-of-13 diagnosable split, the verbatim
+   `usage_limit_exceeded` payload — cannot be re-derived from anything else.
+   `livespec.cost.*` models Anthropic only (gap T3), so there is no second
+   record of Codex spend anywhere in the stack.
+2. **`bd-ib-d0ul`'s own design would arrive broken.** C6 is
+   preserve-by-reference: a blocked or dead run leaves a *pointer* to its
+   checkpoint — run id, factory URL, stage artifact path, size and digest —
+   rather than an inlined diff. Every pointer it writes resolves against exactly
+   the storage a prune empties. Pruning the backing runs before C6 lands means
+   its first act on arrival is to mint dangling references.
+
+**Constraint: do not run `fabro system prune` on hp — filtered or not — while
+this plan is live, and specifically not before C6 (`bd-ib-d0ul`) has landed.**
+If storage pressure forces the issue sooner, export first: `fabro dump <run>
+--server https://hp-xubuntu.perch-rudd.ts.net:32276 -o <dir>` reaches a remote
+run's store and exports its stage artifacts (verified: 61 files on run
+`01M0H73GQ8Y0`, 34 including a 21,949-byte `diff.patch` on another). Dump the 54
+failed runs before pruning anything, and record where the export landed here.
+
+This is an ordering constraint of the same kind as the two above it, and it is
+listed separately only because its trigger is a maintenance action rather than a
+development one — nobody would think to check a plan before running a cleanup.
