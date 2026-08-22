@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import subprocess
 import time
@@ -35,6 +36,7 @@ __all__: list[str] = [
 # those config reads most of the fleet's bd traffic. Only POSITIVE results are
 # memoized; a mismatch keeps raising on every call.
 _VERIFIED_TENANTS: set[tuple[str, str, str]] = set()
+_LOGGER = logging.getLogger(__name__)
 
 
 def reset_tenant_verification_memo() -> None:
@@ -224,9 +226,18 @@ def raise_for_status(
     tenant: str,
 ) -> None:
     """Map a nonzero `bd` exit onto the typed expected-error surface."""
-    if completed.returncode == 0:
-        return
     stderr = completed.stderr or ""
+    if completed.returncode == 0:
+        if stderr:
+            _LOGGER.warning(
+                "bd exited zero with stderr",
+                extra={
+                    "bd_argv": argv,
+                    "bd_tenant": tenant,
+                    "bd_stderr": stderr.strip(),
+                },
+            )
+        return
     command = " ".join(argv)
     lowered = stderr.lower()
     if "connection refused" in lowered or "can't connect" in lowered:

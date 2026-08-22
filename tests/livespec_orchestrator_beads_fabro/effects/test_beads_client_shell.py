@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import subprocess
 import time
 from pathlib import Path
 
 import pytest
+from livespec_orchestrator_beads_fabro._beads_client import ShellBeadsClient
 from livespec_orchestrator_beads_fabro.effects import _beads_client_shell as shell
 from livespec_orchestrator_beads_fabro.errors import BeadsConnectionError
 from livespec_orchestrator_beads_fabro.types import StoreConfig
@@ -24,6 +26,55 @@ def test_raise_for_status_maps_connection_refused() -> None:
 
     with pytest.raises(BeadsConnectionError):
         shell.raise_for_status(completed=completed, argv=["bd", "list"], tenant="tenant")
+
+
+def test_raise_for_status_surfaces_zero_exit_stderr(caplog: pytest.LogCaptureFixture) -> None:
+    completed = subprocess.CompletedProcess(
+        args=["bd", "comment"],
+        returncode=0,
+        stdout="ok\n",
+        stderr="synthetic warning on stderr\n",
+    )
+
+    with caplog.at_level(logging.WARNING):
+        shell.raise_for_status(completed=completed, argv=["bd", "comment"], tenant="tenant")
+
+    assert caplog.messages == ["bd exited zero with stderr"]
+    assert caplog.records[0].bd_argv == ["bd", "comment"]
+    assert caplog.records[0].bd_tenant == "tenant"
+    assert caplog.records[0].bd_stderr == "synthetic warning on stderr"
+
+
+def test_raise_for_status_zero_exit_empty_stderr_is_quiet(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    completed = subprocess.CompletedProcess(
+        args=["bd", "list"],
+        returncode=0,
+        stdout="[]\n",
+        stderr="",
+    )
+
+    with caplog.at_level(logging.WARNING):
+        shell.raise_for_status(completed=completed, argv=["bd", "list"], tenant="tenant")
+
+    assert caplog.messages == []
+
+
+def test_raise_for_status_nonzero_keeps_typed_error_without_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    completed = subprocess.CompletedProcess(
+        args=["bd", "list"],
+        returncode=1,
+        stdout="",
+        stderr="connection refused",
+    )
+
+    with caplog.at_level(logging.WARNING), pytest.raises(BeadsConnectionError):
+        shell.raise_for_status(completed=completed, argv=["bd", "list"], tenant="tenant")
+
+    assert caplog.messages == []
 
 
 def _tenant_config(*, repo_root: Path, tenant: str = "tenant-db") -> StoreConfig:
@@ -55,6 +106,68 @@ def _server_mode_repo(*, tmp_path: Path) -> tuple[Path, Path]:
     config_path.parent.mkdir(parents=True)
     _ = config_path.write_text("dolt:\n  mode: server\n", encoding="utf-8")
     return repo_root, config_path
+
+
+def _embedded_repo(*, tmp_path: Path) -> Path:
+    repo_root = tmp_path / "repo"
+    config_path = repo_root / ".beads" / "config.yaml"
+    config_path.parent.mkdir(parents=True)
+    _ = config_path.write_text("dolt.mode: embedded\n", encoding="utf-8")
+    return repo_root
+
+
+def test_run_json_surfaces_zero_exit_stderr(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    repo_root = _embedded_repo(tmp_path=tmp_path)
+
+    def run(argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            args=argv,
+            returncode=0,
+            stdout="[]\n",
+            stderr="synthetic json-path warning\n",
+        )
+
+    monkeypatch.setattr(shell.subprocess, "run", run)
+    client = ShellBeadsClient(config=_tenant_config(repo_root=repo_root))
+
+    with caplog.at_level(logging.WARNING):
+        assert client._run_json(verb_args=["list", "--json"]) == []  # noqa: SLF001
+
+    assert caplog.messages == ["bd exited zero with stderr"]
+    assert caplog.records[0].bd_argv == ["/nonexistent/bd", "list", "--json"]
+    assert caplog.records[0].bd_tenant == "tenant-db"
+    assert caplog.records[0].bd_stderr == "synthetic json-path warning"
+
+
+def test_run_void_surfaces_zero_exit_stderr(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    repo_root = _embedded_repo(tmp_path=tmp_path)
+
+    def run(argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            args=argv,
+            returncode=0,
+            stdout="ok\n",
+            stderr="synthetic void-path warning\n",
+        )
+
+    monkeypatch.setattr(shell.subprocess, "run", run)
+    client = ShellBeadsClient(config=_tenant_config(repo_root=repo_root))
+
+    with caplog.at_level(logging.WARNING):
+        client._run_void(verb_args=["comment", "li-a", "body"])  # noqa: SLF001
+
+    assert caplog.messages == ["bd exited zero with stderr"]
+    assert caplog.records[0].bd_argv == ["/nonexistent/bd", "comment", "li-a", "body"]
+    assert caplog.records[0].bd_tenant == "tenant-db"
+    assert caplog.records[0].bd_stderr == "synthetic void-path warning"
 
 
 def _tmp_xdg_cache_dir(*, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
