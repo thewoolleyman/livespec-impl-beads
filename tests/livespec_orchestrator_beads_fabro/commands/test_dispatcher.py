@@ -3718,6 +3718,99 @@ def test_dispatch_id_journal_omits_factory_when_target_was_not_resolved(
     assert review_gate_emissions[0].dispatch_factory is None
 
 
+def test_dispatch_pre_run_failure_releases_admitted_claim(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, workflow = _repo_with_workflow(tmp_path=tmp_path)
+    item = _item(status="active", assignee="fabro")
+    append_work_item(path=_config(), item=item)
+    journal = JournalFile(path=repo / "tmp" / "fabro-dispatch-journal.jsonl")
+    journal.append(record={"stage": "ledger-admit", "work_item_id": item.id, "assignee": "fabro"})
+    monkeypatch.setattr(_dispatcher_loop, "read_dispatch_comments", lambda **_: "factory refused")
+
+    outcome = _dispatcher_loop.dispatch_one(
+        args=argparse.Namespace(
+            fabro_bin="fabro",
+            workflow=workflow,
+            repo=repo,
+            journal=None,
+            poll_attempts=1,
+            poll_interval_seconds=0.1,
+        ),
+        repo=repo,
+        item=item,
+        journal=journal,
+        janitor=None,
+    )
+
+    assert (outcome.status, outcome.stage, outcome.fabro_run_id) == (
+        "failed",
+        "ledger-comments",
+        None,
+    )
+    stored = _stored()[item.id]
+    assert (stored.status, stored.assignee) == ("ready", None)
+    records = [json.loads(line) for line in journal.path.read_text(encoding="utf-8").splitlines()]
+    assert (
+        records[-1].items()
+        >= {
+            "stage": "ledger-admit-release",
+            "work_item_id": item.id,
+            "status": "ready",
+            "reason": "pre-run-failure-without-fabro-run-id",
+            "outcome_stage": "ledger-comments",
+        }.items()
+    )
+
+
+def test_dispatch_does_not_release_claim_after_fabro_run_exists(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, workflow = _repo_with_workflow(tmp_path=tmp_path)
+    item = _item(status="active", assignee="fabro")
+    append_work_item(path=_config(), item=item)
+    journal = JournalFile(path=repo / "tmp" / "fabro-dispatch-journal.jsonl")
+    fake = _FakeRunDispatch(
+        outcomes={
+            item.id: DispatchOutcome(
+                work_item_id=item.id,
+                status="failed",
+                stage="fabro-run",
+                pr_number=None,
+                merge_sha=None,
+                detail="run failed after creation",
+                fabro_run_id="01RUNEXISTS",
+            )
+        }
+    )
+    monkeypatch.setattr(_dispatcher_loop, "run_dispatch", fake)
+    monkeypatch.setattr(_dispatcher_loop, "post_run_dispositions", lambda **_: None)
+    monkeypatch.setattr(_dispatcher_loop, "emit_review_gate_from_fabro_events", lambda **_: None)
+
+    outcome = _dispatcher_loop.dispatch_one(
+        args=argparse.Namespace(
+            fabro_bin="fabro",
+            workflow=workflow,
+            repo=repo,
+            journal=None,
+            poll_attempts=1,
+            poll_interval_seconds=0.1,
+        ),
+        repo=repo,
+        item=item,
+        journal=journal,
+        janitor=None,
+    )
+
+    assert outcome.fabro_run_id == "01RUNEXISTS"
+    stored = _stored()[item.id]
+    assert (stored.status, stored.assignee) == ("active", "fabro")
+    records = [json.loads(line) for line in journal.path.read_text(encoding="utf-8").splitlines()]
+    assert "ledger-admit-release" not in {record["stage"] for record in records}
+
+
 def test_complete_and_accept_ai_only_pass_journals_verdict_and_closes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -4340,11 +4433,10 @@ def test_dispatch_fails_fast_when_oauth_token_env_is_absent_or_empty(
     assert target_wrapper in out
     assert "with-livespec-env.sh" not in out
     # The admission valve transitioned the item to active before the overlay
-    # materialization refused (the launch never happened — there is nothing to
-    # project), so it stays in the WIP for the operator to retry under the env
-    # wrapper. The empty-string form of "absent" refuses identically; a fresh
-    # ready item proves it (the first item is now active, no longer admittable).
-    assert _stored()[item.id].status == "active"
+    # materialization refused, then the pre-run release returned it to the ready
+    # set because Fabro never created a run. The empty-string form of "absent"
+    # refuses identically.
+    assert _stored()[item.id].status == "ready"
     item2 = _item(id="livespec-impl-beads-t2")
     append_work_item(path=_config(), item=item2)
     base2 = ["dispatch", "--repo", str(repo), "--item", item2.id, "--workflow", str(workflow)]
@@ -4392,9 +4484,9 @@ def test_dispatch_fails_closed_when_github_app_env_is_absent(
     assert "GITHUB_APP_ID" in out
     assert "credential_wrapper" in out
     assert "github_pat_retired" not in out
-    # Admission moved the item to active before the refusal (parity with
-    # the other pre-launch refusal paths).
-    assert _stored()[item.id].status == "active"
+    # Admission moved the item to active before the refusal, then the pre-run
+    # release returned it to the ready set because Fabro never created a run.
+    assert _stored()[item.id].status == "ready"
 
 
 def test_dispatch_routes_a_mint_failure_as_overlay_refusal(
@@ -4446,7 +4538,7 @@ def test_dispatch_fails_when_workflow_config_is_not_materializable(
     assert exit_code == 1
     out = capsys.readouterr().out
     assert "run-config-overlay" in out
-    assert _stored()[item.id].status == "active"
+    assert _stored()[item.id].status == "ready"
 
 
 @dataclass(kw_only=True)
@@ -4563,7 +4655,7 @@ def test_dispatch_fails_fast_when_fleet_manifest_is_malformed(
     out = capsys.readouterr().out
     assert "run-config-overlay" in out
     assert ".livespec-fleet-manifest.jsonc" in out
-    assert _stored()[item.id].status == "active"
+    assert _stored()[item.id].status == "ready"
 
 
 def test_dispatch_custom_journal_path(
@@ -5116,7 +5208,7 @@ def test_dispatch_fails_at_ledger_comments_stage_when_read_raises(
     out = capsys.readouterr().out
     assert "ledger-comments" in out
     assert "BeadsCommandError" in out
-    assert _stored()[item.id].status == "active"
+    assert _stored()[item.id].status == "ready"
 
 
 def test_dispatch_refuses_minijinja_goal_before_fabro_and_releases_claim(
