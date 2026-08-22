@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.67.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.67.0...v0.67.1) (2026-08-22)
+
+
+### Bug Fixes
+
+* parse inventory sql table output ([3b371e4](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/3b371e430905bbc542e3ccef45d80258d7296780))
+* prove inventory capture uses real bd surface ([e982ca5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/e982ca5e90bbeeb6c58fecc2889ec6c339aaf36c))
+
 ## [0.67.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.66.1...v0.67.0) (2026-08-22)
 
 
