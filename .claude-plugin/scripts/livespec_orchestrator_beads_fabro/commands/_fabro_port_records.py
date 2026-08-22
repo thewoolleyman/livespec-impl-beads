@@ -21,17 +21,55 @@ __all__: list[str] = [
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
 _RUN_ID_RE = re.compile(r"Run:\s*([0-9A-Za-z-]+)")
 _WORK_ITEM_RE = re.compile(r"^Work-item:\s*(\S+)", re.MULTILINE)
-_REMOTE_COMPACTION_CATEGORY = "deterministic"
+# The category a PERMANENT failure is rewritten to. Fabro's own classifier
+# labels these `transient_infra`, which is what makes them retryable; a failure
+# that cannot succeed on retry is deterministic by definition.
+_PERMANENT_CATEGORY = "deterministic"
 _TRANSIENT_SIGNATURE_SEGMENT = "|transient_infra|"
+
+# Provider usage / spend ceilings, which are PERMANENT for the remainder of the
+# billing or rolling-usage window: retrying spends more of an allowance that is
+# already gone, and only a human (or the clock) clears them.
+#
+# `codex_error_info: "usage_limit_exceeded"` is the machine-readable
+# discriminator and is matched FIRST because it cannot drift with copy edits.
+# The prose hints are the fallback for providers that ship no such field.
+#
+# MEASURED 2026-08-22 across the 53 failed runs on the hp factory: 13 carried a
+# diagnosable cause chain, and 10 of those were Codex usage-limit refusals
+# reading "You've hit your usage limit. Visit .../codex/settings/usage ... or
+# try again at <date>", every one classified `transient_infra` and retried. An
+# 11th was the Anthropic form, "You've hit your org's monthly spend limit". Both
+# vendors surface here, so both hint families belong in one list.
+#
+# NOTE the "usage" infix: the phrase is "hit your USAGE limit", so a hint of
+# "hit your limit" does NOT substring-match it. That exact near-miss is why the
+# fabro-side fix on `fix/classify-provider-spend-limit-not-transient` would not
+# have caught the Codex form even once merged.
+_PROVIDER_USAGE_LIMIT_FIELD = '"codex_error_info": "usage_limit_exceeded"'
+_PROVIDER_USAGE_LIMIT_HINTS = (
+    "hit your usage limit",
+    "monthly spend limit",
+    "spend limit",
+    "usage limit exceeded",
+)
 
 
 @dataclass(frozen=True, kw_only=True)
 class FabroFailureDetail:
-    """Structured failure block surfaced by `fabro inspect --json`."""
+    """Structured failure block surfaced by `fabro inspect --json`.
+
+    `provider_usage_limit` is the typed consumer seam for the dispatch-admission
+    gate: it says this run died because the model provider's usage or spend
+    ceiling was reached, so launching another sandbox against the same
+    credential cannot produce a line of work. It is carried as a flag rather
+    than left for each consumer to re-match against `cause` text.
+    """
 
     cause: str | None
     category: str | None
     signature: str | None
+    provider_usage_limit: bool = False
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -105,7 +143,18 @@ def fabro_failure_detail_from_payload(*, payload: object | None) -> FabroFailure
     if record is None:
         return None
     typed_payload = cast("dict[object, object]", record)
-    for block in _failure_blocks(value=typed_payload):
+    blocks = _failure_blocks(value=typed_payload)
+    # A block CARRYING CAUSES wins over an earlier one that only carries a
+    # category, because the cause chain is where the provider payload lives.
+    # Traversal order alone put a bare `{"category": ...}` block first on 2 of
+    # the 10 measured usage-limit runs (2026-08-22), which hid the very cause
+    # this parser exists to surface.
+    for block in blocks:
+        if block.get("causes"):
+            detail = _failure_detail(block=block)
+            if detail is not None:
+                return detail
+    for block in blocks:
         detail = _failure_detail(block=block)
         if detail is not None:
             return detail
@@ -172,9 +221,11 @@ def _failure_blocks(*, value: object) -> tuple[dict[object, object], ...]:
 
 def _failure_detail(*, block: dict[object, object]) -> FabroFailureDetail | None:
     causes = _cause_values(value=block.get("causes"))
-    remote_compaction_cause = _remote_compaction_cause(causes=causes)
-    cause = remote_compaction_cause or _first_cause(causes=causes)
-    reclassified = remote_compaction_cause is not None
+    permanent_cause = _permanent_cause(causes=causes)
+    selected = permanent_cause or _root_cause(causes=causes)
+    cause = selected if selected is None else (_provider_message(text=selected) or selected)
+    reclassified = permanent_cause is not None
+    usage_limit = _provider_usage_limit_cause(causes=causes) is not None
     category = _failure_category(
         category=_str_value(value=block.get("category")),
         reclassified=reclassified,
@@ -185,7 +236,12 @@ def _failure_detail(*, block: dict[object, object]) -> FabroFailureDetail | None
     )
     if cause is None and category is None and signature is None:
         return None
-    return FabroFailureDetail(cause=cause, category=category, signature=signature)
+    return FabroFailureDetail(
+        cause=cause,
+        category=category,
+        signature=signature,
+        provider_usage_limit=usage_limit,
+    )
 
 
 def _cause_values(*, value: object) -> tuple[str, ...]:
@@ -195,15 +251,71 @@ def _cause_values(*, value: object) -> tuple[str, ...]:
     return tuple(text for item in values if (text := _str_value(value=item)) is not None)
 
 
-def _first_cause(*, causes: tuple[str, ...]) -> str | None:
-    return next(iter(causes), None)
+def _root_cause(*, causes: tuple[str, ...]) -> str | None:
+    """The INNERMOST cause — the root of the chain, not its outer wrapper.
+
+    A fabro cause chain is ordered outermost-first, so the last element is the
+    one carrying the provider payload. Taking `causes[0]` instead is what made
+    every provider failure read as a bare "ACP protocol error".
+
+    MEASURED 2026-08-22 over every failure block in the 53 failed runs on the hp
+    factory: all 17 blocks carry EXACTLY two causes, `causes[0]` is the literal
+    constant "ACP protocol error" in 17 of 17, and `causes[-1]` holds the real
+    message every time. The outer element is a fixed wrapper that identifies the
+    transport, not the fault.
+    """
+    return causes[-1] if causes else None
 
 
-def _remote_compaction_cause(*, causes: tuple[str, ...]) -> str | None:
+def _permanent_cause(*, causes: tuple[str, ...]) -> str | None:
+    """The most specific cause in the chain that retrying CANNOT resolve."""
     for text in causes:
-        if _is_remote_compaction_404(text=text):
+        if _is_remote_compaction_404(text=text) or _is_provider_usage_limit(text=text):
             return text
     return None
+
+
+def _provider_usage_limit_cause(*, causes: tuple[str, ...]) -> str | None:
+    for text in causes:
+        if _is_provider_usage_limit(text=text):
+            return text
+    return None
+
+
+def _provider_message(*, text: str) -> str | None:
+    """The provider's own message, lifted out of an embedded JSON error payload.
+
+    The raw cause reads `Internal error: {"spawned_at": "<a cargo path>",
+    "data": {"message": "<the useful sentence>", ...}}`. Surfacing it verbatim
+    leads with the cargo path and buries the sentence that names the ceiling and
+    its reset time, so the embedded `data.message` is preferred when the payload
+    parses. Returns None when there is no JSON object or no message inside it,
+    and the caller keeps the raw text.
+    """
+    start = text.find("{")
+    end = text.rfind("}")
+    if start < 0 or end <= start:
+        return None
+    parsed = parse_json(text=text[start : end + 1])
+    if isinstance(parsed, JsonParseFailure) or not isinstance(parsed, dict):
+        return None
+    data_raw: object = cast("dict[str, Any]", parsed).get("data")
+    if not isinstance(data_raw, dict):
+        return None
+    return _str_value(value=cast("dict[str, Any]", data_raw).get("message"))
+
+
+def _is_provider_usage_limit(*, text: str) -> bool:
+    """Whether this cause is a provider usage / spend ceiling.
+
+    The structured field is checked first and on the RAW text, because its value
+    is a machine token rather than prose; the hint list is the prose fallback and
+    is matched case-insensitively.
+    """
+    if _PROVIDER_USAGE_LIMIT_FIELD in " ".join(text.split()):
+        return True
+    lowered = text.lower()
+    return any(hint in lowered for hint in _PROVIDER_USAGE_LIMIT_HINTS)
 
 
 def _is_remote_compaction_404(*, text: str) -> bool:
@@ -217,14 +329,14 @@ def _is_remote_compaction_404(*, text: str) -> bool:
 
 def _failure_category(*, category: str | None, reclassified: bool) -> str | None:
     if reclassified:
-        return _REMOTE_COMPACTION_CATEGORY
+        return _PERMANENT_CATEGORY
     return category
 
 
 def _failure_signature(*, signature: str | None, reclassified: bool) -> str | None:
     if not reclassified or signature is None:
         return signature
-    return signature.replace(_TRANSIENT_SIGNATURE_SEGMENT, f"|{_REMOTE_COMPACTION_CATEGORY}|")
+    return signature.replace(_TRANSIENT_SIGNATURE_SEGMENT, f"|{_PERMANENT_CATEGORY}|")
 
 
 def _str_value(*, value: object) -> str | None:
