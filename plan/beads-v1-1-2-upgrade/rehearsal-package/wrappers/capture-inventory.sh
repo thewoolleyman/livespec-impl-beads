@@ -64,8 +64,10 @@ capture_sql() {
   tmp="$output_dir/$artifact.tmp"
   BEADS112_COMMAND_CATEGORY=inventory \
   BEADS112_COMMAND_SEQUENCE=$sequence \
-    "$with_client" "$client_key" "$bd" sql "$sql" > "$tmp"
+    "$with_client" "$client_key" "$bd" sql --csv "$sql" > "$tmp"
   python3 - "$tmp" "$output_dir/$artifact" <<'PY'
+import csv
+import io
 import json
 import re
 import sys
@@ -84,7 +86,14 @@ def parse_bd_sql_json_cell(raw: str) -> object:
         if cell.startswith("|") and cell.endswith("|"):
             parts = [part.strip() for part in cell.strip("|").split("|")]
         else:
+            # Try the WHOLE cell first: a bare JSON payload contains commas
+            # that a CSV split would shred. Only then try `--csv` fields, where
+            # the payload arrives as one quoted field.
             parts = [cell]
+            try:
+                parts += [part.strip() for part in next(csv.reader(io.StringIO(cell)))]
+            except (csv.Error, StopIteration):
+                pass
         for part in parts:
             if part.startswith(("{", "[")):
                 return json.loads(part)
@@ -108,8 +117,10 @@ capture_sql_bundle() {
   tmp="$output_dir/sql-bundle.tmp"
   BEADS112_COMMAND_CATEGORY=inventory \
   BEADS112_COMMAND_SEQUENCE=$sequence \
-    "$with_client" "$client_key" "$bd" sql "$sql" > "$tmp"
+    "$with_client" "$client_key" "$bd" sql --csv "$sql" > "$tmp"
   python3 - "$tmp" "$output_dir" "$@" <<'PY'
+import csv
+import io
 import json
 import re
 import sys
@@ -131,7 +142,14 @@ def parse_bd_sql_json_cell(raw):
         if cell.startswith("|") and cell.endswith("|"):
             parts = [part.strip() for part in cell.strip("|").split("|")]
         else:
+            # Try the WHOLE cell first: a bare JSON payload contains commas
+            # that a CSV split would shred. Only then try `--csv` fields, where
+            # the payload arrives as one quoted field.
             parts = [cell]
+            try:
+                parts += [part.strip() for part in next(csv.reader(io.StringIO(cell)))]
+            except (csv.Error, StopIteration):
+                pass
         for part in parts:
             if part.startswith(("{", "[")):
                 return json.loads(part)
@@ -171,14 +189,28 @@ work_items_union='(
 
 capture_json "all-issues.json" list --status all --limit 0 --json
 
+# Per-issue enumeration MUST come from `issues UNION ALL wisps`, NOT from
+# `all-issues.json`. That artifact is captured with `bd list --json`, which reads
+# `issues` only: a `rig`-typed row lives in `wisps`, so enumerating from the
+# listing silently drops it from EVERY per-issue artifact (show / dep list /
+# comments / children), leaving `dependencies.json` and `comments.json` blind to
+# exactly the shape migration 0053 exists for. Measured on v1.1.2 and v1.2.2.
+capture_sql "work-item-ids.json" "
+SELECT COALESCE((SELECT JSON_ARRAYAGG(id) FROM (
+  SELECT id FROM issues
+  UNION ALL
+  SELECT id FROM wisps
+  ORDER BY id
+) AS work_item_ids), JSON_ARRAY());
+"
+
 issue_ids=$(
-  python3 - "$output_dir/all-issues.json" <<'PY'
+  python3 - "$output_dir/work-item-ids.json" <<'PY'
 import json
 import sys
 from pathlib import Path
 
-for row in json.loads(Path(sys.argv[1]).read_text()):
-    issue_id = row.get("id")
+for issue_id in json.loads(Path(sys.argv[1]).read_text()):
     if isinstance(issue_id, str):
         print(issue_id)
 PY
@@ -313,10 +345,11 @@ SELECT JSON_OBJECT(
   "labels.json" \
   "policy-metadata.json"
 
+# NOTE: never put a /* comment */ at the head of a capture_sql body — `bd sql`
+# then returns "OK, 0 rows affected" with NO result set, and the parser HALTs.
+# The work-item projections above use `issues UNION ALL wisps`.
 capture_sql "schema.json" "
-/* work-item projections above use issues UNION ALL wisps */
-SELECT COALESCE(JSON_ARRAYAGG(row_json), JSON_ARRAY())
-FROM (
+SELECT COALESCE((SELECT JSON_ARRAYAGG(row_json) FROM (
   SELECT JSON_OBJECT(
     'object', CONCAT(table_name, '.', column_name),
     'table_name', table_name,
@@ -328,42 +361,37 @@ FROM (
   FROM information_schema.columns
   WHERE table_schema = DATABASE()
   ORDER BY table_name, ordinal_position
-) AS rows_json;
+) AS rows_json), JSON_ARRAY());
 "
 
 capture_sql "branches.json" "
-/* work-item projections above use issues UNION ALL wisps */
-SELECT COALESCE(JSON_ARRAYAGG(row_json), JSON_ARRAY())
-FROM (
+SELECT COALESCE((SELECT JSON_ARRAYAGG(row_json) FROM (
   SELECT JSON_OBJECT('branch_name', name, 'head_hash', hash) AS row_json
   FROM dolt_branches
   ORDER BY name
-) AS rows_json;
+) AS rows_json), JSON_ARRAY());
 "
 
 capture_sql "table-counts.json" "
-/* work-item projections above use issues UNION ALL wisps */
-SELECT COALESCE(JSON_ARRAYAGG(row_json), JSON_ARRAY())
-FROM (
+SELECT COALESCE((SELECT JSON_ARRAYAGG(row_json) FROM (
   SELECT JSON_OBJECT('base_table_name', table_name, 'row_count', table_rows) AS row_json
   FROM information_schema.tables
   WHERE table_schema = DATABASE()
     AND table_type = 'BASE TABLE'
   ORDER BY table_name
-) AS rows_json;
+) AS rows_json), JSON_ARRAY());
 "
 
 capture_sql "remotes.json" "
-/* work-item projections above use issues UNION ALL wisps */
-SELECT COALESCE(JSON_ARRAYAGG(row_json), JSON_ARRAY())
-FROM (
+SELECT COALESCE((SELECT JSON_ARRAYAGG(row_json) FROM (
   SELECT JSON_OBJECT('remote_name', name, 'url', url, 'fetch_specs', fetch_specs) AS row_json
   FROM dolt_remotes
   ORDER BY name
-) AS rows_json;
+) AS rows_json), JSON_ARRAY());
 "
 
-rm -f "$output_dir/all-issues.json"
+# both are enumeration intermediates, not inventory artifacts
+rm -f "$output_dir/all-issues.json" "$output_dir/work-item-ids.json"
 
 latest_anchor=$(ls -1 "$RECEIPT_ROOT"/anchor-*-inventory.json | tail -1)
 cp "$latest_anchor" "$output_dir/client-anchor.json"

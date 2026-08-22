@@ -653,12 +653,16 @@ def test_capture_inventory_runs_all_projections_and_writes_hash_manifest(tmp_pat
         '  "comments o4-issue --json") printf \'[{"id":"comment-1","issue_id":"o4-issue"}]\\n\' ;;\n'
         '  "dep list o4-issue --json") printf \'[{"id":"dep-1","issue_id":"o4-issue"}]\\n\' ;;\n'
         '  "children o4-issue --json") printf \'[{"id":"child-1","parent":"o4-issue"}]\\n\' ;;\n'
+        '  "show o4-rig-wisp --json") printf \'[{"id":"o4-rig-wisp","issue_type":"rig"}]\\n\' ;;\n'
+        '  "comments o4-rig-wisp --json") printf \'[{"id":"comment-rig","issue_id":"o4-rig-wisp"}]\\n\' ;;\n'
+        '  "dep list o4-rig-wisp --json") printf \'[{"id":"dep-rig","issue_id":"o4-rig-wisp"}]\\n\' ;;\n'
+        "  \"children o4-rig-wisp --json\") printf '[]\\n' ;;\n"
         "  \"migrate status\") printf 'schema version: 53\\n' ;;\n"
         "  sql*)\n"
         '    case "$*" in\n'
         '      *"status-type-counts.json"*)\n'
         '        printf \'%s\\n\' \'JSON_OBJECT(...)\' \'-------------------------\' \'{"issues.json":[{"id":"o4-issue","issue_type":"task"},{"id":"o4-rig-wisp","issue_type":"rig"}],"labels.json":[{"issue_id":"o4-rig-wisp","label":"acceptance:manual"}],"policy-metadata.json":[{"issue_id":"o4-rig-wisp","policy_labels":["acceptance:manual"]}],"status-type-counts.json":[{"status":"open","issue_type":"rig","COUNT(*)":1}]}\' \'(1 row)\' ;;\n'
-        '      *"UNION ALL"*"wisps"*) printf \'%s\\n\' \'COALESCE(...)\' \'-------------------------\' \'[{"id":"o4-rig-wisp","issue_type":"rig"}]\' \'(1 row)\' ;;\n'
+        '      *"UNION ALL"*"wisps"*) printf \'%s\\n\' \'COALESCE(...)\' \'"[""o4-issue"",""o4-rig-wisp""]"\' ;;\n'
         "      *) printf '%s\\n' 'COALESCE(...)' '-------------------------' '[{\"id\":\"o4-issue\",\"issue_type\":\"task\"}]' '(1 row)' ;;\n"
         "    esac\n"
         "    ;;\n"
@@ -705,17 +709,37 @@ def test_capture_inventory_runs_all_projections_and_writes_hash_manifest(tmp_pat
     }
     assert "planned_only" not in (output / "client-anchor.json").read_text()
     called = calls.read_text().splitlines()
-    assert len(called) == 11
-    assert [shlex.split(line) for line in called[:6]] == [
-        ["list", "--status", "all", "--limit", "0", "--json"],
-        ["show", "o4-issue", "--json"],
-        ["dep", "list", "o4-issue", "--json"],
-        ["comments", "o4-issue", "--json"],
-        ["children", "o4-issue", "--json"],
-        ["migrate", "status"],
+    assert len(called) >= 11
+    argv = [shlex.split(line) for line in called]
+    # Per-issue artifacts MUST be captured for the rig row too. Enumerating from
+    # `bd list --json` omits it, because `list` reads `issues` and a rig row lives
+    # in `wisps` — which left dependencies.json and comments.json blind.
+    for verb in (["show"], ["dep", "list"], ["comments"], ["children"]):
+        for issue_id in ("o4-issue", "o4-rig-wisp"):
+            assert [*verb, issue_id, "--json"] in argv, (verb, issue_id)
+    # NOTE: the stub logs `"$*"`, so shlex.split shreds a SQL body across many
+    # tokens. Check the SQL on the RAW line; use argv only for the verb/flags.
+    sql_lines = [line for line in called if shlex.split(line)[0] == "sql"]
+    sql_calls = [shlex.split(line) for line in sql_lines]
+    assert sql_calls, "no bd sql calls were made"
+    # Every bd sql call must pass --csv: the default TABLE renderer truncates a
+    # long cell at 60 chars with a trailing "...", so the JSON payload does not
+    # parse. Measured on a real Dolt server, v1.2.2.
+    assert all(a[1] == "--csv" for a in sql_calls), sql_calls
+    # A leading /* comment */ makes `bd sql` return "OK, 0 rows affected" with no
+    # result set, so no SQL body may begin with one.
+    assert not any(
+        line.split(None, 2)[2].lstrip().startswith("/*") for line in sql_lines
+    ), sql_lines
+    # The union assertion must be satisfied by a real UNION, never by a comment
+    # mentioning one — that is how the previous revision passed while every query
+    # was broken.
+    work_item_sql = [
+        line for line in sql_lines if "JSON_ARRAYAGG" in line and "FROM issues" in line
     ]
-    assert all(shlex.split(line)[0] == "sql" for line in called[6:])
-    assert all("UNION ALL" in line and "wisps" in line for line in called[6:])
+    assert work_item_sql, "no work-item projection reached the SQL surface"
+    for body in work_item_sql:
+        assert "UNION ALL" in body and "FROM wisps" in body, body[:200]
     assert json.loads((output / "status-type-counts.json").read_text()) == [
         {"COUNT(*)": 1, "issue_type": "rig", "status": "open"},
     ]
