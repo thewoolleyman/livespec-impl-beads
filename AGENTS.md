@@ -636,6 +636,15 @@ having already shipped the `reconcile-merged` valve that one recommendation woul
 have broken, and a filed item asserted a dispatch produced "no PR" when its PR had
 in fact merged.)
 
+**Write acceptance criteria for the line-by-line evaluator before filing.** Each
+line in the acceptance-criteria field is graded as a checkable claim, so write
+one assertion per line, unwrapped; let a line run long rather than wrapping a
+sentence across lines. Keep explanatory prose, rationale, and provenance in the
+description or a comment instead of the criteria field. Apply this at FILING
+time because the evaluator reads the dispatch-time criteria snapshot, so editing
+an item mid-run cannot rescue an in-flight dispatch. The underlying defects and
+measurements are tracked in `bd-ib-tfpdya` and `bd-ib-5z0g`.
+
 **Before IMPLEMENTING an item, read its comments — `bd show` does not carry
 them.** The rule above is about scanning the ledger for prior art. This one is
 narrower and catches a different miss: RIDERS ARRIVE ON A WORK-ITEM AFTER IT IS
