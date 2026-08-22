@@ -24,9 +24,12 @@ __all__: list[str] = ["main", "should_block"]
 _WRAPPER_RE = re.compile(r"with-[a-z0-9-]+-env\.sh")
 _COMMAND_SEPARATORS = {";", "&", "&&", "|", "||", "(", ")"}
 _COMMAND_SUBSTITUTION_PREFIX = "$"
+_ENV_COMMAND = "env"
+_COMMAND_PREFIXES = {"command", "sudo"}
 _HEREDOC_OPERATORS = {"<<", "<<-"}
 _TENANT_COMMANDS = {"bd", "dolt"}
 _TENANT_HINTS = ("3307", "127.0.0.1")
+_ASSIGNMENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=.*")
 
 _REASON = (
     "Blocked: direct beads/Dolt tenant access must run under your project's "
@@ -63,17 +66,51 @@ def _command_position_tokens(*, command: str) -> list[str]:
 
     command_position_tokens: list[str] = []
     expect_command = True
-    for token in tokens:
+    token_index = 0
+    while token_index < len(tokens):
+        token = tokens[token_index]
         if token == _COMMAND_SUBSTITUTION_PREFIX:
+            token_index += 1
             continue
         if token in _COMMAND_SEPARATORS:
             expect_command = True
+            token_index += 1
             continue
         if not expect_command:
+            token_index += 1
+            continue
+        token_index = _effective_command_index(tokens=tokens, start=token_index)
+        if token_index >= len(tokens):
+            break
+        token = tokens[token_index]
+        if token in _COMMAND_SEPARATORS:
             continue
         command_position_tokens.append(token)
         expect_command = False
+        token_index += 1
     return command_position_tokens
+
+
+def _effective_command_index(*, tokens: list[str], start: int) -> int:
+    """Skip shell prefixes that still leave a later word in command position."""
+    token_index = start
+    while token_index < len(tokens):
+        token = tokens[token_index]
+        if token in _COMMAND_SEPARATORS:
+            return token_index
+        if _ASSIGNMENT_RE.fullmatch(token):
+            token_index += 1
+            continue
+        if token in _COMMAND_PREFIXES:
+            token_index += 1
+            continue
+        if token == _ENV_COMMAND:
+            token_index += 1
+            while token_index < len(tokens) and _ASSIGNMENT_RE.fullmatch(tokens[token_index]):
+                token_index += 1
+            continue
+        return token_index
+    return token_index
 
 
 def _shell_tokens(*, command: str) -> list[str]:
