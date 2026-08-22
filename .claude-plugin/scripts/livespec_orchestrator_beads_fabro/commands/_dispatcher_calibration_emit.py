@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import cast
@@ -11,13 +12,19 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_calibration import (
     build_calibration_record,
     calibration_journal_record,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_calibration_span import (
+    emit_calibration_span,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_cost_gate import derived_costs
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandRunner,
     DispatchOutcome,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
-from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import journal_path
+from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
+    calibration_spans_path,
+    journal_path,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_self_update import post_verdict_runner
 from livespec_orchestrator_beads_fabro.effects import (
     AttemptFailure,
@@ -120,6 +127,11 @@ def _build_and_append_calibration(  # noqa: PLR0913 - injectable calibration sea
         ),
     )
     journal.append(record=calibration_journal_record(record=record))
+    emit_calibration_span(
+        record=record,
+        spans_path=calibration_spans_path(args=args, repo=repo),
+        now_ns=time.time_ns(),
+    )
 
 
 def read_journal_records_for(

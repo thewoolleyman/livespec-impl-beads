@@ -13,6 +13,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_cost_pricing import 
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_cost_sink import CostSink
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
+    calibration_spans_path,
     cost_report_spans_path,
     cost_sink_path,
     heartbeat_path,
@@ -143,18 +144,20 @@ def _project_owned_receiver_endpoint(*, server: StartableServer | None) -> None:
 
 
 def _driver_span_paths(*, args: argparse.Namespace, repo: Path) -> tuple[Path, ...]:
-    """The three per-journal host span files the enrich driver tails (29f.5).
+    """The per-journal host span files the enrich driver tails (29f.5).
 
     Each is a journal sibling written by a distinct host emitter: the
     mechanical-reflection stage (`-reflection-spans.jsonl`), the out-of-band
     reflector (`-reflector-oob-spans.jsonl`), and report mode
-    (`-cost-report-spans.jsonl`). All three ride the SAME file-tail -> enrich
+    (`-cost-report-spans.jsonl`), and calibration
+    (`-calibration-spans.jsonl`). All four ride the SAME file-tail -> enrich
     egress path, so the driver covers every host span-file kind.
     """
     return (
         spans_path(args=args, repo=repo),
         reflector_oob_spans_path(args=args, repo=repo),
         cost_report_spans_path(args=args, repo=repo),
+        calibration_spans_path(args=args, repo=repo),
     )
 
 

@@ -373,16 +373,14 @@ def test_calibration_rides_the_existing_journal_with_no_new_service(
     assert stages.index("outcome") < stages.index("calibration")
     # No calibration-error fail-open record was written: the stage succeeded.
     assert "calibration-error" not in stages
-    # The calibration telemetry rode the EXISTING dispatch journal — it created
-    # no calibration-named sink of its own. The only artifacts under tmp/ are the
-    # established dispatch-journal pipeline files (the dispatch journal plus its
-    # mechanical-reflection spans sidecar, both part of the pre-existing journal
-    # → Honeycomb leg); nothing names a calibration service.
+    # The calibration telemetry rode the EXISTING dispatch journal pipeline: the
+    # journal record is in-stream, and the Honeycomb egress is a journal-sibling
+    # span file tailed by the shared enrich driver, not a new service.
     journal_dir = repo / "tmp"
     journal_files = sorted(p.name for p in journal_dir.iterdir() if p.is_file())
     assert "fabro-dispatch-journal.jsonl" in journal_files
     assert all(name.startswith("fabro-dispatch-journal") for name in journal_files), journal_files
-    assert not any("calibration" in name for name in journal_files), journal_files
+    assert "fabro-dispatch-journal-calibration-spans.jsonl" in journal_files
 
 
 def test_non_convergence_terminal_marks_bounced_to_regroom(

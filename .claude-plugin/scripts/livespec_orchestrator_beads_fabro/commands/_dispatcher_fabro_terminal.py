@@ -112,6 +112,7 @@ def _blocked_outcome(
         return None
     if inspect.status_kind not in {"blocked", "human_input_required"}:
         return None
+    failure = inspect.failure
     return outcome_type(
         work_item_id=plan.work_item_id,
         status="blocked",
@@ -125,4 +126,7 @@ def _blocked_outcome(
             "not auto-resumed, item left open"
         ),
         fabro_run_id=run_id,
+        fabro_failure_cause=None if failure is None else failure.cause,
+        fabro_failure_category=None if failure is None else failure.category,
+        fabro_failure_signature=None if failure is None else failure.signature,
     )
