@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.65.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.64.2...v0.65.0) (2026-08-22)
+
+
+### Features
+
+* verify ledger plan handoffs ([c4daa57](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/c4daa57cf5fa69a96a302422ba6ac33778b824b1))
+
+
+### Bug Fixes
+
+* account for capacity deferral holders ([2c2bf82](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/2c2bf826fe65ffb862dade08bb9d19a039d40bc0))
+
 ## [0.64.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.64.1...v0.64.2) (2026-08-22)
 
 
