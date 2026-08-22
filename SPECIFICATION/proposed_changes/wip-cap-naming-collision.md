@@ -122,3 +122,34 @@ MAY be the literal `"TODO"` with a non-empty `reason`.
 It does NOT alter what `wip_cap` counts, and it MUST NOT be read as re-opening the
 host-level ceiling that §"Host concurrency belongs to the Fabro scheduler" refuses.
 It adds a reporting obligation only.
+
+### Reconciliation with the sibling pending proposal (added 2026-08-22)
+
+`wip-cap-bound-honesty` is pending against the SAME section and must be
+reconciled with this one at revise time. Surfaced by the post-step objective
+doctor phase for this proposal; recorded here because the revise pass reads these
+files and MAY process them independently via `--only-topic`.
+
+THE TENSION, stated plainly because it is a real one. This proposal mandates the
+label "per-repo LEDGER cap" as the disambiguator against the Fabro scheduler's
+host limit. The sibling proposal establishes that `wip_cap` bounds COUNTED CLAIMS
+and explicitly NOT rows at ledger status `active`. Read together by an operator,
+"ledger cap" invites the reading "a cap on ledger rows" — which is precisely the
+misconception the sibling proposal exists to remove. The word "ledger" is doing
+SCOPE work here (this Orchestrator's layer, as against the Fabro daemon's), not
+COUNTING work, but nothing in the label says so.
+
+RESOLUTION THE ACCEPTING REVISE PASS MUST MAKE. Adopt one disambiguating label
+across BOTH proposals. "Per-repo CLAIM cap" is the recommended choice: it carries
+the same scope contrast (per-repo, as against the Fabro server's per-server
+scheduler limit) while naming the counted quantity correctly. If that label is
+adopted, this proposal's mandated wording and its Scenario's `Then` steps MUST be
+updated to match, and the sibling's counted-claims definition governs what the
+label MEANS. Accepting either proposal WITHOUT settling the label MUST NOT
+happen — a half-adopted vocabulary is worse than today's, because both clauses
+would then read as freshly ratified.
+
+Both proposals also append to §"Host concurrency belongs to the Fabro scheduler".
+The two additions are complementary, not contradictory — this one forbids
+reporting the Fabro limit as ours, the sibling records that the counted-claim
+definition is computed from local state only — and both SHOULD be taken.
