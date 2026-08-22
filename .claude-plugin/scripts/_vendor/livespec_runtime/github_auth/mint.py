@@ -56,12 +56,6 @@ __all__: list[str] = [
 _API_VERSION = "2022-11-28"
 _HTTP_TIMEOUT_SECONDS = 30.0
 _USER_AGENT = "livespec-runtime-github-auth"
-_INSTALLATION_TOKEN_PERMISSIONS = {
-    "permissions": {
-        "contents": "write",
-        "pull_requests": "write",
-    },
-}
 
 
 class SignRs256(Protocol):
@@ -106,14 +100,9 @@ def _request_json(*, url: str, jwt: str, method: str) -> IOResult[Any, GithubApp
                 ),
             )
         )
-    data = (
-        json.dumps(_INSTALLATION_TOKEN_PERMISSIONS).encode("utf-8")
-        if method == "POST"
-        else None
-    )
     request = urllib.request.Request(  # noqa: S310 — https-only enforced above; fixed scheme.
         url,
-        data=data,
+        data=b"{}" if method == "POST" else None,
         method=method,
         headers={
             "Authorization": f"Bearer {jwt}",
