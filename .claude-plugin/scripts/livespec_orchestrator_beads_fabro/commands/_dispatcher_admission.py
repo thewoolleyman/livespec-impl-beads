@@ -94,10 +94,14 @@ def admit_and_select(
     `ready`, holds an unresolvable-assignee item, and admits the highest-`rank`
     ready items into the free WIP slots, writing each `ready -> active` with
     its resolved assignee. `enforce_cap` reads the per-repo `wip_cap` from
-    `.livespec.jsonc` and discounts the already-`active` items; a targeted
-    `dispatch --item` is an operator override that passes `enforce_cap=False`
-    (every host-cleared candidate gets a slot). The admit writes + the held
-    surfaces are journaled here; the launched items flow on to `_dispatch_one`.
+    `.livespec.jsonc` and discounts the already-`active` items.
+    A targeted `dispatch --item` is an operator override that passes
+    `enforce_cap=False` (every host-cleared candidate gets a slot).
+    `dispatcher.py dispatch --item` reaches that override.
+    `drive --action impl:` does not, because it routes selected items through
+    the cap-enforcing `loop` path used by unattended draining. The admit writes
+    + the held surfaces are journaled here; the launched items flow on to
+    `_dispatch_one`.
 
     """
     admittable, refused = _filter_host_only_candidates(
@@ -261,11 +265,11 @@ def _capacity_deferred_outcome(
         stage="capacity-deferred",
         pr_number=None,
         merge_sha=None,
-        detail=_capacity_deferred_detail(capacity=capacity),
+        detail=_capacity_deferred_detail(item=item, capacity=capacity),
     )
 
 
-def _capacity_deferred_detail(*, capacity: _CapacitySnapshot) -> str:
+def _capacity_deferred_detail(*, item: WorkItem, capacity: _CapacitySnapshot) -> str:
     parts = [
         "capacity deferred:",
         f"active_count={capacity.active_count}",
@@ -286,4 +290,15 @@ def _capacity_deferred_detail(*, capacity: _CapacitySnapshot) -> str:
     if capacity.green_terminal_active_ids:
         parts.append(f"green_terminal_active_ids={','.join(capacity.green_terminal_active_ids)}")
         parts.append("green_terminal_active_status=already_reclaimed_no_slot")
+    parts.append(f"single_item_override=dispatcher.py dispatch --item {item.id}")
+    parts.append("single_item_override_enforces_cap=false")
+    parts.append(
+        "single_item_override_cost="
+        + "_".join(
+            [
+                "deliberately_exceeds_wip_cap_bound_for_same_repo",
+                "merge_rebase_contention_during_unattended_draining",
+            ]
+        )
+    )
     return " ".join(parts)
