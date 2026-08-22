@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.63.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.17...v0.63.0) (2026-08-22)
+
+
+### Features
+
+* emit dispatch factory telemetry ([370d841](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/370d841ea553f90995c872f643715def8cbde107))
+
 ## [0.62.17](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.16...v0.62.17) (2026-08-22)
 
 
