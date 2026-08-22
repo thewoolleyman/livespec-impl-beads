@@ -305,3 +305,48 @@ DIFFERENT axis from the fail-open that the green-terminal reclamation closed.
 That guarantee — an UNREADABLE journal counts MORE, never fewer — is intact and
 must stay intact. This is a legitimately EMPTY lock directory on another path, so
 the fail-closed branch never fires and the count simply starts at zero.
+
+### Renumbering hazard and the paste-ready co-edits (added 2026-08-22)
+
+Mechanical corrections to the NUMBERING NOTE and the co-edit instruction above,
+measured against `SPECIFICATION/scenarios.md` and `tests/heading-coverage.json` at
+master 2026-08-22. Neither changes what this proposal asks the specification to say.
+
+"THE NEXT FREE INTEGERS" IS AMBIGUOUS AND ONE READING IS WRONG. The numbering note
+says that if the acceptance order differs, the pass MUST "renumber these to the next
+free integers rather than duplicating one". Measured: `scenarios.md` holds 53
+scenarios numbered 1..56, and **2, 3 and 49 are RETIRED** — absent while every
+number around them is present. Those three are "free" by the literal wording and
+MUST NOT be reused: a retired number is referenced by history and by prior
+revisions, so re-issuing one silently aliases a new behavior onto an old citation.
+Renumber by appending ABOVE the current maximum (56 today), never into a gap.
+Verify that maximum at revise time rather than trusting this number.
+
+AS OF THIS WRITING NO RENUMBERING IS NEEDED. 57, 58 and 59 are all unused, so this
+proposal's `58` and `59` are correct as drafted provided `wip-cap-naming-collision`
+is accepted first, as the note above assumes.
+
+THE CO-EDITS, PASTE-READY. Both required `tests/heading-coverage.json` entries,
+matching the shape of the 95 entries already in that file (note the em dash in
+`heading`, U+2014, which must match each H2 byte-for-byte):
+
+```json
+{
+  "heading": "## Scenario 58 — Rows at status active are not the counted quantity",
+  "spec_root": "SPECIFICATION",
+  "spec_file": "scenarios.md",
+  "test": "TODO",
+  "reason": "Ratified with the wip-cap-bound-honesty revision; wip_cap bounds counted claims, not rows at status active. Real test ID to follow."
+},
+{
+  "heading": "## Scenario 59 — The hand-picked operator override admits over the cap",
+  "spec_root": "SPECIFICATION",
+  "spec_file": "scenarios.md",
+  "test": "TODO",
+  "reason": "Ratified with the wip-cap-bound-honesty revision; the hand-picked dispatch --item override is sanctioned and may exceed the cap. Real test ID to follow."
+}
+```
+
+If the shared label is changed when the pass settles the vocabulary, a scenario
+title MAY change with it — in which case the matching `heading` value MUST be
+updated too, or the heading-coverage check fails on a near-miss string.

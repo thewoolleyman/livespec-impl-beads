@@ -187,3 +187,43 @@ per-checkout, the label MUST say so instead of saying "per-repo".
 
 This does not disturb anything else in the reconciliation above: one label across
 both proposals, and neither accepted without settling it, still stand.
+
+### Renumbering hazard and the paste-ready co-edit (added 2026-08-22)
+
+Two mechanical corrections to the instructions above, both measured against
+`SPECIFICATION/scenarios.md` and `tests/heading-coverage.json` at master
+2026-08-22. Neither changes what this proposal asks the specification to say.
+
+"THE NEXT FREE INTEGERS" IS AMBIGUOUS AND ONE READING IS WRONG. The sibling
+proposal's numbering note tells the accepting pass to "renumber these to the next
+free integers rather than duplicating one". Measured: `scenarios.md` holds 53
+scenarios numbered 1..56, and **2, 3 and 49 are RETIRED** — absent from the file
+while every number around them is present. Those three are "free" by the literal
+wording. They MUST NOT be reused: a retired number is referenced by history and by
+prior revisions, so re-issuing one silently aliases a new behavior onto an old
+citation. Renumber by appending ABOVE the current maximum (56 today), never into a
+gap. Verify the maximum at revise time rather than trusting this number, since
+another proposal may land first.
+
+AS OF THIS WRITING NO RENUMBERING IS NEEDED. 57, 58 and 59 are all unused, so this
+proposal's `57` and the sibling's `58`/`59` are correct exactly as drafted provided
+this proposal is accepted first, as its note already assumes.
+
+THE CO-EDIT, PASTE-READY. The required `tests/heading-coverage.json` entry for this
+proposal's scenario, matching the shape of the 95 entries already in that file (note
+the em dash in `heading`, U+2014, which must match the H2 byte-for-byte):
+
+```json
+{
+  "heading": "## Scenario 57 — A capacity refusal names which ceiling it means",
+  "spec_root": "SPECIFICATION",
+  "spec_file": "scenarios.md",
+  "test": "TODO",
+  "reason": "Ratified with the wip-cap-naming-collision revision; capacity surfaces must name which ceiling they mean. Real test ID to follow."
+}
+```
+
+If the label is changed when the pass settles the shared vocabulary, the scenario
+title MAY change with it — in which case the `heading` value above MUST be updated
+to match the H2 exactly, or the heading-coverage check will fail on a
+near-miss string.
