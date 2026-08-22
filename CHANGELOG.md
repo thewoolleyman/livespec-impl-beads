@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.62.17](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.16...v0.62.17) (2026-08-22)
+
+
+### Bug Fixes
+
+* diagnose capacity-held dispatch slots ([ae20af1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/ae20af10ad2b1e37b62560f594bb73b1d991bfc9))
+
 ## [0.62.16](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.15...v0.62.16) (2026-08-22)
 
 
