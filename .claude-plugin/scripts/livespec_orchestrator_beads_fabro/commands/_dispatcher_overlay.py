@@ -121,13 +121,15 @@ def escape_minijinja_literal(*, text: str) -> str:
     that emits those two literal characters — `{{` -> `{{ "{{" }}`,
     `{%` -> `{{ "{%" }}`, `{#` -> `{{ "{#" }}` — makes the lexer never
     enter a tag from the original prose, and the inserted expressions
-    render back to the exact original characters. This is preferred over
-    a `{% raw %}...{% endraw %}` wrapper, which is NOT content-agnostic: a
-    goal containing the literal text `{% endraw %}` would close the raw
-    block early and re-expose the tail. The single `re.sub` pass does not
-    re-scan its own replacement text, so the inserted `{{ ... }}`
-    expressions are never themselves neutralized — the transform survives
-    arbitrary content (nested/doubled delimiters included).
+    render back to the exact original characters after one render. This
+    transform is self-cancelling by construction: it is correct only when
+    the consumer renders exactly once, because that render restores the
+    original opener text. This is preferred over a `{% raw %}...{% endraw
+    %}` wrapper, which is NOT content-agnostic: a goal containing the
+    literal text `{% endraw %}` would close the raw block early and
+    re-expose the tail. The single `re.sub` pass does not re-scan its own
+    replacement text, so the inserted `{{ ... }}` expressions are never
+    themselves neutralized during this transform.
     """
     return _MINIJINJA_OPEN_DELIMITER_RE.sub(
         # The replacement always OPENS with the expression delimiter `{{`

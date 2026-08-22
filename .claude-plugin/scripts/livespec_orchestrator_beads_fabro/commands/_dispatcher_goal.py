@@ -9,6 +9,8 @@ MiniJinja goal templating renders the untrusted prose verbatim.
 
 from __future__ import annotations
 
+import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -24,8 +26,59 @@ if TYPE_CHECKING:
     from livespec_orchestrator_beads_fabro.store import WorkItemComment
 
 __all__: list[str] = [
+    "GoalBriefMiniJinjaFinding",
+    "minijinja_findings_detail",
+    "minijinja_openers_in_goal_sources",
     "render_goal",
 ]
+
+_MINIJINJA_OPEN_DELIMITER_RE = re.compile(r"\{\{|\{%|\{#")
+
+
+@dataclass(frozen=True, kw_only=True)
+class GoalBriefMiniJinjaFinding:
+    """One MiniJinja opener found before goal-brief escaping."""
+
+    source: str
+    opener: str
+
+
+def minijinja_openers_in_goal_sources(
+    *,
+    item: WorkItem,
+    comments: tuple[WorkItemComment, ...],
+    lessons: str,
+) -> tuple[GoalBriefMiniJinjaFinding, ...]:
+    """Find MiniJinja openers in the unescaped goal-brief source fields."""
+    fields: list[tuple[str, str | None]] = [
+        ("title", item.title),
+        ("description", item.description),
+        ("acceptance", item.acceptance_criteria),
+        ("notes", item.notes),
+        ("lessons", lessons),
+    ]
+    findings: list[GoalBriefMiniJinjaFinding] = []
+    for source, text in fields:
+        findings.extend(_findings_for_source(source=source, text=text))
+    for index, comment in enumerate(comments, start=1):
+        findings.extend(
+            _findings_for_source(
+                source=_comment_source(index=index, comment=comment), text=comment.text
+            )
+        )
+    return tuple(findings)
+
+
+def minijinja_findings_detail(
+    *,
+    findings: tuple[GoalBriefMiniJinjaFinding, ...],
+) -> str:
+    """Render a refusal detail naming every offending goal-brief source."""
+    sources = ", ".join(f"{finding.source} ({finding.opener})" for finding in findings)
+    return (
+        "goal brief contains MiniJinja opening delimiter before escaping; "
+        f"offending source(s): {sources}"
+    )
 
 
 def render_goal(
@@ -112,3 +165,22 @@ def _comment_entry(*, comment: WorkItemComment) -> str:
     if provenance == "":
         return comment.text
     return f"({provenance}) {comment.text}"
+
+
+def _comment_source(*, index: int, comment: WorkItemComment) -> str:
+    label = comment.comment_id or f"#{index}"
+    created = "" if comment.created_at is None else f" created {comment.created_at}"
+    return f"ledger comment {label}{created}"
+
+
+def _findings_for_source(
+    *,
+    source: str,
+    text: str | None,
+) -> list[GoalBriefMiniJinjaFinding]:
+    if text is None or text == "":
+        return []
+    return [
+        GoalBriefMiniJinjaFinding(source=source, opener=match.group(0))
+        for match in _MINIJINJA_OPEN_DELIMITER_RE.finditer(text)
+    ]
