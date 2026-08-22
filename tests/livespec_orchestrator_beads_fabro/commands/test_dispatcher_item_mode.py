@@ -419,7 +419,11 @@ def test_loop_with_item_at_wip_cap_emits_capacity_deferred_result(
         {
             "detail": (
                 "capacity deferred: active_count=1 wip_cap=1 free_slots=0 "
-                "live_lock_active_ids=active-claim"
+                "live_lock_active_ids=active-claim "
+                "single_item_override=dispatcher.py dispatch --item requested-ready "
+                "single_item_override_enforces_cap=false "
+                "single_item_override_cost=deliberately_exceeds_wip_cap_bound_for_same_repo_"
+                "merge_rebase_contention_during_unattended_draining"
             ),
             "fabro_run_id": None,
             "merge_sha": None,

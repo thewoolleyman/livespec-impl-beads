@@ -29,6 +29,7 @@ than work-item failures, per livespec-impl-beads-cgd), and the
 """
 
 import argparse
+import inspect
 import json
 import os
 import re
@@ -3305,8 +3306,22 @@ def test_capacity_deferral_detail_names_live_slots_after_green_reclamation(
         "journal_unreadable_active_ids=bd-unreadable-claim "
         "operator_response=wait_for_live_locks,inspect_unreadable_journals "
         "green_terminal_active_ids=bd-green-park "
-        "green_terminal_active_status=already_reclaimed_no_slot"
+        "green_terminal_active_status=already_reclaimed_no_slot "
+        "single_item_override=dispatcher.py dispatch --item bd-ready-blocked "
+        "single_item_override_enforces_cap=false "
+        "single_item_override_cost=deliberately_exceeds_wip_cap_bound_for_same_repo_"
+        "merge_rebase_contention_during_unattended_draining"
     ]
+
+
+def test_admission_docstring_names_cap_override_surfaces() -> None:
+    doc = inspect.getdoc(_dispatcher_admission.admit_and_select)
+
+    assert doc is not None
+    assert "targeted `dispatch --item` is an operator override" in doc
+    assert "`dispatcher.py dispatch --item` reaches that override" in doc
+    assert "`drive --action impl:` does not" in doc
+    assert "cap-enforcing `loop` path" in doc
 
 
 def test_capacity_recovers_when_green_terminal_row_is_only_active_slot(
