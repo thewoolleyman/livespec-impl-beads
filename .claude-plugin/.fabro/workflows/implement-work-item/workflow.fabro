@@ -108,10 +108,20 @@ digraph ImplementWorkItem {
     // unreachable here — the only edge into exit is `pr -> exit`, taken
     // when pr did NOT fail — it exists to satisfy fabro's
     // goal_gate_has_retry lint alongside the real node-retry budget.
+    //
+    // Runs on `pr_adapter`, NOT the shared implementer `acp_adapter`: this node
+    // executes a fixed `git`/`gh` publish recipe (@prompts/pr.md) with no design
+    // judgement in it, so it takes the cheap Codex tier while implement / fix /
+    // review_fix stay on the implementer tier. Both adapters are rendered by the
+    // Dispatcher from the dispatch target's `dispatcher.codex_models` config
+    // (commands/_config.py `resolve_codex_model_tiers`); the model rides the
+    // adapter's own `-c model=` override because fabro REJECTS `model` /
+    // `reasoning_effort` as acp node attrs, exactly as the review node's
+    // ANTHROPIC_MODEL prefix does on the Claude side.
     pr [
         label="Open PR + arm rebase auto-merge"
         backend="acp"
-        acp.command="{{ inputs.acp_adapter }}"
+        acp.command="{{ inputs.pr_adapter }}"
         timeout="1800s"
         max_retries=1
         goal_gate=true

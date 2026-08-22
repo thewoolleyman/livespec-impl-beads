@@ -170,6 +170,24 @@
       "wip_cap": 10,
       "acceptance_mode": "ai-only",
       "default_factory": "hp",
+      // Codex model pins for the factory's Codex ACP nodes (maintainer-directed
+      // 2026-08-22, to hold steady-state Codex subscription burn under one
+      // subscription). Omit this whole block to inherit the plugin's built-in
+      // fleet defaults, which are these same values; the values are restated
+      // here because this repo is the one that measured them.
+      //
+      //   implementer -> the implement / fix / review_fix nodes
+      //   pr          -> the publish node only
+      //
+      // Set a tier's "model" to "" to opt that node class out of pinning
+      // entirely and restore the pre-pin behaviour (codex-acp picks its own
+      // default). See commands/_config.py for why the reachable tiers are
+      // gpt-5.5 / gpt-5.4 / gpt-5.4-mini and why the gpt-5.6 line is NOT
+      // usable until the sandbox image's CODEX_ACP_VERSION is bumped.
+      "codex_models": {
+        "implementer": { "model": "gpt-5.5", "reasoning_effort": "low" },
+        "pr": { "model": "gpt-5.4-mini", "reasoning_effort": "high" }
+      },
       "factories": {
         "vps": {
           "server": "https://vps.perch-rudd.ts.net:32276"

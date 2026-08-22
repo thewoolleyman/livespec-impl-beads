@@ -55,6 +55,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Protocol, cast
 
+from livespec_orchestrator_beads_fabro.commands._config import resolve_codex_model_tiers
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_janitor import post_merge
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_journal import (
     failed_outcome,
@@ -66,7 +67,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_merge import 
     confirm_pr,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_argv import (
-    CODEX_IMPLEMENTER_ADAPTER,
+    codex_adapter,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_terminal import (
     fabro_run_terminal_outcome,
@@ -345,8 +346,19 @@ def run_dispatch(
 
 
 def dispatch_fabro_run_inputs(*, plan: DispatchPlan) -> tuple[str, ...]:
+    """Render the `--input` pairs for one dispatch's `fabro run`.
+
+    The implementer and pr nodes take SEPARATE adapters so their Codex model
+    tiers move independently: `pr` is a scripted publish recipe and runs on the
+    cheap tier, while `implement` / `fix` / `review_fix` share the implementer
+    tier. Tiers are resolved from the DISPATCH TARGET's own `.livespec.jsonc`
+    (`plan.repo`), not the orchestrator's cwd, so a repo dispatched
+    cross-tenant gets its own policy rather than the driver's.
+    """
+    tiers = resolve_codex_model_tiers(cwd=plan.repo)
     return (
-        f"acp_adapter={CODEX_IMPLEMENTER_ADAPTER}",
+        f"acp_adapter={codex_adapter(tier=tiers.implementer)}",
+        f"pr_adapter={codex_adapter(tier=tiers.pr)}",
         f"review_fix_visit_cap={plan.review_fix_visit_cap}",
         f"merge_on_review_cap_outcome={plan.merge_on_review_cap_outcome}",
     )

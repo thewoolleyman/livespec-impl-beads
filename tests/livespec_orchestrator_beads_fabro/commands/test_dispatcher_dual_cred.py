@@ -30,6 +30,7 @@ from livespec_orchestrator_beads_fabro.commands import (
     _dispatcher_loop,
     _dispatcher_sibling_clones,
 )
+from livespec_orchestrator_beads_fabro.commands._codex_model_tiers import CodexModelTier
 from livespec_orchestrator_beads_fabro.commands._dispatcher_codex_auth import (
     CodexProjectionRefusal,
     project_codex_auth,
@@ -44,8 +45,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
-    CODEX_IMPLEMENTER_ADAPTER,
+    CODEX_ADAPTER_BASE,
     build_plan,
+    codex_adapter,
     render_run_config_overlay,
 )
 from livespec_orchestrator_beads_fabro.commands._fabro_port import FabroPort, FabroTarget
@@ -320,18 +322,28 @@ def test_fabro_port_run_routes_implementer_to_codex_adapter(tmp_path: Path) -> N
     input_values = [
         value for index, value in enumerate(argv[1:], start=1) if argv[index - 1] == "--input"
     ]
+    # `tmp_path` carries no .livespec.jsonc, so both tiers resolve to the
+    # plugin's built-in fleet defaults -- which is the case that matters: a repo
+    # that has not opted in still gets the pinned tiers.
     assert input_values == [
-        f"acp_adapter={CODEX_IMPLEMENTER_ADAPTER}",
+        f"acp_adapter={CODEX_ADAPTER_BASE} -c model=gpt-5.5 -c model_reasoning_effort=low",
+        f"pr_adapter={CODEX_ADAPTER_BASE} -c model=gpt-5.4-mini -c model_reasoning_effort=high",
         "review_fix_visit_cap=4",
         "merge_on_review_cap_outcome=__merge_on_review_cap_disabled__",
     ]
-    expected_adapter = (
+    expected_base = (
         "npx --no-install @zed-industries/codex-acp "
         "-c sandbox_mode=danger-full-access -c approval_policy=never"
     )
-    assert expected_adapter == CODEX_IMPLEMENTER_ADAPTER
-    assert f"acp_adapter={expected_adapter}" in input_values
-    assert "acp_adapter=npx --no-install @zed-industries/codex-acp" not in input_values
+    assert expected_base == CODEX_ADAPTER_BASE
+    # The sandbox and approval overrides survive alongside the model pin.
+    assert all(
+        value.startswith(("acp_adapter=", "pr_adapter=")) is False or expected_base in value
+        for value in input_values
+    )
+    # The un-pinned adapter is no longer emitted bare on either node.
+    assert f"acp_adapter={expected_base}" not in input_values
+    assert f"pr_adapter={expected_base}" not in input_values
     # The routing inputs precede --no-upgrade-check.
     assert argv.index("--input") < argv.index("--no-upgrade-check")
 
@@ -556,7 +568,8 @@ def test_fabro_port_run_routes_effective_review_cap_policy_inputs(tmp_path: Path
         value for index, value in enumerate(argv[1:], start=1) if argv[index - 1] == "--input"
     ]
     assert input_values == [
-        f"acp_adapter={CODEX_IMPLEMENTER_ADAPTER}",
+        f"acp_adapter={CODEX_ADAPTER_BASE} -c model=gpt-5.5 -c model_reasoning_effort=low",
+        f"pr_adapter={CODEX_ADAPTER_BASE} -c model=gpt-5.4-mini -c model_reasoning_effort=high",
         "review_fix_visit_cap=8",
         "merge_on_review_cap_outcome=succeeded",
     ]
@@ -696,3 +709,30 @@ def test_dispatch_one_releases_dispatch_lock_when_locked_body_raises(
         )
 
     assert not lock_path.exists()
+
+
+# ---------------------------------------------------------------------------
+# codex_adapter — tier rendering, including the un-pinned opt-out
+# ---------------------------------------------------------------------------
+
+
+def test_codex_adapter_renders_the_base_command_for_an_unpinned_tier() -> None:
+    """An empty-model tier is a true no-op: the base string, byte-for-byte.
+
+    This is the `"model": ""` opt-out reaching the adapter. It has to render
+    identically to the pre-pin command, otherwise "disable the pin" would
+    quietly mean "pin to something else".
+    """
+    rendered = codex_adapter(tier=CodexModelTier(model="", reasoning_effort=""))
+    assert rendered == CODEX_ADAPTER_BASE
+    assert "-c model=" not in rendered
+    assert "-c model_reasoning_effort=" not in rendered
+
+
+def test_codex_adapter_appends_model_overrides_for_a_pinned_tier() -> None:
+    """A pinned tier keeps the sandbox/approval overrides and adds the model."""
+    rendered = codex_adapter(tier=CodexModelTier(model="gpt-5.4-mini", reasoning_effort="high"))
+    assert rendered.startswith(CODEX_ADAPTER_BASE)
+    assert rendered.endswith(" -c model=gpt-5.4-mini -c model_reasoning_effort=high")
+    assert "-c sandbox_mode=danger-full-access" in rendered
+    assert "-c approval_policy=never" in rendered

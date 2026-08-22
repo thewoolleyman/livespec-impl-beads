@@ -177,8 +177,10 @@ def test_dispatcher_plan_decomposition_contract() -> None:
     )
 
     assert set(_dispatcher_fabro_argv.__all__) == {
+        "CODEX_ADAPTER_BASE",
         "CODEX_IMPLEMENTER_ADAPTER",
         "FleetMembers",
+        "codex_adapter",
         "janitor_argv_with_default",
         "janitor_bootstrap_argv",
         "janitor_checkout_path",
