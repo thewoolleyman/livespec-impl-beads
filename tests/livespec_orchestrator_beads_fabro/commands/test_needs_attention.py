@@ -240,7 +240,7 @@ def test_build_attention_reads_ledger_held_plan_without_handoff_file(
     append_handoff(
         config=_config(),
         epic_id="bd-plan",
-        body="Next action: keep driving this plan from the ledger.",
+        body="Next action: keep driving bd-plan from the ledger.",
         author="factory-test",
         now="2026-08-11T01:02:03Z",
     )
@@ -255,6 +255,42 @@ def test_build_attention_reads_ledger_held_plan_without_handoff_file(
     [plan_item] = [item for item in attention if item.id == "plan:ledger-held"]
     assert plan_item.summary == "Review plan ledger-held."
     assert plan_item.source_ref.path == "plan/ledger-held/"
+
+
+def test_build_attention_surfaces_a_live_plan_with_an_insufficient_newest_handoff(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_config(tmp_path)
+    _stub_spec_next(monkeypatch, output=None)
+    _seed(
+        _item(
+            id_="bd-plan",
+            type_="epic",
+            status="backlog",
+            rank="a1",
+            spec_commitment_hint="plan:bad-handoff",
+        )
+    )
+    append_handoff(
+        config=_config(),
+        epic_id="bd-plan",
+        body="Current state cites bd-ib-qfv9.1.\n\n== EXACTLY ONE NEXT ACTION ==\nImplement it.",
+        author="factory-test",
+        now="2026-08-11T01:02:03Z",
+    )
+
+    attention = build_attention(
+        project_root=tmp_path,
+        repo_name="repo",
+        include_hygiene=False,
+    )
+
+    [plan_item] = [item for item in attention if item.id == "plan:bad-handoff"]
+    assert plan_item.urgency == "high"
+    assert (
+        plan_item.summary
+        == "Repair plan bad-handoff handoff: newest handoff records 0 next actions, not exactly one."
+    )
 
 
 def test_build_attention_advertises_approve_only_for_effective_manual_policy(
