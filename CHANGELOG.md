@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.62.16](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.15...v0.62.16) (2026-08-22)
+
+
+### Bug Fixes
+
+* preserve unmodeled work-item metadata ([a2fbb36](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/a2fbb36b331f9988f15a17fab3c99651874c29d7))
+
 ## [0.62.15](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.14...v0.62.15) (2026-08-22)
 
 
