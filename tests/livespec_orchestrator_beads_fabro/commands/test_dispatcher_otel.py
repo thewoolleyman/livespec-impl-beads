@@ -269,7 +269,7 @@ def test_ensure_otel_enrich_driver_is_fail_open(tmp_path: Path) -> None:
 def test_default_otel_enrich_driver_factory_builds_without_starting(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The default factory returns an UNSTARTED driver over the three host
+    """The default factory returns an UNSTARTED driver over the host
     span-file kinds, wired to the ingest-keyed Honeycomb exporter."""
     monkeypatch.setenv("HONEYCOMB_INGEST_KEY_LIVESPEC", "ingest-xyz")
 
@@ -288,6 +288,7 @@ def test_default_otel_enrich_driver_factory_builds_without_starting(
         tmp_path / "j-reflection-spans.jsonl",
         tmp_path / "j-reflector-oob-spans.jsonl",
         tmp_path / "j-cost-report-spans.jsonl",
+        tmp_path / "j-calibration-spans.jsonl",
     }
     exporter = driver.stages[0].exporter
     assert isinstance(exporter, HoneycombHttpExporter)

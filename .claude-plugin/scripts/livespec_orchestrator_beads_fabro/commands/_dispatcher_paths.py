@@ -10,6 +10,7 @@ from livespec_orchestrator_beads_fabro.commands._config import resolve_store_con
 from livespec_orchestrator_beads_fabro.types import StoreConfig
 
 __all__: list[str] = [
+    "calibration_spans_path",
     "cost_report_spans_path",
     "cost_sink_path",
     "heartbeat_path",
@@ -137,6 +138,12 @@ def cost_report_spans_path(*, args: argparse.Namespace, repo: Path) -> Path:
     """Where report mode appends its `cost.report` OTLP spans."""
     journal = journal_path(args=args, repo=repo)
     return journal.with_name(f"{journal.stem}-cost-report-spans.jsonl")
+
+
+def calibration_spans_path(*, args: argparse.Namespace, repo: Path) -> Path:
+    """Where calibration emission appends its `dispatcher.calibration` OTLP spans."""
+    journal = journal_path(args=args, repo=repo)
+    return journal.with_name(f"{journal.stem}-calibration-spans.jsonl")
 
 
 def plugin_root() -> Path:

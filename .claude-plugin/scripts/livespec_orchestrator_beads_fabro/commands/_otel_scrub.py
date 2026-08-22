@@ -136,6 +136,20 @@ ATTRIBUTE_ALLOWLIST: frozenset[str] = frozenset(
         "fabro.failure.cause",
         "fabro.failure.category",
         "fabro.failure.signature",
+        # Dispatcher calibration scalars, emitted as `dispatcher.calibration`
+        # spans so the calibration journal record has a Honeycomb egress leg.
+        "converged",
+        "fix_loop_count",
+        "outcome_class",
+        "wall_clock_seconds",
+        "token_cost_micros",
+        "bounced_to_regroom",
+        "acceptance_count",
+        "merged_pr_diff_size",
+        "dependency_fan_out",
+        "spec_surface_touched",
+        "dispatch_context_size",
+        "archetype",
         # O4 (bd-ib-98c.7) fabro-side `run_turn` SPAN scalars — which command an
         # ACP agent turn ran, under which config, on which visit, and how it
         # ended. Span EVENTS (e.g. "Stage started/completed") bypass this
