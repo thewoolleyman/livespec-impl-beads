@@ -592,6 +592,29 @@ merged `AGENTS.md` for the three trap markers it knew about, found all three, an
 passed — an instrument pointed at the wrong population, which is exactly the fourth
 trap in the catalogue above.
 
+**Ledger text can permanently destroy an item's dispatchability.** The rendered
+run goal is assembled from the item's title, description, acceptance criteria,
+notes, lessons and ledger comments. A safety check scoped only to the obvious
+title / description / acceptance trio can therefore pass an item whose later
+goal render is already poisoned. Run this check before dispatching, and before
+commenting on any item that discusses templating:
+
+```bash
+python -c 'import json, subprocess, sys; issue=sys.argv[1]; fields=json.loads(subprocess.check_output(["bd","show",issue,"--json"], text=True))[0]; comments=json.loads(subprocess.check_output(["bd","comments",issue,"--json"], text=True)); needles=(chr(123)+chr(123), chr(123)+"%", chr(123)+"#"); hay="\n".join(str(fields.get(k,"")) for k in ("title","description","acceptance_criteria","notes","lessons"))+"\n"+"\n".join(str(c.get("text","")) for c in comments); hits=[n for n in needles if n in hay]; raise SystemExit(("template opener present: "+repr(hits)) if hits else 0)' <item-id>
+```
+
+An opener anywhere in that assembled text has two bad outcomes: the dispatch can
+die before any Fabro run exists, with an error that names the workflow file and
+reports a line number that is really an offset into the generated goal; or, if
+the restored token happens to be valid, it can silently rewrite the brief with
+no error. Ledger comments make this permanent: `bd comments` offers add and
+list, with no edit or delete, so a poisoned comment can only be escaped by
+filing a clean-text successor item. The trap fires on prose about itself; quoting
+the failing evidence verbatim is good incident filing practice and is exactly
+what destroys the record. Three records have already been lost this way.
+`bd-ib-ai9a` is the live P1 carrying the mechanism and Fabro-side fix, and
+`bd-ib-pgne` is the orchestrator-side pre-flight refusal.
+
 ## Host Fabro server (self-hosted dark factory)
 
 The Dispatcher's host-direct path (`dispatcher.py loop` run on the host, NOT in
@@ -611,8 +634,11 @@ Never pin a fabro build from any other branch, and never modernize the base: any
 fabro ≥ 0.256 breaks `workflow.fabro` (fabro #474 de-templates `acp.command`, so
 every dispatch dies `exit 127`). These rules are NORMATIVE — `SPECIFICATION/constraints.md`
 §"Fabro runtime constraints" (ratified in `v035`). The build/pin/rollback commands are in
-`orchestrator-image/README.md`. Rollout/revert state is ledger `bd-ib-2nq.4`; deferred
-modernization is `bd-ib-6qu`.
+`orchestrator-image/README.md`. Rollout/revert state is ledger `bd-ib-2nq.4`
+(currently dispatchable; its parent `bd-ib-2nq` is poisoned by ledger text and is
+not the dispatch target); deferred modernization is `bd-ib-6qu` (currently
+undispatchable because both its description and an append-only ledger comment are
+poisoned).
 
 **THIS REPO'S DISPATCHES DO NOT GO TO `127.0.0.1` — check the configured factory
 before concluding a run is missing.** The local server described in this section is
