@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.66.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.66.0...v0.66.1) (2026-08-22)
+
+
+### Bug Fixes
+
+* surface cap override on drive deferral ([c279c10](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/c279c108154162e682db667e5676399e46c45803))
+
 ## [0.66.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.65.3...v0.66.0) (2026-08-22)
 
 
