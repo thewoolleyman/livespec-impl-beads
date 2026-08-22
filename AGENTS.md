@@ -431,7 +431,7 @@ CORRECTLY.** The second needs its own positive case — a query that SHOULD retu
 something, returning it. The discriminating question for aim is therefore: *what
 should this query return if it is pointed correctly, and does it?*
 
-Four measured instances from 2026-08-21, plus three 2026-08-22 instances:
+Measured instances from 2026-08-21 and 2026-08-22:
 
 - **An anchored regex that cannot match the real line.** Claim: "`bd update` has no
   `--description` flag, so a description cannot be edited non-interactively."
@@ -502,6 +502,53 @@ Four measured instances from 2026-08-21, plus three 2026-08-22 instances:
   re-dispatching a killed or stranded run; the run id is stamped into its commits.
   `bd-ib-6o6h` is the genuine-loss counterpart, `bd-ib-2os2` is the survived case,
   and one query separates them.
+- **A mutation that never applied, reporting as a surviving mutant.** This belongs
+  here because it is the same "query incapable of returning the hit" failure in the
+  test harness itself. While mutation-checking `storage-reclaim.test.sh` on
+  2026-08-22, `sed` patterns silently matched nothing, so three of five mutants ran
+  against an unmodified script and reported `50 passed, 0 failed` — exactly the
+  same surface a genuinely surviving mutant would produce. The discriminator is
+  not the suite result; the harness must prove the mutation landed, for example by
+  appending a `grep -c` or equivalent content check that would be nonzero only
+  after the edit. The same rule applies to guard tests: isolate the arm being
+  guarded. A "live process in a subdirectory" case that also has a live process at
+  the worktree root still passes after the subdirectory arm is deleted.
+- **A hand probe filtered out the state it was trying to disprove.** While checking
+  a claim that a blocked Fabro run was never reaped, `fabro ps -a | grep -iE
+  "blocked|RUN ID"` returned no cited run and produced the wrong report that the
+  run was "no longer listed on hp at all". The run had already reached `failed`, so
+  a filter on `blocked` could never return it; the proper measurement found it in
+  `ps -a` with a terminal status at `240m00s`. The mirror failure happened in the
+  same audit: probing this item's text for the retracted phrase "never reaped"
+  found a real hit inside the retraction narrative and nearly turned a quotation
+  into a false correction. A count is not a verdict in either direction. Absence
+  does not prove the claim is gone, and presence does not prove it is asserted.
+  Discriminate by position and context: for panes, key on the tail region where a
+  live picker renders its footer; for prose, read the surrounding sentence to see
+  whether the hit is a claim or a quotation. This is the same family as
+  `livespec-overseer`'s `overseer-i6eu2k` shipped-detector defect, but these two
+  were ad-hoc verification lapses with no code to fix, so cite the family rather
+  than widening that item.
+- **An instrument so slow that its own observation changed the answer.** This is
+  adjacent to wrong-population probes but not identical: the instrument was aimed
+  at the right population, and that population changed while the instrument was
+  looking. Measured 2026-08-22, the storage-reclamation liveness guard forked
+  `readlink` once per process per worktree: 1,727 process entries, 27.5 seconds for
+  one call, 608 worktrees, over one million forks, and a projected 4.6-hour scan.
+  The scan outlived the fixture's own sleep, so the subject exited before the
+  answer arrived. The discriminator is: does this measurement take long enough for
+  the subject to change underneath it?
+- **Partial output from a still-running job is not an outcome.** This is folded
+  here because it is another healthy-looking observation aimed at the wrong
+  question. During the same storage-reclamation dry run, output stopped after the
+  LEG A header with `sort: write failed: Broken pipe`; the first conclusion was
+  that LEG A had died, and the second was that the script was fine. Both were
+  wrong. The job was still running, 25 minutes into the 4.6-hour scan above, and
+  there was a real guard defect, just not the broken-pipe line. The discriminators
+  are separate: a process that has not exited has not reported its outcome, so
+  "output stopped" and "process died" are different claims; and the broken pipe was
+  cosmetic for `find | sort -rn | head -1`, because `head` exits first and `sort`
+  takes EPIPE. That pipeline was verified over 60 real worktrees, 60/60 valid.
 
 **The existing "state the scope you searched" rule is necessary and NOT sufficient**
 — see "Verification discipline (repo-additive)" below, whose Rule 1 this extends. In
@@ -515,6 +562,26 @@ conclusion FORECLOSES THE ACTION, and nothing downstream ever re-tests it. A wro
 measurement gets contradicted by the next reader; a false impossibility just quietly
 stops being examined. In the anchored-regex instance the fix was one command away, and
 the false conclusion was passed to two other sessions as advice before being caught.
+
+**Classify a flaky safety test by the direction it fails before dismissing it as
+noise.** This is its own entry because the actionable rule is about deletion risk,
+not search shape. Measured 2026-08-22, `storage-reclaim.test.sh`'s liveness case
+failed 2 runs in 3 on a load-71 box and looked like a fixture race. It was the guard:
+`readlink /proc/<pid>/cwd` printed the target while `worktree_is_live` returned
+not-live, 5 of 5 attempts. A liveness guard failing toward NOT-LIVE permits a
+deletion. That is the expensive direction, and environmental noise only made the
+wrong guard look like a flaky test.
+
+**When two honest measurements disagree, the difference is the data.** This is not
+folded into the wrong-population catalogue because neither instrument is the
+villain; they answered different questions correctly. Measured 2026-08-22 on the
+factory host, `du -xsm /var/lib/docker` returned 3M while `du -sm /var/lib/docker`
+returned 2055M. Read as a 700x under-report, that would be a false defect against
+the size helper. The divergence localized to one subdirectory on another device,
+and `df` settled the intended reclamation question: `-x` is correct when asking
+"how many bytes does deleting this tree free on this filesystem", not "how large is
+this mounted tree including other filesystems". Before believing either number,
+locate the difference with an independent instrument such as `df`/`findmnt`.
 
 **The `dependencies` array is ONE HETEROGENEOUS LIST that keys its target
 `depends_on_id`, and the majority of its rows are not blockers.** The target key
@@ -672,6 +739,26 @@ and all of which reach a remote run's state when given it — verified on run
 reached a run holding a live human gate and answered it. Concluding that a remote
 run is unreachable because a bare invocation found nothing is the same trap one
 level on.
+
+**A Fabro run being `blocked` does not mean the work is incomplete.** This gets its
+own Fabro-section entry because the discriminator is operational: use
+`fabro inspect --server <factory> <run>` before attaching or reaping. Measured
+2026-08-22, run `01M0MC8FFXEH` sat `blocked` for 65 minutes while `inspect` showed
+implement complete and review succeeded with `preferred_label=approve`; only the
+`pr` stage was blocked, on a non-fast-forward rejection against the branch the same
+run had already pushed before rebasing (`bd-ib-e3xm`). A human gate had no useful
+answer to give, and Retry could only meet the same rejection.
+
+The invisible end state is reviewed work published on a branch with no open PR. It
+is not unpublished, so an unpublished-work reap watcher does not fire; it is not a
+PR, so forge queries keyed on pull requests miss it; and it disappears from
+ordinary `fabro ps` once the run exits. A blocked run also holds its scheduler slot
+for a bounded but material interval: run `01M0KXYZRWXN` self-terminated exactly at
+`240m00s` with status `{"kind":"failed","reason":"workflow_error"}`. `fabro rm`
+refusing a blocked run without `--force` proves only that the run has not reached
+that ceiling yet, not that no ceiling exists. The discriminator between
+self-termination and human removal is `fabro ps -a`: a ceiling-terminated run
+remains with terminal status, while `fabro rm --force` deletes it from `ps -a`.
 
 **Factory ENOSPC is a FACTORY-HOST failure, not an item failure.** The signature
 measured on 2026-08-22 is: `drive.py` exits 1, the dispatcher exits 1, the failed
