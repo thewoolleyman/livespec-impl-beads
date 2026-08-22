@@ -48,17 +48,32 @@ Guard 9 requires naming each projection rather than generalizing from a subset.
 
 | # | Projection | Verdict | Route, or why not |
 |---|---|---|---|
-| 1 | `status-type-counts.json` | **SERVED** | `list --status all --limit 0 --json`, counted client-side |
-| 2 | `issues.json` | **SERVED** | `list … --json` carries all 18 requested columns |
+| 1 | `status-type-counts.json` | **SERVED**, rig-blind † | `list --status all --limit 0 --json`, counted client-side |
+| 2 | `issues.json` | **SERVED**, rig-blind † | `list … --json` carries all 18 requested columns |
 | 3 | `dependencies.json` | **SERVED** | `dep list <id> --json` |
 | 4 | `comments.json` | **SERVED** | `comments <id> --json` |
-| 5 | `labels.json` | **SERVED** | `labels[]` on the list projection |
-| 6 | `policy-metadata.json` | **SERVED** | `labels[]` + `metadata` on the list projection |
+| 5 | `labels.json` | **SERVED**, rig-blind † | `labels[]` on the list projection |
+| 6 | `policy-metadata.json` | **SERVED**, rig-blind † | `labels[]` + `metadata` on the list projection |
 | 7 | `schema-migrations.json` | **NOT SERVED** | `migrate status` returns a human version check, not `(table_name, version)` rows |
 | 8 | `schema.json` | **NOT SERVED** | needs raw SQL over `information_schema`; verb unavailable in the mode probed |
 | 9 | `branches.json` | **NOT SERVED** | `branch --json` returns branch *names* only — **no `head_hash`** |
 | 10 | `table-counts.json` | **NOT SERVED** | needs raw SQL; no non-SQL route found |
 | 11 | `remotes.json` | **UNPROVEN** | candidate parent verbs exist; probing them hit the tooling conflict recorded below |
+
+**† Amended 2026-08-22 — the four rows marked rig-blind are SERVED FOR ORDINARY
+ISSUES ONLY.** The `list --json` projection they all rest on does NOT return
+`rig`-typed rows. Measured on a later probe: a four-record fixture import
+produced four stored issues and `list --status all --limit 0 --json` returned
+three; the missing row is retrievable by id (`show o4-rig-wisp` renders it,
+`Type: rig`), and neither `--all` nor `--include-gates` surfaces it in the
+listing. Distinct labels via the listing came to five where the fixture declares
+six — the sixth is on the unlisted row.
+
+This matters more than a count: the rig/wisp fixture is in the package
+*specifically* to exercise v1.1.2's migration 0053, the migration this upgrade
+is being rehearsed for. So these four projections are blind to the one shape the
+rehearsal cares most about. Full detail:
+`rehearsal-fixture-route-2026-08-22.md`.
 
 **Six served, four not served, one unproven.** Every "not served" row is blocked
 either by the raw-SQL mode question above or by a column the CLI does not
