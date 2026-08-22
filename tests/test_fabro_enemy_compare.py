@@ -122,6 +122,73 @@ def test_comparison_harness_reports_empty_delta_for_pinned_vs_pinned(
     assert "- Candidate-only assertions: 0" in artifact
 
 
+def test_comparison_harness_leaves_unset_expected_values_absent(
+    *,
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    module_path = Path("fabro-enemy-unit-tests/compare.py")
+
+    assert module_path.is_file()
+    compare = _load_compare_module(module_path=module_path)
+    expected_keys = [
+        "FABRO_EUT_EXPECTED_CLIENT_VERSION",
+        "FABRO_EUT_EXPECTED_CLIENT_COMMIT",
+        "FABRO_EUT_EXPECTED_CLIENT_DATE",
+        "FABRO_EUT_EXPECTED_SERVER_VERSION",
+        "FABRO_EUT_EXPECTED_SERVER_COMMIT",
+        "FABRO_EUT_EXPECTED_SERVER_DATE",
+    ]
+    for key in expected_keys:
+        monkeypatch.delenv(key, raising=False)
+        monkeypatch.delenv(key.replace("FABRO_EUT_", "FABRO_EUT_PINNED_", 1), raising=False)
+        monkeypatch.delenv(key.replace("FABRO_EUT_", "FABRO_EUT_CANDIDATE_", 1), raising=False)
+
+    def fake_run(
+        *, args: list[str], env: dict[str, str], check: bool
+    ) -> subprocess.CompletedProcess[str]:
+        assert check is False
+        assert all(key not in env for key in expected_keys)
+        _write_junit(
+            path=_junit_path(args=args), cases={"test_tier0_fabro.py::test_version": "passed"}
+        )
+        return subprocess.CompletedProcess(args=args, returncode=0)
+
+    monkeypatch.setattr(compare.subprocess, "run", fake_run)
+
+    assert compare.main(argv=["--artifact", str(tmp_path / "comparison.md")]) == 0
+
+
+def test_comparison_harness_maps_target_specific_expected_values(
+    *,
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    module_path = Path("fabro-enemy-unit-tests/compare.py")
+
+    assert module_path.is_file()
+    compare = _load_compare_module(module_path=module_path)
+    monkeypatch.setenv("FABRO_EUT_PINNED_EXPECTED_CLIENT_VERSION", "0.254.0")
+    monkeypatch.setenv("FABRO_EUT_CANDIDATE_EXPECTED_CLIENT_VERSION", "0.255.0")
+    seen_versions: list[str] = []
+
+    def fake_run(
+        *, args: list[str], env: dict[str, str], check: bool
+    ) -> subprocess.CompletedProcess[str]:
+        assert check is False
+        seen_versions.append(env["FABRO_EUT_EXPECTED_CLIENT_VERSION"])
+        _write_junit(
+            path=_junit_path(args=args),
+            cases={"test_tier0_fabro.py::test_version": "passed"},
+        )
+        return subprocess.CompletedProcess(args=args, returncode=0)
+
+    monkeypatch.setattr(compare.subprocess, "run", fake_run)
+
+    assert compare.main(argv=["--artifact", str(tmp_path / "comparison.md")]) == 0
+    assert seen_versions == ["0.254.0", "0.255.0"]
+
+
 def _load_compare_module(*, module_path: Path) -> ModuleType:
     spec = importlib.util.spec_from_file_location("fabro_enemy_compare", module_path)
     assert spec is not None

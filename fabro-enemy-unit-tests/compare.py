@@ -123,7 +123,8 @@ def _target_env(*, target: _Target) -> dict[str, str]:
     prefix = f"FABRO_EUT_{target.label.upper()}_"
     for generic_key in _PER_TARGET_ENV_KEYS:
         target_key = generic_key.replace("FABRO_EUT_", prefix, 1)
-        env[generic_key] = env.get(target_key, env.get(generic_key, ""))
+        if target_key in env:
+            env[generic_key] = env[target_key]
     return env
 
 
