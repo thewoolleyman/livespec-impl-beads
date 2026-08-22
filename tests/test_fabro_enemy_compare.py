@@ -1,0 +1,150 @@
+"""Tests for the Fabro Enemy Unit Test comparison harness."""
+
+from __future__ import annotations
+
+import importlib.util
+import subprocess
+from pathlib import Path
+from types import ModuleType
+from typing import Any
+
+__all__: list[str] = []
+
+
+def test_comparison_harness_writes_per_assertion_delta(
+    *,
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    module_path = Path("fabro-enemy-unit-tests/compare.py")
+
+    assert module_path.is_file()
+    compare = _load_compare_module(module_path=module_path)
+    calls: list[tuple[str, str, Path]] = []
+
+    def fake_run(
+        *, args: list[str], env: dict[str, str], check: bool
+    ) -> subprocess.CompletedProcess[str]:
+        assert check is False
+        junit_path = _junit_path(args=args)
+        calls.append((env["FABRO_EUT_BIN"], env["FABRO_EUT_SERVER"], junit_path))
+        if len(calls) == 1:
+            _write_junit(
+                path=junit_path,
+                cases={
+                    "test_tier0_fabro.py::test_version": "passed",
+                    "test_tier0_fabro.py::test_validate": "failed",
+                },
+            )
+            return subprocess.CompletedProcess(args=args, returncode=1)
+        _write_junit(
+            path=junit_path,
+            cases={
+                "test_tier0_fabro.py::test_version": "passed",
+                "test_tier0_fabro.py::test_validate": "passed",
+                "test_tier0_fabro.py::test_new_candidate_case": "failed",
+            },
+        )
+        return subprocess.CompletedProcess(args=args, returncode=1)
+
+    monkeypatch.setattr(compare.subprocess, "run", fake_run)
+    artifact_path = tmp_path / "comparison.md"
+
+    exit_code = compare.main(
+        argv=[
+            "--pinned-bin",
+            "/opt/fabro-pinned",
+            "--pinned-server",
+            "http://127.0.0.1:32276",
+            "--candidate-bin",
+            "/opt/fabro-candidate",
+            "--candidate-server",
+            "http://127.0.0.1:32286",
+            "--artifact",
+            str(artifact_path),
+        ]
+    )
+
+    assert exit_code == 1
+    assert [(call[0], call[1]) for call in calls] == [
+        ("/opt/fabro-pinned", "http://127.0.0.1:32276"),
+        ("/opt/fabro-candidate", "http://127.0.0.1:32286"),
+    ]
+    artifact = artifact_path.read_text()
+    assert "| Assertion | Pinned | Candidate | Delta |" in artifact
+    assert "| `test_tier0_fabro.py::test_validate` | failed | passed | improved |" in artifact
+    assert (
+        "| `test_tier0_fabro.py::test_new_candidate_case` | missing | failed | candidate-only |"
+        in artifact
+    )
+    assert "## Delta" in artifact
+    assert "- Regressions: 0" in artifact
+    assert "- Improvements: 1" in artifact
+    assert "- Candidate-only assertions: 1" in artifact
+
+
+def test_comparison_harness_reports_empty_delta_for_pinned_vs_pinned(
+    *,
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    module_path = Path("fabro-enemy-unit-tests/compare.py")
+
+    assert module_path.is_file()
+    compare = _load_compare_module(module_path=module_path)
+
+    def fake_run(
+        *, args: list[str], env: dict[str, str], check: bool
+    ) -> subprocess.CompletedProcess[str]:
+        assert check is False
+        assert env["FABRO_EUT_BIN"] == "fabro"
+        assert env["FABRO_EUT_SERVER"] == "http://127.0.0.1:32276"
+        _write_junit(
+            path=_junit_path(args=args),
+            cases={
+                "test_tier0_fabro.py::test_version": "passed",
+                "test_tier0_fabro.py::test_validate": "passed",
+            },
+        )
+        return subprocess.CompletedProcess(args=args, returncode=0)
+
+    monkeypatch.setattr(compare.subprocess, "run", fake_run)
+    artifact_path = tmp_path / "comparison.md"
+
+    exit_code = compare.main(argv=["--artifact", str(artifact_path)])
+
+    assert exit_code == 0
+    artifact = artifact_path.read_text()
+    assert "| `test_tier0_fabro.py::test_version` | passed | passed | unchanged |" in artifact
+    assert "- Regressions: 0" in artifact
+    assert "- Improvements: 0" in artifact
+    assert "- Pinned-only assertions: 0" in artifact
+    assert "- Candidate-only assertions: 0" in artifact
+
+
+def _load_compare_module(*, module_path: Path) -> ModuleType:
+    spec = importlib.util.spec_from_file_location("fabro_enemy_compare", module_path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _junit_path(*, args: list[str]) -> Path:
+    return Path(
+        next(arg.removeprefix("--junitxml=") for arg in args if arg.startswith("--junitxml="))
+    )
+
+
+def _write_junit(*, path: Path, cases: dict[str, str]) -> None:
+    testcase_xml = "\n".join(
+        _testcase_xml(assertion_id=key, status=value) for key, value in cases.items()
+    )
+    path.write_text(f'<testsuite tests="{len(cases)}">\n{testcase_xml}\n</testsuite>\n')
+
+
+def _testcase_xml(*, assertion_id: str, status: str) -> str:
+    if status == "passed":
+        return f'  <testcase classname="{assertion_id}" name="" />'
+    return f'  <testcase classname="{assertion_id}" name=""><failure /></testcase>'

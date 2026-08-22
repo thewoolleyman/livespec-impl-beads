@@ -53,6 +53,18 @@ acceptance-live item:
 fabro-enemy-tier0:
     uv run pytest fabro-enemy-unit-tests -q
 
+# Compare the tier-0 Enemy Unit Tests across two independently configured Fabro
+# client/server pairs and write a Markdown delta artifact. Defaults compare the
+# pinned pair against itself, which proves the artifact shape without requiring
+# a candidate server:
+#   just fabro-enemy-compare
+# Candidate override example:
+#   FABRO_EUT_CANDIDATE_BIN=/path/to/fabro \
+#   FABRO_EUT_CANDIDATE_SERVER=http://127.0.0.1:32286 \
+#   just fabro-enemy-compare
+fabro-enemy-compare:
+    uv run python fabro-enemy-unit-tests/compare.py
+
 # W7 LIVE Beads/Fabro golden-master tier. The REAL end-to-end proof: creates a
 # throwaway `livespec-e2e/livespec-e2e-*` repo, seeds it with the hello-world
 # fixture SPECIFICATION + an embedded beads ledger carrying one ready greeting

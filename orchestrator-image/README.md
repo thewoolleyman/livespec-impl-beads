@@ -262,6 +262,93 @@ the image the same way. The current rollback artifact is
 `~/.fabro/bin/fabro.b9b63a8-pre-checkpoint-timeout.bak` (the pre-#552 build:
 0.254 + #568 + daemon-timeout + #576 + O1 + O2 + P2 + O4).
 
+### Candidate build + Enemy Unit Test comparison
+
+The Enemy Unit Test comparison harness checks a candidate Fabro build against
+the pinned factory build without touching the production host service on
+`127.0.0.1:32276`.
+
+Build the candidate from the fork worktree on `factory-integration`:
+
+```bash
+cargo clean --release -p fabro-spa
+cargo dev build --release -p fabro-cli
+```
+
+Use the produced candidate binary at `target/release/fabro`. Start the
+candidate server on **`127.0.0.1:32286`** so it cannot collide with the
+production systemd unit on `32276`. Keep its Fabro home outside the production
+state directory and launch it from a foreground shell you can stop directly:
+
+```bash
+FABRO_CANDIDATE_HOME="$(mktemp -d /tmp/fabro-candidate.XXXXXX)"
+mkdir -p "$FABRO_CANDIDATE_HOME/storage"
+
+cat > "$FABRO_CANDIDATE_HOME/settings.toml" <<'SETTINGS'
+_version = 1
+
+[cli.target]
+type = "http"
+url = "http://127.0.0.1:32286"
+
+[server.api]
+url = "http://127.0.0.1:32286/api/v1"
+
+[server.listen]
+address = "127.0.0.1:32286"
+type = "tcp"
+
+[server.web]
+enabled = true
+url = "http://127.0.0.1:32286"
+SETTINGS
+
+HOME="$FABRO_CANDIDATE_HOME" target/release/fabro server start --no-upgrade-check
+```
+
+When the comparison is complete, stop that foreground process with `Ctrl-C` (or
+kill only the candidate server PID) and remove `$FABRO_CANDIDATE_HOME`. Do not
+stop, restart, or overwrite the production `fabro-server.service` unit for this
+comparison.
+
+Run the harness from the orchestrator checkout. The default invocation compares
+the pinned pair against itself and should emit an empty delta:
+
+```bash
+just fabro-enemy-compare
+```
+
+Run pinned versus candidate by supplying the second binary and server URL:
+
+```bash
+FABRO_EUT_CANDIDATE_BIN=/path/to/fabro/target/release/fabro \
+FABRO_EUT_CANDIDATE_SERVER=http://127.0.0.1:32286 \
+just fabro-enemy-compare
+```
+
+When the candidate's reported version, commit, date, or completed-run fixture
+differs from the pinned defaults, set the candidate-scoped forms. The harness
+maps them onto the generic `FABRO_EUT_*` names only for the candidate pytest
+leg:
+
+```bash
+FABRO_EUT_CANDIDATE_EXPECTED_CLIENT_VERSION=0.254.0 \
+FABRO_EUT_CANDIDATE_EXPECTED_CLIENT_COMMIT=<candidate-short-sha> \
+FABRO_EUT_CANDIDATE_EXPECTED_CLIENT_DATE=<candidate-client-date> \
+FABRO_EUT_CANDIDATE_EXPECTED_SERVER_VERSION=0.254.0 \
+FABRO_EUT_CANDIDATE_EXPECTED_SERVER_COMMIT=<candidate-short-sha> \
+FABRO_EUT_CANDIDATE_EXPECTED_SERVER_DATE=<candidate-server-date> \
+FABRO_EUT_CANDIDATE_COMPLETED_RUN_ID=<candidate-completed-run-id> \
+FABRO_EUT_CANDIDATE_BIN=/path/to/fabro/target/release/fabro \
+FABRO_EUT_CANDIDATE_SERVER=http://127.0.0.1:32286 \
+just fabro-enemy-compare
+```
+
+The artifact is written to `fabro-enemy-unit-tests/comparison.md` by default. It
+contains a per-assertion table for pinned and candidate results plus a `Delta`
+section that counts regressions, improvements, changed failures, and assertions
+present on only one side.
+
 ### Start / restart
 
 **There are TWO factory hosts.** Everything in this section describes the
