@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.65.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.65.0...v0.65.1) (2026-08-22)
+
+
+### Bug Fixes
+
+* classify provider usage limits as permanent, not transient ([3e81196](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/3e81196af27c2d30753545b232737dc26abdae1e))
+
 ## [0.65.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.64.2...v0.65.0) (2026-08-22)
 
 
