@@ -612,6 +612,12 @@ list, with no edit or delete, so a poisoned comment can only be escaped by
 filing a clean-text successor item. The trap fires on prose about itself; quoting
 the failing evidence verbatim is good incident filing practice and is exactly
 what destroys the record. Three records have already been lost this way.
+To write about the token safely, substitute U+27E6 for the literal open
+interpolation pair and U+27E7 for the literal close pair, and state on the
+record that this substitution is in force. This convention is owned by
+`livespec-dev-tooling-9yb4`, so the fleet converges on one form rather than
+private notations. It matters most in LEDGER COMMENTS, because a comment cannot
+be repaired after the fact.
 `bd-ib-ai9a` is the live P1 carrying the mechanism and Fabro-side fix, and
 `bd-ib-pgne` is the orchestrator-side pre-flight refusal.
 
