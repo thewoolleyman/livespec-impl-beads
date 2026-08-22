@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.62.15](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.14...v0.62.15) (2026-08-22)
+
+
+### Bug Fixes
+
+* mark remote run_turn guard unobservable ([e105ea3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/e105ea36e3639ccb15cf756ffedf87ebdbe5cc5f))
+
 ## [0.62.14](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.62.13...v0.62.14) (2026-08-21)
 
 
