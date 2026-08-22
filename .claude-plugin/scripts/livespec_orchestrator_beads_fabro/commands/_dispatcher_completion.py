@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import asdict, replace
+from dataclasses import asdict
 from pathlib import Path
 
 from returns.unsafe import unsafe_perform_io
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_acceptance_ai import (
+    NO_CHANGE_NEEDED_VERDICT,
     run_acceptance_pass,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_acceptance_rework import (
@@ -18,11 +19,15 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_acceptance_rework im
 from livespec_orchestrator_beads_fabro.commands._dispatcher_blocked import (
     escalate_needs_human_block,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_completion_close import (
+    close_dispatch_item,
+    no_change_needed_reason,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_decision_journal import (
     auto_disposition_journal_record,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
-from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile, utc_now_iso
+from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import store_config
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     declares_workflow_scope_refusal,
@@ -46,11 +51,10 @@ from livespec_orchestrator_beads_fabro.errors import (
 )
 from livespec_orchestrator_beads_fabro.io import write_stderr
 from livespec_orchestrator_beads_fabro.store import (
-    append_work_item,
     update_work_item_awaits_scope_override,
     update_work_item_status,
 )
-from livespec_orchestrator_beads_fabro.types import AuditRecord, WorkItem
+from livespec_orchestrator_beads_fabro.types import WorkItem
 
 __all__: list[str] = [
     "bounce_non_convergence_to_backlog",
@@ -67,6 +71,7 @@ _LEDGER_WRITE_ERRORS = (
     BeadsMappingError,
     BeadsTenantMissingError,
 )
+_NO_CHANGE_NEEDED_RESOLUTION = "no-change-needed"
 
 
 def host_only_refusal(
@@ -156,11 +161,34 @@ def complete_and_accept(
     acceptance_pass = run_acceptance_pass(repo=repo, item=item, outcome=outcome)
     journal.append(record=acceptance_pass.journal_record(work_item_id=item.id, policy=policy))
     decision = acceptance_decision(policy=policy)
+    if acceptance_pass.verdict == NO_CHANGE_NEEDED_VERDICT and decision.to_done:
+        close_dispatch_item(
+            repo=repo,
+            item=item,
+            outcome=outcome,
+            resolution=_NO_CHANGE_NEEDED_RESOLUTION,
+            reason=no_change_needed_reason(outcome=outcome),
+        )
+        journal.append(record={"stage": "ledger-accept-no-change-needed", "work_item_id": item.id})
+        auto_disposition = auto_disposition_journal_record(
+            work_item_id=item.id,
+            disposition="ai-auto-no-change-needed",
+            governing_settings=("acceptance_mode",),
+        )
+        auto_disposition["deferred"] = "pre-dispatch staleness detection"
+        journal.append(record=auto_disposition)
+        return
     if acceptance_pass.verdict == "FAIL" and policy in AI_DISPOSITIVE_ACCEPTANCE_POLICIES:
         rework_or_block_failed_acceptance(repo=repo, item=item, policy=policy, journal=journal)
         return
     if decision.to_done and acceptance_pass.verdict == "PASS":
-        _close_item(repo=repo, item=item, outcome=outcome)
+        close_dispatch_item(
+            repo=repo,
+            item=item,
+            outcome=outcome,
+            resolution="completed",
+            reason=f"Fabro dispatch landed PR #{outcome.pr_number} ({outcome.detail})",
+        )
         journal.append(record={"stage": "ledger-accept", "work_item_id": item.id})
         journal.append(
             record=auto_disposition_journal_record(
@@ -279,26 +307,3 @@ def warn_item_sizing(*, item: WorkItem, journal: JournalFile) -> None:
     )
     for warning in warnings:
         _ = write_stderr(text=f"WARN: item-sizing {item.id}: {warning}\n")
-
-
-def _close_item(*, repo: Path, item: WorkItem, outcome: DispatchOutcome) -> None:
-    merge_sha = outcome.merge_sha
-    audit = (
-        AuditRecord(
-            verification_timestamp=utc_now_iso(),
-            commits=(),
-            files_changed=(),
-            merge_sha=merge_sha,
-            pr_number=outcome.pr_number,
-        )
-        if merge_sha is not None
-        else None
-    )
-    closed = replace(
-        item,
-        status="done",
-        resolution="completed",
-        reason=f"Fabro dispatch landed PR #{outcome.pr_number} ({outcome.detail})",
-        audit=audit,
-    )
-    append_work_item(path=store_config(repo=repo), item=closed)

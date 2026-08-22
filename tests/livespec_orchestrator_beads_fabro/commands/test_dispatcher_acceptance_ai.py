@@ -125,7 +125,9 @@ def test_acceptance_pass_fails_when_criteria_lack_diff_or_telemetry_evidence(
     )
 
 
-def test_acceptance_pass_treats_empty_diff_as_observed_input(tmp_path: Path) -> None:
+def test_acceptance_pass_disposes_empty_merged_diff_as_no_change_needed(
+    tmp_path: Path,
+) -> None:
     runner = _Runner(result=CommandResult(exit_code=0, stdout="\n", stderr=""))
 
     result = run_acceptance_pass(
@@ -135,7 +137,7 @@ def test_acceptance_pass_treats_empty_diff_as_observed_input(tmp_path: Path) -> 
         runner=runner,
     )
 
-    assert result.verdict == "PASS"
+    assert result.verdict == "NO_CHANGE_NEEDED"
     assert result.merged_diff == ""
     assert result.diff_reason == "merged diff is empty"
     assert result.criteria[0].reason == "matched green dispatch telemetry"

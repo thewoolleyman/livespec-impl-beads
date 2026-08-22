@@ -4057,6 +4057,48 @@ def test_complete_and_accept_ai_only_pass_journals_verdict_and_closes(
     assert "confirmed" not in acceptance
 
 
+def test_complete_and_accept_empty_diff_closes_no_change_needed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, _workflow = _repo_with_workflow(tmp_path=tmp_path)
+    item = _item(acceptance_policy="ai-only")
+    append_work_item(path=_config(), item=item)
+    monkeypatch.setattr(
+        _dispatcher_completion,
+        "run_acceptance_pass",
+        lambda **_: _FakeAcceptancePass(verdict="NO_CHANGE_NEEDED"),
+        raising=False,
+    )
+    journal = JournalFile(path=repo / "journal.jsonl")
+
+    dispatcher.complete_and_accept(
+        repo=repo,
+        item=item,
+        outcome=_green_outcome(item_id=item.id),
+        journal=journal,
+    )
+
+    stored = _stored()[item.id]
+    assert (stored.status, stored.resolution) == ("done", "no-change-needed")
+    assert stored.reason == (
+        "Fabro dispatch produced an empty merged diff for PR #11; "
+        "closed as no-change-needed, not resolution:completed. "
+        "Pre-dispatch staleness detection is deferred."
+    )
+    records = [json.loads(line) for line in journal.path.read_text(encoding="utf-8").splitlines()]
+    stages = [record["stage"] for record in records]
+    assert stages == [
+        "ledger-complete",
+        "acceptance-ai-pass",
+        "ledger-accept-no-change-needed",
+        "auto-disposition",
+    ]
+    disposition = records[-1]
+    assert disposition["disposition"] == "ai-auto-no-change-needed"
+    assert disposition["deferred"] == "pre-dispatch staleness detection"
+
+
 @pytest.mark.parametrize("verdict", ["PASS", "FAIL"])
 def test_complete_and_accept_human_only_pass_is_advisory_and_parks(
     verdict: str,
