@@ -17,6 +17,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_calibration_emit imp
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandResult,
     DispatchOutcome,
+    FabroRunResult,
+    PollPolicy,
+    run_dispatch,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_failure import (
     FabroFailureDetail,
@@ -43,6 +46,9 @@ class _RecordingJournal:
 
 @dataclass(kw_only=True)
 class _FakeRunner:
+    queue: list[CommandResult] = field(default_factory=list)
+    calls: list[list[str]] = field(default_factory=list)
+
     def run(
         self,
         *,
@@ -53,11 +59,31 @@ class _FakeRunner:
         stdin: int | None = None,
     ) -> CommandResult:
         _ = (argv, cwd, timeout_seconds, env, stdin)
+        self.calls.append(argv)
+        if self.queue:
+            return self.queue.pop(0)
         return CommandResult(exit_code=0, stdout="{}", stderr="")
 
 
+@dataclass(frozen=True, kw_only=True)
+class _FailedFabroLauncher:
+    run_id: str = "01RUNFAILED"
+
+    def launch(
+        self,
+        *,
+        plan: DispatchPlan,
+        runner: _FakeRunner,
+        journal: _RecordingJournal,
+    ) -> FabroRunResult:
+        _ = (plan, runner, journal)
+        return FabroRunResult(
+            command=CommandResult(exit_code=1, stdout="", stderr="raw fabro run stderr"),
+            run_id=self.run_id,
+        )
+
+
 def test_blocked_terminal_outcome_carries_inspected_failure_detail(tmp_path: Path) -> None:
-    """CONTROL: a causeless failure block would still carry category here."""
     failure = FabroFailureDetail(
         cause="You've hit your usage limit.",
         category="deterministic",
@@ -85,14 +111,66 @@ def test_blocked_terminal_outcome_carries_inspected_failure_detail(tmp_path: Pat
     assert outcome.fabro_failure_signature == "implement|deterministic|provider limit"
 
 
-def test_failed_terminal_outcome_uses_parsed_inspect_failure_even_when_command_failed(
+def test_failed_dispatch_reinspects_when_terminal_inspect_has_no_failure_yet(
+    tmp_path: Path,
+) -> None:
+    runner = _FakeRunner(
+        queue=[
+            CommandResult(
+                exit_code=0,
+                stdout=json.dumps([{"status": {"kind": "failed"}}]),
+                stderr="",
+            ),
+            CommandResult(
+                exit_code=0,
+                stdout=json.dumps(
+                    [
+                        {
+                            "status": {"kind": "failed"},
+                            "failure": {
+                                "causes": [
+                                    "ACP protocol error",
+                                    "You've hit your usage limit.",
+                                ],
+                                "category": "transient_infra",
+                                "signature": "implement|transient_infra|provider limit",
+                            },
+                        }
+                    ]
+                ),
+                stderr="",
+            ),
+        ]
+    )
+    journal = _RecordingJournal()
+    outcome = run_dispatch(
+        plan=_plan(tmp_path=tmp_path),
+        runner=runner,
+        journal=journal,
+        sleep=lambda _seconds: None,
+        poll=PollPolicy(attempts=1, interval_seconds=0.0),
+        fabro_launcher=_FailedFabroLauncher(),
+    )
+
+    assert outcome.status == "failed"
+    assert outcome.stage == "fabro-run"
+    assert outcome.fabro_failure_category == "deterministic"
+    assert outcome.fabro_failure_cause == "You've hit your usage limit."
+    assert outcome.fabro_failure_signature == "implement|deterministic|provider limit"
+    assert [record["stage"] for record in journal.records] == [
+        "fabro-run",
+        "fabro-inspect",
+        "fabro-inspect",
+    ]
+
+
+def test_failed_terminal_outcome_carries_category_when_failure_has_no_cause(
     tmp_path: Path,
 ) -> None:
     failure = FabroFailureDetail(
-        cause="You've hit your usage limit.",
-        category="deterministic",
-        signature="implement|deterministic|provider limit",
-        provider_usage_limit=True,
+        cause=None,
+        category="transient_infra",
+        signature="implement|transient_infra|script failed",
     )
     outcome = fabro_run_terminal_outcome(
         outcome_type=DispatchOutcome,
@@ -110,9 +188,13 @@ def test_failed_terminal_outcome_uses_parsed_inspect_failure_even_when_command_f
 
     assert outcome is not None
     assert outcome.status == "failed"
-    assert outcome.fabro_failure_category == "deterministic"
-    assert outcome.fabro_failure_cause == "You've hit your usage limit."
-    assert outcome.fabro_failure_signature == "implement|deterministic|provider limit"
+    assert (
+        outcome.detail
+        == "category=transient_infra; signature=implement|transient_infra|script failed"
+    )
+    assert outcome.fabro_failure_category == "transient_infra"
+    assert outcome.fabro_failure_cause is None
+    assert outcome.fabro_failure_signature == "implement|transient_infra|script failed"
 
 
 def test_emit_calibration_appends_honeycomb_span_with_failure_fields(tmp_path: Path) -> None:

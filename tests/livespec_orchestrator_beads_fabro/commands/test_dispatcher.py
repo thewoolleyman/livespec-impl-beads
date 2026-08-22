@@ -2337,6 +2337,7 @@ def test_engine_blocked_check_falls_back_to_exit_code_routing(tmp_path: Path) ->
         queue=[
             CommandResult(exit_code=1, stdout="Run: 01RUNDEAD\n", stderr="agent died"),
             _ok(stdout=failed_inspect),
+            _ok(stdout=failed_inspect),
         ]
     )
     outcome, _, _ = _dispatch(runner=runner, repo=tmp_path)

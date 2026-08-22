@@ -152,6 +152,22 @@ def _driver_span_paths(*, args: argparse.Namespace, repo: Path) -> tuple[Path, .
     (`-cost-report-spans.jsonl`), and calibration
     (`-calibration-spans.jsonl`). All four ride the SAME file-tail -> enrich
     egress path, so the driver covers every host span-file kind.
+
+    The 2026-06-14 dispatch-outcome span stop is a SEPARATE gap, not this one.
+    Stated explicitly because assuming it is the same is the cheap answer and
+    the wrong one. Calibration's was a PROMOTION gap: the records were being
+    produced (245 of them in the live journal) and nothing tailed them into
+    egress, which is what adding the fourth path above fixes. The
+    dispatch-outcome columns (`detail`, `exit_code`, `dispatcher.stages`,
+    `dispatcher.final_stage`) stopped for a different reason -- NOTHING EMITS
+    THEM. Measured over this tree with positive controls: `EnrichStage` 26 hits
+    and `_driver_span_paths` 2, so the search reaches the right population;
+    `dispatcher.stages` and `dispatcher.final_stage` return 0 hits in any `.py`,
+    and the span name `"dispatcher.dispatch"` appears 0 times in plugin code
+    against 2 in `test_otel_enrich.py`, where the tests synthesise such a span as
+    fixture INPUT. So the enrich leg is ready to carry that span and no producer
+    hands it one. Promoting calibration therefore cannot restore those columns;
+    the dispatch-outcome gap sits upstream of egress and needs its own emitter.
     """
     return (
         spans_path(args=args, repo=repo),
@@ -168,7 +184,7 @@ def _build_otel_enrich_driver(*, args: argparse.Namespace, repo: Path) -> Starta
     Honeycomb egress exporter (the ingest-only key from env; the same fail-soft
     `.get(..., "")` the receiver factory uses, so a missing key never crashes the
     fail-open arming). The `HoneycombHttpExporter` is frozen/immutable, so one
-    instance is safely shared across the three stages. Imported lazily so the
+    instance is safely shared across the four stages. Imported lazily so the
     egress transport is only pulled in when a dispatch actually arms the driver.
     """
     from livespec_orchestrator_beads_fabro.commands._otel_enrich import (
