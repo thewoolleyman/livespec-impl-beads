@@ -16,7 +16,7 @@ from returns.unsafe import unsafe_perform_io
 
 from livespec_orchestrator_beads_fabro.commands import _dispatcher_self_update as selfup
 from livespec_orchestrator_beads_fabro.commands._dispatcher_claim_reclaim import (
-    claimed_active_count,
+    claimed_active_accounting,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_completion import host_only_refusal
 from livespec_orchestrator_beads_fabro.commands._dispatcher_credentials import read_dispatch_labels
@@ -72,6 +72,8 @@ class _CapacitySnapshot:
     active_count: int
     wip_cap: int
     free_slots: int
+    live_lock_active_ids: tuple[str, ...]
+    green_terminal_active_ids: tuple[str, ...]
 
 
 def admit_and_select(
@@ -102,13 +104,13 @@ def admit_and_select(
         candidates=candidates,
         journal=journal,
     )
-    active_count = claimed_active_count(repo=repo, items=items, journal=journal)
+    accounting = claimed_active_accounting(repo=repo, items=items, journal=journal)
     if enforce_cap:
         # An unreadable `.livespec.jsonc` falls back to the documented cap,
         # visibly and here rather than inside the reader. `unsafe_perform_io`
         # is required: `IOResult.value_or` returns `IO[value]`, not the value.
         wip_cap = unsafe_perform_io(resolve_wip_cap(cwd=repo).value_or(DEFAULT_WIP_CAP))
-        free_slots = max(0, wip_cap - active_count)
+        free_slots = max(0, wip_cap - accounting.active_count)
     else:
         wip_cap = None
         free_slots = len(admittable)
@@ -154,9 +156,11 @@ def admit_and_select(
             admitted=admitted,
             held=plan.held,
             capacity=_CapacitySnapshot(
-                active_count=active_count,
+                active_count=accounting.active_count,
                 wip_cap=wip_cap,
                 free_slots=free_slots,
+                live_lock_active_ids=accounting.live_lock_active_ids,
+                green_terminal_active_ids=accounting.green_terminal_active_ids,
             ),
             journal=journal,
         )
@@ -255,10 +259,21 @@ def _capacity_deferred_outcome(
         stage="capacity-deferred",
         pr_number=None,
         merge_sha=None,
-        detail=(
-            "capacity deferred: "
-            f"active_count={capacity.active_count} "
-            f"wip_cap={capacity.wip_cap} "
-            f"free_slots={capacity.free_slots}"
-        ),
+        detail=_capacity_deferred_detail(capacity=capacity),
     )
+
+
+def _capacity_deferred_detail(*, capacity: _CapacitySnapshot) -> str:
+    parts = [
+        "capacity deferred:",
+        f"active_count={capacity.active_count}",
+        f"wip_cap={capacity.wip_cap}",
+        f"free_slots={capacity.free_slots}",
+    ]
+    if capacity.live_lock_active_ids:
+        parts.append(f"live_lock_active_ids={','.join(capacity.live_lock_active_ids)}")
+    if capacity.green_terminal_active_ids:
+        green_ids = ",".join(capacity.green_terminal_active_ids)
+        parts.append(f"green_terminal_active_ids={green_ids}")
+        parts.append(f"advance_rows={green_ids}")
+    return " ".join(parts)

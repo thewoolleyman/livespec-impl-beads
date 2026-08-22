@@ -3205,6 +3205,130 @@ def test_admission_counts_live_dispatch_lock_against_cap(tmp_path: Path) -> None
     assert "dispatch-claim-abandoned" not in {record["stage"] for record in records}
 
 
+def test_capacity_deferral_detail_names_live_and_green_terminal_slots(
+    tmp_path: Path,
+) -> None:
+    repo, _workflow = _repo_with_workflow(tmp_path=tmp_path)
+    live = _item(id="bd-live-claim", status="active")
+    green = _item(id="bd-green-park", status="active")
+    ready = _item(id="bd-ready-blocked", status="ready", rank="a1")
+    append_work_item(path=_config(), item=live)
+    append_work_item(path=_config(), item=green)
+    append_work_item(path=_config(), item=ready)
+    _ = (repo / ".livespec.jsonc").write_text(
+        '{"livespec-orchestrator-beads-fabro": {"connection": {"prefix": "bd-ib"},'
+        ' "dispatcher": {"wip_cap": 2}}}',
+        encoding="utf-8",
+    )
+    _ = _dispatcher_dispatch_lock.write_dispatch_lock(
+        repo=repo,
+        work_item_id=live.id,
+        dispatch_id="live-dispatch",
+    )
+    journal = JournalFile(path=repo / "journal.jsonl")
+    journal.append(record={"stage": "ledger-admit", "work_item_id": green.id, "assignee": "ai"})
+    journal.append(
+        record={
+            "stage": "outcome",
+            "outcome": {
+                "work_item_id": green.id,
+                "status": "green",
+                "stage": "done",
+            },
+        }
+    )
+
+    admission = _dispatcher_admission.admit_and_select(
+        repo=repo,
+        items=[live, green, ready],
+        candidates=[ready],
+        journal=journal,
+        enforce_cap=True,
+    )
+
+    assert admission.admitted == []
+    assert [outcome.detail for outcome in admission.deferred] == [
+        "capacity deferred: active_count=2 wip_cap=2 free_slots=0 "
+        "live_lock_active_ids=bd-live-claim "
+        "green_terminal_active_ids=bd-green-park "
+        "advance_rows=bd-green-park"
+    ]
+
+
+def test_capacity_deferral_detail_omits_absent_live_slot_branch(
+    tmp_path: Path,
+) -> None:
+    repo, _workflow = _repo_with_workflow(tmp_path=tmp_path)
+    green = _item(id="bd-green-only", status="active")
+    ready = _item(id="bd-ready-blocked", status="ready", rank="a1")
+    append_work_item(path=_config(), item=green)
+    append_work_item(path=_config(), item=ready)
+    _ = (repo / ".livespec.jsonc").write_text(
+        '{"livespec-orchestrator-beads-fabro": {"connection": {"prefix": "bd-ib"},'
+        ' "dispatcher": {"wip_cap": 1}}}',
+        encoding="utf-8",
+    )
+    journal = JournalFile(path=repo / "journal.jsonl")
+    journal.append(record={"stage": "ledger-admit", "work_item_id": green.id, "assignee": "ai"})
+    journal.append(
+        record={
+            "stage": "outcome",
+            "outcome": {
+                "work_item_id": green.id,
+                "status": "green",
+                "stage": "done",
+            },
+        }
+    )
+
+    admission = _dispatcher_admission.admit_and_select(
+        repo=repo,
+        items=[green, ready],
+        candidates=[ready],
+        journal=journal,
+        enforce_cap=True,
+    )
+
+    detail = admission.deferred[0].detail
+    assert "live_lock_active_ids=" not in detail
+    assert "green_terminal_active_ids=bd-green-only" in detail
+    assert "advance_rows=bd-green-only" in detail
+
+
+def test_capacity_deferral_detail_omits_absent_green_terminal_branch(
+    tmp_path: Path,
+) -> None:
+    repo, _workflow = _repo_with_workflow(tmp_path=tmp_path)
+    live = _item(id="bd-live-only", status="active")
+    ready = _item(id="bd-ready-blocked", status="ready", rank="a1")
+    append_work_item(path=_config(), item=live)
+    append_work_item(path=_config(), item=ready)
+    _ = (repo / ".livespec.jsonc").write_text(
+        '{"livespec-orchestrator-beads-fabro": {"connection": {"prefix": "bd-ib"},'
+        ' "dispatcher": {"wip_cap": 1}}}',
+        encoding="utf-8",
+    )
+    _ = _dispatcher_dispatch_lock.write_dispatch_lock(
+        repo=repo,
+        work_item_id=live.id,
+        dispatch_id="live-dispatch",
+    )
+    journal = JournalFile(path=repo / "journal.jsonl")
+
+    admission = _dispatcher_admission.admit_and_select(
+        repo=repo,
+        items=[live, ready],
+        candidates=[ready],
+        journal=journal,
+        enforce_cap=True,
+    )
+
+    detail = admission.deferred[0].detail
+    assert "live_lock_active_ids=bd-live-only" in detail
+    assert "green_terminal_active_ids=" not in detail
+    assert "advance_rows=" not in detail
+
+
 def test_admission_time_lock_protects_queued_batch_items(tmp_path: Path) -> None:
     repo, _workflow = _repo_with_workflow(tmp_path=tmp_path)
     first = _item(id="bd-ready-first", status="ready", rank="a1")
