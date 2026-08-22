@@ -48,12 +48,12 @@ Guard 9 requires naming each projection rather than generalizing from a subset.
 
 | # | Projection | Verdict | Route, or why not |
 |---|---|---|---|
-| 1 | `status-type-counts.json` | **SERVED**, rig-blind † | `list --status all --limit 0 --json`, counted client-side |
-| 2 | `issues.json` | **SERVED**, rig-blind † | `list … --json` carries all 18 requested columns |
+| 1 | `status-type-counts.json` | **SERVED**, rig-blind † ‡ | `list --status all --limit 0 --json`, counted client-side |
+| 2 | `issues.json` | **SERVED**, rig-blind † ‡ | `list … --json` carries all 18 requested columns |
 | 3 | `dependencies.json` | **SERVED** | `dep list <id> --json` |
 | 4 | `comments.json` | **SERVED** | `comments <id> --json` |
-| 5 | `labels.json` | **SERVED**, rig-blind † | `labels[]` on the list projection |
-| 6 | `policy-metadata.json` | **SERVED**, rig-blind † | `labels[]` + `metadata` on the list projection |
+| 5 | `labels.json` | **SERVED**, rig-blind † ‡ | `labels[]` on the list projection |
+| 6 | `policy-metadata.json` | **SERVED**, rig-blind † ‡ | `labels[]` + `metadata` on the list projection |
 | 7 | `schema-migrations.json` | **NOT SERVED** | `migrate status` returns a human version check, not `(table_name, version)` rows |
 | 8 | `schema.json` | **NOT SERVED** | needs raw SQL over `information_schema`; verb unavailable in the mode probed |
 | 9 | `branches.json` | **NOT SERVED** | `branch --json` returns branch *names* only — **no `head_hash`** |
@@ -74,6 +74,30 @@ This matters more than a count: the rig/wisp fixture is in the package
 is being rehearsed for. So these four projections are blind to the one shape the
 rehearsal cares most about. Full detail:
 `rehearsal-fixture-route-2026-08-22.md`.
+
+**‡ SECOND AMENDMENT, 2026-08-22, later the same day — THE REHEARSAL'S CAPTURE
+PATH IS NO LONGER RIG-BLIND. THE PARAGRAPH ABOVE NOW APPLIES ONLY TO THE RAW
+`list --json` ROUTE.** `bd-ib-2591` (PR #1750, merged) rewrote
+`rehearsal-package/wrappers/capture-inventory.sh` so that every projection
+enumerating work items selects from `issues UNION ALL wisps` instead of from the
+listing. Verified by reading the merged wrapper rather than inferring from the
+merge: it defines a `work_items_union` CTE-style subquery over both tables, and
+**all four** of the rows marked `rig-blind †` above — `status-type-counts.json`,
+`issues.json`, `labels.json` and `policy-metadata.json` — are captured from it
+(`labels.json` joins `labels` against the same union). Before/after on a real
+store, recorded in that PR: the old path returned `['o4-yye']`, the new path
+returns `['o4-rig-wisp', 'o4-yye']`.
+
+So the sentence "these four projections are blind to the one shape the rehearsal
+cares most about" **is no longer true of the rehearsal**, and a reader must not
+carry it forward as a reason the attended window cannot capture `rig` rows.
+
+What DOES survive unchanged: `bd list --status all --limit 0 --json` itself still
+omits `rig`-typed rows, on every version measured. The wrapper still captures
+`all-issues.json` with that verb deliberately, and the merged code carries an
+explicit comment that per-issue enumeration MUST NOT be derived from that
+artifact for exactly this reason. The blindness was never fixed in `bd`; it was
+routed around in the projection.
 
 **Six served, four not served, one unproven.** Every "not served" row is blocked
 either by the raw-SQL mode question above or by a column the CLI does not
