@@ -61,7 +61,45 @@ PY
 capture_sql() {
   artifact=$1
   sql=$(printf '%s' "$2" | tr '\n' ' ')
-  capture_json "$artifact" sql "$sql"
+  tmp="$output_dir/$artifact.tmp"
+  BEADS112_COMMAND_CATEGORY=inventory \
+  BEADS112_COMMAND_SEQUENCE=$sequence \
+    "$with_client" "$client_key" "$bd" sql "$sql" > "$tmp"
+  python3 - "$tmp" "$output_dir/$artifact" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+
+def parse_bd_sql_json_cell(raw: str) -> object:
+    for line in raw.splitlines():
+        cell = line.strip()
+        if (
+            not cell
+            or set(cell) <= {"-"}
+            or re.fullmatch(r"\(\d+ rows?\)", cell)
+        ):
+            continue
+        if cell.startswith("|") and cell.endswith("|"):
+            parts = [part.strip() for part in cell.strip("|").split("|")]
+        else:
+            parts = [cell]
+        for part in parts:
+            if part.startswith(("{", "[")):
+                return json.loads(part)
+    raise SystemExit("HALT: bd sql output did not contain a JSON result cell")
+
+
+source = Path(sys.argv[1])
+target = Path(sys.argv[2])
+payload = parse_bd_sql_json_cell(source.read_text())
+if isinstance(payload, list):
+    payload = sorted(payload, key=lambda row: json.dumps(row, sort_keys=True))
+target.write_text(json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n")
+source.unlink()
+PY
+  sequence=$((sequence + 1))
 }
 
 capture_sql_bundle() {
@@ -73,6 +111,7 @@ capture_sql_bundle() {
     "$with_client" "$client_key" "$bd" sql "$sql" > "$tmp"
   python3 - "$tmp" "$output_dir" "$@" <<'PY'
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -80,21 +119,36 @@ source = Path(sys.argv[1])
 output_dir = Path(sys.argv[2])
 artifacts = sys.argv[3:]
 raw = source.read_text()
-try:
-    payload = json.loads(raw)
-except json.JSONDecodeError:
-    payload = {"text": raw}
-if isinstance(payload, list):
-    payload = sorted(payload, key=lambda row: json.dumps(row, sort_keys=True))
+def parse_bd_sql_json_cell(raw):
+    for line in raw.splitlines():
+        cell = line.strip()
+        if (
+            not cell
+            or set(cell) <= {"-"}
+            or re.fullmatch(r"\(\d+ rows?\)", cell)
+        ):
+            continue
+        if cell.startswith("|") and cell.endswith("|"):
+            parts = [part.strip() for part in cell.strip("|").split("|")]
+        else:
+            parts = [cell]
+        for part in parts:
+            if part.startswith(("{", "[")):
+                return json.loads(part)
+    raise SystemExit("HALT: bd sql output did not contain a JSON result cell")
+
+payload = parse_bd_sql_json_cell(raw)
+if not isinstance(payload, dict):
+    raise SystemExit("HALT: bd sql bundle JSON cell was not an object")
 for artifact in artifacts:
-    target_payload = payload
-    if isinstance(payload, dict) and artifact in payload:
-        target_payload = payload[artifact]
-        if isinstance(target_payload, list):
-            target_payload = sorted(
-                target_payload,
-                key=lambda row: json.dumps(row, sort_keys=True),
-            )
+    if artifact not in payload:
+        raise SystemExit(f"HALT: bd sql bundle missing artifact {artifact}")
+    target_payload = payload[artifact]
+    if isinstance(target_payload, list):
+        target_payload = sorted(
+            target_payload,
+            key=lambda row: json.dumps(row, sort_keys=True),
+        )
     (output_dir / artifact).write_text(
         json.dumps(target_payload, sort_keys=True, separators=(",", ":")) + "\n",
     )
