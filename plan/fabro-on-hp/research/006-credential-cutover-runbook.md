@@ -101,17 +101,46 @@ observed landing as the new App.
 
 ## Stopping the two dedicated servers
 
-Both `.10` step (4) and `.11` step (5) stop a server by **direct pid-verified
-kill**, not through `install.sh`. There is **no guard on that path** — see `005`
-§"The dedicated servers have no guard at all". Measured 2026-08-21:
+> **CORRECTED 2026-08-22, after executing `.11` step (5).** This section
+> previously said BOTH servers are stopped by direct pid kill because "there is
+> **no guard on that path**". That was **wrong for `:32286`**, and following it
+> as written would have left the server running: `:32286` was managed by a
+> systemd unit with `Restart=on-failure`, so a raw kill is simply **restarted**.
+> The claim happens to hold for `:32278`. **It is a per-server property, not a
+> property of "the dedicated servers" — check each one before acting.**
 
-| server | pid | `FABRO_HOME` | binary | live runs | total runs |
+**Check for a unit first, every time.** The guard question is answered by
+`systemctl`, not by assumption:
+
+```bash
+systemctl list-units --all | grep -i fabro
+ls /etc/systemd/system/ | grep -i fabro
+systemctl show <unit> -p MainPID -p Restart -p UnitFileState -p ActiveState
+```
+
+Measured 2026-08-22, after `.11` completed:
+
+| server | pid | `FABRO_HOME` | systemd unit | correct stop | state |
 |---|---|---|---|---|---|
-| `:32278` (homelab) | `662038` | `~/.fabro-homelab` | **deleted** since 2026-07-18 | 0 | **0 ever** |
-| `:32286` (dolt-server) | `2521838` | `~/.fabro-dolt-server` | live | 0 | 17 historical |
+| `:32278` (homelab) | `662038` | `~/.fabro-homelab` | **none** — confirmed absent | pid kill *is* correct here | still running; `.10` step (4) |
+| `:32286` (dolt-server) | *was* `2521838` | `~/.fabro-dolt-server` | **`fabro-dolt-server.service`**, `Restart=on-failure` | `sudo systemctl stop fabro-dolt-server.service` | **STOPPED 2026-08-22**; `.11` complete |
 
-Re-confirm `/proc/<pid>/exe` and `FABRO_HOME` before killing, and kill **by
-PID** — never `pkill -f 'fabro server'`, which self-matches the killing shell.
-`:32278` runs a deleted binary, so it cannot be restarted in place once stopped.
-Keep `:32286` running until dolt-server's shared-server dispatch is verified
-green; that is its rollback path.
+For a unit-managed server, confirm `MainPID` matches the pid you verified, then
+`systemctl stop`. Check `UnitFileState` too: `fabro-dolt-server.service` was
+already `disabled`, so no separate `disable` was needed to keep it from
+returning at boot. A unit that is `enabled` must also be disabled.
+
+For an unmanaged server, re-confirm `/proc/<pid>/exe` and `FABRO_HOME`, then
+kill **by PID** — never `pkill -f 'fabro server'`, which self-matches the
+killing shell. `:32278` runs a deleted binary, so it cannot be restarted in
+place once stopped.
+
+**`.10` step (4)'s written instruction to remove `~/.fabro-homelab` needs the
+same scrutiny `.11` step (5)'s did.** On `.11` that instruction was **wrong**:
+the directory is the adopter's *client* home, which the v011 wrapper-path proof
+asserts, and it had to survive the server's decommissioning. Verified after the
+fact — the identity verifier still returns 23/0 with `:32286` stopped and the
+home kept. homelab's arrangement may differ (its server has **zero runs ever**
+and a deleted binary), but establish that its home is not load-bearing before
+removing it, rather than inheriting `.11`'s answer or this runbook's original
+wording.
