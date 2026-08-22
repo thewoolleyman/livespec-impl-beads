@@ -486,9 +486,23 @@ Measured instances from 2026-08-21 and 2026-08-22:
   the PR tip `6c776441` was unrelated hardening. A `git show 6c77644...` read
   concluded "the merged diff does not address the filed defect at all", a false
   negative that would reopen settled work and re-dispatch a closed item. The
-  discriminator is the PR's commit list (`gh pr view <n> --json commits`) or a
-  range read (`git log <base>..<merge-sha>`). Never judge a rebase-merged PR from
-  its merge SHA alone.
+  discriminator for "what does this PR contain?" is the PR's commit list
+  (`gh pr view <n> --json commits`), but that is the WRONG instrument for "what
+  actually landed on master?" Verifying a landing by commit SHA is verifying the
+  wrong identity: under rebase-merge, PR/branch SHAs do not survive. Measured
+  2026-08-22 on PR #1776: `git branch -r --contains ac7ebb0f` returned
+  `origin/master` for the merge-sha control, while the same command returned ZERO
+  for each branch SHA `90d094df`, `eaaa24ab`, `10f0b4a0`, and `60a16fb7`. Master
+  carried three `fix:` commits under new hashes (`ac7ebb0f`, `36026f97`,
+  `89997f93`), and the four `fabro(<run-id>): <stage> (succeeded)`
+  stage-checkpoint commits were absent entirely. So a PR's commit count is not
+  master's commit count either. Use the PR commit list only to read what the PR
+  contains. To verify the landing, use a CONTENT check that survives a rebase,
+  such as `git show origin/master:<path> | grep -c <token>`, or a master-side
+  range read such as `git log <base>..origin/master`. This was caught by a peer
+  session on the report that landed the original trap entry: the author had also
+  run a "positive check on the substance rather than the shape", and that content
+  check was the load-bearing proof.
 - **A killed run presumed to have lost work that it had already published.** A
   Fabro run that parks on a human gate and is later killed leaves an item stranded.
   The natural conclusion — "the sandbox is gone, so the work is gone" — is right
