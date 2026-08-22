@@ -71,7 +71,7 @@ _LEDGER_WRITE_ERRORS = (
     BeadsMappingError,
     BeadsTenantMissingError,
 )
-_NO_CHANGE_NEEDED_RESOLUTION = "no-change-needed"
+_NO_CHANGE_NEEDED_RESOLUTION = "no-longer-applicable"
 
 
 def host_only_refusal(
@@ -168,6 +168,7 @@ def complete_and_accept(
             outcome=outcome,
             resolution=_NO_CHANGE_NEEDED_RESOLUTION,
             reason=no_change_needed_reason(outcome=outcome),
+            audit_merge=False,
         )
         journal.append(record={"stage": "ledger-accept-no-change-needed", "work_item_id": item.id})
         auto_disposition = auto_disposition_journal_record(

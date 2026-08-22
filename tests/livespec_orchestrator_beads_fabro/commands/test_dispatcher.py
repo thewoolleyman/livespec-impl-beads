@@ -4080,7 +4080,8 @@ def test_complete_and_accept_empty_diff_closes_no_change_needed(
     )
 
     stored = _stored()[item.id]
-    assert (stored.status, stored.resolution) == ("done", "no-change-needed")
+    assert (stored.status, stored.resolution) == ("done", "no-longer-applicable")
+    assert stored.audit is None
     assert stored.reason == (
         "Fabro dispatch produced an empty merged diff for PR #11; "
         "closed as no-change-needed, not resolution:completed. "

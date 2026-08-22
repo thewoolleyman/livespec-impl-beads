@@ -32,6 +32,7 @@ def close_dispatch_item(
     outcome: DispatchOutcome,
     resolution: str,
     reason: str,
+    audit_merge: bool = True,
 ) -> None:
     merge_sha = outcome.merge_sha
     audit = (
@@ -42,7 +43,7 @@ def close_dispatch_item(
             merge_sha=merge_sha,
             pr_number=outcome.pr_number,
         )
-        if merge_sha is not None
+        if audit_merge and merge_sha is not None
         else None
     )
     closed = replace(
