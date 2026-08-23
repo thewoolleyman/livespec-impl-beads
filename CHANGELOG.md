@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.71.6](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.71.5...v0.71.6) (2026-08-23)
+
+
+### Bug Fixes
+
+* grade acceptance against pull request diff ([d5849ed](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/d5849edd5389fa5c458823386e38a8c572eae4c5))
+
 ## [0.71.5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.71.4...v0.71.5) (2026-08-23)
 
 
