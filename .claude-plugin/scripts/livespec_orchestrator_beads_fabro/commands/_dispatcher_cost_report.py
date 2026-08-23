@@ -87,6 +87,7 @@ class CostReportItem:
     model_basis: str
     model_resolved: bool
     observable: bool
+    node_id: str | None = None
 
 
 def build_cost_report_item(
@@ -117,8 +118,10 @@ def build_cost_report_item(
             model_basis=f"default:{fallback_model}",
             model_resolved=False,
             observable=False,
+            node_id=None,
         )
-    model_basis = fallback_model if report.model_resolved else f"default:{fallback_model}"
+    resolved_basis = report.model_basis if report.model_basis is not None else fallback_model
+    model_basis = resolved_basis if report.model_resolved else f"default:{resolved_basis}"
     return CostReportItem(
         work_item_id=work_item_id,
         usd_micros=report.usd_micros,
@@ -129,6 +132,7 @@ def build_cost_report_item(
         model_basis=model_basis,
         model_resolved=report.model_resolved,
         observable=True,
+        node_id=report.node_id,
     )
 
 

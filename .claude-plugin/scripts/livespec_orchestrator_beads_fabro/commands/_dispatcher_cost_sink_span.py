@@ -21,11 +21,14 @@ __all__: list[str] = [
 # read from. These match the `_otel_scrub` allowlist (the efj rider keys);
 # `model` + `request_id` are the efj additions to that allowlist.
 _INPUT_TOKENS_ATTR = "input_tokens"
+_GEN_AI_INPUT_TOKENS_ATTR = "gen_ai.usage.input_tokens"
 _OUTPUT_TOKENS_ATTR = "output_tokens"
+_GEN_AI_OUTPUT_TOKENS_ATTR = "gen_ai.usage.output_tokens"
 _CACHE_WRITE_TOKENS_ATTR = "cache_creation_tokens"
 _CACHE_READ_TOKENS_ATTR = "cache_read_tokens"
 _MODEL_ATTR = "model"
 _REQUEST_ID_ATTR = "request_id"
+_NODE_ID_ATTR = "node_id"
 
 # The correlation keys a CC span may carry, MOST-specific first; the cost
 # sink is keyed by the FIRST present so the dispatcher's gate can look the
@@ -34,11 +37,15 @@ _COST_KEY_PREFERENCE = ("work.item.id", "livespec.dispatch.id")
 
 # The token-scalar attribute keys; a span carrying NONE of these is not a
 # token-bearing per-API-call span and contributes no cost.
+_INPUT_TOKEN_ATTRS = (_INPUT_TOKENS_ATTR, _GEN_AI_INPUT_TOKENS_ATTR)
+_OUTPUT_TOKEN_ATTRS = (_OUTPUT_TOKENS_ATTR, _GEN_AI_OUTPUT_TOKENS_ATTR)
 _TOKEN_ATTRS = (
-    _INPUT_TOKENS_ATTR,
-    _OUTPUT_TOKENS_ATTR,
-    _CACHE_WRITE_TOKENS_ATTR,
-    _CACHE_READ_TOKENS_ATTR,
+    _INPUT_TOKEN_ATTRS
+    + _OUTPUT_TOKEN_ATTRS
+    + (
+        _CACHE_WRITE_TOKENS_ATTR,
+        _CACHE_READ_TOKENS_ATTR,
+    )
 )
 
 
@@ -50,7 +57,9 @@ class SpanCost:
     dedup_key: str
     usd_micros: int
     tokens: TokenVector
+    model_basis: str
     model_resolved: bool
+    node_id: str | None
 
 
 def span_cost(*, span: dict[str, object], default_model: str | None = None) -> SpanCost | None:
@@ -72,8 +81,8 @@ def span_cost(*, span: dict[str, object], default_model: str | None = None) -> S
     if correlation_key is None:
         return None
     tokens = TokenVector(
-        input=_int_attr(attrs=attrs, key=_INPUT_TOKENS_ATTR),
-        output=_int_attr(attrs=attrs, key=_OUTPUT_TOKENS_ATTR),
+        input=_first_int_attr(attrs=attrs, keys=_INPUT_TOKEN_ATTRS),
+        output=_first_int_attr(attrs=attrs, keys=_OUTPUT_TOKEN_ATTRS),
         cache_write=_int_attr(attrs=attrs, key=_CACHE_WRITE_TOKENS_ATTR),
         cache_read=_int_attr(attrs=attrs, key=_CACHE_READ_TOKENS_ATTR),
     )
@@ -86,7 +95,9 @@ def span_cost(*, span: dict[str, object], default_model: str | None = None) -> S
         dedup_key=dedup_key,
         usd_micros=usd_micros,
         tokens=tokens,
+        model_basis=model_id,
         model_resolved=model_resolved,
+        node_id=_node_id(attrs=attrs),
     )
 
 
@@ -96,7 +107,12 @@ def _string_and_int_attrs(*, span: dict[str, object]) -> dict[str, object]:
     raw_attrs = span.get("attributes")
     if not isinstance(raw_attrs, list):
         return out
-    wanted = set(_TOKEN_ATTRS) | {_MODEL_ATTR, _REQUEST_ID_ATTR, *_COST_KEY_PREFERENCE}
+    wanted = set(_TOKEN_ATTRS) | {
+        _MODEL_ATTR,
+        _REQUEST_ID_ATTR,
+        _NODE_ID_ATTR,
+        *_COST_KEY_PREFERENCE,
+    }
     for raw in cast("list[object]", raw_attrs):
         if not isinstance(raw, dict):
             continue
@@ -126,6 +142,14 @@ def _int_attr(*, attrs: dict[str, object], key: str) -> int:
     return value if isinstance(value, int) else 0
 
 
+def _first_int_attr(*, attrs: dict[str, object], keys: tuple[str, ...]) -> int:
+    for key in keys:
+        value = _int_attr(attrs=attrs, key=key)
+        if value != 0:
+            return value
+    return 0
+
+
 def _preferred_correlation_key(*, attrs: dict[str, object]) -> str | None:
     for candidate in _COST_KEY_PREFERENCE:
         value = attrs.get(candidate)
@@ -142,6 +166,13 @@ def _resolve_model(*, attrs: dict[str, object], fallback_model: str) -> tuple[st
         if normalized is not None:
             return normalized, True
     return fallback_model, False
+
+
+def _node_id(*, attrs: dict[str, object]) -> str | None:
+    value = attrs.get(_NODE_ID_ATTR)
+    if isinstance(value, str) and value != "":
+        return value
+    return None
 
 
 def _dedup_key(*, span: dict[str, object], attrs: dict[str, object]) -> str:

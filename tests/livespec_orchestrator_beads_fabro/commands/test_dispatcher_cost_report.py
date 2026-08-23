@@ -153,6 +153,31 @@ def _cc_cost_span(
     return {"name": "claude_code.llm_request", "spanId": span_id, "attributes": attrs}
 
 
+def _codex_cost_span(
+    *,
+    work_item_id: str,
+    request_id: str,
+    node_id: str,
+    span_id: str = "codex-s1",
+    model: str = "gpt-5.5",
+    input_tokens: int = 123,
+    output_tokens: int = 45,
+) -> dict[str, object]:
+    """A synthetic Codex token span using provider-neutral token keys."""
+    return {
+        "name": "codex.llm_request",
+        "spanId": span_id,
+        "attributes": [
+            _attr(key="work.item.id", string_value=work_item_id),
+            _attr(key="request_id", string_value=request_id),
+            _attr(key="node_id", string_value=node_id),
+            _attr(key="gen_ai.usage.input_tokens", int_value=input_tokens),
+            _attr(key="gen_ai.usage.output_tokens", int_value=output_tokens),
+            _attr(key="model", string_value=model),
+        ],
+    }
+
+
 # --------------------------------------------------------------------------
 # resolve_cost_mode — the LIVESPEC_COST_MODE lever
 # --------------------------------------------------------------------------
@@ -321,6 +346,26 @@ def test_cost_report_round_trips_token_record(tmp_path: Path) -> None:
     assert report.output_tokens == 4
 
 
+def test_cost_report_aggregates_codex_token_sums_and_node(tmp_path: Path) -> None:
+    """Codex token spans accrue as token telemetry, not duration proxies."""
+    sink = CostSink(path=tmp_path / "cost.json")
+    sink.accumulate_span(
+        span=_codex_cost_span(
+            work_item_id="li-codex",
+            request_id="codex-req-a",
+            node_id="implement",
+            input_tokens=123,
+            output_tokens=45,
+        )
+    )
+    report = sink.cost_report(key="li-codex")
+    assert report is not None
+    assert report.input_tokens == 123
+    assert report.output_tokens == 45
+    assert report.node_id == "implement"
+    assert report.model_resolved is True
+
+
 # --------------------------------------------------------------------------
 # build_cost_report_item — honest model basis
 # --------------------------------------------------------------------------
@@ -364,6 +409,23 @@ def test_build_item_none_report_is_unobservable() -> None:
     assert item.observable is False
     assert item.usd_micros is None
     assert item.model_resolved is False
+
+
+def test_build_item_codex_report_uses_codex_model_basis() -> None:
+    """Codex-backed spend is not labeled with the Anthropic default basis."""
+    report = CostReport(
+        usd_micros=0,
+        input_tokens=123,
+        output_tokens=45,
+        cache_write_tokens=0,
+        cache_read_tokens=0,
+        model_resolved=True,
+        model_basis="gpt-5.5",
+        node_id="implement",
+    )
+    item = build_cost_report_item(work_item_id="li-codex", report=report)
+    assert item.model_basis == "gpt-5.5"
+    assert item.node_id == "implement"
 
 
 # --------------------------------------------------------------------------
@@ -472,6 +534,31 @@ def test_emit_cost_report_writes_cost_span_with_token_usd_model_fields(tmp_path:
     assert wave_attrs["livespec.cost.session_usd_micros"] == 5_000_000
 
 
+def test_emit_cost_report_writes_codex_node_attr(tmp_path: Path) -> None:
+    """Codex report spans carry the workflow node that spent the tokens."""
+    report = CostReport(
+        usd_micros=0,
+        input_tokens=123,
+        output_tokens=45,
+        cache_write_tokens=0,
+        cache_read_tokens=0,
+        model_resolved=True,
+        model_basis="gpt-5.5",
+        node_id="implement",
+    )
+    item = build_cost_report_item(work_item_id="li-codex", report=report)
+    spans_path = tmp_path / "cost-spans.jsonl"
+    emit_cost_report(items=(item,), dispatch_id=None, spans_path=spans_path)
+    spans = _spans_from_file(spans_path=spans_path)
+    cost_span = next(s for s in spans if s.get("name") == "cost.report")
+    attrs = _attrs_of(span=cost_span)
+    assert attrs["work.item.id"] == "li-codex"
+    assert attrs["node_id"] == "implement"
+    assert attrs["livespec.cost.input_tokens"] == 123
+    assert attrs["livespec.cost.output_tokens"] == 45
+    assert attrs["livespec.cost.model_basis"] == "gpt-5.5"
+
+
 def test_emit_cost_report_scrubs_through_shared_otel_attr(tmp_path: Path) -> None:
     """Every cost-span attribute is built through the shared `_otel_scrub.attr`.
 
@@ -543,6 +630,9 @@ def test_cost_span_attribute_keys_are_enrich_allowlisted() -> None:
         "livespec.cost.model_resolved",
         "livespec.cost.mode",
         "livespec.cost.session_usd_micros",
+        "gen_ai.usage.input_tokens",
+        "gen_ai.usage.output_tokens",
+        "node_id",
     ):
         assert is_allowed_attr(key=key) is True
 

@@ -122,6 +122,8 @@ _PRICE_TABLE: dict[str, ModelPrice] = {
     "claude-sonnet-4-6": _price_for(base_input=3.00, base_output=15.00),
     "claude-haiku-4-5": _price_for(base_input=1.00, base_output=5.00),
     "claude-fable-5": _price_for(base_input=10.00, base_output=50.00),
+    "gpt-5.5": _price_for(base_input=5.00, base_output=30.00),
+    "gpt-5.4-mini": _price_for(base_input=0.75, base_output=4.50),
 }
 
 
