@@ -303,3 +303,62 @@ contradiction lives only in the relationship between them. A test written
 verbatim from Scenario 61 would have passed a journal record the contracts clause
 forbids. Whether any gate covers this class is unknown and is not this thread's
 question.
+
+## Correction, 2026-08-23: the reset instant in the refusal message is false
+
+**The section immediately above draws one conclusion that measurement
+falsifies.** It is otherwise accurate and stands: the exhaustion was real, the
+Dispatcher outcome did carry the provider message verbatim, gap T1's "null on 17
+of 17" really is discharged, and deferral D1 really is confirmed. What is wrong is
+the inference that *"a dispatch outcome carries the reset instant"* gives C4 a
+usable expiry. **It does not. The instant the provider names is not the instant
+the block clears, and it is wrong by orders of magnitude.**
+
+The refusal quoted above claimed a block until `Aug 27th, 2026 1:20 AM` — roughly
+95.9 hours. Measured against it, all on 2026-08-23 on the hp factory:
+
+- Run `01M0PYKEEC26SRSG8W16HB2NWP` (this thread's C6 dispatch) started `09:18:34Z`
+  and carried the refusal.
+- Run `01M0PZ4PRVVK` started `09:27:58Z` — **nine minutes and twenty-four seconds
+  later** — and **succeeded** at `10:04:49Z`, its Codex `implement` and `pr` nodes
+  both completing.
+- Run `01M0Q01QB15W` started `09:50:36Z` and succeeded at `10:20:24Z`. Its
+  `inspect` payload shows `acp_adapter` on `gpt-5.5` and `pr_adapter` on
+  `gpt-5.4-mini` — the same two tiers this repo pins — with `implement` burning
+  1,259,235 ms of inference. **Not small-request tolerance: a full twenty-one
+  minute implement.**
+- A direct host probe at `10:40Z` (`codex exec` on `gpt-5.5`, default
+  `CODEX_HOME`) returned normally.
+
+**The control, because the obvious escape is that a different account served
+those runs: it was the same account.** The Dispatcher projects a snapshot of the
+host's single `auth.json`; its mtime is `2026-08-14T10:27:41` and unchanged, and
+the `account_id` inside it is unchanged. No rotation occurred between the refusal
+and the successes.
+
+**Why this was missed, which is the part worth keeping.** The earlier pass quoted
+the provider accurately and reasoned from the quote. It never asked whether any
+*other* dispatch had succeeded since — and the falsifying evidence was already in
+the `fabro ps` output it had been reading, because `livespec-overseer` was
+dispatching Codex through this identical dispatcher and succeeding continuously
+throughout the supposedly-dead window. This is AGENTS.md's wrong-population trap
+one level on: the instrument was healthy and the quote was real, but the question
+asked of it was *"did the provider say the window is closed"* rather than *"is the
+window closed"*.
+
+**What it changes.** C4's third acceptance criterion previously read that each
+exhaustion record carries an expiry instant and the dispatcher admits normally
+once it has passed — which a builder satisfies by storing the provider-named
+instant. From this one observed refusal, that gate would have idled the factory
+until `2026-08-27 01:20` while the provider served traffic within ten minutes,
+**and it would have justified itself by quoting the provider.** `bd-ib-jtja` now
+carries seven criteria: the expiry must be *derived by the dispatcher*, the
+provider-named instant must never be adopted as it, and one observed refusal must
+not hold admission for the multi-day interval the message asserts. The item's own
+DESIGN NOTE had already floated "hold until a later dispatch succeeds" as a
+conservative alternative; that is now the requirement rather than a preference.
+
+**Do not over-read this.** The typed `provider_usage_limit` condition remains the
+right input for C4, and the account-keying conclusion above is untouched — the
+ceiling is still on the provider, not the factory. Only the **duration** the
+message asserts is false.
