@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.71.8](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.71.7...v0.71.8) (2026-08-23)
+
+
+### Bug Fixes
+
+* recognize Codex cost span model metadata ([630503f](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/630503fa1efbbd2663935a3e6abc1c291a19b085))
+
 ## [0.71.7](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.71.6...v0.71.7) (2026-08-23)
 
 
