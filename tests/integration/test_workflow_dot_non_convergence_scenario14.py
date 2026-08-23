@@ -89,3 +89,56 @@ def test_non_converged_node_emits_the_shared_dispatcher_sentinel() -> None:
     # consumer (commands/_dispatcher_plan.is_non_convergence_outcome) — the
     # join that turns the DOT exit edge into a needs-regroom bounce.
     assert NON_CONVERGED_MARKER in node_block.group("body")
+
+
+def test_dead_implementer_gate_checks_for_a_dispatch_base_diff() -> None:
+    """The post-implement breaker mechanically detects an unchanged tree."""
+    text = _dot_text()
+    node_block = re.search(r"\bimplementation_diff\s*\[(?P<body>.*?)\]", text, re.DOTALL)
+    assert node_block is not None
+    body = node_block.group("body")
+
+    assert "git diff --quiet origin/master...HEAD" in body
+    assert "LIVESPEC_DEAD_IMPLEMENTER" in body
+    assert re.search(r"\bdead_implementer\s*\[", text) is not None
+
+
+def test_dead_implementer_routes_unchanged_work_away_from_review() -> None:
+    """Unchanged implement output terminates before janitor, review, or disposition."""
+    text = _dot_text()
+
+    assert (
+        re.search(r"implement\s*->\s*implementation_diff\b(?![^\n]*condition=)", text) is not None
+    )
+    assert (
+        re.search(
+            r'implementation_diff\s*->\s*dead_implementer\b[^\n]*condition="outcome=failed"',
+            text,
+        )
+        is not None
+    )
+    assert (
+        re.search(
+            r'implementation_diff\s*->\s*janitor\b[^\n]*condition="outcome=succeeded"',
+            text,
+        )
+        is not None
+    )
+    assert re.search(r"implement\s*->\s*janitor\b", text) is None
+    assert re.search(r"dead_implementer\s*->\s*review\b", text) is None
+
+
+def test_changed_implementation_still_reaches_review_normally() -> None:
+    """A non-empty diff keeps the existing janitor-to-review gate path."""
+    text = _dot_text()
+
+    assert (
+        re.search(
+            r'implementation_diff\s*->\s*janitor\b[^\n]*condition="outcome=succeeded"',
+            text,
+        )
+        is not None
+    )
+    assert (
+        re.search(r'janitor\s*->\s*review\b[^\n]*condition="outcome=succeeded"', text) is not None
+    )
