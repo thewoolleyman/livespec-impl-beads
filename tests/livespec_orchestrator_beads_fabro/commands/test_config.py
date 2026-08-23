@@ -31,7 +31,7 @@ from livespec_orchestrator_beads_fabro.errors import (
     LivespecConfigUnreadableError,
 )
 from livespec_orchestrator_beads_fabro.types import StoreConfig
-from returns.io import IOResult
+from returns.io import IOFailure, IOResult
 from returns.unsafe import unsafe_perform_io
 
 _Value = TypeVar("_Value")
@@ -839,7 +839,7 @@ def test_resolve_credential_wrapper_reads_top_level_list(
         cwd=tmp_path,
         body='{"credential_wrapper": ["/usr/local/bin/with-livespec-env.sh", "--", 7]}',
     )
-    assert resolve_credential_wrapper(cwd=tmp_path) == [
+    assert _read(resolve_credential_wrapper(cwd=tmp_path)) == [
         "/usr/local/bin/with-livespec-env.sh",
         "--",
         "7",
@@ -849,16 +849,38 @@ def test_resolve_credential_wrapper_reads_top_level_list(
 def test_resolve_credential_wrapper_non_list_yields_empty(
     tmp_path: Path,
 ) -> None:
-    """A non-list `credential_wrapper` value fails open to the empty argv."""
+    """A non-list `credential_wrapper` value is an ANSWER: no wrapper configured."""
     _write_config(
         cwd=tmp_path,
         body='{"credential_wrapper": "not-a-list"}',
     )
-    assert resolve_credential_wrapper(cwd=tmp_path) == []
+    assert _read(resolve_credential_wrapper(cwd=tmp_path)) == []
 
 
 def test_resolve_credential_wrapper_absent_file_yields_empty(
     tmp_path: Path,
 ) -> None:
-    """No `.livespec.jsonc` at all fails open to the empty argv (no wrapper)."""
-    assert resolve_credential_wrapper(cwd=tmp_path) == []
+    """No `.livespec.jsonc` at all is an ANSWER: this repo configures no wrapper."""
+    assert _read(resolve_credential_wrapper(cwd=tmp_path)) == []
+
+
+def test_resolve_credential_wrapper_unreadable_config_is_not_no_wrapper(
+    tmp_path: Path,
+) -> None:
+    """An UNREADABLE config takes the FAILURE track, not the empty-argv answer.
+
+    ⛔ THE DEFECT THIS PINS, and it is the most consequential half of `8o8e.21`.
+    The sole consumer is the pre-push `check-ledger-conformance-live` gate, which
+    SKIPS when no wrapper resolves. While this folded an unparseable file into
+    `[]`, a stray comma in `.livespec.jsonc` silently TURNED THAT GATE OFF and
+    reported it in the same words as a repo that never configured one.
+
+    ⚠️ The consumer still skips either way — that recipe runs on every push and a
+    false-fail would brick them all. What changes is that it can now SAY WHICH.
+    """
+    _write_config(cwd=tmp_path, body="{ this is not valid json ")
+
+    outcome = resolve_credential_wrapper(cwd=tmp_path)
+
+    assert isinstance(outcome, IOFailure)
+    assert "does not parse" in unsafe_perform_io(outcome.failure()).detail
