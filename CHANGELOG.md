@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.71.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.70.0...v0.71.0) (2026-08-23)
+
+
+### Features
+
+* preserve failed fabro work by reference ([5a68bfc](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/5a68bfc28ed14cd7e67315e878a73ac8db5e7f13))
+
 ## [0.70.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.69.0...v0.70.0) (2026-08-23)
 
 
