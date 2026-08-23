@@ -112,7 +112,7 @@ def test_dead_implementer_routes_unchanged_work_away_from_review() -> None:
     )
     assert (
         re.search(
-            r'implementation_diff\s*->\s*dead_implementer\b[^\n]*condition="outcome=failed"',
+            r"implementation_diff\s*->\s*dead_implementer\b(?![^\n]*condition=)",
             text,
         )
         is not None
