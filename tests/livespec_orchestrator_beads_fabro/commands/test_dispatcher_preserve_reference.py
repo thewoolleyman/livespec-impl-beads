@@ -14,7 +14,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandResult,
     DispatchOutcome,
 )
-from livespec_orchestrator_beads_fabro.store import append_work_item
+from livespec_orchestrator_beads_fabro.commands._dispatcher_goal import (
+    minijinja_openers_in_goal_sources,
+)
+from livespec_orchestrator_beads_fabro.store import WorkItemComment, append_work_item
 from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
 
 
@@ -29,6 +32,7 @@ class _RecordingJournal:
 @dataclass(kw_only=True)
 class _DumpRunner:
     export_diff: bool
+    stage_diffs: dict[str, str] | None = None
     calls: list[list[str]] = field(default_factory=list)
 
     def run(
@@ -46,11 +50,35 @@ class _DumpRunner:
         _ = stdin
         self.calls.append(argv)
         output_dir = Path(argv[argv.index("-o") + 1])
-        if self.export_diff:
-            diff = output_dir / "stages" / "002-implement@1" / "diff.patch"
+        stage_diffs = self.stage_diffs
+        if stage_diffs is None and self.export_diff:
+            stage_diffs = {"002-implement@1": "diff --git a/app.py b/app.py\n+print('kept')\n"}
+        for stage, payload in (stage_diffs or {}).items():
+            diff = output_dir / "stages" / stage / "diff.patch"
             diff.parent.mkdir(parents=True)
-            _ = diff.write_text("diff --git a/app.py b/app.py\n+print('kept')\n", encoding="utf-8")
+            _ = diff.write_text(payload, encoding="utf-8")
         return CommandResult(exit_code=0, stdout="", stderr="")
+
+
+@dataclass(kw_only=True)
+class _FailingDumpRunner:
+    stderr: str
+
+    def run(
+        self,
+        *,
+        argv: list[str],
+        cwd: Path,
+        timeout_seconds: float,
+        env: dict[str, str] | None = None,
+        stdin: int | None = None,
+    ) -> CommandResult:
+        _ = argv
+        _ = cwd
+        _ = timeout_seconds
+        _ = env
+        _ = stdin
+        return CommandResult(exit_code=2, stdout="", stderr=self.stderr)
 
 
 def _module() -> ModuleType:
@@ -154,6 +182,64 @@ def test_failed_run_comment_records_resolvable_diff_pointer(tmp_path: Path) -> N
     assert journal.records[-1]["stage"] == "preserve-by-reference"
 
 
+def test_failed_run_comment_records_every_stage_diff_pointer(tmp_path: Path) -> None:
+    module = _module()
+    append_work_item(path=_config(), item=_item())
+    journal = _RecordingJournal()
+    runner = _DumpRunner(
+        export_diff=False,
+        stage_diffs={
+            "002-implement@1": "diff --git a/app.py b/app.py\n+print('kept')\n",
+            "006-fix@1": "diff --git a/app.py b/app.py\n+print('fixed')\n",
+        },
+    )
+
+    module.preserve_checkpointed_work_reference(
+        args=_args(),
+        repo=tmp_path,
+        item=_item(),
+        outcome=_outcome(status="failed"),
+        journal=journal,
+        runner=runner,
+    )
+
+    comments = make_beads_client(config=_config()).list_comments(issue_id="bd-ib-preserve")
+    body = str(comments[-1]["text"])
+    assert "stage artifact path: stages/002-implement@1/diff.patch" in body
+    assert "stage artifact path: stages/006-fix@1/diff.patch" in body
+    assert body.count("byte size:") == 2
+    assert body.count("sha256:") == 2
+    assert "sha256sum <export-dir>/stages/002-implement@1/diff.patch" in body
+    assert "sha256sum <export-dir>/stages/006-fix@1/diff.patch" in body
+    assert journal.records[-1]["artifact_present"] is True
+
+
+def test_failed_run_comment_records_fix_stage_only_diff_pointer(tmp_path: Path) -> None:
+    module = _module()
+    append_work_item(path=_config(), item=_item())
+    journal = _RecordingJournal()
+
+    module.preserve_checkpointed_work_reference(
+        args=_args(),
+        repo=tmp_path,
+        item=_item(),
+        outcome=_outcome(status="failed"),
+        journal=journal,
+        runner=_DumpRunner(
+            export_diff=False,
+            stage_diffs={"006-fix@1": "diff --git a/app.py b/app.py\n+print('fixed')\n"},
+        ),
+    )
+
+    comments = make_beads_client(config=_config()).list_comments(issue_id="bd-ib-preserve")
+    body = str(comments[-1]["text"])
+    assert "stage artifact path: stages/006-fix@1/diff.patch" in body
+    assert "run produced no checkpointed diff artifact" not in body
+    assert "byte size:" in body
+    assert "sha256:" in body
+    assert journal.records[-1]["artifact_present"] is True
+
+
 def test_blocked_run_comment_is_honest_when_no_diff_was_produced(tmp_path: Path) -> None:
     module = _module()
     append_work_item(path=_config(), item=_item())
@@ -172,10 +258,43 @@ def test_blocked_run_comment_is_honest_when_no_diff_was_produced(tmp_path: Path)
     body = str(comments[-1]["text"])
     assert "livespec-preserve-by-reference" in body
     assert "run produced no checkpointed diff artifact" in body
-    assert "stage artifact path: stages/002-implement@1/diff.patch (missing)" in body
+    assert "stage artifact path: stages/*/diff.patch (none found)" in body
     assert "byte size: (not recorded; artifact missing)" in body
     assert "sha256: (not recorded; artifact missing)" in body
     assert journal.records[-1]["artifact_present"] is False
+
+
+def test_dump_failure_comment_escapes_and_bounds_external_stderr(tmp_path: Path) -> None:
+    module = _module()
+    append_work_item(path=_config(), item=_item())
+    stderr = "{{ bricking }}\n{% also_bricking %}\n" + ("x" * 5000)
+
+    module.preserve_checkpointed_work_reference(
+        args=_args(),
+        repo=tmp_path,
+        item=_item(),
+        outcome=_outcome(status="failed"),
+        journal=_RecordingJournal(),
+        runner=_FailingDumpRunner(stderr=stderr),
+    )
+
+    comments = make_beads_client(config=_config()).list_comments(issue_id="bd-ib-preserve")
+    body = str(comments[-1]["text"])
+    findings = minijinja_openers_in_goal_sources(
+        item=_item(),
+        comments=(
+            WorkItemComment(
+                text=body,
+                author="tester",
+                created_at="2026-08-23T00:00:00Z",
+            ),
+        ),
+        lessons="",
+    )
+    assert findings == ()
+    assert "stderr: " in body
+    assert "x" * 5000 not in body
+    assert len(body) < 2000
 
 
 def test_green_run_adds_no_preserve_comment(tmp_path: Path) -> None:
