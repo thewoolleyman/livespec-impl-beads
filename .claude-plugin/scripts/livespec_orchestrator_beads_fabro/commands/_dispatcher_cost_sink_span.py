@@ -27,7 +27,10 @@ _GEN_AI_OUTPUT_TOKENS_ATTR = "gen_ai.usage.output_tokens"
 _CACHE_WRITE_TOKENS_ATTR = "cache_creation_tokens"
 _CACHE_READ_TOKENS_ATTR = "cache_read_tokens"
 _MODEL_ATTR = "model"
+_GEN_AI_REQUEST_MODEL_ATTR = "gen_ai.request.model"
+_GEN_AI_RESPONSE_MODEL_ATTR = "gen_ai.response.model"
 _REQUEST_ID_ATTR = "request_id"
+_GEN_AI_RESPONSE_ID_ATTR = "gen_ai.response.id"
 _NODE_ID_ATTR = "node_id"
 
 # The correlation keys a CC span may carry, MOST-specific first; the cost
@@ -109,7 +112,10 @@ def _string_and_int_attrs(*, span: dict[str, object]) -> dict[str, object]:
         return out
     wanted = set(_TOKEN_ATTRS) | {
         _MODEL_ATTR,
+        _GEN_AI_REQUEST_MODEL_ATTR,
+        _GEN_AI_RESPONSE_MODEL_ATTR,
         _REQUEST_ID_ATTR,
+        _GEN_AI_RESPONSE_ID_ATTR,
         _NODE_ID_ATTR,
         *_COST_KEY_PREFERENCE,
     }
@@ -159,12 +165,13 @@ def _preferred_correlation_key(*, attrs: dict[str, object]) -> str | None:
 
 
 def _resolve_model(*, attrs: dict[str, object], fallback_model: str) -> tuple[str, bool]:
-    """Resolve the priced model id + whether it came from the span's own `model`."""
-    raw_model = attrs.get(_MODEL_ATTR)
-    if isinstance(raw_model, str):
-        normalized = normalize_model_id(raw_model=raw_model)
-        if normalized is not None:
-            return normalized, True
+    """Resolve the priced model id + whether it came from the span's own model."""
+    for key in (_MODEL_ATTR, _GEN_AI_RESPONSE_MODEL_ATTR, _GEN_AI_REQUEST_MODEL_ATTR):
+        raw_model = attrs.get(key)
+        if isinstance(raw_model, str):
+            normalized = normalize_model_id(raw_model=raw_model)
+            if normalized is not None:
+                return normalized, True
     return fallback_model, False
 
 
@@ -176,9 +183,10 @@ def _node_id(*, attrs: dict[str, object]) -> str | None:
 
 
 def _dedup_key(*, span: dict[str, object], attrs: dict[str, object]) -> str:
-    request_id = attrs.get(_REQUEST_ID_ATTR)
-    if isinstance(request_id, str) and request_id != "":
-        return request_id
+    for key in (_REQUEST_ID_ATTR, _GEN_AI_RESPONSE_ID_ATTR):
+        request_id = attrs.get(key)
+        if isinstance(request_id, str) and request_id != "":
+            return request_id
     span_id = span.get("spanId")
     if isinstance(span_id, str) and span_id != "":
         return span_id

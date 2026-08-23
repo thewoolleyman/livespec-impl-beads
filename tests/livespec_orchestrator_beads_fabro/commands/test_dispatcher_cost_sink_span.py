@@ -62,6 +62,35 @@ def test_span_cost_prices_token_vector_by_model() -> None:
     assert cost.dedup_key == "req-1"
 
 
+def test_span_cost_reads_provider_neutral_codex_model_and_response_id() -> None:
+    """Codex token spans must keep a GPT basis, not the Anthropic fallback."""
+    span: dict[str, object] = {
+        "name": "gen_ai.client.operation",
+        "spanId": "codex-span-1",
+        "attributes": [
+            _attr(key="work.item.id", string_value="li-codex"),
+            _attr(key="gen_ai.response.id", string_value="codex-response-1"),
+            _attr(key="gen_ai.request.model", string_value="gpt-5.5"),
+            _attr(key="gen_ai.usage.input_tokens", int_value=123),
+            _attr(key="gen_ai.usage.output_tokens", int_value=45),
+        ],
+    }
+
+    cost = span_cost(span=span)
+
+    assert cost is not None
+    assert cost.correlation_key == "li-codex"
+    assert cost.dedup_key == "codex-response-1"
+    assert cost.tokens.input == 123
+    assert cost.tokens.output == 45
+    assert cost.model_basis == "gpt-5.5"
+    assert cost.model_resolved is True
+    assert cost.usd_micros == derive_usd_micros(
+        tokens=TokenVector(input=123, output=45, cache_write=0, cache_read=0),
+        model_id="gpt-5.5",
+    )
+
+
 def test_span_cost_keys_on_work_item_id_first() -> None:
     """`work.item.id` is the correlation key when present (most-specific)."""
     span = _cc_span(work_item_id="li-x", dispatch_id="dispatch-y")
