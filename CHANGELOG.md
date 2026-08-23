@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.71.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.71.1...v0.71.2) (2026-08-23)
+
+
+### Bug Fixes
+
+* **config:** stop an unreadable config from silently disabling the pre-push ledger gate ([f605992](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/f605992e548909afffc6adf469cbadfefa846357))
+
 ## [0.71.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.71.0...v0.71.1) (2026-08-23)
 
 
