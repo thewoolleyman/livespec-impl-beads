@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.71.4](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.71.3...v0.71.4) (2026-08-23)
+
+
+### Bug Fixes
+
+* make dead implementer route fail closed ([cd03106](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/cd0310650534e67ed7c21b1393fc3e351fa054e5))
+* require dead implementer workflow breaker ([e2216db](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/e2216dbfbff1f6194c778ed7bc186642a7eb52b0))
+
 ## [0.71.3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.71.2...v0.71.3) (2026-08-23)
 
 
