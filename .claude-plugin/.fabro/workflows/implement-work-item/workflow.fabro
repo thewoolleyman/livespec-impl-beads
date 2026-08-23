@@ -293,7 +293,7 @@ digraph ImplementWorkItem {
     // Non-zero means either a byte-identical tree or an inability to
     // prove the tree changed; both fail closed before review.
     implementation_diff -> janitor          [label="changed", condition="outcome=succeeded"]
-    implementation_diff -> dead_implementer [label="unchanged or unprovable", condition="outcome=failed"]
+    implementation_diff -> dead_implementer [label="unchanged or unprovable"]
 
     // Janitor outcome routing: exit 0 -> Green -> review (-> pr on
     // approve); non-zero -> Red -> fix while the loop budget remains,
