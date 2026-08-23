@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.71.5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.71.4...v0.71.5) (2026-08-23)
+
+
+### Bug Fixes
+
+* harden preserve reference failure paths ([3749739](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/374973930a859a8366817d1ac34061b9ae1e3f6a))
+
 ## [0.71.4](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.71.3...v0.71.4) (2026-08-23)
 
 
