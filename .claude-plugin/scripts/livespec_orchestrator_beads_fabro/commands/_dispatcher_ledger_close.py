@@ -195,4 +195,5 @@ def _outcome_payload(*, outcome: DispatchOutcome) -> dict[str, object]:
         _ = payload.pop("fabro_failure_category")
     if outcome.fabro_failure_signature is None:
         _ = payload.pop("fabro_failure_signature")
+    _ = payload.pop("provider_usage_limit", None)
     return payload

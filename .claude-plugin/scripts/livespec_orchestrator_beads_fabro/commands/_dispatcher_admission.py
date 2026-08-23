@@ -27,11 +27,14 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_dispatch_lock import
     write_dispatch_lock,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
-from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
+from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile, utc_now_iso
 from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_outcomes import (
     failed_dispatch_outcome,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import store_config
+from livespec_orchestrator_beads_fabro.commands._dispatcher_provider_exhaustion import (
+    provider_exhaustion_refusal,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_valves import (
     DEFAULT_WIP_CAP,
     admission_held_detail,
@@ -182,6 +185,15 @@ def _filter_host_only_candidates(
     admittable: list[WorkItem] = []
     refused: list[DispatchOutcome] = []
     for item in candidates:
+        exhaustion_refusal = provider_exhaustion_refusal(
+            work_item_id=item.id,
+            journal=journal,
+            journal_path=getattr(journal, "path", None),
+            now_iso=utc_now_iso(),
+        )
+        if exhaustion_refusal is not None:
+            refused.append(exhaustion_refusal)
+            continue
         raw_labels = read_dispatch_labels(repo=repo, item=item)
         if isinstance(raw_labels, str):
             refused.append(
