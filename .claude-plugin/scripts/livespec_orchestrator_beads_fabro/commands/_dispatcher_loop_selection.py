@@ -43,6 +43,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_staleness_gate impor
 from livespec_orchestrator_beads_fabro.commands._sibling_status_lookup import (
     make_sibling_status_lookup,
 )
+from livespec_orchestrator_beads_fabro.effects import AttemptFailure, attempt
 from livespec_orchestrator_beads_fabro.io import write_stderr
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
@@ -194,13 +195,26 @@ def post_run_dispositions(  # noqa: PLR0913 — kw-only post-run stage; each fie
         now_iso=utc_now_iso(),
     )
     journal.append(record={"stage": "outcome", "outcome": asdict(outcome)})
-    preserve_checkpointed_work_reference(
-        args=args,
-        repo=repo,
-        item=item,
-        outcome=outcome,
-        journal=journal,
+    preserved = attempt(
+        action=lambda: preserve_checkpointed_work_reference(
+            args=args,
+            repo=repo,
+            item=item,
+            outcome=outcome,
+            journal=journal,
+        ),
+        exceptions=(OSError,),
     )
+    if isinstance(preserved, AttemptFailure):
+        journal.append(
+            record={
+                "stage": "preserve-by-reference-error",
+                "work_item_id": item.id,
+                "reason": type(preserved.error).__name__,
+                "outcome_stage": outcome.stage,
+                "outcome_status": outcome.status,
+            }
+        )
     escalate_needs_human_block(repo=repo, item=item, outcome=outcome, journal=journal)
     bounce_non_convergence_to_backlog(repo=repo, item=item, outcome=outcome, journal=journal)
     emit_calibration(
