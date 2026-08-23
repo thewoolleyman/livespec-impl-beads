@@ -11,8 +11,11 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_acceptance_criteria 
     criteria_checks,
     criteria_lines,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_acceptance_diff import (
+    DiffResult,
+    read_merged_diff,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
-    CommandResult,
     CommandRunner,
     DispatchOutcome,
 )
@@ -20,15 +23,15 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_io import ShellComma
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
 __all__: list[str] = [
+    "NEEDS_ATTENTION_VERDICT",
     "NO_CHANGE_NEEDED_VERDICT",
     "AcceptancePassResult",
     "CriterionCheck",
     "run_acceptance_pass",
 ]
 
+NEEDS_ATTENTION_VERDICT = "NEEDS_ATTENTION"
 NO_CHANGE_NEEDED_VERDICT = "NO_CHANGE_NEEDED"
-
-_DIFF_TIMEOUT_SECONDS = 30.0
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -74,7 +77,7 @@ def run_acceptance_pass(
 ) -> AcceptancePassResult:
     """Read the merged diff, judge criteria, watch telemetry, and return PASS/FAIL."""
     active_runner = ShellCommandRunner() if runner is None else runner
-    diff_result = _read_merged_diff(repo=repo, outcome=outcome, runner=active_runner)
+    diff_result = read_merged_diff(repo=repo, outcome=outcome, runner=active_runner)
     telemetry_passed, telemetry_reason = _telemetry_verdict(outcome=outcome)
     checks = criteria_checks(
         criteria_text=_effective_criteria_text(item=item),
@@ -90,66 +93,6 @@ def run_acceptance_pass(
         telemetry_reason=telemetry_reason,
         criteria=checks,
     )
-
-
-@dataclass(frozen=True, kw_only=True)
-class _DiffResult:
-    merged_diff: str | None
-    reason: str
-
-
-def _read_merged_diff(
-    *, repo: Path, outcome: DispatchOutcome, runner: CommandRunner
-) -> _DiffResult:
-    merge_sha = outcome.merge_sha
-    if merge_sha is None:
-        return _DiffResult(merged_diff=None, reason="merge sha unavailable")
-    pr_number = outcome.pr_number
-    if pr_number is not None:
-        pr_result = runner.run(
-            argv=["gh", "pr", "diff", str(pr_number), "--patch"],
-            cwd=repo,
-            timeout_seconds=_DIFF_TIMEOUT_SECONDS,
-        )
-        diff = _diff_from_command(
-            result=pr_result,
-            read_reason="pull request diff read",
-            empty_reason="pull request diff is empty",
-            failed_reason="pull request diff failed",
-        )
-        if diff.merged_diff is not None:
-            return diff
-    result = runner.run(
-        argv=["git", "show", "--format=", "--find-renames", merge_sha],
-        cwd=repo,
-        timeout_seconds=_DIFF_TIMEOUT_SECONDS,
-    )
-    diff = _diff_from_command(
-        result=result,
-        read_reason="merged diff read",
-        empty_reason="merged diff is empty",
-        failed_reason="git show failed",
-    )
-    if pr_number is not None and diff.merged_diff is None:
-        return _DiffResult(
-            merged_diff=None,
-            reason="pull request diff failed; git show failed",
-        )
-    return diff
-
-
-def _diff_from_command(
-    *,
-    result: CommandResult,
-    read_reason: str,
-    empty_reason: str,
-    failed_reason: str,
-) -> _DiffResult:
-    if result.exit_code != 0:
-        return _DiffResult(merged_diff=None, reason=failed_reason)
-    if not result.stdout.strip():
-        return _DiffResult(merged_diff="", reason=empty_reason)
-    return _DiffResult(merged_diff=result.stdout, reason=read_reason)
 
 
 def _telemetry_verdict(*, outcome: DispatchOutcome) -> tuple[bool, str]:
@@ -192,7 +135,7 @@ def _description_exit_criteria(*, description: str) -> str | None:
     return text
 
 
-def _passes(*, diff: _DiffResult, telemetry: bool, checks: tuple[CriterionCheck, ...]) -> bool:
+def _passes(*, diff: DiffResult, telemetry: bool, checks: tuple[CriterionCheck, ...]) -> bool:
     if not telemetry:
         return False
     if diff.merged_diff is None:
@@ -200,9 +143,9 @@ def _passes(*, diff: _DiffResult, telemetry: bool, checks: tuple[CriterionCheck,
     return bool(checks) and all(check.passed for check in checks)
 
 
-def _verdict(*, diff: _DiffResult, telemetry: bool, checks: tuple[CriterionCheck, ...]) -> str:
-    if telemetry and diff.merged_diff == "":
-        return NO_CHANGE_NEEDED_VERDICT
+def _verdict(*, diff: DiffResult, telemetry: bool, checks: tuple[CriterionCheck, ...]) -> str:
+    if telemetry and not diff.gradeable:
+        return NEEDS_ATTENTION_VERDICT
     if _passes(diff=diff, telemetry=telemetry, checks=checks):
         return "PASS"
     return "FAIL"

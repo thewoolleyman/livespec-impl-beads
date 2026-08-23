@@ -34,6 +34,24 @@ class _Runner:
         return self.result
 
 
+@dataclass(kw_only=True)
+class _SequenceRunner:
+    results: list[CommandResult]
+    calls: list[tuple[list[str], Path, float]] = field(default_factory=list)
+
+    def run(
+        self,
+        *,
+        argv: list[str],
+        cwd: Path,
+        timeout_seconds: float,
+        env: dict[str, str] | None = None,
+    ) -> CommandResult:
+        _ = env
+        self.calls.append((argv, cwd, timeout_seconds))
+        return self.results.pop(0)
+
+
 def _item(*, criteria: str | None, description: str = "Do it.") -> WorkItem:
     return WorkItem(
         id="bd-ib-test",
@@ -317,10 +335,16 @@ def test_acceptance_pass_reads_multi_commit_pr_diff_not_only_series_tip(
     assert [call[0] for call in runner.calls] == [["gh", "pr", "diff", "1809", "--patch"]]
 
 
-def test_acceptance_pass_disposes_empty_merged_diff_as_no_change_needed(
+def test_acceptance_pass_empty_pr_diff_falls_through_to_merge_diff(
     tmp_path: Path,
 ) -> None:
-    runner = _Runner(result=CommandResult(exit_code=0, stdout="\n", stderr=""))
+    merge_diff = "diff --git a/x b/x\n+run the tests\n"
+    runner = _SequenceRunner(
+        results=[
+            CommandResult(exit_code=0, stdout="\n", stderr=""),
+            CommandResult(exit_code=0, stdout=merge_diff, stderr=""),
+        ]
+    )
 
     result = run_acceptance_pass(
         repo=tmp_path,
@@ -329,10 +353,144 @@ def test_acceptance_pass_disposes_empty_merged_diff_as_no_change_needed(
         runner=runner,
     )
 
-    assert result.verdict == "NO_CHANGE_NEEDED"
-    assert result.merged_diff == ""
-    assert result.diff_reason == "pull request diff is empty"
-    assert result.criteria[0].reason == "matched green dispatch telemetry"
+    assert result.verdict == "PASS"
+    assert result.merged_diff == merge_diff
+    assert result.diff_reason == "merged diff read"
+    assert [call[0] for call in runner.calls] == [
+        ["gh", "pr", "diff", "7", "--patch"],
+        ["git", "show", "--format=", "--find-renames", "abc123"],
+    ]
+
+
+def test_acceptance_pass_needs_attention_when_patch_has_no_file_changes(
+    tmp_path: Path,
+) -> None:
+    runner = _Runner(
+        result=CommandResult(
+            exit_code=0,
+            stdout=(
+                "From abc Mon Sep 17 00:00:00 2001\n"
+                "From: Fabro <fabro@example.test>\n"
+                "Subject: fabro(run): implement (succeeded)\n"
+            ),
+            stderr="",
+        )
+    )
+
+    result = run_acceptance_pass(
+        repo=tmp_path,
+        item=_item(criteria="Run the tests."),
+        outcome=_outcome(),
+        runner=runner,
+    )
+
+    assert result.verdict == "NEEDS_ATTENTION"
+    assert result.merged_diff is None
+    assert result.diff_reason == "pull request diff has no file changes"
+
+
+def test_acceptance_pass_needs_attention_when_recorded_pr_lacks_merge_sha(
+    tmp_path: Path,
+) -> None:
+    runner = _SequenceRunner(
+        results=[
+            CommandResult(
+                exit_code=0,
+                stdout=(
+                    "From abc Mon Sep 17 00:00:00 2001\n"
+                    "From: Fabro <fabro@example.test>\n"
+                    "Subject: fabro(run): implement (succeeded)\n"
+                ),
+                stderr="",
+            ),
+            CommandResult(
+                exit_code=0, stdout='["skip", {"number": true}, {"number":1807}]', stderr=""
+            ),
+        ]
+    )
+
+    result = run_acceptance_pass(
+        repo=tmp_path,
+        item=_item(criteria="Run the tests."),
+        outcome=_outcome(pr_number=1809, merge_sha="abc123"),
+        runner=runner,
+    )
+
+    assert result.verdict == "NEEDS_ATTENTION"
+    assert result.merged_diff is None
+    assert result.diff_reason == (
+        "recorded PR #1809 does not contain merge sha abc123; associated PRs: #1807"
+    )
+    assert [call[0] for call in runner.calls] == [
+        ["gh", "pr", "diff", "1809", "--patch"],
+        [
+            "gh",
+            "api",
+            "-H",
+            "Accept: application/vnd.github+json",
+            "/repos/{owner}/{repo}/commits/abc123/pulls",
+        ],
+    ]
+
+
+def test_acceptance_pass_needs_attention_when_pr_association_lookup_fails(
+    tmp_path: Path,
+) -> None:
+    runner = _SequenceRunner(
+        results=[
+            CommandResult(
+                exit_code=0,
+                stdout=(
+                    "From abc Mon Sep 17 00:00:00 2001\n"
+                    "From: Fabro <fabro@example.test>\n"
+                    "Subject: fabro(run): implement (succeeded)\n"
+                ),
+                stderr="",
+            ),
+            CommandResult(exit_code=1, stdout="", stderr="api unavailable"),
+        ]
+    )
+
+    result = run_acceptance_pass(
+        repo=tmp_path,
+        item=_item(criteria="Run the tests."),
+        outcome=_outcome(pr_number=1809, merge_sha="abc123"),
+        runner=runner,
+    )
+
+    assert result.verdict == "NEEDS_ATTENTION"
+    assert result.merged_diff is None
+    assert result.diff_reason == "pull request diff has no file changes"
+
+
+def test_acceptance_pass_needs_attention_when_pr_association_payload_is_malformed(
+    tmp_path: Path,
+) -> None:
+    runner = _SequenceRunner(
+        results=[
+            CommandResult(
+                exit_code=0,
+                stdout=(
+                    "From abc Mon Sep 17 00:00:00 2001\n"
+                    "From: Fabro <fabro@example.test>\n"
+                    "Subject: fabro(run): implement (succeeded)\n"
+                ),
+                stderr="",
+            ),
+            CommandResult(exit_code=0, stdout='{"number":1807}', stderr=""),
+        ]
+    )
+
+    result = run_acceptance_pass(
+        repo=tmp_path,
+        item=_item(criteria="Run the tests."),
+        outcome=_outcome(pr_number=1809, merge_sha="abc123"),
+        runner=runner,
+    )
+
+    assert result.verdict == "NEEDS_ATTENTION"
+    assert result.merged_diff is None
+    assert result.diff_reason == "pull request diff has no file changes"
 
 
 def test_acceptance_pass_fails_criteria_when_diff_is_unobservable(tmp_path: Path) -> None:

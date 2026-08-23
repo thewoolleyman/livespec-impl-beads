@@ -1,0 +1,156 @@
+"""Merged-diff acquisition for the Dispatcher acceptance pass."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, cast
+
+from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
+    CommandResult,
+    CommandRunner,
+    DispatchOutcome,
+)
+from livespec_orchestrator_beads_fabro.effects import JsonParseFailure, parse_json
+
+__all__: list[str] = [
+    "DiffResult",
+    "read_merged_diff",
+]
+
+_DIFF_TIMEOUT_SECONDS = 30.0
+
+
+@dataclass(frozen=True, kw_only=True)
+class DiffResult:
+    merged_diff: str | None
+    reason: str
+    gradeable: bool
+
+
+def read_merged_diff(*, repo: Path, outcome: DispatchOutcome, runner: CommandRunner) -> DiffResult:
+    merge_sha = outcome.merge_sha
+    if merge_sha is None:
+        return DiffResult(merged_diff=None, reason="merge sha unavailable", gradeable=True)
+    pr_number = outcome.pr_number
+    if pr_number is not None:
+        pr_result = runner.run(
+            argv=["gh", "pr", "diff", str(pr_number), "--patch"],
+            cwd=repo,
+            timeout_seconds=_DIFF_TIMEOUT_SECONDS,
+        )
+        diff = _diff_from_command(
+            result=pr_result,
+            read_reason="pull request diff read",
+            empty_reason="pull request diff is empty",
+            failed_reason="pull request diff failed",
+            no_file_changes_reason="pull request diff has no file changes",
+        )
+        if diff.merged_diff is not None:
+            return diff
+        if not diff.gradeable:
+            associated = _associated_pr_numbers_for_merge(
+                repo=repo,
+                merge_sha=merge_sha,
+                runner=runner,
+            )
+            if associated is not None and pr_number not in associated:
+                return DiffResult(
+                    merged_diff=None,
+                    reason=_pr_mismatch_reason(
+                        pr_number=pr_number,
+                        merge_sha=merge_sha,
+                        associated=associated,
+                    ),
+                    gradeable=False,
+                )
+            return diff
+    result = runner.run(
+        argv=["git", "show", "--format=", "--find-renames", merge_sha],
+        cwd=repo,
+        timeout_seconds=_DIFF_TIMEOUT_SECONDS,
+    )
+    diff = _diff_from_command(
+        result=result,
+        read_reason="merged diff read",
+        empty_reason="merged diff is empty",
+        failed_reason="git show failed",
+        no_file_changes_reason="merged diff has no file changes",
+    )
+    if pr_number is not None and diff.merged_diff is None:
+        return DiffResult(
+            merged_diff=None,
+            reason="pull request diff failed; git show failed",
+            gradeable=diff.gradeable,
+        )
+    return diff
+
+
+def _diff_from_command(
+    *,
+    result: CommandResult,
+    read_reason: str,
+    empty_reason: str,
+    failed_reason: str,
+    no_file_changes_reason: str,
+) -> DiffResult:
+    if result.exit_code != 0:
+        return DiffResult(merged_diff=None, reason=failed_reason, gradeable=True)
+    if not result.stdout.strip():
+        return DiffResult(merged_diff=None, reason=empty_reason, gradeable=True)
+    if "diff --git " not in result.stdout:
+        if _looks_like_pr_metadata_json(stdout=result.stdout):
+            return DiffResult(merged_diff=None, reason=empty_reason, gradeable=True)
+        return DiffResult(
+            merged_diff=None,
+            reason=no_file_changes_reason,
+            gradeable=False,
+        )
+    return DiffResult(merged_diff=result.stdout, reason=read_reason, gradeable=True)
+
+
+def _associated_pr_numbers_for_merge(
+    *, repo: Path, merge_sha: str, runner: CommandRunner
+) -> tuple[int, ...] | None:
+    result = runner.run(
+        argv=[
+            "gh",
+            "api",
+            "-H",
+            "Accept: application/vnd.github+json",
+            f"/repos/{{owner}}/{{repo}}/commits/{merge_sha}/pulls",
+        ],
+        cwd=repo,
+        timeout_seconds=_DIFF_TIMEOUT_SECONDS,
+    )
+    if result.exit_code != 0:
+        return None
+    parsed_raw = parse_json(text=result.stdout)
+    if isinstance(parsed_raw, JsonParseFailure) or not isinstance(parsed_raw, list):
+        return None
+    parsed = cast("list[Any]", parsed_raw)
+    numbers: list[int] = []
+    for item in parsed:
+        if not isinstance(item, dict):
+            continue
+        record = cast("dict[str, object]", item)
+        number = record.get("number")
+        if isinstance(number, int) and not isinstance(number, bool):
+            numbers.append(number)
+    return tuple(numbers)
+
+
+def _looks_like_pr_metadata_json(*, stdout: str) -> bool:
+    parsed_raw = parse_json(text=stdout)
+    if isinstance(parsed_raw, JsonParseFailure) or not isinstance(parsed_raw, dict):
+        return False
+    parsed = cast("dict[str, object]", parsed_raw)
+    return "mergeCommit" in parsed and "number" in parsed
+
+
+def _pr_mismatch_reason(*, pr_number: int, merge_sha: str, associated: tuple[int, ...]) -> str:
+    associated_text = ", ".join(f"#{number}" for number in associated) if associated else "none"
+    return (
+        f"recorded PR #{pr_number} does not contain merge sha {merge_sha}; "
+        f"associated PRs: {associated_text}"
+    )
