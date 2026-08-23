@@ -267,3 +267,39 @@ failed runs before pruning anything, and record where the export landed here.
 This is an ordering constraint of the same kind as the two above it, and it is
 listed separately only because its trigger is a maintenance action rather than a
 development one — nobody would think to check a plan before running a cleanup.
+
+## Two observations from the C3 ratification pass, 2026-08-23
+
+**The Codex allowance was exhausted during this thread's own first dispatch, and
+that is where the headroom number finally came from.** Dispatching C6
+(`bd-ib-d0ul`) produced run `01M0PYKEEC26SRSG8W16HB2NWP`, whose Dispatcher
+outcome carried `fabro_failure_category: deterministic` and the provider's own
+message verbatim — *"You've hit your usage limit … try again at Aug 27th, 2026
+1:20 AM."* Three corrections to this note follow from it. First, the headroom
+question recorded above as unmeasurable (Cloudflare on the backend endpoints, no
+answer from the app-server RPC) never needed the Codex TUI: **a dispatch outcome
+carries the reset instant**, which is the same seam C4 consumes. Second, **gap
+T1's "null on 17 of 17" no longer holds** — both `fabro_failure_cause` and
+`_category` are populated, with the root cause rather than the `ACP protocol
+error` wrapper, so PR #1732's Dispatcher-side leg works and `bd-ib-nf39` should
+be re-scoped rather than re-verified. Third, **deferral D1 is confirmed rather
+than superseded**: `transient_infra` still appears inside the run's own inspect
+payload, so fabro's in-sandbox classifier still calls a quota refusal transient,
+which is why the run retried into the dead window before parking. Four blocked
+runs on hp across two repositories carried the identical string and reset, so the
+ceiling is on the ACCOUNT — which is why C4's exhaustion record must be keyed on
+the provider and never on the factory, or it would read healthy on `vps` and
+admit straight into the same dead allowance.
+
+**A defect class worth knowing about, logged and deliberately not investigated.**
+The independent ratification review caught a normative clause contradicting its
+own binding scenario: §"Provider spend containment" required every containment
+disposition to journal the provider and the record's expiry, while the
+cause-agnostic dead-implementer truncation has neither, and Scenario 61 — written
+to bind that very clause — journaled only two fields. **No structural check could
+have caught it**, because both artifacts are individually well-formed, every
+gherkin fence balances, and the heading-coverage map is satisfied; the
+contradiction lives only in the relationship between them. A test written
+verbatim from Scenario 61 would have passed a journal record the contracts clause
+forbids. Whether any gate covers this class is unknown and is not this thread's
+question.
