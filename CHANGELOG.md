@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.71.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.71.0...v0.71.1) (2026-08-23)
+
+
+### Bug Fixes
+
+* **config:** stop blaming the connection prefix for a config that will not parse ([c6c4512](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/c6c4512f45108424959ad2954a4a862a204ca4ea))
+
 ## [0.71.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.70.0...v0.71.0) (2026-08-23)
 
 
