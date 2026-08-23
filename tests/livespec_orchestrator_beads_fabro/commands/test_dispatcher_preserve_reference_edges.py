@@ -280,6 +280,7 @@ def test_post_run_dispositions_continue_after_preserve_failure(
 
     def broken_preserve(**kwargs: object) -> None:
         _ = kwargs
+        calls.append("preserve")
         raise PermissionError("preserve crashed")
 
     def needs_human(**kwargs: object) -> None:
@@ -319,7 +320,7 @@ def test_post_run_dispositions_continue_after_preserve_failure(
         token_supplier=lambda: "token",
     )
 
-    assert calls == ["needs-human", "non-convergence"]
+    assert calls == ["preserve", "needs-human", "non-convergence"]
 
 
 def test_configured_repo_store_config_is_used_for_resolvable_run(
