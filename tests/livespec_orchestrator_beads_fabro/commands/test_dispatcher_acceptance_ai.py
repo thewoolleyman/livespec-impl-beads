@@ -84,15 +84,13 @@ def test_acceptance_pass_reads_diff_and_passes_when_criteria_have_evidence(
     )
 
     assert result.verdict == "PASS"
-    assert [call[0] for call in runner.calls] == [
-        ["git", "show", "--format=", "--find-renames", "abc123"]
-    ]
+    assert [call[0] for call in runner.calls] == [["gh", "pr", "diff", "7", "--patch"]]
     record = result.journal_record(work_item_id="bd-ib-test", policy="ai-only")
     assert record["verdict"] == "PASS"
     assert record["diff"] == {
         "observed": True,
         "bytes": len(diff.encode()),
-        "reason": "merged diff read",
+        "reason": "pull request diff read",
     }
     assert record["telemetry"] == {
         "observed": True,
@@ -293,6 +291,32 @@ def test_acceptance_pass_does_not_require_every_significant_term_in_diff(
     )
 
 
+def test_acceptance_pass_reads_multi_commit_pr_diff_not_only_series_tip(
+    tmp_path: Path,
+) -> None:
+    pr_diff = (
+        "diff --git a/impl.py b/impl.py\n"
+        "+post merge acceptance grades every implementation commit\n"
+        "diff --git a/CHANGELOG.md b/CHANGELOG.md\n"
+        "+release note only final commit\n"
+    )
+    runner = _Runner(result=CommandResult(exit_code=0, stdout=pr_diff, stderr=""))
+
+    result = run_acceptance_pass(
+        repo=tmp_path,
+        item=_item(
+            criteria="Post merge acceptance grades every implementation commit.",
+        ),
+        outcome=_outcome(pr_number=1809, merge_sha="2e3fab5a"),
+        runner=runner,
+    )
+
+    assert result.verdict == "PASS"
+    assert result.merged_diff == pr_diff
+    assert result.diff_reason == "pull request diff read"
+    assert [call[0] for call in runner.calls] == [["gh", "pr", "diff", "1809", "--patch"]]
+
+
 def test_acceptance_pass_disposes_empty_merged_diff_as_no_change_needed(
     tmp_path: Path,
 ) -> None:
@@ -307,7 +331,7 @@ def test_acceptance_pass_disposes_empty_merged_diff_as_no_change_needed(
 
     assert result.verdict == "NO_CHANGE_NEEDED"
     assert result.merged_diff == ""
-    assert result.diff_reason == "merged diff is empty"
+    assert result.diff_reason == "pull request diff is empty"
     assert result.criteria[0].reason == "matched green dispatch telemetry"
 
 
@@ -323,7 +347,7 @@ def test_acceptance_pass_fails_criteria_when_diff_is_unobservable(tmp_path: Path
 
     assert result.verdict == "FAIL"
     assert result.merged_diff is None
-    assert result.diff_reason == "git show failed"
+    assert result.diff_reason == "pull request diff failed; git show failed"
 
 
 def test_acceptance_pass_fails_empty_criteria_even_with_readable_diff(tmp_path: Path) -> None:
@@ -338,7 +362,7 @@ def test_acceptance_pass_fails_empty_criteria_even_with_readable_diff(tmp_path: 
 
     assert result.verdict == "FAIL"
     assert result.criteria == ()
-    assert result.diff_reason == "merged diff read"
+    assert result.diff_reason == "pull request diff read"
 
 
 def test_acceptance_pass_fails_empty_criteria_when_diff_is_unreadable(tmp_path: Path) -> None:

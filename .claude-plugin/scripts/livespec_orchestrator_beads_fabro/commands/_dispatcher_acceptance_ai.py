@@ -104,20 +104,52 @@ def _read_merged_diff(
     merge_sha = outcome.merge_sha
     if merge_sha is None:
         return _DiffResult(merged_diff=None, reason="merge sha unavailable")
+    pr_number = outcome.pr_number
+    if pr_number is not None:
+        pr_result = runner.run(
+            argv=["gh", "pr", "diff", str(pr_number), "--patch"],
+            cwd=repo,
+            timeout_seconds=_DIFF_TIMEOUT_SECONDS,
+        )
+        diff = _diff_from_command(
+            result=pr_result,
+            read_reason="pull request diff read",
+            empty_reason="pull request diff is empty",
+            failed_reason="pull request diff failed",
+        )
+        if diff.merged_diff is not None:
+            return diff
     result = runner.run(
         argv=["git", "show", "--format=", "--find-renames", merge_sha],
         cwd=repo,
         timeout_seconds=_DIFF_TIMEOUT_SECONDS,
     )
-    return _diff_from_command(result=result)
+    diff = _diff_from_command(
+        result=result,
+        read_reason="merged diff read",
+        empty_reason="merged diff is empty",
+        failed_reason="git show failed",
+    )
+    if pr_number is not None and diff.merged_diff is None:
+        return _DiffResult(
+            merged_diff=None,
+            reason="pull request diff failed; git show failed",
+        )
+    return diff
 
 
-def _diff_from_command(*, result: CommandResult) -> _DiffResult:
+def _diff_from_command(
+    *,
+    result: CommandResult,
+    read_reason: str,
+    empty_reason: str,
+    failed_reason: str,
+) -> _DiffResult:
     if result.exit_code != 0:
-        return _DiffResult(merged_diff=None, reason="git show failed")
+        return _DiffResult(merged_diff=None, reason=failed_reason)
     if not result.stdout.strip():
-        return _DiffResult(merged_diff="", reason="merged diff is empty")
-    return _DiffResult(merged_diff=result.stdout, reason="merged diff read")
+        return _DiffResult(merged_diff="", reason=empty_reason)
+    return _DiffResult(merged_diff=result.stdout, reason=read_reason)
 
 
 def _telemetry_verdict(*, outcome: DispatchOutcome) -> tuple[bool, str]:
