@@ -86,6 +86,8 @@ class CostReport:
     cache_write_tokens: int
     cache_read_tokens: int
     model_resolved: bool
+    model_basis: str | None = None
+    node_id: str | None = None
 
 
 def cost_lookup_keys(*, work_item_id: str, dispatch_id: str | None) -> tuple[str, ...]:
@@ -121,7 +123,9 @@ _INPUT_FIELD = "input"
 _OUTPUT_FIELD = "output"
 _CACHE_WRITE_FIELD = "cache_write"
 _CACHE_READ_FIELD = "cache_read"
+_MODEL_BASIS_FIELD = "model_basis"
 _MODEL_RESOLVED_FIELD = "model_resolved"
+_NODE_ID_FIELD = "node_id"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -139,7 +143,9 @@ class _DedupRecord:
     output_tokens: int
     cache_write_tokens: int
     cache_read_tokens: int
+    model_basis: str | None
     model_resolved: bool
+    node_id: str | None
 
 
 @dataclass(kw_only=True)
@@ -191,7 +197,9 @@ class CostSink:
                 output_tokens=cost.tokens.output,
                 cache_write_tokens=cost.tokens.cache_write,
                 cache_read_tokens=cost.tokens.cache_read,
+                model_basis=cost.model_basis,
                 model_resolved=cost.model_resolved,
+                node_id=cost.node_id,
             )
             self._write(accruals=accruals)
 
@@ -230,7 +238,9 @@ class CostSink:
             output_tokens=sum(r.output_tokens for r in records),
             cache_write_tokens=sum(r.cache_write_tokens for r in records),
             cache_read_tokens=sum(r.cache_read_tokens for r in records),
+            model_basis=_model_basis(records=records),
             model_resolved=all(r.model_resolved for r in records),
+            node_id=_node_id(records=records),
         )
 
     def _read(self) -> dict[str, dict[str, _DedupRecord]]:
@@ -292,7 +302,9 @@ def _record_to_dict(*, record: _DedupRecord) -> dict[str, object]:
         _OUTPUT_FIELD: record.output_tokens,
         _CACHE_WRITE_FIELD: record.cache_write_tokens,
         _CACHE_READ_FIELD: record.cache_read_tokens,
+        _MODEL_BASIS_FIELD: record.model_basis or "",
         _MODEL_RESOLVED_FIELD: record.model_resolved,
+        _NODE_ID_FIELD: record.node_id or "",
     }
 
 
@@ -313,7 +325,9 @@ def _record_from_stored(*, stored: object) -> _DedupRecord | None:
             output_tokens=0,
             cache_write_tokens=0,
             cache_read_tokens=0,
+            model_basis=None,
             model_resolved=False,
+            node_id=None,
         )
     if not isinstance(stored, dict):
         return None
@@ -327,7 +341,9 @@ def _record_from_stored(*, stored: object) -> _DedupRecord | None:
         output_tokens=_int_field(block=block, field_name=_OUTPUT_FIELD) or 0,
         cache_write_tokens=_int_field(block=block, field_name=_CACHE_WRITE_FIELD) or 0,
         cache_read_tokens=_int_field(block=block, field_name=_CACHE_READ_FIELD) or 0,
+        model_basis=_str_field(block=block, field_name=_MODEL_BASIS_FIELD),
         model_resolved=block.get(_MODEL_RESOLVED_FIELD) is True,
+        node_id=_str_field(block=block, field_name=_NODE_ID_FIELD),
     )
 
 
@@ -338,3 +354,18 @@ def _int_field(*, block: dict[str, object], field_name: str) -> int | None:
     if isinstance(value, int):
         return value
     return None
+
+
+def _str_field(*, block: dict[str, object], field_name: str) -> str | None:
+    value = block.get(field_name)
+    if isinstance(value, str) and value != "":
+        return value
+    return None
+
+
+def _model_basis(*, records: tuple[_DedupRecord, ...]) -> str | None:
+    return next((record.model_basis for record in records if record.model_basis is not None), None)
+
+
+def _node_id(*, records: tuple[_DedupRecord, ...]) -> str | None:
+    return next((record.node_id for record in records if record.node_id is not None), None)

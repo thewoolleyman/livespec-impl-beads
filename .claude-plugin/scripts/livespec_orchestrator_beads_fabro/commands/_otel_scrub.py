@@ -101,7 +101,9 @@ ATTRIBUTE_ALLOWLIST: frozenset[str] = frozenset(
         # dedup key the cost sink counts each call once by (efj wiring).
         "cost_usd",
         "input_tokens",
+        "gen_ai.usage.input_tokens",
         "output_tokens",
+        "gen_ai.usage.output_tokens",
         "cache_read_tokens",
         "cache_creation_tokens",
         "duration_ms",

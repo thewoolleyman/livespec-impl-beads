@@ -66,6 +66,11 @@ class CostReportItemLike(Protocol):
         """Whether derived cost was observable."""
         ...
 
+    @property
+    def node_id(self) -> str | None:
+        """Workflow node that spent the tokens, when known."""
+        ...
+
 
 def cost_report_request_line(
     *, items: tuple[CostReportItemLike, ...], dispatch_id: str | None, now_ns: int
@@ -104,7 +109,7 @@ def cost_report_request_line(
 
 def _item_attrs(*, item: CostReportItemLike) -> dict[str, object]:
     usd_micros = item.usd_micros or 0
-    return {
+    attrs: dict[str, object] = {
         "work.item.id": item.work_item_id,
         "livespec.cost.usd_micros": usd_micros,
         "livespec.cost.usd": f"{usd_micros_to_usd(usd_micros=usd_micros):.6f}",
@@ -116,6 +121,9 @@ def _item_attrs(*, item: CostReportItemLike) -> dict[str, object]:
         "livespec.cost.model_resolved": item.model_resolved,
         "livespec.cost.observable": item.observable,
     }
+    if item.node_id is not None:
+        attrs["node_id"] = item.node_id
+    return attrs
 
 
 def _build_span(
