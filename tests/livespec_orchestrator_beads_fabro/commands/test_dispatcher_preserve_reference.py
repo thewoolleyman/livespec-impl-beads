@@ -103,6 +103,16 @@ def _config() -> StoreConfig:
     )
 
 
+def _repo(tmp_path: Path) -> Path:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _ = (repo / ".livespec.jsonc").write_text(
+        '{"livespec-orchestrator-beads-fabro": {"connection": {"prefix": "livespec-impl-beads"}}}',
+        encoding="utf-8",
+    )
+    return repo
+
+
 def _item() -> WorkItem:
     return WorkItem(
         id="bd-ib-preserve",
@@ -154,7 +164,7 @@ def test_failed_run_comment_records_resolvable_diff_pointer(tmp_path: Path) -> N
 
     module.preserve_checkpointed_work_reference(
         args=_args(),
-        repo=tmp_path,
+        repo=_repo(tmp_path),
         item=_item(),
         outcome=_outcome(status="failed"),
         journal=journal,
@@ -169,6 +179,7 @@ def test_failed_run_comment_records_resolvable_diff_pointer(tmp_path: Path) -> N
     assert "stage artifact path: stages/002-implement@1/diff.patch" in body
     assert "byte size: 44" in body
     assert "sha256:" in body
+    assert "sha256: 66cea3fffd55d2674c51819b19f4a7dee70484243ba4ed26408fa70e05b074dd" in body
     assert "recorded sha256 is the integrity check" in body
     assert "normalized diff payload byte size" not in body
     assert "fabro dump 01M0RUN --server https://hp-xubuntu.perch-rudd.ts.net:32276 -o" in body
@@ -196,7 +207,7 @@ def test_failed_run_comment_records_every_stage_diff_pointer(tmp_path: Path) -> 
 
     module.preserve_checkpointed_work_reference(
         args=_args(),
-        repo=tmp_path,
+        repo=_repo(tmp_path),
         item=_item(),
         outcome=_outcome(status="failed"),
         journal=journal,
@@ -221,7 +232,7 @@ def test_failed_run_comment_records_fix_stage_only_diff_pointer(tmp_path: Path) 
 
     module.preserve_checkpointed_work_reference(
         args=_args(),
-        repo=tmp_path,
+        repo=_repo(tmp_path),
         item=_item(),
         outcome=_outcome(status="failed"),
         journal=journal,
@@ -247,7 +258,7 @@ def test_blocked_run_comment_is_honest_when_no_diff_was_produced(tmp_path: Path)
 
     module.preserve_checkpointed_work_reference(
         args=_args(),
-        repo=tmp_path,
+        repo=_repo(tmp_path),
         item=_item(),
         outcome=_outcome(status="blocked"),
         journal=journal,
@@ -271,7 +282,7 @@ def test_dump_failure_comment_escapes_and_bounds_external_stderr(tmp_path: Path)
 
     module.preserve_checkpointed_work_reference(
         args=_args(),
-        repo=tmp_path,
+        repo=_repo(tmp_path),
         item=_item(),
         outcome=_outcome(status="failed"),
         journal=_RecordingJournal(),
@@ -304,7 +315,7 @@ def test_green_run_adds_no_preserve_comment(tmp_path: Path) -> None:
 
     module.preserve_checkpointed_work_reference(
         args=_args(),
-        repo=tmp_path,
+        repo=_repo(tmp_path),
         item=_item(),
         outcome=_outcome(status="green"),
         journal=_RecordingJournal(),

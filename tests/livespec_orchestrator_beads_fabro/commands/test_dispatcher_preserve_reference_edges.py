@@ -8,13 +8,17 @@ from pathlib import Path
 
 import pytest
 from livespec_orchestrator_beads_fabro._beads_client import make_beads_client
+from livespec_orchestrator_beads_fabro.commands import _dispatcher_loop_selection
 from livespec_orchestrator_beads_fabro.commands import _dispatcher_preserve_reference as preserve
 from livespec_orchestrator_beads_fabro.commands._config import FactoryTarget
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandResult,
     DispatchOutcome,
 )
-from livespec_orchestrator_beads_fabro.errors import WorkItemNotFoundError
+from livespec_orchestrator_beads_fabro.errors import (
+    ConnectionPrefixMissingError,
+    WorkItemNotFoundError,
+)
 from livespec_orchestrator_beads_fabro.store import append_work_item
 from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
 
@@ -46,15 +50,42 @@ class _FailingDumpRunner:
         return CommandResult(exit_code=2, stdout="", stderr="run storage not found")
 
 
+@dataclass(kw_only=True)
+class _PermissionDumpRunner:
+    def run(
+        self,
+        *,
+        argv: list[str],
+        cwd: Path,
+        timeout_seconds: float,
+        env: dict[str, str] | None = None,
+        stdin: int | None = None,
+    ) -> CommandResult:
+        _ = argv
+        _ = cwd
+        _ = timeout_seconds
+        _ = env
+        _ = stdin
+        raise PermissionError("artifact is unreadable")
+
+
 class _BrokenClient:
+    bodies: list[str]
+
+    def __init__(self, *, bodies: list[str]) -> None:
+        self.bodies = bodies
+
     def add_comment(self, *, issue_id: str, body: str) -> None:
-        _ = body
+        self.bodies.append(body)
         raise WorkItemNotFoundError(item_id=issue_id)
+
+
+_BROKEN_BODIES: list[str] = []
 
 
 def _broken_client(*, config: StoreConfig) -> _BrokenClient:
     _ = config
-    return _BrokenClient()
+    return _BrokenClient(bodies=_BROKEN_BODIES)
 
 
 def _config() -> StoreConfig:
@@ -66,6 +97,16 @@ def _config() -> StoreConfig:
         bd_path="bd",
         fake=True,
     )
+
+
+def _repo(tmp_path: Path) -> Path:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _ = (repo / ".livespec.jsonc").write_text(
+        '{"livespec-orchestrator-beads-fabro": {"connection": {"prefix": "livespec-impl-beads"}}}',
+        encoding="utf-8",
+    )
+    return repo
 
 
 def _item() -> WorkItem:
@@ -107,22 +148,28 @@ def _args(*, server: str | None = "https://factory.example.test") -> argparse.Na
     )
 
 
-def test_missing_run_id_writes_explicit_unavailable_pointer(tmp_path: Path) -> None:
+def test_missing_run_id_records_journal_without_pointer_comment(tmp_path: Path) -> None:
     append_work_item(path=_config(), item=_item())
+    journal = _RecordingJournal()
 
     preserve.preserve_checkpointed_work_reference(
         args=_args(),
-        repo=tmp_path,
+        repo=_repo(tmp_path),
         item=_item(),
         outcome=_outcome(run_id=None),
-        journal=_RecordingJournal(),
+        journal=journal,
     )
 
-    body = str(make_beads_client(config=_config()).list_comments(issue_id=_item().id)[-1]["text"])
-    assert "run id: (unavailable)" in body
-    assert "required pointer data was missing" in body
-    assert "byte size: (not recorded; pointer incomplete)" in body
-    assert "sha256: (not recorded; pointer incomplete)" in body
+    assert make_beads_client(config=_config()).list_comments(issue_id=_item().id) == []
+    assert journal.records == [
+        {
+            "stage": "preserve-by-reference-skipped",
+            "work_item_id": _item().id,
+            "reason": "missing-run-or-server",
+            "run_id": None,
+            "factory_server_url": "https://factory.example.test",
+        }
+    ]
 
 
 def test_dump_failure_writes_resolve_failure_comment(tmp_path: Path) -> None:
@@ -130,7 +177,7 @@ def test_dump_failure_writes_resolve_failure_comment(tmp_path: Path) -> None:
 
     preserve.preserve_checkpointed_work_reference(
         args=_args(),
-        repo=tmp_path,
+        repo=_repo(tmp_path),
         item=_item(),
         outcome=_outcome(),
         journal=_RecordingJournal(),
@@ -150,26 +197,132 @@ def test_comment_write_failure_is_journaled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     journal = _RecordingJournal()
+    _BROKEN_BODIES.clear()
     monkeypatch.setattr(preserve, "make_beads_client", _broken_client)
+
+    preserve.preserve_checkpointed_work_reference(
+        args=_args(),
+        repo=_repo(tmp_path),
+        item=_item(),
+        outcome=_outcome(),
+        journal=journal,
+        runner=_FailingDumpRunner(),
+    )
+
+    record = journal.records[-1]
+    assert record["stage"] == "preserve-by-reference-error"
+    assert record["work_item_id"] == _item().id
+    assert record["reason"] == "WorkItemNotFoundError"
+    assert record["run_id"] == "01M0RUN"
+    assert record["factory_server_url"] == "https://factory.example.test"
+    assert record["artifact_digest"] == "(not recorded; dump failed)"
+    assert record["pointer_body"] == _BROKEN_BODIES[-1]
+    assert "fabro dump failed with exit code 2" in str(record["pointer_body"])
+
+
+def test_store_config_failure_is_journaled_without_fake_success(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    journal = _RecordingJournal()
+    append_work_item(path=_config(), item=_item())
+
+    def fail_store_config(*, repo: Path) -> StoreConfig:
+        _ = repo
+        raise ConnectionPrefixMissingError
+
+    monkeypatch.setattr(preserve, "store_config", fail_store_config)
 
     preserve.preserve_checkpointed_work_reference(
         args=_args(),
         repo=tmp_path,
         item=_item(),
-        outcome=_outcome(run_id=None),
+        outcome=_outcome(),
         journal=journal,
+        runner=_FailingDumpRunner(),
     )
 
-    assert journal.records == [
-        {
-            "stage": "preserve-by-reference-error",
-            "work_item_id": _item().id,
-            "reason": "WorkItemNotFoundError",
-        }
-    ]
+    assert make_beads_client(config=_config()).list_comments(issue_id=_item().id) == []
+    record = journal.records[-1]
+    assert record["stage"] == "preserve-by-reference-error"
+    assert record["reason"] == "ConnectionPrefixMissingError"
+    assert record["run_id"] == "01M0RUN"
+    assert record["factory_server_url"] == "https://factory.example.test"
+    assert "fabro dump failed with exit code 2" in str(record["pointer_body"])
 
 
-def test_configured_repo_store_config_is_used(
+def test_dump_os_error_is_journaled_and_swallowed(tmp_path: Path) -> None:
+    journal = _RecordingJournal()
+
+    preserve.preserve_checkpointed_work_reference(
+        args=_args(),
+        repo=_repo(tmp_path),
+        item=_item(),
+        outcome=_outcome(),
+        journal=journal,
+        runner=_PermissionDumpRunner(),
+    )
+
+    record = journal.records[-1]
+    assert record["stage"] == "preserve-by-reference-error"
+    assert record["reason"] == "PermissionError"
+    assert record["run_id"] == "01M0RUN"
+    assert record["factory_server_url"] == "https://factory.example.test"
+    assert "artifact is unreadable" in str(record["pointer_body"])
+
+
+def test_post_run_dispositions_continue_after_preserve_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    journal = _RecordingJournal()
+    calls: list[str] = []
+
+    def broken_preserve(**kwargs: object) -> None:
+        _ = kwargs
+        raise PermissionError("preserve crashed")
+
+    def needs_human(**kwargs: object) -> None:
+        _ = kwargs
+        calls.append("needs-human")
+
+    def non_convergence(**kwargs: object) -> None:
+        _ = kwargs
+        calls.append("non-convergence")
+
+    monkeypatch.setattr(
+        _dispatcher_loop_selection,
+        "preserve_checkpointed_work_reference",
+        broken_preserve,
+    )
+    monkeypatch.setattr(_dispatcher_loop_selection, "escalate_needs_human_block", needs_human)
+    monkeypatch.setattr(
+        _dispatcher_loop_selection,
+        "bounce_non_convergence_to_backlog",
+        non_convergence,
+    )
+    monkeypatch.setattr(_dispatcher_loop_selection, "emit_calibration", lambda **_: None)
+    monkeypatch.setattr(
+        _dispatcher_loop_selection,
+        "record_provider_exhaustion_if_observed",
+        lambda **_: None,
+    )
+
+    _dispatcher_loop_selection.post_run_dispositions(
+        args=_args(),
+        repo=tmp_path,
+        item=_item(),
+        outcome=_outcome(),
+        journal=journal,
+        wall_clock_seconds=1.0,
+        dispatch_context_size=1,
+        token_supplier=lambda: "token",
+    )
+
+    assert calls == ["needs-human", "non-convergence"]
+
+
+def test_configured_repo_store_config_is_used_for_resolvable_run(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -186,8 +339,9 @@ def test_configured_repo_store_config_is_used(
         args=_args(),
         repo=repo,
         item=_item(),
-        outcome=_outcome(run_id=None),
+        outcome=_outcome(),
         journal=_RecordingJournal(),
+        runner=_FailingDumpRunner(),
     )
 
     body = str(make_beads_client(config=_config()).list_comments(issue_id=_item().id)[-1]["text"])
