@@ -13,9 +13,11 @@ to observe the UNSET `fake` default `monkeypatch.delenv` it first.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import fields
 from inspect import signature
 from pathlib import Path
+from typing import TypeVar
 
 import pytest
 from livespec_orchestrator_beads_fabro.commands import _config, _dispatcher_overlay
@@ -24,8 +26,26 @@ from livespec_orchestrator_beads_fabro.commands._config import (
     resolve_fabro_bin,
     resolve_store_config,
 )
-from livespec_orchestrator_beads_fabro.errors import ConnectionPrefixMissingError
+from livespec_orchestrator_beads_fabro.errors import (
+    ConnectionPrefixMissingError,
+    LivespecConfigUnreadableError,
+)
 from livespec_orchestrator_beads_fabro.types import StoreConfig
+from returns.io import IOResult
+from returns.unsafe import unsafe_perform_io
+
+_Value = TypeVar("_Value")
+
+
+def _read(outcome: IOResult[_Value, object]) -> _Value:
+    """The value out of a config read that SUCCEEDED.
+
+    ⚠️ `unsafe_perform_io` is mandatory rather than decorative: `IOResult.unwrap`
+    yields `IO[value]`, not the value, so a bare `.unwrap()` compares an `IO`
+    wrapper against the expected string and is false for every input.
+    """
+    return unsafe_perform_io(outcome.unwrap())
+
 
 _CONFIG_NAME = ".livespec.jsonc"
 _GITHUB_APP_ENV_KEYS = (
@@ -286,26 +306,76 @@ def test_empty_socket_string_reads_as_none(
     assert config.socket is None
 
 
-def test_malformed_jsonc_yields_no_prefix_and_raises(
+def test_malformed_jsonc_names_the_parse_failure_not_a_missing_prefix(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Malformed JSONC falls back to an empty block, which has no prefix → raises."""
+    """A file that will not parse refuses by NAMING that, not the prefix.
+
+    It used to raise `ConnectionPrefixMissingError` — a true refusal naming the
+    wrong cause, sending an operator to look at a `connection.prefix` that was
+    sitting there correctly all along.
+    """
     monkeypatch.delenv("LIVESPEC_BEADS_FAKE", raising=False)
     _write_config(cwd=tmp_path, body="{ this is not valid json ")
-    with pytest.raises(ConnectionPrefixMissingError):
+
+    with pytest.raises(LivespecConfigUnreadableError) as raised:
         _ = resolve_store_config(cwd=tmp_path, work_items_arg=None)
 
+    assert "does not parse" in raised.value.detail
+    assert not isinstance(raised.value, ConnectionPrefixMissingError)
 
-def test_non_object_root_yields_no_prefix_and_raises(
+
+def test_non_object_root_names_the_shape_not_a_missing_prefix(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A non-object JSON root falls back to an empty block → no prefix → raises."""
+    """A non-object JSON root refuses by naming the root, not the prefix."""
     monkeypatch.delenv("LIVESPEC_BEADS_FAKE", raising=False)
     _write_config(cwd=tmp_path, body="[1, 2, 3]")
-    with pytest.raises(ConnectionPrefixMissingError):
+
+    with pytest.raises(LivespecConfigUnreadableError) as raised:
         _ = resolve_store_config(cwd=tmp_path, work_items_arg=None)
+
+    assert "root is not an object" in raised.value.detail
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        pytest.param(
+            lambda cwd: _config.has_fabro_factory(cwd=cwd, factory="default"),
+            id="has_fabro_factory",
+        ),
+        pytest.param(lambda cwd: _config.has_fabro_factories(cwd=cwd), id="has_fabro_factories"),
+        pytest.param(
+            lambda cwd: _config.resolve_fabro_factory(cwd=cwd), id="resolve_fabro_factory"
+        ),
+        pytest.param(
+            lambda cwd: _config.resolve_codex_model_tiers(cwd=cwd), id="resolve_codex_model_tiers"
+        ),
+    ],
+)
+def test_dispatcher_readers_refuse_an_unreadable_config_rather_than_reading_it_as_unset(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    call: Callable[[Path], object],
+) -> None:
+    """An unreadable config is NOT "nothing is configured", for every dispatcher reader.
+
+    ⛔ THE REGRESSION THIS PINS. These four readers were added while the
+    read-vs-write swallow fix sat unlanded, and each re-committed it: they called
+    the block reader and treated a parse failure as an absent `factories` key, so
+    `has_fabro_factory` answered a confident `False` for a config with a stray
+    comma in it. Every one of them now refuses by naming the real cause.
+    """
+    monkeypatch.delenv("LIVESPEC_BEADS_FAKE", raising=False)
+    _write_config(cwd=tmp_path, body="{ this is not valid json ")
+
+    with pytest.raises(LivespecConfigUnreadableError) as raised:
+        _ = call(tmp_path)
+
+    assert "does not parse" in raised.value.detail
 
 
 def test_non_dict_plugin_block_yields_no_prefix_and_raises(
@@ -723,7 +793,7 @@ def test_resolve_fabro_sandbox_image_uses_dispatcher_config_key(
             }
         ),
     )
-    assert _config.resolve_fabro_sandbox_image(cwd=tmp_path) == configured
+    assert _read(_config.resolve_fabro_sandbox_image(cwd=tmp_path)) == configured
 
 
 def test_env_fabro_sandbox_image_beats_config(
@@ -744,7 +814,7 @@ def test_env_fabro_sandbox_image_beats_config(
             }
         ),
     )
-    assert _config.resolve_fabro_sandbox_image(cwd=tmp_path) == env_value
+    assert _read(_config.resolve_fabro_sandbox_image(cwd=tmp_path)) == env_value
 
 
 def test_resolve_fabro_sandbox_image_unset_is_noop(
@@ -753,7 +823,7 @@ def test_resolve_fabro_sandbox_image_unset_is_noop(
 ) -> None:
     """No env or config value yields None, leaving the committed workflow unchanged."""
     monkeypatch.delenv("LIVESPEC_FABRO_SANDBOX_IMAGE", raising=False)
-    assert _config.resolve_fabro_sandbox_image(cwd=tmp_path) is None
+    assert _read(_config.resolve_fabro_sandbox_image(cwd=tmp_path)) is None
 
 
 def test_resolve_credential_wrapper_reads_top_level_list(

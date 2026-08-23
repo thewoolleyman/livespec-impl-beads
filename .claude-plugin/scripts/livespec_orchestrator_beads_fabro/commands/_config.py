@@ -65,15 +65,22 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
+from returns.io import IOFailure, IOResult, IOSuccess
+from returns.unsafe import unsafe_perform_io
+
 from livespec_orchestrator_beads_fabro.commands import _jsonc
 from livespec_orchestrator_beads_fabro.commands._codex_model_tiers import (
     CodexModelTiers,
     codex_model_tiers_from_block,
 )
-from livespec_orchestrator_beads_fabro.errors import ConnectionPrefixMissingError
+from livespec_orchestrator_beads_fabro.errors import (
+    ConnectionPrefixMissingError,
+    LivespecConfigUnreadableError,
+)
 from livespec_orchestrator_beads_fabro.types import StoreConfig
 
 __all__: list[str] = [
+    "ConfigUnreadable",
     "FactoryTarget",
     "has_fabro_factories",
     "has_fabro_factory",
@@ -115,6 +122,19 @@ class FactoryTarget:
     dev_token: str | None
 
 
+@dataclass(frozen=True, kw_only=True)
+class ConfigUnreadable:
+    """`.livespec.jsonc` EXISTS but cannot be read as a configuration object.
+
+    Deliberately NOT inhabited by "the file is absent" or "the block is not
+    there". An unconfigured repo has documented defaults and those defaults are
+    the ANSWER; a file that will not parse, or whose root is not an object, is
+    the operator's configuration being wrong, and that is a different claim.
+    """
+
+    detail: str
+
+
 def resolve_store_config(
     *,
     cwd: Path,
@@ -127,7 +147,16 @@ def resolve_store_config(
     substrate (no JSONL path overrides exist).
     """
     _ = work_items_arg
-    block = _read_connection_block(cwd=cwd)
+    read = _read_connection_block(cwd=cwd)
+    if isinstance(read, IOFailure):
+        # ⛔ WITHOUT THIS the next line reads an EMPTY block and `_require_prefix`
+        # raises `ConnectionPrefixMissingError` — a true refusal naming the wrong
+        # cause. An operator with a stray comma was told their `connection.prefix`
+        # was missing. This function's contract is exception-based rather than
+        # railway (55 call sites, none of which catch), so the seam's reason is
+        # turned into a TRUTHFUL exception here rather than a Result.
+        raise LivespecConfigUnreadableError(detail=unsafe_perform_io(read.failure()).detail)
+    block = unsafe_perform_io(read.unwrap())
     tenant = _str_or(value=block.get("tenant"), default=_DEFAULT_TENANT)
     prefix = _require_prefix(block=block)
     database = _str_or(value=block.get("database"), default=tenant)
@@ -162,11 +191,20 @@ def resolve_fabro_bin(*, cwd: Path) -> str:
     env_value = os.environ.get(_ENV_FABRO_BIN)
     if env_value is not None and env_value != "":
         return env_value
-    block = _read_dispatcher_block(cwd=cwd)
-    configured = _str_or(value=block.get("fabro_bin"), default="")
-    if configured != "":
-        return configured
-    return _default_fabro_bin()
+    # ⚠️ THE ONLY READER LEFT OFF THE RAILWAY, AND THE REASON IS RECORDED RATHER
+    # THAN HIDDEN. Its recovery value is its OWN last precedence leg, the probed
+    # `_default_fabro_bin()` — so a caller writing `.value_or(...)` would need
+    # that probe, and pyright REFUSES the cross-module private import
+    # (`reportPrivateUsage`) while making it public would add a new offender
+    # returning a bare `str`. The honest destination is the preflight-error
+    # channel `_dispatcher_run_checks._fabro_preflight_error` already owns, which
+    # is a flow change rather than a signature change. Tracked as `8o8e.21`;
+    # until then the fold stays HERE, next to the probe it needs.
+    return unsafe_perform_io(
+        _read_dispatcher_block(cwd=cwd)
+        .map(lambda block: _configured_fabro_bin(block=block))
+        .value_or(_default_fabro_bin())
+    )
 
 
 def resolve_codex_model_tiers(*, cwd: Path) -> CodexModelTiers:
@@ -176,7 +214,7 @@ def resolve_codex_model_tiers(*, cwd: Path) -> CodexModelTiers:
     measurement record behind their values -- lives in `_codex_model_tiers`;
     this is the config-reading seam that feeds it.
     """
-    return codex_model_tiers_from_block(block=_read_dispatcher_block(cwd=cwd))
+    return codex_model_tiers_from_block(block=_dispatcher_block_or_raise(cwd=cwd))
 
 
 def resolve_fabro_factory(*, cwd: Path, factory: str | None = None) -> FactoryTarget:
@@ -190,7 +228,7 @@ def resolve_fabro_factory(*, cwd: Path, factory: str | None = None) -> FactoryTa
     target. The implicit target has no server value so downstream callers
     preserve today's ambient Fabro CLI behavior.
     """
-    block = _read_dispatcher_block(cwd=cwd)
+    block = _dispatcher_block_or_raise(cwd=cwd)
     if factory is not None and factory != "":
         return _factory_target_for(name=factory, block=block)
     env_value = os.environ.get(_ENV_FABRO_FACTORY)
@@ -204,7 +242,7 @@ def resolve_fabro_factory(*, cwd: Path, factory: str | None = None) -> FactoryTa
 
 def has_fabro_factory(*, cwd: Path, factory: str) -> bool:
     """Return whether the current dispatcher config defines a named factory."""
-    block = _read_dispatcher_block(cwd=cwd)
+    block = _dispatcher_block_or_raise(cwd=cwd)
     factories_raw = block.get("factories")
     if not isinstance(factories_raw, dict):
         return False
@@ -213,12 +251,12 @@ def has_fabro_factory(*, cwd: Path, factory: str) -> bool:
 
 def has_fabro_factories(*, cwd: Path) -> bool:
     """Return whether dispatcher config constrains factory names."""
-    block = _read_dispatcher_block(cwd=cwd)
+    block = _dispatcher_block_or_raise(cwd=cwd)
     factories_raw = block.get("factories")
     return isinstance(factories_raw, dict)
 
 
-def resolve_fabro_sandbox_image(*, cwd: Path) -> str | None:
+def resolve_fabro_sandbox_image(*, cwd: Path) -> IOResult[str | None, ConfigUnreadable]:
     """Resolve the optional Fabro sandbox image override (env > config > unset).
 
     A non-empty `LIVESPEC_FABRO_SANDBOX_IMAGE` env value wins outright; else
@@ -228,12 +266,8 @@ def resolve_fabro_sandbox_image(*, cwd: Path) -> str | None:
     """
     env_value = os.environ.get(_ENV_FABRO_SANDBOX_IMAGE)
     if env_value is not None and env_value != "":
-        return env_value
-    block = _read_dispatcher_block(cwd=cwd)
-    configured = _str_or(value=block.get("fabro_sandbox_image"), default="")
-    if configured != "":
-        return configured
-    return None
+        return IOSuccess(env_value)
+    return _read_dispatcher_block(cwd=cwd).map(lambda block: _configured_sandbox_image(block=block))
 
 
 def resolve_credential_wrapper(*, cwd: Path) -> list[str]:
@@ -245,48 +279,84 @@ def resolve_credential_wrapper(*, cwd: Path) -> list[str]:
     tenant-secret-injecting wrapper; a `[]` result means the recipe skips
     fail-soft (it cannot read the tenant without the wrapper).
     """
-    root = _read_root_mapping(cwd=cwd)
+    # ⚠️ THE FAIL-OPEN HERE IS UNCHANGED AND IS NOT YET HONEST: an UNREADABLE
+    # config still reads as "no wrapper configured", which turns the pre-push
+    # gate off. Its only consumer is an inline `python -c` in the justfile that
+    # already discards stderr and falls back to an empty array, so splitting the
+    # two is a shell-side change rather than a Python one. Tracked as `8o8e.21`.
+    root = unsafe_perform_io(_read_root_mapping(cwd=cwd).value_or({}))
     raw = root.get(_CREDENTIAL_WRAPPER_KEY)
     if not isinstance(raw, list):
         return []
     return [str(token) for token in cast("list[Any]", raw)]
 
 
-def _read_root_mapping(*, cwd: Path) -> dict[str, Any]:
-    """Parse `.livespec.jsonc` to its root object, or {} for any off-happy-path shape."""
+def _read_root_mapping(*, cwd: Path) -> IOResult[dict[str, Any], ConfigUnreadable]:
+    """`.livespec.jsonc`'s root object; `{}` on the SUCCESS track when absent.
+
+    An absent config file is an ANSWER — this repo runs on documented defaults
+    without one — so it rides the success track as an empty mapping. A file
+    that will not parse, and a root that is not an object, are failures: the
+    file is there and says something the loader cannot use.
+    """
     config_path = cwd / _LIVESPEC_CONFIG
     if not config_path.is_file():
-        return {}
+        return IOSuccess({})
     raw_text = config_path.read_text(encoding="utf-8")
     parsed = _jsonc.parse(text=raw_text)
     if isinstance(parsed, _jsonc.JsoncFailure):
-        return {}
+        return IOFailure(
+            ConfigUnreadable(detail=f"{_LIVESPEC_CONFIG} does not parse: {parsed.detail}")
+        )
     if not isinstance(parsed, dict):
-        return {}
-    return cast("dict[str, Any]", parsed)
+        return IOFailure(ConfigUnreadable(detail=f"{_LIVESPEC_CONFIG} root is not an object"))
+    return IOSuccess(cast("dict[str, Any]", parsed))
 
 
-def _read_connection_block(*, cwd: Path) -> dict[str, Any]:
+def _read_connection_block(*, cwd: Path) -> IOResult[dict[str, Any], ConfigUnreadable]:
     """Read the `livespec-orchestrator-beads-fabro.connection` block, or {} when absent."""
     return _read_plugin_sub_block(cwd=cwd, key=_CONNECTION_KEY)
 
 
-def _read_dispatcher_block(*, cwd: Path) -> dict[str, Any]:
+def _dispatcher_block_or_raise(*, cwd: Path) -> dict[str, Any]:
+    """The dispatcher block, RAISING when `.livespec.jsonc` cannot be read.
+
+    ⛔ THE DEFECT THIS EXISTS TO STOP — and it REGREW in this module while the
+    fix sat unlanded. Every caller below answers a question whose negative
+    reading is "not configured": a `bool`, a factory target, a model-tier set.
+    Folding an UNREADABLE file into that answer tells an operator their factory
+    is not defined when what actually happened is a stray comma in their config.
+
+    None of those return types carries a failure track, and none of their
+    consumers catches, so this mirrors `resolve_store_config` rather than
+    inventing a second convention: turn the seam's reason into a TRUTHFUL
+    exception here and leave the public signatures alone.
+    """
+    read = _read_dispatcher_block(cwd=cwd)
+    if isinstance(read, IOFailure):
+        raise LivespecConfigUnreadableError(detail=unsafe_perform_io(read.failure()).detail)
+    return unsafe_perform_io(read.unwrap())
+
+
+def _read_dispatcher_block(*, cwd: Path) -> IOResult[dict[str, Any], ConfigUnreadable]:
     """Read the `livespec-orchestrator-beads-fabro.dispatcher` block, or {} when absent."""
     return _read_plugin_sub_block(cwd=cwd, key=_DISPATCHER_KEY)
 
 
-def _read_plugin_sub_block(*, cwd: Path, key: str) -> dict[str, Any]:
+def _read_plugin_sub_block(*, cwd: Path, key: str) -> IOResult[dict[str, Any], ConfigUnreadable]:
     """Read a named sub-block of the `livespec-orchestrator-beads-fabro` block.
 
-    Returns `{}` for every off-happy-path shape (absent config file, malformed
-    JSONC, non-object root, non-dict plugin block, non-dict / absent sub-block)
-    so each caller applies its own defaults. Shared by the connection and
-    dispatcher readers so the JSONC -> plugin-block -> sub-block traversal is
+    An ABSENT plugin block or sub-block yields `{}` on the success track, so
+    each caller applies its own defaults; an UNREADABLE file propagates the
+    failure from `_read_root_mapping`. Shared by the connection and dispatcher
+    readers so the JSONC -> plugin-block -> sub-block traversal is
     single-sourced rather than duplicated per sub-block.
     """
-    parsed_dict = _read_root_mapping(cwd=cwd)
-    plugin_block_raw = parsed_dict.get(_PLUGIN_BLOCK)
+    return _read_root_mapping(cwd=cwd).map(lambda root: _sub_block(root=root, key=key))
+
+
+def _sub_block(*, root: dict[str, Any], key: str) -> dict[str, Any]:
+    plugin_block_raw = root.get(_PLUGIN_BLOCK)
     if not isinstance(plugin_block_raw, dict):
         return {}
     plugin_block = cast("dict[str, Any]", plugin_block_raw)
@@ -294,6 +364,20 @@ def _read_plugin_sub_block(*, cwd: Path, key: str) -> dict[str, Any]:
     if not isinstance(sub_block_raw, dict):
         return {}
     return cast("dict[str, Any]", sub_block_raw)
+
+
+def _configured_fabro_bin(*, block: dict[str, Any]) -> str:
+    configured = _str_or(value=block.get("fabro_bin"), default="")
+    if configured != "":
+        return configured
+    return _default_fabro_bin()
+
+
+def _configured_sandbox_image(*, block: dict[str, Any]) -> str | None:
+    configured = _str_or(value=block.get("fabro_sandbox_image"), default="")
+    if configured != "":
+        return configured
+    return None
 
 
 def _require_prefix(*, block: dict[str, Any]) -> str:
