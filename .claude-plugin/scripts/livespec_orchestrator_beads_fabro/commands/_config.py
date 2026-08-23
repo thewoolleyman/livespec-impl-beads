@@ -270,21 +270,29 @@ def resolve_fabro_sandbox_image(*, cwd: Path) -> IOResult[str | None, ConfigUnre
     return _read_dispatcher_block(cwd=cwd).map(lambda block: _configured_sandbox_image(block=block))
 
 
-def resolve_credential_wrapper(*, cwd: Path) -> list[str]:
-    """Return the top-level `credential_wrapper` argv-prefix, or [] when absent.
+def resolve_credential_wrapper(*, cwd: Path) -> IOResult[list[str], ConfigUnreadable]:
+    """The top-level `credential_wrapper` argv-prefix; `[]` when none is configured.
 
-    Fail-open toward "no wrapper": an absent config file, malformed JSONC, a
-    non-object root, or a non-list value all yield `[]`. Consumed by the
-    `check-ledger-conformance-live` recipe to invoke the pre-push gate UNDER the
-    tenant-secret-injecting wrapper; a `[]` result means the recipe skips
-    fail-soft (it cannot read the tenant without the wrapper).
+    An ABSENT config file, an absent key, and a non-list value all yield `[]` on
+    the SUCCESS track — each is an ANSWER: this repo configures no wrapper. A file
+    that EXISTS and will not parse rides the FAILURE track instead.
+
+    ⛔ THE DISTINCTION IS LOAD-BEARING, and it used to be lost here. The sole
+    consumer is the pre-push `check-ledger-conformance-live` gate, which invokes
+    the ledger check UNDER this wrapper and SKIPS when there is none. Folding an
+    unreadable config into `[]` therefore let a stray comma SILENTLY TURN THE
+    PRE-PUSH GATE OFF, reported in the same words as a repo that never wanted one.
+
+    ⚠️ It stays fail-SOFT at the consumer by deliberate design — that recipe runs
+    on every push and a false-fail would brick them all — so this failure track
+    exists to be REPORTED, not to block. Returning it is what makes the two
+    outcomes tellable apart; deciding what to do about them is the caller's.
     """
-    # ⚠️ THE FAIL-OPEN HERE IS UNCHANGED AND IS NOT YET HONEST: an UNREADABLE
-    # config still reads as "no wrapper configured", which turns the pre-push
-    # gate off. Its only consumer is an inline `python -c` in the justfile that
-    # already discards stderr and falls back to an empty array, so splitting the
-    # two is a shell-side change rather than a Python one. Tracked as `8o8e.21`.
-    root = unsafe_perform_io(_read_root_mapping(cwd=cwd).value_or({}))
+    return _read_root_mapping(cwd=cwd).map(lambda root: _credential_wrapper_tokens(root=root))
+
+
+def _credential_wrapper_tokens(*, root: dict[str, Any]) -> list[str]:
+    """The `credential_wrapper` argv tokens in a root mapping, or [] when unset."""
     raw = root.get(_CREDENTIAL_WRAPPER_KEY)
     if not isinstance(raw, list):
         return []
