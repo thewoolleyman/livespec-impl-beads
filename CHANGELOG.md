@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.69.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.68.5...v0.69.0) (2026-08-23)
+
+
+### Features
+
+* gate dispatch on provider exhaustion ([918c94c](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/918c94c06e43b2153f9e53e1844d491cb5bfa1a1))
+
 ## [0.68.5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.68.4...v0.68.5) (2026-08-22)
 
 
