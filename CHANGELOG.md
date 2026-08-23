@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.71.7](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.71.6...v0.71.7) (2026-08-23)
+
+
+### Bug Fixes
+
+* guard acceptance diff provenance ([4c28a92](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/4c28a92d3741769d919658bdafa477a97d944dc7))
+
 ## [0.71.6](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.71.5...v0.71.6) (2026-08-23)
 
 
