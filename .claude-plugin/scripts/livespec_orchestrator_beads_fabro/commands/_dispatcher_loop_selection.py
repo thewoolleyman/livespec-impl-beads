@@ -21,7 +21,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_completion import (
     escalate_needs_human_block,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
-from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
+from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile, utc_now_iso
 from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_close import load_items
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
     journal_path,
@@ -30,6 +30,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     janitor_core_ref_from_config,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_provider_exhaustion import (
+    record_provider_exhaustion_if_observed,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_staleness_gate import (
     apply_dispatcher_staleness_gate,
@@ -182,6 +185,11 @@ def post_run_dispositions(  # noqa: PLR0913 — kw-only post-run stage; each fie
             outcome=outcome,
             journal=journal,
         )
+    record_provider_exhaustion_if_observed(
+        outcome=outcome,
+        journal=journal,
+        now_iso=utc_now_iso(),
+    )
     journal.append(record={"stage": "outcome", "outcome": asdict(outcome)})
     escalate_needs_human_block(repo=repo, item=item, outcome=outcome, journal=journal)
     bounce_non_convergence_to_backlog(repo=repo, item=item, outcome=outcome, journal=journal)

@@ -248,6 +248,7 @@ class DispatchOutcome:
     fabro_failure_cause: str | None = None
     fabro_failure_category: str | None = None
     fabro_failure_signature: str | None = None
+    provider_usage_limit: bool = False
 
 
 def run_dispatch(

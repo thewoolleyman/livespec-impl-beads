@@ -53,6 +53,7 @@ from livespec_orchestrator_beads_fabro.commands import (
     _dispatcher_ledger_close,
     _dispatcher_loop,
     _dispatcher_loop_command,
+    _dispatcher_loop_selection,
     _dispatcher_reflection,
     _dispatcher_run_commands,
     _dispatcher_self_update,
@@ -3525,6 +3526,200 @@ def test_admission_time_lock_protects_queued_batch_items(tmp_path: Path) -> None
     assert second_pass.admitted == []
     records = [json.loads(line) for line in journal.path.read_text(encoding="utf-8").splitlines()]
     assert "dispatch-claim-abandoned" not in {record["stage"] for record in records}
+
+
+def test_provider_usage_limit_refuses_matching_provider_before_admission(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, _workflow = _repo_with_workflow(tmp_path=tmp_path)
+    blocked = _item(id="bd-ready-codex", status="ready", rank="a1")
+    append_work_item(path=_config(), item=blocked)
+    _ = (repo / ".livespec.jsonc").write_text(
+        '{"livespec-orchestrator-beads-fabro": {"connection": {"prefix": "bd-ib"},'
+        ' "dispatcher": {"wip_cap": 1}}}',
+        encoding="utf-8",
+    )
+    journal = JournalFile(path=repo / "journal.jsonl")
+    journal.append(
+        record={
+            "stage": "provider-exhaustion-observed",
+            "provider": "codex",
+            "governing_condition": "provider_usage_limit",
+            "record_expires_at": "2026-08-23T10:15:00Z",
+            "work_item_id": "bd-earlier",
+        }
+    )
+    monkeypatch.setattr(
+        _dispatcher_admission,
+        "utc_now_iso",
+        lambda: "2026-08-23T10:10:00Z",
+        raising=False,
+    )
+
+    admission = _dispatcher_admission.admit_and_select(
+        repo=repo,
+        items=[blocked],
+        candidates=[blocked],
+        journal=journal,
+        enforce_cap=True,
+    )
+
+    assert admission.admitted == []
+    assert admission.deferred == []
+    assert [outcome.stage for outcome in admission.refused] == ["provider-exhaustion"]
+    assert _stored()[blocked.id].status == "ready"
+    records = [json.loads(line) for line in journal.path.read_text(encoding="utf-8").splitlines()]
+    refusal = records[-1]
+    assert (
+        refusal.items()
+        >= {
+            "stage": "provider-exhaustion-refusal",
+            "work_item_id": blocked.id,
+            "provider": "codex",
+            "governing_condition": "provider_usage_limit",
+            "record_expires_at": "2026-08-23T10:15:00Z",
+        }.items()
+    )
+    assert "ledger-admit" not in {record["stage"] for record in records}
+
+
+def test_provider_usage_limit_gate_recovers_after_derived_expiry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, _workflow = _repo_with_workflow(tmp_path=tmp_path)
+    ready = _item(id="bd-ready-after-expiry", status="ready", rank="a1")
+    append_work_item(path=_config(), item=ready)
+    _ = (repo / ".livespec.jsonc").write_text(
+        '{"livespec-orchestrator-beads-fabro": {"connection": {"prefix": "bd-ib"},'
+        ' "dispatcher": {"wip_cap": 1}}}',
+        encoding="utf-8",
+    )
+    journal = JournalFile(path=repo / "journal.jsonl")
+    journal.append(
+        record={
+            "stage": "provider-exhaustion-observed",
+            "provider": "codex",
+            "governing_condition": "provider_usage_limit",
+            "record_expires_at": "2026-08-23T10:15:00Z",
+            "work_item_id": "bd-earlier",
+        }
+    )
+    monkeypatch.setattr(
+        _dispatcher_admission,
+        "utc_now_iso",
+        lambda: "2026-08-23T10:16:00Z",
+        raising=False,
+    )
+
+    admission = _dispatcher_admission.admit_and_select(
+        repo=repo,
+        items=[ready],
+        candidates=[ready],
+        journal=journal,
+        enforce_cap=True,
+    )
+
+    assert [item.id for item in admission.admitted] == [ready.id]
+    assert admission.refused == []
+    assert _stored()[ready.id].status == "active"
+
+
+def test_provider_usage_limit_gate_is_provider_selective(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, _workflow = _repo_with_workflow(tmp_path=tmp_path)
+    ready = _item(id="bd-ready-uncovered-provider", status="ready", rank="a1")
+    append_work_item(path=_config(), item=ready)
+    _ = (repo / ".livespec.jsonc").write_text(
+        '{"livespec-orchestrator-beads-fabro": {"connection": {"prefix": "bd-ib"},'
+        ' "dispatcher": {"wip_cap": 1}}}',
+        encoding="utf-8",
+    )
+    journal = JournalFile(path=repo / "journal.jsonl")
+    journal.append(
+        record={
+            "stage": "provider-exhaustion-observed",
+            "provider": "anthropic",
+            "governing_condition": "provider_usage_limit",
+            "record_expires_at": "2026-08-23T10:15:00Z",
+            "work_item_id": "bd-earlier",
+        }
+    )
+    monkeypatch.setattr(
+        _dispatcher_admission,
+        "utc_now_iso",
+        lambda: "2026-08-23T10:10:00Z",
+        raising=False,
+    )
+
+    admission = _dispatcher_admission.admit_and_select(
+        repo=repo,
+        items=[ready],
+        candidates=[ready],
+        journal=journal,
+        enforce_cap=True,
+    )
+
+    assert [item.id for item in admission.admitted] == [ready.id]
+    assert admission.refused == []
+
+
+def test_provider_usage_limit_outcome_records_dispatcher_owned_expiry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, _workflow = _repo_with_workflow(tmp_path=tmp_path)
+    item = _item(id="bd-observed-limit", status="active", assignee="fabro")
+    journal = JournalFile(path=repo / "journal.jsonl")
+    monkeypatch.setattr(
+        _dispatcher_loop_selection,
+        "utc_now_iso",
+        lambda: "2026-08-23T10:00:00Z",
+        raising=False,
+    )
+    outcome = DispatchOutcome(
+        work_item_id=item.id,
+        status="blocked",
+        stage="fabro-run",
+        pr_number=None,
+        merge_sha=None,
+        detail="blocked on human gate",
+        fabro_run_id="01LIMIT",
+        fabro_failure_cause=(
+            "You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage "
+            "to purchase more credits or try again at Aug 27th, 2026 1:20 AM."
+        ),
+        fabro_failure_category="deterministic",
+        fabro_failure_signature="sig",
+        provider_usage_limit=True,
+    )
+
+    _dispatcher_loop_selection.post_run_dispositions(
+        args=argparse.Namespace(close_on_merge=False),
+        repo=repo,
+        item=item,
+        outcome=outcome,
+        journal=journal,
+        wall_clock_seconds=42.0,
+        dispatch_context_size=100,
+        token_supplier=lambda: "token",
+    )
+
+    records = [json.loads(line) for line in journal.path.read_text(encoding="utf-8").splitlines()]
+    observed = [record for record in records if record["stage"] == "provider-exhaustion-observed"]
+    assert observed == [
+        {
+            "at": "2026-08-23T10:00:00Z",
+            "stage": "provider-exhaustion-observed",
+            "work_item_id": item.id,
+            "provider": "codex",
+            "governing_condition": "provider_usage_limit",
+            "record_expires_at": "2026-08-23T10:15:00Z",
+        }
+    ]
 
 
 def test_admission_reclaims_dead_active_claim_when_cap_not_enforced(

@@ -88,6 +88,7 @@ def fabro_run_terminal_outcome(
         fabro_failure_cause=None if failure is None else failure.cause,
         fabro_failure_category=None if failure is None else failure.category,
         fabro_failure_signature=None if failure is None else failure.signature,
+        provider_usage_limit=False if failure is None else failure.provider_usage_limit,
     )
 
 
@@ -129,4 +130,5 @@ def _blocked_outcome(
         fabro_failure_cause=None if failure is None else failure.cause,
         fabro_failure_category=None if failure is None else failure.category,
         fabro_failure_signature=None if failure is None else failure.signature,
+        provider_usage_limit=False if failure is None else failure.provider_usage_limit,
     )
