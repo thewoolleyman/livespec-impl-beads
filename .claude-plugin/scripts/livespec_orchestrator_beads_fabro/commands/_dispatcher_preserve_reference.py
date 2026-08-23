@@ -6,15 +6,18 @@ import argparse
 import hashlib
 import tempfile
 from pathlib import Path
-from typing import Protocol
 
 from livespec_orchestrator_beads_fabro._beads_client import make_beads_client
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandResult,
     CommandRunner,
     DispatchOutcome,
+    JournalWriter,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import ShellCommandRunner
+from livespec_orchestrator_beads_fabro.commands._dispatcher_overlay import (
+    escape_minijinja_literal,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import store_config
 from livespec_orchestrator_beads_fabro.effects import AttemptFailure, attempt
 from livespec_orchestrator_beads_fabro.errors import (
@@ -29,8 +32,9 @@ from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
 
 __all__: list[str] = ["preserve_checkpointed_work_reference"]
 
-_ARTIFACT_PATH = Path("stages") / "002-implement@1" / "diff.patch"
+_ARTIFACT_GLOB = "stages/*/diff.patch"
 _DUMP_TIMEOUT_SECONDS = 300.0
+_MAX_STDERR_CHARS = 1000
 _LEDGER_WRITE_ERRORS = (
     WorkItemNotFoundError,
     BeadsCommandError,
@@ -40,26 +44,22 @@ _LEDGER_WRITE_ERRORS = (
 )
 
 
-class _Journal(Protocol):
-    def append(self, *, record: dict[str, object]) -> None:
-        """Persist one journal record."""
-        ...
-
-
 def preserve_checkpointed_work_reference(
     *,
     args: argparse.Namespace,
     repo: Path,
     item: WorkItem,
     outcome: DispatchOutcome,
-    journal: _Journal,
+    journal: JournalWriter,
     runner: CommandRunner | None = None,
 ) -> None:
     """Write a preserve-by-reference comment for failed/blocked Fabro runs."""
     if outcome.status not in {"blocked", "failed"}:
         return
     run_id = outcome.fabro_run_id
-    server_url = _factory_server_url(args=args)
+    target = getattr(args, "fabro_factory_target", None)
+    server = getattr(target, "server", None)
+    server_url = server if isinstance(server, str) and server else None
     if run_id is None or server_url is None:
         _write_comment(
             repo=repo,
@@ -85,24 +85,25 @@ def preserve_checkpointed_work_reference(
             cwd=repo,
             timeout_seconds=_DUMP_TIMEOUT_SECONDS,
         )
-        artifact = output_dir / _ARTIFACT_PATH
+        artifacts = tuple(
+            sorted(path for path in output_dir.glob(_ARTIFACT_GLOB) if path.is_file())
+        )
+        artifact_present = dumped.exit_code == 0 and bool(artifacts)
         if dumped.exit_code != 0:
             body = _dump_failed_body(
                 run_id=run_id,
                 server_url=server_url,
                 command=dumped,
             )
-            artifact_present = False
-        elif artifact.is_file():
+        elif artifacts:
             body = _artifact_pointer_body(
                 run_id=run_id,
                 server_url=server_url,
-                artifact=artifact,
+                artifacts=artifacts,
+                export_dir=output_dir,
             )
-            artifact_present = True
         else:
             body = _missing_artifact_body(run_id=run_id, server_url=server_url)
-            artifact_present = False
     _write_comment(
         repo=repo,
         item_id=item.id,
@@ -112,30 +113,36 @@ def preserve_checkpointed_work_reference(
     )
 
 
-def _factory_server_url(*, args: argparse.Namespace) -> str | None:
-    target = getattr(args, "fabro_factory_target", None)
-    server = getattr(target, "server", None)
-    return server if isinstance(server, str) and server else None
-
-
-def _artifact_pointer_body(*, run_id: str, server_url: str, artifact: Path) -> str:
-    data = artifact.read_bytes()
-    digest = hashlib.sha256(data).hexdigest()
+def _artifact_pointer_body(
+    *,
+    run_id: str,
+    server_url: str,
+    artifacts: tuple[Path, ...],
+    export_dir: Path,
+) -> str:
+    artifact_lines: list[str] = []
+    verification_lines: list[str] = []
+    for artifact in artifacts:
+        data = artifact.read_bytes()
+        relative_path = artifact.relative_to(export_dir).as_posix()
+        digest = hashlib.sha256(data).hexdigest()
+        artifact_lines.append(f"stage artifact path: {relative_path}")
+        artifact_lines.append(f"byte size: {len(data)}")
+        artifact_lines.append(f"sha256: {digest}")
+        verification_lines.append(f"sha256sum <export-dir>/{relative_path} # must equal {digest}")
     return "\n".join(
         [
             "livespec-preserve-by-reference",
             "",
             f"run id: {run_id}",
             f"factory server url: {server_url}",
-            f"stage artifact path: {_ARTIFACT_PATH.as_posix()}",
-            f"byte size: {len(data)}",
-            f"sha256: {digest}",
+            *artifact_lines,
             "",
             "retrieval command:",
             f"fabro dump {run_id} --server {server_url} -o <export-dir>",
             "",
             "After retrieval, verify:",
-            ("sha256sum <export-dir>/" f"{_ARTIFACT_PATH.as_posix()} # must equal {digest}"),
+            *verification_lines,
             "",
             (
                 "If the dump no longer resolves, the factory run storage may have "
@@ -153,7 +160,7 @@ def _missing_artifact_body(*, run_id: str, server_url: str) -> str:
             "",
             f"run id: {run_id}",
             f"factory server url: {server_url}",
-            f"stage artifact path: {_ARTIFACT_PATH.as_posix()} (missing)",
+            f"stage artifact path: {_ARTIFACT_GLOB} (none found)",
             "artifact: run produced no checkpointed diff artifact",
             "byte size: (not recorded; artifact missing)",
             "sha256: (not recorded; artifact missing)",
@@ -171,9 +178,9 @@ def _dump_failed_body(*, run_id: str, server_url: str, command: CommandResult) -
             "",
             f"run id: {run_id}",
             f"factory server url: {server_url}",
-            f"stage artifact path: {_ARTIFACT_PATH.as_posix()} (unverified)",
+            f"stage artifact path: {_ARTIFACT_GLOB} (unverified)",
             f"artifact: fabro dump failed with exit code {command.exit_code}",
-            f"stderr: {command.stderr.strip()}",
+            f"stderr: {_comment_safe_external_text(text=command.stderr)}",
             "byte size: (not recorded; dump failed)",
             "sha256: (not recorded; dump failed)",
             (
@@ -194,7 +201,7 @@ def _missing_pointer_body(*, run_id: str | None, server_url: str | None) -> str:
             "",
             f"run id: {run_id or '(unavailable)'}",
             f"factory server url: {server_url or '(unavailable)'}",
-            f"stage artifact path: {_ARTIFACT_PATH.as_posix()} (unverified)",
+            f"stage artifact path: {_ARTIFACT_GLOB} (unverified)",
             (
                 "artifact: preserve reference could not be resolved because "
                 "required pointer data was missing"
@@ -210,7 +217,7 @@ def _write_comment(
     repo: Path,
     item_id: str,
     body: str,
-    journal: _Journal,
+    journal: JournalWriter,
     artifact_present: bool,
 ) -> None:
     written = attempt(
@@ -233,10 +240,19 @@ def _write_comment(
         record={
             "stage": "preserve-by-reference",
             "work_item_id": item_id,
-            "artifact_path": _ARTIFACT_PATH.as_posix(),
+            "artifact_path": _ARTIFACT_GLOB,
             "artifact_present": artifact_present,
         }
     )
+
+
+def _comment_safe_external_text(*, text: str) -> str:
+    stripped = text.strip()
+    bounded = stripped
+    if len(stripped) > _MAX_STDERR_CHARS:
+        bounded = f"{stripped[:_MAX_STDERR_CHARS]}\n[truncated]"
+    escaped = escape_minijinja_literal(text=bounded)
+    return escaped.replace("{{", "[[").replace("{%", "[%").replace("{#", "[#")
 
 
 def _comment_store_config(*, repo: Path) -> StoreConfig:
