@@ -26,6 +26,7 @@ __all__: list[str] = [
     "GroomDraftError",
     "GroomExitRefusedError",
     "GroomTargetNotBacklogError",
+    "LivespecConfigUnreadableError",
     "MalformedRecordLineError",
     "SchemaViolationError",
     "SpecVersionNotFoundError",
@@ -200,6 +201,33 @@ class ConnectionPrefixMissingError(Exception):
 
     def __init__(self) -> None:
         super().__init__(_CONNECTION_PREFIX_MISSING_MESSAGE)
+
+
+_CONFIG_UNREADABLE_MESSAGE_TEMPLATE = (
+    "`.livespec.jsonc` could not be read as a configuration object: {detail}. "
+    "Fix the file; the loader will not fall back to defaults for a config that "
+    "is present and wrong."
+)
+
+
+class LivespecConfigUnreadableError(Exception):
+    """`.livespec.jsonc` EXISTS but does not parse, or its root is not an object.
+
+    EXPECTED: the operator's configuration is wrong — a stray comma, a
+    truncated write, a non-object root. It is DISTINCT from the file being
+    ABSENT, which is an answer the loader serves from documented defaults.
+
+    ⛔ IT EXISTS BECAUSE THE ABSENCE OF IT WAS A LIE. Every reader used to fold
+    an unparseable file into an empty block, so `resolve_store_config` reached
+    `_require_prefix` with nothing in hand and raised
+    `ConnectionPrefixMissingError` — a true refusal naming the wrong cause,
+    sending an operator to look at a `connection.prefix` that was sitting there
+    correctly all along.
+    """
+
+    def __init__(self, *, detail: str) -> None:
+        super().__init__(_CONFIG_UNREADABLE_MESSAGE_TEMPLATE.format(detail=detail))
+        self.detail = detail
 
 
 _CREDENTIAL_MISSING_MESSAGE_TEMPLATE = (

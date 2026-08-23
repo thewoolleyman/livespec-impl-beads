@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import cast
 
 from livespec_runtime.github_auth.errors import GithubAppAuthError
+from returns.unsafe import unsafe_perform_io
 
 from livespec_orchestrator_beads_fabro._beads_client import make_beads_client
 from livespec_orchestrator_beads_fabro.commands._config import resolve_fabro_sandbox_image
@@ -205,7 +206,10 @@ def materialize_overlay(
         siblings=siblings,
         otel_env=otel_env,
         codex_auth_snapshot=codex_snapshot,
-        fabro_sandbox_image=resolve_fabro_sandbox_image(cwd=repo),
+        # An unreadable `.livespec.jsonc` falls back to "no image override",
+        # visibly and here rather than inside the reader. `unsafe_perform_io`
+        # is required: `IOResult.value_or` returns `IO[value]`, not the value.
+        fabro_sandbox_image=unsafe_perform_io(resolve_fabro_sandbox_image(cwd=repo).value_or(None)),
     )
     if rendered is None:
         return (
