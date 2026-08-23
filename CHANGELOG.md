@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.70.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.69.0...v0.70.0) (2026-08-23)
+
+
+### Features
+
+* report codex token spend ([f4cf86c](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/f4cf86c42e7274c893a1573c39ee7a2ee30279e3))
+
 ## [0.69.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.68.5...v0.69.0) (2026-08-23)
 
 
