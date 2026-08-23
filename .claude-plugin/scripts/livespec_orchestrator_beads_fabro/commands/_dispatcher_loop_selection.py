@@ -31,6 +31,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     janitor_core_ref_from_config,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_preserve_reference import (
+    preserve_checkpointed_work_reference,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_provider_exhaustion import (
     record_provider_exhaustion_if_observed,
 )
@@ -191,6 +194,13 @@ def post_run_dispositions(  # noqa: PLR0913 — kw-only post-run stage; each fie
         now_iso=utc_now_iso(),
     )
     journal.append(record={"stage": "outcome", "outcome": asdict(outcome)})
+    preserve_checkpointed_work_reference(
+        args=args,
+        repo=repo,
+        item=item,
+        outcome=outcome,
+        journal=journal,
+    )
     escalate_needs_human_block(repo=repo, item=item, outcome=outcome, journal=journal)
     bounce_non_convergence_to_backlog(repo=repo, item=item, outcome=outcome, journal=journal)
     emit_calibration(
