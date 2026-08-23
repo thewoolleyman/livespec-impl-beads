@@ -761,16 +761,14 @@
     "heading": "## Scenario 64 — Every Codex ACP node runs a pinned model, and the opt-out is a true no-op",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "work_item": "bd-ib-cxv3",
-    "reason": "Ratified as retroactive cover for PR #1711. Per the heading taxonomy's pyramid-tier requirement this scenario MUST be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test; no such test exists yet and the covering work is tracked by the open ledger item bd-ib-cxv3, which replaces this placeholder with the real node id."
+    "test": "tests.integration.test_dispatcher_codex_pins_and_provider_limits_scenarios64_65.test_scenario64_dispatcher_renders_pinned_codex_adapters_and_true_opt_out",
+    "reason": "Ratified as retroactive cover for PR #1711. Bound to an integration-tier test that renders the Dispatcher Fabro inputs for both Codex adapters, validates repo-level tier overrides, and proves the empty-model opt-out renders the unpinned base adapter byte-for-byte."
   },
   {
     "heading": "## Scenario 65 — A provider ceiling is permanent and surfaces the provider's own sentence",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "work_item": "bd-ib-cxv3",
-    "reason": "Ratified as retroactive cover for PR #1732. Per the heading taxonomy's pyramid-tier requirement this scenario MUST be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test; no such test exists yet and the covering work is tracked by the open ledger item bd-ib-cxv3, which replaces this placeholder with the real node id."
+    "test": "tests.integration.test_dispatcher_codex_pins_and_provider_limits_scenarios64_65.test_scenario65_provider_usage_ceiling_is_permanent_and_transients_stay_transient",
+    "reason": "Ratified as retroactive cover for PR #1732. Bound to an integration-tier test that parses a Fabro inspect-shaped provider usage-limit failure, asserts the permanent classification and provider_usage_limit flag, and keeps an ordinary transient failure transient as the control."
   }
 ]
