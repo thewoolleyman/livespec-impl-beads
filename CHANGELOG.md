@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.72.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.71.8...v0.72.0) (2026-08-24)
+
+
+### Features
+
+* add check-path-anchored gap-tied closure decision ([637f5d5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/637f5d5e11146ad2f347ccbc28fa273c07dfec05))
+
 ## [0.71.8](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.71.7...v0.71.8) (2026-08-23)
 
 
