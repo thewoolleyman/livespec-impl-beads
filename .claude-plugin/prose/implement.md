@@ -131,15 +131,70 @@ Implement until the test passes:
 
 #### Step 5a — Gap-tied closure verification
 
-When `target.origin == "gap-tied"`, the closure REQUIRES re-running
-the `capture-impl-gaps` operation in dry-run mode and confirming the
-`gap_id` is no longer detected. v001 starter: surface to the user
-"please re-run capture-impl-gaps and confirm the gap is gone" and ask
-`confirmed?`. Future revisions will automate the dry-run invocation.
+When `target.origin == "gap-tied"`, closure is anchored to a CHECK PATH
+recorded on the work-item's own beads metadata (`gap_check_path`),
+never to `gap_id` — a `gap_id` hashes a hard-wrapped source line and
+re-keys on reflow, so it cannot anchor a closure that must survive the
+clause being edited or reworded.
 
-If the gap is still detected, the work-item is NOT closed — the user
-either revises the impl further (back to Step 4) or marks the
-work-item with one of the admin resolutions (Step 6).
+If the work-item's metadata does not yet carry a `gap_check_path`, ask
+the user which executable check settles this clause — a script
+following the `main() -> int` convention (exit 0 = pass, non-zero =
+fail) that ALSO accepts a `--negative-control` flag which MUST exit
+non-zero (proving the check can fail and is therefore discriminating,
+not vacuously true) — and record it:
+
+```python
+from livespec_orchestrator_beads_fabro.commands._gap_closure import record_gap_check
+from livespec_orchestrator_beads_fabro.commands._config import resolve_store_config
+from pathlib import Path
+
+config = resolve_store_config(cwd=Path.cwd(), work_items_arg=None)
+record_gap_check(
+    config=config,
+    project_root=Path.cwd(),
+    item_id=target.id,
+    check_path=user_supplied_check_path,
+)
+```
+
+At closure, evaluate:
+
+```python
+from livespec_orchestrator_beads_fabro.commands._gap_closure import evaluate_gap_closure
+
+decision = evaluate_gap_closure(config=config, project_root=Path.cwd(), item_id=target.id)
+```
+
+Branch on `decision.verdict`:
+
+- `"close"` — proceed to Step 6.
+- `"refuse-check-failed"` — the recorded check did not pass, or its
+  negative control did not fail (not discriminating). The work-item is
+  NOT closed — the user either revises the impl further (back to
+  Step 4) or fixes the check.
+- `"refuse-drift-required"` — the check file was modified since the
+  baseline recorded when it was cited (`decision.detail` names this).
+  Invoke the `capture-spec-drift` operation's targeted
+  `--for-work-item <id>` mode; on the resulting propose-change landing,
+  record it:
+
+  ```python
+  from livespec_orchestrator_beads_fabro.commands._gap_closure import record_drift_propose_change
+
+  record_drift_propose_change(
+      config=config,
+      item_id=target.id,
+      propose_change_topic=resulting_propose_change_topic,
+  )
+  ```
+
+  then re-evaluate (`evaluate_gap_closure` again) before closing.
+- `"refuse-no-check-recorded"` — record one (above), then re-evaluate.
+
+Never re-run `capture-impl-gaps` or inspect `gap_id` as part of this
+step; detection is spec-only and `gap_id` is unsound as a closure
+anchor.
 
 #### Step 5b — Freeform closure
 
@@ -192,7 +247,7 @@ Print "closed `<id>` (`<resolution>`)" to the user.
 ## Important properties
 
 - **Closure writes are user-consented** — the Step 2 resolution-path
-  decision (plus the Step 5a re-detection confirmation for gap-tied
+  decision (plus the Step 5a check-path verification for gap-tied
   items) is the per-operation consent for the Step 6 closure write
   (per SPECIFICATION/contracts.md §"Store-write consent discipline");
   no closure record is written without it.

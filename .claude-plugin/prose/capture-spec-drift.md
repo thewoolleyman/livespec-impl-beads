@@ -85,6 +85,45 @@ the propose-change operation --spec-target SPECIFICATION/ --topic <slug> --body 
 The proposed-change file lands under `<spec-root>/proposed_changes/`
 awaiting a subsequent revise pass.
 
+### Targeted mode — `--for-work-item <id>`
+
+Gate 3's forced-drift closure path (`SPECIFICATION/contracts.md`
+§"`implement`" → "gap-tied completion") invokes this operation in a
+TARGETED mode instead of Step 1-2's whole-tree survey, when a gap-tied
+work-item's recorded check file was modified since the baseline blob
+hash recorded when it was cited. This mode reuses Step 3's
+cross-boundary propose-change handoff; it does NOT duplicate it, and it
+does NOT run Step 2's whole-tree survey — a whole-tree heuristic for one
+already-known finding is the wrong shape and duplicates effort for a
+single, already-mechanically-detected change.
+
+1. Read the work-item's `gap_check_path` metadata (the check file that
+   changed) and diff its current content against the recorded baseline
+   blob (`git diff <baseline-blob-hash> -- <check-path>`, or an
+   equivalent working-tree diff when the baseline blob object is
+   unavailable locally).
+2. Skip Step 2's whole-tree survey entirely. Present exactly ONE
+   candidate to the user, framed from the diff itself: "the check
+   `<check-path>` cited by `<item-id>` changed — does the spec clause it
+   settles need to change to match?"
+3. On consent, run Step 3's propose-change handoff exactly as in the
+   whole-tree mode, targeting the spec clause the check settles.
+4. On the resulting proposed-change file landing, record its canonical
+   topic onto the work-item:
+
+   ```python
+   from livespec_orchestrator_beads_fabro.commands._gap_closure import record_drift_propose_change
+
+   record_drift_propose_change(
+       config=config,
+       item_id=work_item_id,
+       propose_change_topic=canonical_topic,
+   )
+   ```
+
+   so `evaluate_gap_closure` (consumed by `implement`'s gap-tied closure
+   step) stops refusing this item's closure on the drift leg.
+
 ### Step 4 — Summary
 
 When all candidates are processed, print a summary:
