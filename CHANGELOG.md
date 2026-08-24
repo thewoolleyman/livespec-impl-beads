@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.72.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.72.0...v0.72.1) (2026-08-24)
+
+
+### Bug Fixes
+
+* **spec:** ratify check-path-anchored gap-tied closure (Gate 3) ([c620f51](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/c620f51090246fafec22bf9254286760beed8756))
+
 ## [0.72.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.71.8...v0.72.0) (2026-08-24)
 
 
