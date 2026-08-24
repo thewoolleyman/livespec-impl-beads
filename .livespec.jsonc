@@ -60,9 +60,11 @@
     // ratification_review: "auto-spawn" is inert without a configured
     // reviewer model (effective.py's effective_ratification_review returns
     // requires_input=True when ratification_reviewer_model is None) — set
-    // to "fable", matching livespec core's own convention.
+    // to "sonnet" (livespec core's own convention uses "fable", but that
+    // model was returning 529 Overloaded server-side errors when this was
+    // set, per maintainer direction 2026-08-24).
     "ratification_review": "auto-spawn",
-    "ratification_reviewer_model": "fable",
+    "ratification_reviewer_model": "sonnet",
     "spec_pr_merge": "auto-on-green"
   },
   // Optional — spec_governance: the three levers this repo has NOT armed.

@@ -12,9 +12,12 @@ prose in full, and maps its harness-neutral vocabulary (the
 named sibling operations) to that runtime's tools. Nothing in this file
 names a specific agent runtime's tools or command namespace.
 
-Mechanical detection of spec→impl gaps. The plugin's `detect-impl-gaps`
-thin-transport sibling operation and `store` module are the
-load-bearing surfaces this operation composes.
+Mechanically surface untracked spec clauses as candidate gaps, then walk
+the user through classifying each against the implementation (Step 2) —
+the tool never reads implementation state itself; that comparison is a
+human judgement call. The plugin's `detect-impl-gaps` thin-transport
+sibling operation and `store` module are the load-bearing surfaces this
+operation composes.
 
 ## Pre-requisites
 
