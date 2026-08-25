@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.72.9](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.72.8...v0.72.9) (2026-08-25)
+
+
+### Bug Fixes
+
+* **spec:** ratify detection coverage records and staleness facts (v078) ([4dcd6ae](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/4dcd6ae1f27b55eba3f4276ea2e36f2d7965fada))
+
 ## [0.72.8](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.72.7...v0.72.8) (2026-08-25)
 
 
