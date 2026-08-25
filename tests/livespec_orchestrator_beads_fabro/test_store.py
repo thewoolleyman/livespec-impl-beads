@@ -354,10 +354,26 @@ def test_audit_with_null_pr_number_roundtrips() -> None:
 def test_work_item_without_audit_has_rank_only_metadata() -> None:
     append_work_item(path=_config(), item=_minimal_work_item(id_="li-noaudit"))
     record = _fake().show_issue(issue_id="li-noaudit")
-    # `rank` always rides in metadata; with no audit, that is all it carries.
-    assert record["metadata"] == {"rank": "a0"}
+    metadata = record["metadata"]
+    assert metadata["rank"] == "a0"
+    assert isinstance(metadata["ready_since"], str)
+    assert "audit" not in metadata
     [read_back] = list(read_work_items(path=_config()))
     assert read_back.audit is None
+
+
+def test_ready_dwell_projection_skips_non_ready_and_malformed_records() -> None:
+    from livespec_orchestrator_beads_fabro._store_ready_dwell import (
+        ready_dwell_instants_from_records,
+    )
+
+    assert ready_dwell_instants_from_records(
+        records=[
+            {"id": "li-backlog", "status": "backlog"},
+            {"id": 42, "status": "ready"},
+            {"id": "li-ready", "status": "ready", "metadata": {"ready_since": 42}},
+        ]
+    ) == {"li-ready": None}
 
 
 # --------------------------------------------------------------------------
