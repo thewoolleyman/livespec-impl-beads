@@ -1,10 +1,15 @@
 """Tests for dispatch-claim WIP-cap accounting."""
 
+import importlib
 import json
 from pathlib import Path
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_claim_reclaim import (
+    claimed_active_accounting,
     claimed_active_count,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_dispatch_lock import (
+    write_dispatch_lock,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
 from livespec_orchestrator_beads_fabro.types import WorkItem
@@ -164,6 +169,81 @@ def test_claimed_active_count_ignores_malformed_journal_for_inactive_items(
 
     assert count == 0
     assert journal.path.read_text(encoding="utf-8") == journal_text
+
+
+def test_claimed_active_projection_is_side_effect_free_with_matching_classification(
+    tmp_path: Path,
+) -> None:
+    module = importlib.import_module(
+        "livespec_orchestrator_beads_fabro.commands._dispatcher_claim_reclaim"
+    )
+    assert hasattr(module, "claimed_active_projection")
+
+    live = _item(item_id="bd-live", status="active")
+    green = _item(item_id="bd-green", status="active")
+    failed = _item(item_id="bd-failed", status="active")
+    journal_unreadable = _item(item_id="bd-unreadable", status="active")
+    ready = _item(item_id="bd-ready", status="ready")
+    items = [live, green, failed, journal_unreadable, ready]
+    journal = JournalFile(path=tmp_path / "journal.jsonl")
+    _ = write_dispatch_lock(repo=tmp_path, work_item_id=live.id, dispatch_id="live-dispatch")
+    journal.append(record={"stage": "ledger-admit", "work_item_id": green.id})
+    journal.append(
+        record={
+            "stage": "outcome",
+            "outcome": {"work_item_id": green.id, "status": "green", "stage": "done"},
+        }
+    )
+    journal.append(record={"stage": "ledger-admit", "work_item_id": failed.id})
+    journal.append(
+        record={
+            "stage": "outcome",
+            "outcome": {"work_item_id": failed.id, "status": "failed", "stage": "fabro-run"},
+        }
+    )
+    original_bytes = journal.path.read_bytes()
+
+    projection = module.claimed_active_projection(repo=tmp_path, items=items, journal=journal)
+    second_projection = module.claimed_active_projection(
+        repo=tmp_path, items=items, journal=journal
+    )
+
+    assert projection == second_projection
+    assert journal.path.read_bytes() == original_bytes
+
+    mutating_journal_path = tmp_path / "mutating-journal.jsonl"
+    _ = mutating_journal_path.write_bytes(original_bytes)
+    mutating = claimed_active_accounting(
+        repo=tmp_path,
+        items=items,
+        journal=JournalFile(path=mutating_journal_path),
+    )
+
+    assert projection == mutating
+    assert journal.path.read_bytes() == original_bytes
+    mutating_records = _records(path=mutating_journal_path)
+    assert [
+        record["work_item_id"]
+        for record in mutating_records
+        if record["stage"] == "dispatch-claim-abandoned"
+    ] == [green.id, failed.id, journal_unreadable.id]
+
+
+def test_claimed_active_projection_counts_unreadable_journal_without_writing(
+    tmp_path: Path,
+) -> None:
+    module = importlib.import_module(
+        "livespec_orchestrator_beads_fabro.commands._dispatcher_claim_reclaim"
+    )
+    assert hasattr(module, "claimed_active_projection")
+    item = _item(item_id="bd-unreadable", status="active")
+    journal = JournalFile(path=tmp_path)
+
+    projection = module.claimed_active_projection(repo=tmp_path, items=[item], journal=journal)
+
+    assert projection.active_count == 1
+    assert projection.journal_unreadable_active_ids == (item.id,)
+    assert tmp_path.is_dir()
 
 
 def _item(*, item_id: str, status: str) -> WorkItem:

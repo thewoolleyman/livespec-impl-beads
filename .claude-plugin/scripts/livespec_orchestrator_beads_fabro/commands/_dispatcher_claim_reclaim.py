@@ -21,7 +21,12 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFil
 from livespec_orchestrator_beads_fabro.effects import AttemptFailure, attempt, parse_json
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
-__all__: list[str] = ["ActiveClaimAccounting", "claimed_active_accounting", "claimed_active_count"]
+__all__: list[str] = [
+    "ActiveClaimAccounting",
+    "claimed_active_accounting",
+    "claimed_active_count",
+    "claimed_active_projection",
+]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -43,8 +48,34 @@ def claimed_active_count(*, repo: Path, items: list[WorkItem], journal: JournalF
     return claimed_active_accounting(repo=repo, items=items, journal=journal).active_count
 
 
+def claimed_active_projection(
+    *, repo: Path, items: list[WorkItem], journal: JournalFile
+) -> ActiveClaimAccounting:
+    return _claimed_active_accounting(
+        repo=repo,
+        items=items,
+        journal=journal,
+        record_abandonment=False,
+    )
+
+
 def claimed_active_accounting(
     *, repo: Path, items: list[WorkItem], journal: JournalFile
+) -> ActiveClaimAccounting:
+    return _claimed_active_accounting(
+        repo=repo,
+        items=items,
+        journal=journal,
+        record_abandonment=True,
+    )
+
+
+def _claimed_active_accounting(
+    *,
+    repo: Path,
+    items: list[WorkItem],
+    journal: JournalFile,
+    record_abandonment: bool,
 ) -> ActiveClaimAccounting:
     histories: dict[str, _TerminalHistory] | None = None
     live_lock_active_ids: list[str] = []
@@ -64,7 +95,8 @@ def claimed_active_accounting(
         history = histories.get(item.id)
         if _green_terminal_after_latest_admit(history=history):
             green_terminal_active_ids.append(item.id)
-        journal.append(record=_abandoned_record(item=item, history=history))
+        if record_abandonment:
+            journal.append(record=_abandoned_record(item=item, history=history))
     return ActiveClaimAccounting(
         active_count=(len(live_lock_active_ids) + len(journal_unreadable_active_ids)),
         live_lock_active_ids=tuple(live_lock_active_ids),
