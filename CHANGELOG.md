@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.72.6](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.72.5...v0.72.6) (2026-08-25)
+
+
+### Bug Fixes
+
+* **spec:** ratify the owned-restore-item rule for temporary settings (v075) ([ccbedb9](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/ccbedb97b9351f477b784672969fe021f951439c))
+
 ## [0.72.5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.72.4...v0.72.5) (2026-08-25)
 
 
