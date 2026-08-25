@@ -226,7 +226,11 @@ Claude's edge case — a numerically-named checkout would fail the id validator 
 be silently dropped — is real but is the runtime's recorded silent-drop
 non-conformance, not this proposal's. Noted, not repaired here.
 
-## Follow-up candidates (not filed by this note)
+## Follow-up candidates (SINCE FILED — see research/006)
+
+Both were filed after this note was written: `bd-ib-ohv3` and `bd-ib-rfgr`
+respectively. Research/006 carries the filing record and the verification that
+preceded the second one.
 
 1. **The credential wrapper strips `LIVESPEC_PLAN_UNATTENDED`.** An unattended
    overseer resume that evaluates `is_unattended_session` inside
