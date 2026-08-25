@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.75.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.74.0...v0.75.0) (2026-08-25)
+
+
+### Features
+
+* cover capacity needs-attention residue ([9763d7c](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/9763d7c93db1abc06c5bac60e0144e942488d0e7))
+
+
+### Bug Fixes
+
+* honor capacity accounting verdict ([4e9082e](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/4e9082e9daed9f21e87524f9de06cd7e135b2f26))
+
 ## [0.74.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.73.0...v0.74.0) (2026-08-25)
 
 
