@@ -818,5 +818,21 @@
     "spec_file": "scenarios.md",
     "test": "TODO",
     "reason": "Ratified by the needs-attention-verdict revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
+  },
+  {
+    "heading": "## Scenario 72 — Every journal record carries a resolved invoker",
+    "spec_root": "SPECIFICATION",
+    "work_item": "bd-ib-w3if5j",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "reason": "Ratified by the journal-invoker-attribution revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
+  },
+  {
+    "heading": "## Scenario 73 — The tightened posture refuses before it mutates",
+    "spec_root": "SPECIFICATION",
+    "work_item": "bd-ib-w3if5j",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "reason": "Ratified by the journal-invoker-attribution revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
   }
 ]
