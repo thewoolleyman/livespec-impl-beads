@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.72.3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.72.2...v0.72.3) (2026-08-25)
+
+
+### Bug Fixes
+
+* **spec:** ratify the four-verdict evidence rule and criteria walls (v072) ([89e0345](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/89e0345f0f0ac2479210fe718860e06e2a13f847))
+
 ## [0.72.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.72.1...v0.72.2) (2026-08-25)
 
 
