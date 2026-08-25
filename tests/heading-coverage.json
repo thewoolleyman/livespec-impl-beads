@@ -906,5 +906,29 @@
     "spec_file": "scenarios.md",
     "test": "TODO",
     "reason": "Ratified by the detector-coverage-records revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
+  },
+  {
+    "heading": "## Scenario 83 — Capacity truth is composed from the accounting, never re-derived",
+    "spec_root": "SPECIFICATION",
+    "work_item": "bd-ib-w3if5j",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "reason": "Ratified by the needs-attention-completeness revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
+  },
+  {
+    "heading": "## Scenario 84 — Aged ready work with nothing in flight surfaces an unblock",
+    "spec_root": "SPECIFICATION",
+    "work_item": "bd-ib-w3if5j",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "reason": "Ratified by the needs-attention-completeness revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
+  },
+  {
+    "heading": "## Scenario 85 — Every enumerated orchestrator-owned wait composes with its unblock",
+    "spec_root": "SPECIFICATION",
+    "work_item": "bd-ib-w3if5j",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "reason": "Ratified by the needs-attention-completeness revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
   }
 ]
