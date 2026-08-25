@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.74.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.73.0...v0.74.0) (2026-08-25)
+
+
+### Features
+
+* require durable ready dwell instants ([b104177](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/b104177bde21a52b477ef0778e603fcf3941ee7b))
+
 ## [0.73.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.72.10...v0.73.0) (2026-08-25)
 
 
