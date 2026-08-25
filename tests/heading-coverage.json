@@ -858,5 +858,21 @@
     "spec_file": "scenarios.md",
     "test": "TODO",
     "reason": "Ratified by the temporary-setting-restore revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). Operator-process scenario: per repo precedent (Scenario 56) no in-repo test can decide a review obligation mechanically; the binding stays TODO with this stated reason and is owned by bd-ib-w3if5j for the decidable negative leg (schema offers no temporary variant), an integration/consumer-tier concern, never unit-tier."
+  },
+  {
+    "heading": "## Scenario 74 — The probe demonstrates the loop on a taken item and leaves only explained state",
+    "spec_root": "SPECIFICATION",
+    "work_item": "bd-ib-w3if5j",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "reason": "Ratified by the loop-probe revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
+  },
+  {
+    "heading": "## Scenario 75 — The probe takes; it never files, and absence of evidence never passes it",
+    "spec_root": "SPECIFICATION",
+    "work_item": "bd-ib-w3if5j",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "reason": "Ratified by the loop-probe revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
   }
 ]
