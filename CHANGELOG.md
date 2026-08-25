@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.72.10](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.72.9...v0.72.10) (2026-08-25)
+
+
+### Bug Fixes
+
+* **spec:** ratify the orchestrator-owned attention facts (v079) ([7c54eb3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/7c54eb390a4910bfeea3b9ec0c5d60fbd58e1a11))
+
 ## [0.72.9](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.72.8...v0.72.9) (2026-08-25)
 
 
