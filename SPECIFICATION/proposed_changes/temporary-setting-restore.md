@@ -29,7 +29,7 @@ RUNTIME INDEPENDENCE. This is one of the plan's runtime-independent filings (res
 
 ### Proposed Changes
 
-Changes land in `SPECIFICATION/contracts.md` and `SPECIFICATION/scenarios.md`; BCP14 throughout. The accepting revise pass MUST co-edit `tests/heading-coverage.json` for the new `## Scenario 78` heading.
+Changes land in `SPECIFICATION/contracts.md` and `SPECIFICATION/scenarios.md`; BCP14 throughout. The accepting revise pass MUST co-edit `tests/heading-coverage.json` for the new `## Scenario 78` heading. RATIFICATION GATE: this proposal's §"Effective acceptance criteria" reference resolves only once the sibling `needs-attention-verdict` proposal is accepted — the accepting revise MUST ratify that sibling first (this thread's ratification order does so); were the sibling rejected, this proposal would need a `modify` decision replacing the reference before acceptance.
 
 #### 1. `contracts.md` — new subsection `### Temporary setting postures carry an owned restore item`, placed in §"Dispatcher policy settings"
 
@@ -40,8 +40,8 @@ Full text:
 > A deliberate TEMPORARY posture change to any committed dispatcher setting — lowering `wip_cap` for a canary, committing a step waiver intended to be short-lived, tightening a cap for an experiment — MUST be accompanied by an owned ledger work-item, filed through `capture-work-item` by the operator making the change (consent is native there; the Dispatcher itself files nothing, per §"Consent boundary"). The restore item MUST name:
 >
 > - the setting and the value to restore (the restore target),
-> - a named owner,
-> - the restore condition, written as gradeable acceptance criteria (§"Effective acceptance criteria" defines gradeability) — the condition lives WITH the obligation, authored by the operator who knows it, never interpreted by the orchestrator,
+> - a named owner, recorded queryably as an `owner:<name>` ledger label on the restore item (prose alone is not queryable),
+> - the restore condition, written as gradeable acceptance criteria (§"Effective acceptance criteria" defines gradeability; see the ratification gate below) — the condition lives WITH the obligation, authored by the operator who knows it, never interpreted by the orchestrator,
 > - a dependency edge to the ledger item the restore waits on, whenever that trigger is ledger-tracked.
 >
 > A configuration comment is NOT a carrier for a restore obligation: nothing reads comments, and this rule exists because a committed comment is where exactly this obligation went to die. The restore item is ordinary ledger work — ranked, listed, and composed by the existing status and attention surfaces; no new configuration schema, no restore-condition evaluation vocabulary, and no new dispatcher settings key is added by this contract, and none of the ratified settings gains a "temporary" variant. (Consequently the console Settings-surface lockstep of §"API-configurable completeness" is not triggered: there is no key to expose.)
@@ -58,13 +58,17 @@ Feature: Temporary setting postures are owned ledger work, not comments
 
 Scenario: The lowered cap is paired with an owned restore item
   Given an operator deliberately lowers a committed dispatcher setting for a bounded trial
-  When the change is made
-  Then an owned ledger work-item exists naming the setting, the restore target, and a named owner
+  When the settings change is reviewed for merge
+  Then an owned ledger work-item exists naming the setting and the restore target
+  And the item carries an owner label naming the responsible party
   And its restore condition is written as gradeable acceptance criteria
   And it carries a dependency edge to the ledger-tracked trigger where one exists
 
-Scenario: No generic temporary-setting machinery exists to misuse
-  Given the ratified dispatcher settings
-  Then no setting carries a temporary variant or a restore-condition config field
-  And the console Settings lockstep is not triggered by this contract
+Scenario: A comment-only restore note is the reviewable violation
+  Given a committed settings change that lowers a setting with only a configuration comment as the restore carrier
+  When the change is reviewed for merge
+  Then the review names the missing restore work-item as a violation of this contract
+  And no configuration schema offers a temporary variant or restore-condition field to reach for
+
+(These are operator-process scenarios; per repo precedent their heading-coverage bindings MAY be TODO with a reason — no in-repo test can decide a review obligation mechanically.)
 ```
