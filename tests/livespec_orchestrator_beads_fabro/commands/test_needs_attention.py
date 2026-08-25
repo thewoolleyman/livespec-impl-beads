@@ -8,6 +8,9 @@ from typing import Any
 import pytest
 from livespec_orchestrator_beads_fabro._beads_client import IssueDraft, make_beads_client
 from livespec_orchestrator_beads_fabro.commands import needs_attention
+from livespec_orchestrator_beads_fabro.commands._dispatcher_dispatch_lock import (
+    write_dispatch_lock,
+)
 from livespec_orchestrator_beads_fabro.commands.needs_attention import (
     SpecNextSeam,
     _spec_next,
@@ -75,13 +78,21 @@ def _seed_raw(
     client.update_issue(issue_id=id_, status=status)
 
 
-def _write_config(project_root: Path, *, auto_approve_ready: bool = False) -> None:
+def _write_config(
+    project_root: Path, *, auto_approve_ready: bool = False, wip_cap: int | None = None
+) -> None:
+    dispatcher_items = []
+    if auto_approve_ready:
+        dispatcher_items.append(f'      "auto_approve_ready": {str(auto_approve_ready).lower()}')
+    if wip_cap is not None:
+        dispatcher_items.append(f'      "wip_cap": {wip_cap}')
+    dispatcher_body = ",\n".join(dispatcher_items)
     dispatcher = (
         f""",
     \"dispatcher\": {{
-      \"auto_approve_ready\": {str(auto_approve_ready).lower()}
+{dispatcher_body}
     }}"""
-        if auto_approve_ready
+        if dispatcher_items
         else ""
     )
     (project_root / ".livespec.jsonc").write_text(
@@ -187,9 +198,17 @@ def _item(
 
 def _write_journal_record(project_root: Path, *, record: dict[str, Any]) -> None:
     journal = project_root / "tmp" / "fabro-dispatch-journal.jsonl"
-    journal.parent.mkdir(parents=True)
+    journal.parent.mkdir(parents=True, exist_ok=True)
     with journal.open("a", encoding="utf-8") as handle:
         _ = handle.write(json.dumps(record, sort_keys=True) + "\n")
+
+
+def _write_dispatch_lock(project_root: Path, *, work_item_id: str) -> None:
+    _ = write_dispatch_lock(
+        repo=project_root,
+        work_item_id=work_item_id,
+        dispatch_id=f"run-{work_item_id}",
+    )
 
 
 def test_build_attention_composes_impl_human_valves_plan_threads_and_spec_next(
@@ -417,6 +436,90 @@ def test_build_attention_surfaces_stranded_merged_dispatch(tmp_path, monkeypatch
     assert "janitor-post-merge" in stranded.summary
     assert "reconcile-merged" in stranded.handoff.command
     assert "--item bd-active" in stranded.handoff.command
+
+
+def test_build_attention_composes_capacity_residue_from_accounting(tmp_path, monkeypatch) -> None:
+    _write_config(tmp_path, auto_approve_ready=True, wip_cap=2)
+    _stub_spec_next(monkeypatch, output=None)
+    live = _item(id_="bd-live", status="active")
+    unreadable = _item(id_="bd-unreadable", status="active")
+    green = _item(id_="bd-green", status="active")
+    rework = _item(id_="bd-rework", status="active")
+    for item in (live, unreadable, green, rework):
+        _seed(item)
+    _write_dispatch_lock(tmp_path, work_item_id=live.id)
+    _write_journal_record(tmp_path, record={"stage": "ledger-admit", "work_item_id": green.id})
+    _write_journal_record(
+        tmp_path,
+        record={
+            "stage": "outcome",
+            "outcome": {
+                "work_item_id": green.id,
+                "status": "green",
+                "stage": "janitor-post-merge",
+                "pr_number": 836,
+                "merge_sha": "ba9fdafef895",
+            },
+        },
+    )
+    _write_journal_record(
+        tmp_path,
+        record={
+            "stage": "outcome",
+            "outcome": {
+                "work_item_id": rework.id,
+                "status": "failed",
+                "stage": "host-only-refused",
+            },
+        },
+    )
+    journal = tmp_path / "tmp" / "fabro-dispatch-journal.jsonl"
+    original_journal = journal.read_bytes()
+
+    attention = build_attention(
+        project_root=tmp_path,
+        repo_name="repo",
+        include_hygiene=False,
+    )
+
+    capacity_items = [item for item in attention if item.id.startswith("hygiene:capacity")]
+    assert [item.id for item in capacity_items] == [
+        "hygiene:capacity:repo",
+        "hygiene:capacity-hold:bd-unreadable",
+    ]
+    assert (
+        capacity_items[0].summary
+        == "Capacity reached for repo: 2 counted claims, 0 free slots under per-repo WIP cap 2; host-run concurrency is governed separately."
+    )
+    assert capacity_items[1].source_ref.work_item == unreadable.id
+    assert "Inspect capacity hold bd-unreadable" in capacity_items[1].summary
+    assert "inspect-capacity-hold" in capacity_items[1].handoff.command
+    assert "release-to-ready" not in capacity_items[1].handoff.command
+    assert "bd-live" not in [item.id for item in capacity_items]
+    assert all(item.source_ref.work_item != green.id for item in capacity_items)
+    assert all(item.source_ref.work_item != rework.id for item in capacity_items)
+    assert not any(item.id == "host-only:stranded-dispatch:bd-unreadable" for item in attention)
+    assert journal.read_bytes() == original_journal
+
+
+def test_build_attention_omits_capacity_when_all_counted_holds_are_live(
+    tmp_path, monkeypatch
+) -> None:
+    _write_config(tmp_path, auto_approve_ready=True, wip_cap=2)
+    _stub_spec_next(monkeypatch, output=None)
+    first = _item(id_="bd-live-a", status="active")
+    second = _item(id_="bd-live-b", status="active")
+    for item in (first, second):
+        _seed(item)
+        _write_dispatch_lock(tmp_path, work_item_id=item.id)
+
+    attention = build_attention(
+        project_root=tmp_path,
+        repo_name="repo",
+        include_hygiene=False,
+    )
+
+    assert not any(item.id.startswith("hygiene:capacity") for item in attention)
 
 
 def test_build_attention_surfaces_untriaged_backlog_and_summarizes_the_remainder(

@@ -18,6 +18,9 @@ from livespec_runtime.needs_attention import (
 
 from livespec_orchestrator_beads_fabro.commands._config import resolve_store_config
 from livespec_orchestrator_beads_fabro.commands._cross_repo import load_manifest
+from livespec_orchestrator_beads_fabro.commands._needs_attention_capacity import (
+    capacity_items,
+)
 from livespec_orchestrator_beads_fabro.commands._needs_attention_core_roots import (
     default_core_root_bases,
     resolve_spec_next_command,
@@ -123,6 +126,7 @@ def build_attention(
         + auto_admission_items(project_root=project_root, repo=repo_name, items=materialized)
         + host_only_items(project_root=project_root, repo=repo_name, items=materialized)
         + stranded_dispatch_items(project_root=project_root, repo=repo_name, items=materialized)
+        + capacity_items(project_root=project_root, repo=repo_name, items=materialized)
         # A second raw read of the tenant: the triage marker is a label and the
         # urgency tier is the beads-native `priority` column, and the
         # materialized `WorkItem` above carries neither (labels are decoded into
