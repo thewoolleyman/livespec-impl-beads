@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.72.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.72.1...v0.72.2) (2026-08-25)
+
+
+### Bug Fixes
+
+* **spec:** ratify the executable rework-pending re-dispatch contract (v071) ([e293349](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/e293349f5b027706753e4671ea1b570b265a9f92))
+
 ## [0.72.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.72.0...v0.72.1) (2026-08-24)
 
 
