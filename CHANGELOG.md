@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.73.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.72.10...v0.73.0) (2026-08-25)
+
+
+### Features
+
+* specify read-only claim accounting projection ([c6ef34d](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/c6ef34dde10e6d27f378e75b5885fd0bfd322e28))
+
 ## [0.72.10](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.72.9...v0.72.10) (2026-08-25)
 
 
