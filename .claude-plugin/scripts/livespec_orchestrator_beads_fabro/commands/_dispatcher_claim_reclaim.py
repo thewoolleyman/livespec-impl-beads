@@ -10,7 +10,7 @@ green-outcome race that creates new rows in this state.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import cast
 
@@ -23,10 +23,18 @@ from livespec_orchestrator_beads_fabro.types import WorkItem
 
 __all__: list[str] = [
     "ActiveClaimAccounting",
+    "ActiveClaimHold",
     "claimed_active_accounting",
     "claimed_active_count",
     "claimed_active_projection",
 ]
+
+
+@dataclass(frozen=True, kw_only=True)
+class ActiveClaimHold:
+    work_item_id: str
+    reason: str
+    backed_by_live_watchable_run: bool
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -35,6 +43,7 @@ class ActiveClaimAccounting:
     live_lock_active_ids: tuple[str, ...]
     green_terminal_active_ids: tuple[str, ...]
     journal_unreadable_active_ids: tuple[str, ...]
+    actionable_holds: tuple[ActiveClaimHold, ...] = field(default=(), compare=False)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -81,6 +90,7 @@ def _claimed_active_accounting(
     live_lock_active_ids: list[str] = []
     green_terminal_active_ids: list[str] = []
     journal_unreadable_active_ids: list[str] = []
+    actionable_holds: list[ActiveClaimHold] = []
     for item in items:
         if item.status != "active":
             continue
@@ -91,10 +101,25 @@ def _claimed_active_accounting(
             histories = _terminal_histories(journal=journal)
         if histories is None:
             journal_unreadable_active_ids.append(item.id)
+            actionable_holds.append(
+                ActiveClaimHold(
+                    work_item_id=item.id,
+                    reason="journal-unreadable",
+                    backed_by_live_watchable_run=False,
+                )
+            )
             continue
         history = histories.get(item.id)
         if _green_terminal_after_latest_admit(history=history):
             green_terminal_active_ids.append(item.id)
+        elif not record_abandonment and history is None:
+            actionable_holds.append(
+                ActiveClaimHold(
+                    work_item_id=item.id,
+                    reason="no-outcome-since-ledger-admit",
+                    backed_by_live_watchable_run=False,
+                )
+            )
         if record_abandonment:
             journal.append(record=_abandoned_record(item=item, history=history))
     return ActiveClaimAccounting(
@@ -102,6 +127,7 @@ def _claimed_active_accounting(
         live_lock_active_ids=tuple(live_lock_active_ids),
         green_terminal_active_ids=tuple(green_terminal_active_ids),
         journal_unreadable_active_ids=tuple(journal_unreadable_active_ids),
+        actionable_holds=tuple(actionable_holds),
     )
 
 
