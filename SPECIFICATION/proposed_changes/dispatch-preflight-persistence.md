@@ -39,24 +39,26 @@ Full text:
 
 > ### Dispatch preflight and post-merge step discipline
 >
-> Every loop-critical step the Dispatcher runs around a factory dispatch — the pre-dispatch preflights (source checkout, master CI) and the post-merge steps (the janitor, including its bootstrap of the governed repository's commit-refuse hooks) — has exactly THREE sanctioned outcomes:
+> This section governs a NAMED, CLOSED step set, each step carrying a stable identifier: `source-checkout` and `master-ci` (pre-dispatch preflights), and `janitor-bootstrap` (the post-merge janitor's bootstrap of the governed repository's commit-refuse hooks). The set is extensible only by ratification. Gauge and observability postures ratified elsewhere — the fail-closed cost gate's hand-picked warn posture, and any storage-headroom gauge posture — are NOT steps of this section and are unaffected by it.
+>
+> A PRE-DISPATCH step has exactly THREE sanctioned outcomes:
 >
 > 1. **Pass**, journaled.
-> 2. **Refusal**: a pre-dispatch step that fails, or cannot verify what it exists to verify, MUST refuse the dispatch as a precondition error (exit `3`), journaled, naming the missing piece and its remedy. Absence of proof is refusal, never proceed-and-hope.
+> 2. **Refusal**: a pre-dispatch step that fails, or cannot verify what it exists to verify, MUST refuse the dispatch as a precondition error (exit `3`), journaled with the step's identifier, naming the missing piece and its remedy. Absence of proof is refusal, never proceed-and-hope.
 > 3. **Waived proceed**: a step covered by an explicit committed waiver proceeds, and the waived failure is journaled AS waived — visible, never silent.
 >
-> There is no fourth outcome: a silent warn-and-proceed branch on a loop-critical step is forbidden.
+> A POST-MERGE step, which can only OBSERVE its failure after the merge, has exactly three sanctioned outcomes: **pass**, **waived proceed**, or a first-class **DEGRADED outcome** recorded on the dispatch's outcome record, carrying the step's structured identifier (never only free prose), the missing required integration point, and the remedy. For either class there is no further outcome: a silent warn-and-proceed branch on a named step is forbidden.
 >
-> A step that can only OBSERVE its failure after the merge (the post-merge janitor) MUST record a first-class degraded outcome on the dispatch's outcome record, naming the missing required integration point and the remedy — and that degraded outcome PERSISTS:
+> A degraded outcome PERSISTS:
 >
 > **Cross-dispatch persistence.** When the journal's outcome history for the repository names a missing REQUIRED integration point (a degraded post-merge outcome, e.g. the governed repository no longer providing its commit-refuse-hook bootstrap recipe), the Dispatcher MUST refuse the NEXT dispatch for that repository at the pre-dispatch gate — exit `3`, naming the missing integration point, the originating outcome record, and the remedy — until either:
 >
-> - a pre-dispatch RE-VERIFICATION of that specific integration point observes it provided (every required integration point named in a degraded outcome MUST have a pre-dispatch verification; for the janitor bootstrap that is the presence of the governed repository's hook-install recipe), or
+> - a pre-dispatch RE-VERIFICATION of that specific integration point observes it provided (every step of the closed set MUST have a pre-dispatch verification for the integration points its degraded outcomes can name; for `janitor-bootstrap` that is the presence of the governed repository's hook-install recipe) — and the passing re-verification MUST journal a CLEARING record naming the step identifier and the degraded outcome record it clears, so the refusal's end is as durable as its start; or
 > - a committed waiver covers the step.
 >
 > A repository that fails to provide a required integration point therefore stops the factory FOR THAT REPOSITORY, visibly, with the remedy named — it does not degrade silently on every dispatch forever. The hard refusal IS the mechanism that makes the adopter provide the missing piece.
 >
-> **`dispatcher.step_waivers`** (committed `.livespec.jsonc`; a list of waiver entries, each carrying `step` — the step identifier, `owner` — a named responsible party, and `reason` — non-empty prose). A waiver is scoped to its named step only. The setting is deliberately NOT API-configurable and MUST NOT be editable through the console Settings surface or any remote API: a dial that relaxes a safety refusal is committed configuration with a reviewable diff, never a remote toggle. An expired rationale is the owner's to retire; the journal records every waived proceed with the waiver's owner, so a standing waiver is visible on every use.
+> **`dispatcher.step_waivers`** (committed `.livespec.jsonc`; a list of waiver entries, each carrying `step` — one of this section's stable step identifiers, `owner` — a named responsible party, and `reason` — non-empty prose). A waiver is scoped to its named step only. The setting joins the ratified COMMITTED-CONFIGURATION-ONLY class (§"Control surface and audit" as amended by the sibling `journal-invoker-attribution` proposal, which ratifies first): a dial that relaxes a safety refusal is committed configuration with a reviewable diff, never a remote toggle. An expired rationale is the owner's to retire; the journal records every waived proceed with the waiver's owner, so a standing waiver is visible on every use.
 
 #### 2. `scenarios.md` — new scenario
 
@@ -97,7 +99,7 @@ Scenario: A committed waiver proceeds visibly
 
 ### Summary
 
-Replaces the master-CI preflight's hard-coded pipeline identity — today the implementation resolves the default-branch pipeline by the fixed workflow display name `CI` and the fixed aggregate job name `ci-green` — with a repository-DECLARED resolution: a committed `dispatcher.master_ci` configuration key (`workflow`, `job`) whose ABSENCE defaults to the current `CI`/`ci-green` convention, so no conforming repository changes behavior, while a repository whose real pipeline carries different names becomes provable instead of permanently unprovable. The fail-closed posture is unchanged: an unresolvable pipeline — undeclared and not matching the default convention, or declared but not found — remains a journaled refusal. This finding is argued on its own merits, NOT on the homelab incident: the journal evidence shows the incident's one refusal was a failed credentialed gh call that no name-resolution change would have prevented, and the name-based lookup demonstrably resolved that repository's CI on the dispatches that mattered.
+Replaces the master-CI preflight's hard-coded pipeline identity — today the implementation resolves the default-branch pipeline by the fixed workflow display name `CI` and the fixed aggregate job name `ci-green` — with a repository-DECLARED resolution: a committed `dispatcher.master_ci` configuration key (`workflow`, `job`) whose ABSENCE defaults to the current `CI`/`ci-green` convention, so no conforming repository changes behavior, while a repository whose real pipeline carries different names becomes provable instead of permanently unprovable. The fail-closed posture is unchanged: an unresolvable pipeline — undeclared and not matching the default convention, or declared but not found — remains a journaled refusal. This finding is argued on its own merits, NOT on the homelab incident: the incident's one refusal (2026-08-23T05:38:43Z; detail "credentialed gh call failed", a generic wrapper whose underlying `gh_stderr` reads "could not find any workflows named CI") predates the workflow it looked for: homelab's CI workflow with its `ci-green` job landed at 2026-08-23T05:40:56Z (`homelab@162a0a0`) — 2 minutes 13 seconds AFTER the refusal — so no declaration could have named a pipeline that did not yet exist. And because a passing preflight journals nothing (both journal writers sit inside refusal builders), the later dispatches' clean admits with no master-ci refusal rows, on a repository whose workflow by then existed, are the strongest positive evidence the surface can produce.
 
 ### Motivation
 
@@ -109,7 +111,9 @@ Changes land in `SPECIFICATION/contracts.md` and `SPECIFICATION/scenarios.md`; B
 
 #### 1. `contracts.md` — extend the new §"Dispatch preflight and post-merge step discipline" (previous finding) with a master-CI resolution clause
 
-> **Master-CI pipeline resolution.** The master-CI preflight MUST resolve the repository's default-branch pipeline from what the repository DECLARES: the committed `dispatcher.master_ci` key (`workflow` — the workflow display name or file name; `job` — the aggregate green job name). When the key is absent, the preflight MUST use the default convention (workflow `CI`, aggregate job `ci-green`) — a declared default, not a silent assumption: the refusal text for an unresolvable pipeline MUST say which resolution was attempted (declared or default) and name the key that declares it. A pipeline that cannot be resolved — undeclared and not matching the default convention, or declared but not found — remains a journaled precondition refusal; declaration changes WHAT is looked up, never WHETHER absence of proof refuses. `dispatcher.master_ci` describes the repository's CI topology, has no per-item override, and is deliberately NOT API-configurable.
+> **Master-CI pipeline resolution.** The master-CI preflight MUST resolve the repository's default-branch pipeline from what the repository DECLARES: the committed `dispatcher.master_ci` key (`workflow` — the workflow display name or file name; `job` — the aggregate green job name). The BRANCH is never configured or hard-coded: the preflight MUST resolve the target default branch per §"Self-contained plugin dispatch"'s default-branch-resolution rule (the shipped `--branch master` literal is a violation of that ratified rule this clause's implementation retires). When the key is absent, the preflight MUST use the default convention (workflow `CI`, aggregate job `ci-green`) — a declared default, not a silent assumption: the refusal text for an unresolvable pipeline MUST say which resolution was attempted (declared or default) and name the key that declares it. A pipeline that cannot be resolved — undeclared and not matching the default convention, or declared but not found — is a journaled precondition refusal; declaration changes WHAT is looked up, never WHETHER absence of proof refuses.
+>
+> This clause RETIRES the three shipped fail-open cases the current preflight documents ("no `gh` binary, no stored `gh` credential, or no master CI runs yet" proceed unchecked today): each becomes an unprovable refusal naming its remedy (install or authenticate `gh`; or commit a `master-ci` step waiver, the sanctioned escape for a repository that genuinely cannot verify). A still-pending latest run remains an unprovable refusal (retry when the run concludes). `dispatcher.master_ci` describes the repository's CI topology, has no per-item override, and joins the ratified committed-configuration-only class.
 
 #### 2. `scenarios.md` — new scenario
 
@@ -121,18 +125,29 @@ Feature: Declared pipeline resolution with a fail-closed default
   I want to declare my pipeline so the preflight can prove my master green
   So that a conforming repository is not permanently unprovable by naming convention
 
-Scenario: A declared pipeline is resolved
+Scenario: A declared green pipeline proves master health
   Given a repository whose committed dispatcher.master_ci names its workflow and aggregate job
+  And the latest run of that workflow on the resolved default branch has a green aggregate job
   When the master-CI preflight runs
-  Then it resolves the declared workflow and job and proves or refutes master health from them
+  Then the dispatch proceeds with the pass journaled
+
+Scenario: A declared red pipeline refuses
+  Given the same declaration with a red aggregate job on the latest resolved-branch run
+  When the master-CI preflight runs
+  Then the dispatch is refused naming the red run
+
+Scenario: The branch is resolved, never assumed
+  Given a repository whose default branch is not named master
+  When the master-CI preflight runs
+  Then the run lookup targets the resolved default branch
 
 Scenario: An undeclared repository uses the default convention
   Given a repository with no dispatcher.master_ci key and a workflow named CI with a ci-green job
   When the master-CI preflight runs
   Then it resolves the default convention unchanged
 
-Scenario: An unresolvable pipeline still refuses
-  Given a repository whose declared or default pipeline cannot be found
+Scenario: An unresolvable pipeline refuses, and the old fail-open paths refuse too
+  Given a repository whose declared or default pipeline cannot be found, or a host with no usable gh credential, or a repository with no runs yet
   When the master-CI preflight runs
-  Then the dispatch is refused with the refusal naming the attempted resolution and the declaring key
+  Then the dispatch is refused with the refusal naming the attempted resolution, the declaring key, and the remedy including the step-waiver escape
 ```

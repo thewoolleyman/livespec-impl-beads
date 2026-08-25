@@ -27,7 +27,7 @@ THE BLAST SURFACE IS NAMED (fable 7's second requirement). The probe merges a sy
 
 RESIDUE IS SCOPED TO THE PROBE'S OWN IDENTIFIERS (sol 3's under-scoping finding, and research/009 R3's repaired semantics). The matrix's "no unexplained attention items left behind" is unsatisfiable in a live repository, which legitimately holds unrelated human valves, blocked work, and aging ready work: a global-emptiness assertion can never distinguish probe residue from valid concurrent attention. The ratified assertions are therefore: a BEFORE and AFTER snapshot; the delta explained entirely by the probe item's own lifecycle; no remaining attention item referencing the probe's reserved identifiers; unrelated pre-existing items PRESERVED (their disappearance is a probe FAILURE, not a success); and an attention source that cannot be read FAILS the probe — unavailability never reads as emptiness or as resolution.
 
-COMPOSITION WITH THE SIBLING FILINGS FROM THIS PLAN THREAD. The probe's stage assertions consume the surfaces the sibling proposals ratify — the invoker attribution input (`proposed_changes/journal-invoker-attribution.md`: the probe MUST run with an asserted, NON-fallback identity and FAILS if its journal records resolve `invoker_source: fallback`), the effective-criteria primitive and walls (`proposed_changes/needs-attention-verdict.md`: the designated item's criteria MUST parse non-empty, and the acceptance verdict MUST be evidence-grounded), and the executable rework contract (`proposed_changes/acceptance-rework-state-machine.md`: a probe FAIL leg that routes to rework leaves a marked, selectable item — never an invisible one). Each proposal stands alone; the probe's assertions are phrased against journaled records and ledger state so it degrades gracefully where a sibling is not yet ratified. The failure leg strands nothing silently: on any stage failure the probe reports the stage reached, the item's current lifecycle state, and the named remedy, and leaves the item disposable through the normal machinery — the item is ordinary ledger state, never a hidden fixture.
+COMPOSITION WITH THE SIBLING FILINGS FROM THIS PLAN THREAD. The probe's stage assertions consume the surfaces the sibling proposals ratify — the invoker attribution input (`proposed_changes/journal-invoker-attribution.md`: the probe MUST run with an asserted, NON-fallback identity and FAILS if its journal records resolve `invoker_source: fallback`), the effective-criteria primitive and walls (`proposed_changes/needs-attention-verdict.md`: the designated item's criteria MUST parse non-empty, and the acceptance verdict MUST be evidence-grounded), and the executable rework contract (`proposed_changes/acceptance-rework-state-machine.md`: a probe FAIL leg that routes to rework leaves a marked, selectable item — never an invisible one). This proposal ratifies LAST in the thread's stated order: its invoker assertion consumes §"Journal invoker attribution" (`invoker_source`, the fallback marking) and its criteria assertion consumes §"Effective acceptance criteria" — the accepting revise MUST NOT ratify this proposal before both siblings are ratified, and were either rejected, the dependent assertion would need a `modify` decision before acceptance. The failure leg strands nothing silently: on any stage failure the probe reports the stage reached, the item's current lifecycle state, and the named remedy, and leaves the item disposable through the normal machinery — the item is ordinary ledger state, never a hidden fixture.
 
 ### Proposed Changes
 
@@ -42,10 +42,13 @@ Full text:
 > `probe --repo <path> --item <work-item-id> [--json]` demonstrates the steady-state loop by driving ONE designated, ALREADY-FILED work-item through the entire cycle — admission, factory run, merge, post-merge acceptance, terminal `done` — through the SAME published machinery every ordinary dispatch uses, never a parallel path, with assertions at each stage. The probe:
 >
 > - MUST refuse to run without `--item`, and MUST NOT create, file, or clone any work-item under any circumstances: the designated item is filed by the operator through `capture-work-item`, where consent and Definition-of-Ready evaluation are native. §"Consent boundary" applies to the probe unchanged and without exception.
+> - MUST refuse a designated item whose EFFECTIVE `acceptance_policy` is not `ai-only`, naming the label to set at filing: under the default `ai-then-human` (and under `human-only`) a passing item PARKS in `acceptance` awaiting the human `accept` valve, so terminal `done` is machine-reachable only for an `ai-only` item. The operator grants that policy when filing the probe item — the probe itself sets nothing.
+> - Each invocation CONSUMES its designated item (driven to terminal `done`); a standing health cadence therefore files a fresh probe item per run through `capture-work-item` — the per-run filing consent is intended, not incidental — and consumers report against the LATEST probe outcome.
 > - MUST run with an asserted invoker identity and MUST FAIL when its own journaled records resolve to a fallback-derived identity — a probe is an operator act, and an unattributed probe proves nothing about attribution.
 > - MUST assert, in stage order: the designated item's effective acceptance criteria parse non-empty BEFORE dispatch; every journaled preflight and post-merge step outcome in the probe cycle is a pass (any warn-and-proceed, skipped-step, or failed-step record FAILS the probe); the acceptance verdict is grounded in observed evidence; and the item reaches `done`.
-> - **Sanctioned target path.** The designated probe item's change MUST confine itself to the `.livespec-probe/` directory at the governed repository's root. The probe MUST FAIL when the merged diff touches any path outside that directory. Probe artifacts are inert: the directory holds AT MOST the latest probe artifact (a later probe's change replaces it), and deleting the directory MUST never break the governed repository. This is what makes the merge-by-design safe to aim at a real default branch.
-> - **Residue assertions, scoped.** The probe MUST snapshot the attention surface and the ledger state for its OWN identifiers BEFORE the cycle and again AFTER, and assert: the before/after delta is explained entirely by the designated item's own lifecycle; no attention item referencing the probe's reserved identifiers remains; and every unrelated pre-existing attention item is PRESERVED — an unrelated item that disappeared during the probe FAILS the probe. The probe MUST NOT assert global attention emptiness, and MUST NOT require any unrelated state to be absent. An attention or ledger source that cannot be read at either snapshot FAILS the probe with a source-unavailable outcome: unavailability MUST NOT be read as emptiness, resolution, or success.
+> - **Reserved identifiers.** At start the probe MUST journal a probe run identifier of the form `probe:<work-item-id>:<utc-start-timestamp>`; the probe's reserved identifier set is that run identifier plus the designated item's id, and every hard residue assertion below keys on that set.
+> - **Sanctioned target path.** The designated probe item's change MUST confine itself to the `.livespec-probe/` directory at the governed repository's root. Confinement is asserted BEFORE the merge: the driven cycle MUST verify the change's paths and FAIL WITHOUT MERGING when the change escapes the directory. The post-merge diff check remains as the backstop; if an escaping change nonetheless merged, the probe MUST FAIL naming the merged commit and the revert obligation (the operator reverts it — the probe mutates nothing beyond its cycle). Probe artifacts are inert: the artifact is a single file the next probe's change replaces, deleting the directory MUST never break the governed repository, and the operator MAY remove it at any time — removal after a pass is the sanctioned cleanup and no surface may complain about its absence. This is what makes the merge-by-design safe to aim at a real default branch.
+> - **Residue assertions, scoped.** The probe MUST snapshot the attention surface and the ledger state BEFORE the cycle and again AFTER. HARD assertions key on the reserved identifier set only: the designated item reached `done`, and no attention item referencing the reserved identifiers remains. The unrelated before/after delta is REPORTED, never asserted: over a cycle spanning admission to acceptance, unrelated attention items legitimately appear and resolve through concurrent operator activity, and failing on their movement would be the mirror image of the global-emptiness assertion this contract forbids. The probe MUST NOT assert global attention emptiness, MUST NOT require any unrelated state to be absent, and MUST NOT require any unrelated state to be preserved — it reports the unrelated delta for the operator. An attention or ledger source that cannot be read at either snapshot FAILS the probe with a source-unavailable outcome: unavailability MUST NOT be read as emptiness, resolution, or success.
 > - **Failure leg.** On any stage failure the probe MUST report the stage reached, the item's current lifecycle state, and the named remedy, and MUST leave the item in whatever state the ordinary machinery put it — visible and disposable through the normal valves and recovery surfaces, never auto-deleted, never auto-closed, never hidden.
 > - **Fixture-creating probes.** Any probe variant that CREATES its fixture — including defect-seeding negative controls such as an empty-criteria item — MUST run only against the hermetic fake backend or a disposable test tenant, never through the live Dispatcher against a live tenant.
 >
@@ -62,18 +65,25 @@ Feature: The loop probe drives one pre-filed item through the whole cycle
   So that steady-state ownership is demonstrated, never declared from documents
 
 Scenario: A full probe cycle passes every stage assertion
-  Given a work-item filed through capture-work-item whose change confines itself to the .livespec-probe directory
+  Given a work-item filed through capture-work-item with an ai-only acceptance policy, clear dependencies, a resolvable assignee, and a change confined to the .livespec-probe directory
+  And a free WIP slot exists
   And the probe is invoked with --item and an asserted invoker identity
   When the probe drives the item through admission, the factory run, merge, and acceptance
   Then every stage assertion passes: non-empty effective criteria, clean journaled step outcomes, an evidence-grounded verdict, and terminal done
-  And the probe's journal records carry a non-fallback invoker_source
-  And the attention before/after delta is explained entirely by the item's own lifecycle
-  And every unrelated pre-existing attention item is preserved
+  And the probe's journal records carry a non-fallback invoker_source and the probe run identifier
+  And no attention item referencing the reserved identifier set remains
+  And the unrelated before/after delta is reported without being asserted
+  And the operator may then remove the probe artifact without any surface complaining
 
-Scenario: The probe fails when the merged diff escapes the sanctioned path
-  Given a probe item whose merged diff touches a path outside .livespec-probe
-  When the probe evaluates the merged diff
-  Then the probe fails naming the escaping path
+Scenario: An escaping change fails the probe before the merge
+  Given a probe item whose change touches a path outside .livespec-probe
+  When the driven cycle verifies confinement before merging
+  Then the cycle fails without merging, naming the escaping path
+
+Scenario: A merged escape fails the probe and names the revert obligation
+  Given an escaping change that nonetheless merged
+  When the probe evaluates the merged diff backstop
+  Then the probe fails naming the merged commit and the revert obligation
 
 ## Scenario 75 — The probe takes; it never files, and absence of evidence never passes it
 
@@ -86,6 +96,11 @@ Scenario: The probe refuses to run without a designated item
   Given a probe invocation without --item
   When the probe starts
   Then it refuses without creating any work-item
+
+Scenario: The probe refuses an item it cannot drive to done
+  Given a designated item whose effective acceptance policy is not ai-only
+  When the probe starts
+  Then it refuses naming the acceptance policy label to set at filing
 
 Scenario: An unavailable attention source fails the probe
   Given a probe cycle whose attention source cannot be read at the after snapshot

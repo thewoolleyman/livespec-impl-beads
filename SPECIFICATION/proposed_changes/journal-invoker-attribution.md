@@ -21,7 +21,7 @@ Filed from the `homelab-loop-hardening-orchestrator` plan thread (ledger epic `b
 
 THE VERIFIED GAP. `commands/_dispatcher_io.py::JournalFile.append` stamps `{"at": <utc>}` plus the caller's record — no invoker identity anywhere in the append path, and no identity input exists on any published CLI surface. After homelab's first-day incident (that program's research/001/002 section 06), nobody — the foreman seat included — could establish from the journal who had started a key session or ordered a state-changing act.
 
-THE RATIFIED PRIOR ART THIS GENERALIZES (never reinvents). Spec v051's §"Door rules — every transition has exactly one journaled owner" already requires every lifecycle transition to be attributable in the journal, and specifically that "the `reject:rework` valve MUST write a durable journal record" — shipped as `bd-ib-ktxb` (closed, PR #1048). The `drive` valve contract already states the journal "records the actor" for the guarded valves, and the host-route door "journals the actor and a driver-session". What v051 ratified PER DOOR, this proposal ratifies for the append path as a whole — citing it, exactly as finding fable 5 directs. `bd-ib-gbu3k6` (backlog) holds the adjacent operator-facing ownership-attribution gap for concurrent dispatch and is not closed by this proposal.
+THE RATIFIED PRIOR ART THIS GENERALIZES (never reinvents). Spec v051's §"Door rules — every transition has exactly one journaled owner" already requires every lifecycle transition to be attributable in the journal, and specifically that "the `reject:rework` valve MUST write a durable journal record" — shipped as `bd-ib-ktxb` (closed, PR #1048). The `drive` valve contract already states the journal "records the actor" for the guarded valves, and the host-route door "journals the actor and a driver-session". What v051 ratified PER DOOR, this proposal ratifies for the append path as a whole — citing it, exactly as finding fable 5 directs. (The ratified door-rules text still carries two STALE sentences claiming the reject:rework valve writes no journal record; their refresh is a co-edit of the sibling `acceptance-rework-state-machine` proposal, which ratifies first.) `bd-ib-gbu3k6` (backlog) holds the adjacent operator-facing ownership-attribution gap for concurrent dispatch and is not closed by this proposal.
 
 WHY AN INPUT WITH A RESOLUTION ORDER, NOT A BARE FIELD REQUIREMENT. The matrix's original ask ("the journal append path requires an invoker identity field and refuses the write without one") fails closed against every existing caller on day one, and — worse — without a defined propagation surface every writer self-reports whatever it likes: attribution-by-honor-system, the same prose-shaped trust the program exists to retire. The consumers that must stamp identities (`foreman-act`, the console's command adapters) act THROUGH the published dispatcher/drive CLIs, so the identity must enter as a CLI-surface input with a defined precedence, and the append layer must record WHERE the identity came from (`invoker_source`), so a fallback-derived identity can never masquerade as an asserted one. The console review (c-fable 3) confirms the consumer side: the console currently stamps the constant `"operator"` and its action port passes no identity — its leg (resolve a real principal, forward it on every invocation) files in the console's own charge; this proposal defines the producer-side input it will call.
 
@@ -39,11 +39,11 @@ Full text:
 
 > ### Journal invoker attribution
 >
-> Every record the Dispatcher's journal append path writes MUST carry two fields stamped ONCE by the append layer and inherited by every writer above it: **`invoker`** (a non-empty opaque identity string) and **`invoker_source`** (exactly one of `flag`, `env`, `fallback`). Writers MUST NOT stamp these fields themselves; a record supplied with either field is refused by the append layer as a programming error, so the attribution cannot be forged one caller at a time.
+> Every record the Dispatcher's journal append path writes MUST carry two fields stamped ONCE by the append layer and inherited by every writer above it: **`invoker`** (a non-empty opaque identity string) and **`invoker_source`** (exactly one of `flag`, `env`, `fallback`). Writers MUST NOT stamp these fields themselves; a record supplied with either field is refused by the append layer as a programming error, so the attribution cannot be forged one caller at a time. EVERY journal write MUST route through the append layer: writing the journal path directly is forbidden, the two shipped direct writers (the acceptance-rework disposition writer and the ledger-close status-normalization writer, which today bypass the layer and carry no timestamp) are migration obligations of this contract's implementation, and a mechanical control MUST prove no code appends to the journal path outside the layer — without this, the stamped-once guarantee governs only part of the journal, and the bypassed acceptance-rework record is the very provenance carrier the rework state machine designates.
 >
 > The identity enters on the published CLI surface and resolves in this order:
 >
-> 1. `--invoker <id>` on the invocation (`invoker_source: flag`) — accepted by every published state-changing entry point (`dispatcher.py` `loop` / `dispatch` / `reconcile-merged`, and the `drive` operation's valve actions).
+> 1. `--invoker <id>` on the invocation (`invoker_source: flag`) — accepted by every published state-changing entry point (`dispatcher.py` `loop` / `dispatch` / `reconcile-merged`, the `drive` operation's valve actions, and the `probe` subcommand once ratified — every later-ratified state-changing entry point inherits this input as a filing obligation of its own proposal).
 > 2. Otherwise the `LIVESPEC_INVOKER` environment variable, when set and non-empty (`invoker_source: env`).
 > 3. Otherwise the derived fallback `unattributed:<os-user>@<hostname>` (`invoker_source: fallback`). The fallback is a MARK, not an identity: it records that no caller asserted who acted.
 >
@@ -56,6 +56,12 @@ Full text:
 Append one sentence to the section preamble:
 
 > `dispatcher.require_invoker` (§"Journal invoker attribution") is a committed attribution-integrity dial, not a policy setting of this section: it has no per-item override and is deliberately not API-configurable.
+
+And amend §"Control surface and audit", whose opening sentence today reads "Every setting MUST be settable via the orchestrator API" — a universal quantifier that would otherwise contradict this key (and the already-ratified `dispatcher.fabro_bin` / `dispatcher.codex_models` keys, which the shipped six-entry API-configurable manifest likewise omits). The amended opening scopes the quantifier and ratifies the existing practice:
+
+> Every POLICY SETTING of §"Dispatcher policy settings" MUST be settable via the orchestrator API and, through it, the Control-Plane console. Keys ratified as COMMITTED-CONFIGURATION-ONLY (`dispatcher.require_invoker`; `dispatcher.fabro_bin` and `dispatcher.codex_models` by shipped precedent; any key a later ratification adds to this class) are deliberately outside the API-configurable key set, and the lockstep of §"API-configurable completeness" applies to the API-configurable set only.
+
+And scope the `wip_cap` heading claim: §"`wip_cap` — the one setting with no per-item override"'s sentence describing it as "the ONE setting" gains "among this section's policy settings" (committed-configuration-only keys are not per-item properties either).
 
 #### 3. `scenarios.md` — two new scenarios
 
@@ -82,7 +88,12 @@ Scenario: An unasserted identity is marked, never trusted
   And dispatcher.require_invoker is false
   When the invocation journals its records
   Then every record carries the derived fallback identity with invoker_source fallback
-  And a writer-supplied invoker field is refused by the append layer
+
+Scenario: The append layer is the only writer and refuses forged fields
+  Given a caller supplying a record that already carries an invoker or invoker_source field
+  When the record reaches the append layer
+  Then the append is refused as a programming error
+  And a mechanical control proves no code appends to the journal path outside the layer
 
 ## Scenario 73 — The tightened posture refuses before it mutates
 
@@ -98,9 +109,10 @@ Scenario: A fallback-only invocation is refused as a precondition error
   Then it is refused with the precondition exit code before any store mutation, journal write, or run creation
   And the refusal names the two accepted identity inputs
 
-Scenario: The dial is not reachable over the API surface
-  Given the console Settings surface enumerates the API-configurable dispatcher settings
-  Then dispatcher.require_invoker is not among them
+Scenario: The dial is not in this repo's API-configurable key manifest
+  Given the orchestrator's API-configurable key manifest
+  When its key set is read
+  Then dispatcher.require_invoker is not among the keys
   And changing it requires a committed configuration change
 ```
 
