@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.72.5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.72.4...v0.72.5) (2026-08-25)
+
+
+### Bug Fixes
+
+* **spec:** ratify the step discipline and preflight persistence (v074) ([aac849d](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/aac849d51ffd1a72867e97184b68f305662b76a0))
+
 ## [0.72.4](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.72.3...v0.72.4) (2026-08-25)
 
 
