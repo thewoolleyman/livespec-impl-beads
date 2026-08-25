@@ -35,11 +35,17 @@ def capacity_items(*, project_root: Path, repo: str, items: list[WorkItem]) -> l
         journal=JournalFile(path=project_root / _DISPATCHER_JOURNAL_PATH),
     )
     counted_holds = _counted_holds(accounting=accounting)
-    free_slots = max(0, wip_cap - len(counted_holds))
+    counted_count = accounting.active_count
+    free_slots = max(0, wip_cap - counted_count)
     if free_slots > 0 or not _has_actionable_hold(holds=counted_holds):
         return []
     return [
-        _aggregate_item(repo=repo, wip_cap=wip_cap, counted_count=len(counted_holds)),
+        _aggregate_item(
+            project_root=project_root,
+            repo=repo,
+            wip_cap=wip_cap,
+            counted_count=counted_count,
+        ),
         *[
             _hold_item(project_root=project_root, repo=repo, hold=hold)
             for hold in counted_holds
@@ -66,7 +72,9 @@ def _has_actionable_hold(*, holds: tuple[ActiveClaimHold, ...]) -> bool:
     return any(not hold.backed_by_live_watchable_run for hold in holds)
 
 
-def _aggregate_item(*, repo: str, wip_cap: int, counted_count: int) -> AttentionItem:
+def _aggregate_item(
+    *, project_root: Path, repo: str, wip_cap: int, counted_count: int
+) -> AttentionItem:
     free_slots = max(0, wip_cap - counted_count)
     return AttentionItem(
         id=f"hygiene:capacity:{repo}",
@@ -78,7 +86,10 @@ def _aggregate_item(*, repo: str, wip_cap: int, counted_count: int) -> Attention
             "governed separately."
         ),
         source_ref=SourceRef(repo=repo),
-        handoff=Handoff(kind="shell", command=_aggregate_command(repo=repo)),
+        handoff=Handoff(
+            kind="shell",
+            command=_aggregate_command(project_root=project_root, repo=repo),
+        ),
     )
 
 
@@ -96,8 +107,13 @@ def _hold_item(*, project_root: Path, repo: str, hold: ActiveClaimHold) -> Atten
     )
 
 
-def _aggregate_command(*, repo: str) -> str:
-    return f"inspect-capacity {shlex.quote(repo)}"
+def _aggregate_command(*, project_root: Path, repo: str) -> str:
+    prompt = (
+        f"inspect-capacity {repo} in repository {project_root}. "
+        "Use the dispatcher accounting verdict as the capacity authority; "
+        "host-run concurrency is governed separately."
+    )
+    return f"cd {shlex.quote(str(project_root))} && codex exec {shlex.quote(prompt)} < /dev/null"
 
 
 def _hold_command(*, project_root: Path, work_item_id: str) -> str:

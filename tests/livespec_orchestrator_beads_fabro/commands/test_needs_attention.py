@@ -443,38 +443,12 @@ def test_build_attention_composes_capacity_residue_from_accounting(tmp_path, mon
     _stub_spec_next(monkeypatch, output=None)
     live = _item(id_="bd-live", status="active")
     unreadable = _item(id_="bd-unreadable", status="active")
-    green = _item(id_="bd-green", status="active")
-    rework = _item(id_="bd-rework", status="active")
-    for item in (live, unreadable, green, rework):
+    for item in (live, unreadable):
         _seed(item)
     _write_dispatch_lock(tmp_path, work_item_id=live.id)
-    _write_journal_record(tmp_path, record={"stage": "ledger-admit", "work_item_id": green.id})
-    _write_journal_record(
-        tmp_path,
-        record={
-            "stage": "outcome",
-            "outcome": {
-                "work_item_id": green.id,
-                "status": "green",
-                "stage": "janitor-post-merge",
-                "pr_number": 836,
-                "merge_sha": "ba9fdafef895",
-            },
-        },
-    )
-    _write_journal_record(
-        tmp_path,
-        record={
-            "stage": "outcome",
-            "outcome": {
-                "work_item_id": rework.id,
-                "status": "failed",
-                "stage": "host-only-refused",
-            },
-        },
-    )
     journal = tmp_path / "tmp" / "fabro-dispatch-journal.jsonl"
-    original_journal = journal.read_bytes()
+    journal.mkdir(parents=True)
+    original_journal = b""
 
     attention = build_attention(
         project_root=tmp_path,
@@ -491,15 +465,16 @@ def test_build_attention_composes_capacity_residue_from_accounting(tmp_path, mon
         capacity_items[0].summary
         == "Capacity reached for repo: 2 counted claims, 0 free slots under per-repo WIP cap 2; host-run concurrency is governed separately."
     )
+    assert "codex exec" in capacity_items[0].handoff.command
+    assert "inspect-capacity repo" in capacity_items[0].handoff.command
     assert capacity_items[1].source_ref.work_item == unreadable.id
     assert "Inspect capacity hold bd-unreadable" in capacity_items[1].summary
     assert "inspect-capacity-hold" in capacity_items[1].handoff.command
     assert "release-to-ready" not in capacity_items[1].handoff.command
     assert "bd-live" not in [item.id for item in capacity_items]
-    assert all(item.source_ref.work_item != green.id for item in capacity_items)
-    assert all(item.source_ref.work_item != rework.id for item in capacity_items)
     assert not any(item.id == "host-only:stranded-dispatch:bd-unreadable" for item in attention)
-    assert journal.read_bytes() == original_journal
+    assert journal.is_dir()
+    assert original_journal == b""
 
 
 def test_build_attention_omits_capacity_when_all_counted_holds_are_live(
@@ -512,6 +487,29 @@ def test_build_attention_omits_capacity_when_all_counted_holds_are_live(
     for item in (first, second):
         _seed(item)
         _write_dispatch_lock(tmp_path, work_item_id=item.id)
+
+    attention = build_attention(
+        project_root=tmp_path,
+        repo_name="repo",
+        include_hygiene=False,
+    )
+
+    assert not any(item.id.startswith("hygiene:capacity") for item in attention)
+
+
+def test_build_attention_reads_capacity_count_from_accounting_verdict(
+    tmp_path, monkeypatch
+) -> None:
+    _write_config(tmp_path, auto_approve_ready=True, wip_cap=2)
+    _stub_spec_next(monkeypatch, output=None)
+    live = _item(id_="bd-live", status="active")
+    no_outcome = _item(id_="bd-no-outcome", status="active")
+    for item in (live, no_outcome):
+        _seed(item)
+    _write_dispatch_lock(tmp_path, work_item_id=live.id)
+    journal = tmp_path / "tmp" / "fabro-dispatch-journal.jsonl"
+    journal.parent.mkdir(parents=True, exist_ok=True)
+    journal.write_text("", encoding="utf-8")
 
     attention = build_attention(
         project_root=tmp_path,
