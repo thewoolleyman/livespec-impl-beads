@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.72.8](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.72.7...v0.72.8) (2026-08-25)
+
+
+### Bug Fixes
+
+* **spec:** ratify the needs-attention machine envelope (v077) ([3ec5872](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/3ec587218891a54c253e8e241b7aad50ab613df8))
+
 ## [0.72.7](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.72.6...v0.72.7) (2026-08-25)
 
 
