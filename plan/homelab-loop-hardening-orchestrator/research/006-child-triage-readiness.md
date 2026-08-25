@@ -105,3 +105,65 @@ routing the checklist exists to perform.
   merge. None have merged, so it is not yet due.
 - The remaining fifteen children triage per item as their edges unblock, never
   as a batch.
+
+## Release identity for the ratified v071-v079 surface
+
+Measured 2026-08-25, and it settles the release plan owed to homelab's
+steady-state-loop-hardening session. Recorded here because it corrects a
+mis-pin risk that would otherwise be discovered only by a consumer missing a
+whole section.
+
+**The spec surface and the implementation surface release separately.** The
+obligation was framed as owed "when the first children merge", but the ratified
+SPEC is already fully released; the children's IMPLEMENTATION will land in later
+tags. Homelab can pin and consume the Phase 2 spec surface today without waiting
+for a single child.
+
+**The pin is `v0.72.10`.** Each version's history snapshot was located by the
+commit that introduced it, then `git tag --contains` was run against that commit
+— the instrument this repo's own Rule 1 prescribes for "was this released", and
+one with no wrong-answer failure mode:
+
+| Spec version | First release tag containing it |
+| --- | --- |
+| v071 | v0.72.2 |
+| v072 | v0.72.3 |
+| v073 | v0.72.4 |
+| v074 | v0.72.5 |
+| v075 | v0.72.6 |
+| v076 | v0.72.7 |
+| v077 | v0.72.8 |
+| v078 | v0.72.9 |
+| v079 | **v0.72.10** |
+
+Every tag carries a PREFIX of the arc, never the whole of it. `v0.72.10` is the
+first and only tag containing all nine. It is a real published release, neither
+draft nor prerelease, published 2026-08-25T15:56:07Z.
+
+### The mis-pin this prevents
+
+Homelab has recorded that `v0.72.4`-`v0.72.9` exist as spec-carrying releases.
+That is true, and every one of those tags does carry spec — which is exactly what
+makes it dangerous. `v0.72.9` carries v071 through v078 and **not** v079, so a
+consumer pinning it as "the Phase 2 surface" silently loses the entire
+`### Orchestrator-owned attention facts` section: all three fact families and
+Scenarios 83-85. Nothing in that release announces that it is partial.
+
+Confirmed by CONTENT rather than by tag arithmetic, because a tag list is not a
+content check:
+
+```
+git show v0.72.10:SPECIFICATION/contracts.md | grep -c '^### Orchestrator-owned attention facts$'   -> 1
+git show v0.72.9:SPECIFICATION/contracts.md  | grep -c '^### Orchestrator-owned attention facts$'   -> 0
+```
+
+### What consumption evidence should pin
+
+TWO identities, not one:
+
+1. **The spec surface** — `v0.72.10` or later. Available now.
+2. **The implementation surface** — a later tag, cut by release-please once the
+   implementation children merge. Does not yet exist.
+
+Grading consumption against a single identity conflates them, and the spec
+identity is the one available today.
