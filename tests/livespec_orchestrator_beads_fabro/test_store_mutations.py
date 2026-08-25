@@ -144,6 +144,69 @@ def test_update_work_item_status_can_explicitly_clear_assignee() -> None:
     assert (read_back.status, read_back.assignee) == ("ready", None)
 
 
+def test_append_ready_item_records_ready_dwell_instant(monkeypatch: pytest.MonkeyPatch) -> None:
+    from livespec_orchestrator_beads_fabro import _store_mutations
+
+    assert hasattr(_store_mutations, "read_ready_dwell_instants")
+    monkeypatch.setattr(
+        "livespec_orchestrator_beads_fabro._store_mutations._utc_now_iso",
+        lambda: "2026-08-25T12:00:00Z",
+    )
+
+    append_work_item(
+        path=_config(),
+        item=_minimal_work_item(
+            id_="li-ready-since",
+            status="ready",
+            rank="a1",
+        ),
+    )
+
+    record = _fake().show_issue(issue_id="li-ready-since")
+    assert record["created_at"] == "2026-05-19T00:00:00Z"
+    assert record["metadata"]["ready_since"] == "2026-08-25T12:00:00Z"
+    assert _store_mutations.read_ready_dwell_instants(path=_config()) == {
+        "li-ready-since": "2026-08-25T12:00:00Z"
+    }
+
+
+def test_reentering_ready_records_new_ready_dwell_instant(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    times = iter(
+        [
+            "2026-08-25T12:00:00Z",
+            "2026-08-25T12:30:00Z",
+        ]
+    )
+    monkeypatch.setattr(
+        "livespec_orchestrator_beads_fabro._store_mutations._utc_now_iso",
+        lambda: next(times),
+    )
+    append_work_item(path=_config(), item=_minimal_work_item(id_="li-reentry"))
+
+    update_work_item_status(path=_config(), item_id="li-reentry", status="active")
+    update_work_item_status(path=_config(), item_id="li-reentry", status="ready")
+
+    assert _fake().show_issue(issue_id="li-reentry")["metadata"]["ready_since"] == (
+        "2026-08-25T12:30:00Z"
+    )
+
+
+def test_ready_dwell_projection_reports_missing_instant_as_unknown() -> None:
+    from livespec_orchestrator_beads_fabro import _store_mutations
+
+    assert hasattr(_store_mutations, "read_ready_dwell_instants")
+    append_work_item(path=_config(), item=_minimal_work_item(id_="li-known", status="ready"))
+    append_work_item(path=_config(), item=_minimal_work_item(id_="li-legacy", status="backlog"))
+    _fake().update_issue(issue_id="li-legacy", status="ready", metadata={"rank": "a0"})
+
+    assert _store_mutations.read_ready_dwell_instants(path=_config()) == {
+        "li-known": _fake().show_issue(issue_id="li-known")["metadata"]["ready_since"],
+        "li-legacy": None,
+    }
+
+
 def test_update_work_item_policy_replaces_requested_labels_only() -> None:
     append_work_item(
         path=_config(),

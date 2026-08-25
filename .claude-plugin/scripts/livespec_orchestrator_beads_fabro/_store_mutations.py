@@ -14,6 +14,13 @@ from livespec_orchestrator_beads_fabro._store_metadata import (
     work_item_metadata,
     work_item_metadata_preserving_existing,
 )
+from livespec_orchestrator_beads_fabro._store_ready_dwell import (
+    read_ready_dwell_instants,
+    ready_transition_metadata,
+)
+from livespec_orchestrator_beads_fabro._store_ready_dwell import (
+    utc_now_iso as _utc_now_iso,
+)
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
 if TYPE_CHECKING:
@@ -23,6 +30,7 @@ if TYPE_CHECKING:
 __all__: list[str] = [
     "append_work_item",
     "create_work_item",
+    "read_ready_dwell_instants",
     "register_custom_statuses",
     "update_work_item_awaits_scope_override",
     "update_work_item_blocked_state",
@@ -123,11 +131,18 @@ def update_work_item_status(
     arm is reachable here).
     """
     client = make_beads_client(config=path)
+    metadata = None
+    if status == "ready":
+        metadata = ready_transition_metadata(
+            existing_metadata=_existing_metadata(client=client, issue_id=item_id),
+            now_iso=_utc_now_iso(),
+        )
     client.update_issue(
         issue_id=item_id,
         status=_beads_status_for(status=status),
         assignee=assignee,
         clear_assignee=clear_assignee,
+        metadata=metadata,
     )
 
 
@@ -247,6 +262,12 @@ def register_custom_statuses(*, path: StoreConfig) -> None:
 
 
 def create_work_item(*, client: BeadsClient, item: WorkItem) -> None:
+    metadata = work_item_metadata(item=item)
+    if item.status == "ready":
+        metadata = ready_transition_metadata(
+            existing_metadata=metadata,
+            now_iso=_utc_now_iso(),
+        )
     _ = client.create_issue(
         draft=IssueDraft(
             issue_id=item.id,
@@ -259,7 +280,7 @@ def create_work_item(*, client: BeadsClient, item: WorkItem) -> None:
             assignee=item.assignee,
             created_at=item.captured_at,
             labels=_work_item_labels(item=item),
-            metadata=work_item_metadata(item=item),
+            metadata=metadata,
             spec_id=item.spec_commitment_hint,
             acceptance_criteria=item.acceptance_criteria,
             notes=item.notes,

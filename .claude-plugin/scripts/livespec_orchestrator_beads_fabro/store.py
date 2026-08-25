@@ -35,6 +35,7 @@ from livespec_orchestrator_beads_fabro._store_intake_triage import (
 )
 from livespec_orchestrator_beads_fabro._store_mutations import (
     append_work_item,
+    read_ready_dwell_instants,
     register_custom_statuses,
     update_work_item_awaits_scope_override,
     update_work_item_policy,
@@ -75,6 +76,7 @@ __all__: list[str] = [
     "dispatch_factory_from_record",
     "materialize_work_items",
     "read_intake_triage_records",
+    "read_ready_dwell_instants",
     "read_work_item_comments",
     "read_work_item_native_priorities",
     "read_work_items",
