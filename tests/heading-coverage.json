@@ -874,5 +874,21 @@
     "spec_file": "scenarios.md",
     "test": "TODO",
     "reason": "Ratified by the loop-probe revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
+  },
+  {
+    "heading": "## Scenario 79 — One malformed item never blinds the inbox, and never vanishes silently",
+    "spec_root": "SPECIFICATION",
+    "work_item": "bd-ib-w3if5j",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "reason": "Ratified by the needs-attention-envelope revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
+  },
+  {
+    "heading": "## Scenario 80 — Every advertised handoff is executable as advertised",
+    "spec_root": "SPECIFICATION",
+    "work_item": "bd-ib-w3if5j",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "reason": "Ratified by the needs-attention-envelope revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
   }
 ]
