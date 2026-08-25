@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.72.4](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.72.3...v0.72.4) (2026-08-25)
+
+
+### Bug Fixes
+
+* **spec:** ratify journal invoker attribution (v073) ([6def7aa](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/6def7aa0615051727bb263ec137043d6f7394915))
+
 ## [0.72.3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.72.2...v0.72.3) (2026-08-25)
 
 
