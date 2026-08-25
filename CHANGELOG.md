@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.72.7](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.72.6...v0.72.7) (2026-08-25)
+
+
+### Bug Fixes
+
+* **spec:** ratify the take-never-file loop probe (v076) ([79191c4](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/79191c45e4d5810631f3b8e0e2296105075585c1))
+
 ## [0.72.6](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.72.5...v0.72.6) (2026-08-25)
 
 
