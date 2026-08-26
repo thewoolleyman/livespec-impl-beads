@@ -28,6 +28,14 @@ from livespec_orchestrator_beads_fabro.commands._needs_attention_core_roots impo
 from livespec_orchestrator_beads_fabro.commands._needs_attention_handoffs import (
     plans,
 )
+from livespec_orchestrator_beads_fabro.commands._needs_attention_ready_aging import (
+    ReadyAgingContext,
+    ReadyAgingSeams,
+    ready_aging_items,
+)
+from livespec_orchestrator_beads_fabro.commands._needs_attention_ready_aging import (
+    utc_now_iso as _ready_aging_utc_now_iso,
+)
 from livespec_orchestrator_beads_fabro.commands._needs_attention_spec_next_adapt import (
     adapt_top_candidate,
 )
@@ -39,8 +47,10 @@ from livespec_orchestrator_beads_fabro.commands._needs_attention_work_items impo
     host_only_items,
     human_valves,
     impl_next,
+    live_dispatch_lock_lookup,
     provider_exhaustion_items,
     stranded_dispatch_items,
+    watchable_fabro_run_lookup,
 )
 from livespec_orchestrator_beads_fabro.commands._sibling_status_lookup import (
     make_sibling_status_lookup,
@@ -50,6 +60,7 @@ from livespec_orchestrator_beads_fabro.io import write_stdout
 from livespec_orchestrator_beads_fabro.store import (
     materialize_work_items,
     read_intake_triage_records,
+    read_ready_dwell_instants,
     read_work_items,
 )
 
@@ -129,6 +140,21 @@ def build_attention(
         + host_only_items(project_root=project_root, repo=repo_name, items=materialized)
         + stranded_dispatch_items(project_root=project_root, repo=repo_name, items=materialized)
         + capacity_items(project_root=project_root, repo=repo_name, items=materialized)
+        + ready_aging_items(
+            context=ReadyAgingContext(
+                project_root=project_root,
+                repo=repo_name,
+                manifest=manifest,
+            ),
+            items=materialized,
+            ready_dwell_instants=read_ready_dwell_instants(path=config.work_items_path),
+            sibling_status_lookup=sibling_status_lookup,
+            seams=ReadyAgingSeams(
+                live_lock_lookup=live_dispatch_lock_lookup,
+                watchable_run_lookup=watchable_fabro_run_lookup,
+                now_iso=_utc_now_iso(),
+            ),
+        )
         # A second raw read of the tenant: the triage marker is a label and the
         # urgency tier is the beads-native `priority` column, and the
         # materialized `WorkItem` above carries neither (labels are decoded into
@@ -141,6 +167,10 @@ def build_attention(
         )
         + hygiene_scan
     )
+
+
+def _utc_now_iso() -> str:
+    return _ready_aging_utc_now_iso()
 
 
 def render_json(*, attention: list[AttentionItem]) -> str:
