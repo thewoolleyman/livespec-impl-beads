@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.83.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.82.0...v0.83.0) (2026-08-26)
+
+
+### Features
+
+* **needs-attention:** surface envelope validation failures instead of dropping candidates ([cad326d](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/cad326da20574672b96dc42b87703cb9b8e3a75e))
+
 ## [0.82.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.81.0...v0.82.0) (2026-08-26)
 
 
