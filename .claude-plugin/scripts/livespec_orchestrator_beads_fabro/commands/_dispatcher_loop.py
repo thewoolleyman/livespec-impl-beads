@@ -42,6 +42,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_io import (
 from livespec_orchestrator_beads_fabro.commands._dispatcher_lessons import (
     read_ratified_lessons,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_materialize import (
+    MaterializationRefusal,
+    materialize_dispatch,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_outcomes import (
     failed_dispatch_outcome,
 )
@@ -49,7 +53,6 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_plan import (
     dispatch_plan_for_item,
     goal_file_path,
     overlay_file_path,
-    workflow_payload_dir,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_run import (
     DispatchRunContext,
@@ -61,10 +64,6 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_selection impor
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
     spans_path,
-    workflow_toml,
-)
-from livespec_orchestrator_beads_fabro.commands._dispatcher_payload import (
-    prepare_workflow_payload,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     minijinja_findings_detail,
@@ -123,7 +122,7 @@ def dispatch_one(
         return outcome
 
 
-def _dispatch_one_locked(  # noqa: PLR0911 — one return per PRE-RUN REFUSAL STAGE (ledger labels, workflow payload, ledger comments, GitHub App auth, run-config overlay, goal preflight) plus the dispatched outcome; each names its own stage in the journal and collapsing any two would report the wrong one.
+def _dispatch_one_locked(  # noqa: PLR0911 — one return per PRE-RUN REFUSAL STAGE (ledger labels, dispatch materialization, ledger comments, GitHub App auth, run-config overlay, goal preflight) plus the dispatched outcome; each names its own stage in the journal and collapsing any two would report the wrong one.
     *,
     args: argparse.Namespace,
     repo: Path,
@@ -139,25 +138,16 @@ def _dispatch_one_locked(  # noqa: PLR0911 — one return per PRE-RUN REFUSAL ST
         return failed_dispatch_outcome(
             journal=journal, work_item_id=item.id, stage="ledger-labels", detail=raw_labels
         )
-    # Resolved once and journaled: `workflow_toml` now picks the dispatch
-    # target's OWN committed workflow over the plugin's bundled default, and
-    # that config carries the sandbox image pin — so which file won is the
-    # first thing to read when a dispatch dies on a missing toolchain. The
-    # payload materializer then renders THIS dispatch's resolved node
-    # timeouts into a per-run copy of that workflow's graph as literal
-    # durations; a config typo refuses here, before any Fabro run exists.
-    committed_workflow = workflow_toml(args=args)
-    payload = prepare_workflow_payload(
-        repo=repo,
-        committed=committed_workflow,
-        payload_dir=workflow_payload_dir(work_item_id=item.id),
-        journal=journal,
-        work_item_id=item.id,
-    )
-    if isinstance(payload, str):
+    materialized = materialize_dispatch(args=args, repo=repo, work_item_id=item.id, journal=journal)
+    if isinstance(materialized, MaterializationRefusal):
         return failed_dispatch_outcome(
-            journal=journal, work_item_id=item.id, stage="workflow-payload", detail=payload
+            journal=journal,
+            work_item_id=item.id,
+            stage=materialized.stage,
+            detail=materialized.detail,
         )
+    committed_workflow = materialized.committed_workflow
+    payload = materialized.payload
     plan = dispatch_plan_for_item(
         args=args,
         repo=repo,
@@ -165,6 +155,7 @@ def _dispatch_one_locked(  # noqa: PLR0911 — one return per PRE-RUN REFUSAL ST
         janitor=janitor,
         raw_labels=raw_labels,
         timeouts=payload.timeouts,
+        acp_nodes=materialized.acp_nodes,
     )
     warn_item_sizing(item=item, journal=journal)
     comments = read_dispatch_comments(repo=repo, item=item)

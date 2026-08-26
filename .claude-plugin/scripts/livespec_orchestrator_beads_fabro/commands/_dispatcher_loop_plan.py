@@ -17,6 +17,7 @@ from typing import cast
 
 from returns.unsafe import unsafe_perform_io
 
+from livespec_orchestrator_beads_fabro.commands._acp_node_layers import AcpNodeResolution
 from livespec_orchestrator_beads_fabro.commands._config import FactoryTarget
 from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_selection import janitor_core_ref
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
@@ -59,7 +60,7 @@ def workflow_payload_dir(*, work_item_id: str) -> Path:
     return Path(tempfile.gettempdir()) / f"fabro-workflow-{work_item_id}"
 
 
-def dispatch_plan_for_item(
+def dispatch_plan_for_item(  # noqa: PLR0913 — kw-only plan resolver; each field is an independent caller input.
     *,
     args: argparse.Namespace,
     repo: Path,
@@ -67,6 +68,7 @@ def dispatch_plan_for_item(
     janitor: tuple[str, ...] | None,
     raw_labels: tuple[str, ...],
     timeouts: NodeTimeouts,
+    acp_nodes: AcpNodeResolution | None = None,
 ) -> DispatchPlan:
     """Resolve one item's dispatch plan from its args, labels and timeouts."""
     factory_target = cast("FactoryTarget", args.fabro_factory_target)
@@ -100,4 +102,7 @@ def dispatch_plan_for_item(
         # than a constant, so lengthening a node cannot outrun the poller and
         # shortening one is not masked.
         fabro_timeout_seconds=derive_fabro_timeout_seconds(timeouts=timeouts),
+        # Already resolved and journaled by the caller, so the run renders the
+        # adapters the dispatch record names rather than a re-derivation.
+        acp_nodes=acp_nodes,
     )

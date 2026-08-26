@@ -38,8 +38,11 @@ import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Protocol
 
 import pytest
+from livespec_orchestrator_beads_fabro.commands._acp_node_layers import resolve_acp_nodes
+from livespec_orchestrator_beads_fabro.commands._config import resolve_acp_node_overlays
 
 
 @pytest.fixture(autouse=True)
@@ -249,3 +252,51 @@ def _hermetic_fabro_bin(monkeypatch: pytest.MonkeyPatch, _fabro_stub_bin: str) -
     paths override it explicitly (an explicit `--fabro-bin`, or `delenv`).
     """
     monkeypatch.setenv("LIVESPEC_FABRO_BIN", _fabro_stub_bin)
+
+
+# ---------------------------------------------------------------------------
+# ACP node adapters — the workflow-defaults layer for plans built by hand
+# ---------------------------------------------------------------------------
+
+
+class ResolveAcpNodes(Protocol):
+    def __call__(self, *, repo: Path) -> Any:
+        """Resolve every ACP node's adapter for one repo."""
+        ...
+
+
+@pytest.fixture
+def resolve_test_acp_nodes() -> ResolveAcpNodes:
+    """Resolve a repo's per-node adapters against default workflow inputs.
+
+    A `DispatchPlan` built directly by a test carries NO adapter resolution,
+    so it renders no adapter `--input` at all — the honest un-resolved
+    behaviour. A test asserting which adapter a node runs therefore has to
+    resolve one the way the Dispatcher does, and this is that resolution
+    against a workflow declaring one adapter input per node, the shape this
+    repo's committed workflow has. The workflow layer is supplied literally
+    rather than read from a file so a test can assert which layer won
+    without also owning a `workflow.toml`.
+    """
+
+    def _resolve(*, repo: Path) -> Any:
+        claude = "npx -y @agentclientprotocol/claude-agent-acp"
+        implementer = f"ANTHROPIC_MODEL=claude-opus-5 CLAUDE_CODE_EFFORT_LEVEL=high {claude}"
+        overlays = resolve_acp_node_overlays(cwd=repo)
+        assert not isinstance(overlays, str), overlays
+        resolution = resolve_acp_nodes(
+            workflow_inputs={
+                "implement_adapter": implementer,
+                "fix_adapter": implementer,
+                "review_fix_adapter": implementer,
+                "pr_adapter": claude,
+                "review_adapter": claude,
+                "disposition_adapter": claude,
+            },
+            repository=overlays,
+            dispatch={},
+        )
+        assert not isinstance(resolution, str), resolution
+        return resolution
+
+    return _resolve

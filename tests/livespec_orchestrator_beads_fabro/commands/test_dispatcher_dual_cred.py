@@ -54,6 +54,8 @@ from livespec_orchestrator_beads_fabro.commands._fabro_port import FabroPort, Fa
 from livespec_orchestrator_beads_fabro.errors import BeadsCommandError
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
+from tests.conftest import ResolveAcpNodes
+
 # A canned fleet manifest so `resolve_sibling_clones` (which runs before
 # the codex projection inside `materialize_overlay`) never shells out to a
 # real `gh api` in the hermetic tier.
@@ -310,8 +312,10 @@ class _FabroRunner:
 # ---------------------------------------------------------------------------
 
 
-def test_fabro_port_run_routes_implementer_to_codex_adapter(tmp_path: Path) -> None:
-    """`--input acp_adapter=<codex>` is present, before --no-upgrade-check."""
+def test_fabro_port_run_routes_implementer_to_codex_adapter(
+    tmp_path: Path, resolve_test_acp_nodes: ResolveAcpNodes
+) -> None:
+    """The resolved per-node adapters reach `--input`, before --no-upgrade-check."""
     plan = build_plan(
         repo=tmp_path,
         work_item_id="x-1",
@@ -320,6 +324,7 @@ def test_fabro_port_run_routes_implementer_to_codex_adapter(tmp_path: Path) -> N
         fabro_bin="fabro",
         janitor=None,
         janitor_checkout=tmp_path / "janitor-co",
+        acp_nodes=resolve_test_acp_nodes(repo=tmp_path),
     )
     runner = _FabroRunner()
     _ = FabroPort(
@@ -340,10 +345,17 @@ def test_fabro_port_run_routes_implementer_to_codex_adapter(tmp_path: Path) -> N
     # `tmp_path` carries no .livespec.jsonc, so implementation work uses the
     # fleet's Claude Opus 5 default while the PR node keeps the Codex publish
     # tier.
+    claude_opus_5 = (
+        "ANTHROPIC_MODEL=claude-opus-5 CLAUDE_CODE_EFFORT_LEVEL=high "
+        "npx -y @agentclientprotocol/claude-agent-acp"
+    )
     assert input_values == [
-        "acp_adapter=ANTHROPIC_MODEL=claude-opus-5 CLAUDE_CODE_EFFORT_LEVEL=high "
-        "npx -y @agentclientprotocol/claude-agent-acp",
+        "disposition_adapter=npx -y @agentclientprotocol/claude-agent-acp",
+        f"fix_adapter={claude_opus_5}",
+        f"implement_adapter={claude_opus_5}",
         f"pr_adapter={CODEX_ADAPTER_BASE} -c model=gpt-5.4-mini -c model_reasoning_effort=high",
+        "review_adapter=npx -y @agentclientprotocol/claude-agent-acp",
+        f"review_fix_adapter={claude_opus_5}",
         "review_fix_visit_cap=4",
         "merge_on_review_cap_outcome=__merge_on_review_cap_disabled__",
     ]
@@ -353,11 +365,13 @@ def test_fabro_port_run_routes_implementer_to_codex_adapter(tmp_path: Path) -> N
     )
     assert expected_base == CODEX_ADAPTER_BASE
     # The publish adapter still carries the Codex sandbox and approval overrides
-    # alongside its model pin.
-    assert expected_base in input_values[1]
-    # The un-pinned adapter is no longer emitted bare on either node.
-    assert f"acp_adapter={expected_base}" not in input_values
-    assert f"pr_adapter={expected_base}" not in input_values
+    # alongside its model pin. Keyed by input NAME rather than by position:
+    # the pairs are rendered in sorted-name order, so an index would bind to
+    # the ordering rather than to the publish node.
+    [pr_input] = [pair for pair in input_values if pair.startswith("pr_adapter=")]
+    assert expected_base in pr_input
+    # The un-pinned adapter is no longer emitted bare on any node.
+    assert not [pair for pair in input_values if pair.endswith(f"={expected_base}")]
     # The routing inputs precede --no-upgrade-check.
     assert argv.index("--input") < argv.index("--no-upgrade-check")
 
@@ -613,10 +627,10 @@ def test_fabro_port_run_routes_effective_review_cap_policy_inputs(tmp_path: Path
     input_values = [
         value for index, value in enumerate(argv[1:], start=1) if argv[index - 1] == "--input"
     ]
+    # Scoped to the POLICY inputs this test is about. The adapter inputs are
+    # absent because this plan carries no adapter resolution, and which
+    # adapter each node runs is bound by the ACP-node tests rather than here.
     assert input_values == [
-        "acp_adapter=ANTHROPIC_MODEL=claude-opus-5 CLAUDE_CODE_EFFORT_LEVEL=high "
-        "npx -y @agentclientprotocol/claude-agent-acp",
-        f"pr_adapter={CODEX_ADAPTER_BASE} -c model=gpt-5.4-mini -c model_reasoning_effort=high",
         "review_fix_visit_cap=8",
         "merge_on_review_cap_outcome=succeeded",
     ]

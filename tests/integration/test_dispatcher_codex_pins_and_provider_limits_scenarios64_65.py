@@ -16,6 +16,8 @@ from livespec_orchestrator_beads_fabro.commands._fabro_port import (
     fabro_failure_detail_from_payload,
 )
 
+from tests.conftest import ResolveAcpNodes
+
 _CONFIG_NAME = ".livespec.jsonc"
 _ACP_WRAPPER = "ACP protocol error"
 _CODEX_PROVIDER_LIMIT = (
@@ -30,7 +32,13 @@ _CLAUDE_OPUS_5_ADAPTER = (
 )
 
 
-def _plan(*, repo: Path):
+def _plan(*, repo: Path, resolve: ResolveAcpNodes):
+    """One dispatch plan for `repo`, its per-node adapters already resolved.
+
+    The resolution is what a real dispatch carries; a plan without one
+    renders no adapter input at all, so these scenarios must resolve to
+    assert on the adapters they are about.
+    """
     return build_plan(
         repo=repo,
         work_item_id="bd-ib-cxv3",
@@ -39,6 +47,7 @@ def _plan(*, repo: Path):
         fabro_bin="fabro",
         janitor=None,
         janitor_checkout=repo / "janitor",
+        acp_nodes=resolve(repo=repo),
     )
 
 
@@ -67,18 +76,22 @@ def _failure_payload(*, cause: str) -> list[object]:
     ]
 
 
-def test_default_dispatch_acp_adapter_is_claude_opus_5(tmp_path: Path) -> None:
+def test_default_dispatch_acp_adapter_is_claude_opus_5(
+    tmp_path: Path, resolve_test_acp_nodes: ResolveAcpNodes
+) -> None:
     """Scenario 86: absent implementer config renders the Claude default."""
-    inputs = dispatch_fabro_run_inputs(plan=_plan(repo=tmp_path))
-    assert _input_value(inputs=inputs, name="acp_adapter") == _CLAUDE_OPUS_5_ADAPTER
+    inputs = dispatch_fabro_run_inputs(plan=_plan(repo=tmp_path, resolve=resolve_test_acp_nodes))
+    assert _input_value(inputs=inputs, name="implement_adapter") == _CLAUDE_OPUS_5_ADAPTER
 
 
 def test_scenario64_dispatcher_renders_pinned_codex_adapters_and_true_opt_out(
-    tmp_path: Path,
+    tmp_path: Path, resolve_test_acp_nodes: ResolveAcpNodes
 ) -> None:
     """Scenario 64: dispatch inputs carry explicit Codex pins and the PR tier."""
-    default_inputs = dispatch_fabro_run_inputs(plan=_plan(repo=tmp_path))
-    default_implementer = _input_value(inputs=default_inputs, name="acp_adapter")
+    default_inputs = dispatch_fabro_run_inputs(
+        plan=_plan(repo=tmp_path, resolve=resolve_test_acp_nodes)
+    )
+    default_implementer = _input_value(inputs=default_inputs, name="implement_adapter")
     default_pr = _input_value(inputs=default_inputs, name="pr_adapter")
 
     assert default_implementer == _CLAUDE_OPUS_5_ADAPTER
@@ -94,8 +107,10 @@ def test_scenario64_dispatcher_renders_pinned_codex_adapters_and_true_opt_out(
             "pr": {"model": "repo-publish", "reasoning_effort": "low"},
         },
     )
-    override_inputs = dispatch_fabro_run_inputs(plan=_plan(repo=tmp_path))
-    assert _input_value(inputs=override_inputs, name="acp_adapter").endswith(
+    override_inputs = dispatch_fabro_run_inputs(
+        plan=_plan(repo=tmp_path, resolve=resolve_test_acp_nodes)
+    )
+    assert _input_value(inputs=override_inputs, name="implement_adapter").endswith(
         " -c model=repo-implementer -c model_reasoning_effort=high"
     )
     assert _input_value(inputs=override_inputs, name="pr_adapter").endswith(
@@ -106,12 +121,16 @@ def test_scenario64_dispatcher_renders_pinned_codex_adapters_and_true_opt_out(
         repo=tmp_path,
         codex_models={"implementer": {"model": "", "reasoning_effort": "high"}},
     )
-    opt_out_inputs = dispatch_fabro_run_inputs(plan=_plan(repo=tmp_path))
-    assert _input_value(inputs=opt_out_inputs, name="acp_adapter") == CODEX_ADAPTER_BASE
+    opt_out_inputs = dispatch_fabro_run_inputs(
+        plan=_plan(repo=tmp_path, resolve=resolve_test_acp_nodes)
+    )
+    assert _input_value(inputs=opt_out_inputs, name="implement_adapter") == CODEX_ADAPTER_BASE
 
     _write_dispatcher_config(repo=tmp_path, codex_models={"implementer": "repo-implementer"})
-    malformed_inputs = dispatch_fabro_run_inputs(plan=_plan(repo=tmp_path))
-    assert _input_value(inputs=malformed_inputs, name="acp_adapter") == _CLAUDE_OPUS_5_ADAPTER
+    malformed_inputs = dispatch_fabro_run_inputs(
+        plan=_plan(repo=tmp_path, resolve=resolve_test_acp_nodes)
+    )
+    assert _input_value(inputs=malformed_inputs, name="implement_adapter") == _CLAUDE_OPUS_5_ADAPTER
 
 
 def test_scenario65_provider_usage_ceiling_is_permanent_and_transients_stay_transient() -> None:
