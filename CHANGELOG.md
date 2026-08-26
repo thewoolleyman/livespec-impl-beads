@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.79.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.78.1...v0.79.0) (2026-08-26)
+
+
+### Documentation
+
+* **plan:** record the model commission and classify item A as a minor release ([6355423](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/6355423f7595c6f98046f91c2cbfedcd29d9b389))
+
 ## [0.78.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.78.0...v0.78.1) (2026-08-26)
 
 
