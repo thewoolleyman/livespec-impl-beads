@@ -26,6 +26,24 @@ from livespec_orchestrator_beads_fabro.store import (
 from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
 
 
+@pytest.fixture(autouse=True)
+def _isolated_worktree_root(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Give each test its own `$HOME` so the janitor checkout lock is per-test.
+
+    `janitor_reconcile_checkout_path` resolves under `Path.home()/.worktrees`,
+    and its `.lock` sibling is a REAL file the reconcile valve claims for
+    exclusive access. Every test here reuses the repo dir name `repo` and the
+    item id `bd-ib-lza6`, so `tmp_path` isolation alone does NOT separate them:
+    the lock path is identical across the module. Under `pytest -n` two of
+    these tests land on different xdist workers at once, the second loses the
+    claim, and the valve correctly reports `janitor-env-degraded` with exit 1 —
+    a flake whose message describes a host-environment problem rather than the
+    test collision that caused it. Scrubbing `$HOME` is the idiom the other
+    janitor-driving suites already use.
+    """
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+
 @dataclass(frozen=True, kw_only=True)
 class _AcceptancePass:
     verdict: str
