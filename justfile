@@ -371,6 +371,7 @@ check:
         check-work-item-state-invariants
         check-status-conformance
         check-closed-item-integrity
+        check-needs-attention-surface-ownership
         check-codex-plugin-structure
         check-pi-plugin-structure
         check-bd-guard
@@ -568,6 +569,14 @@ check-ledger-conformance-live:
 # connection env configured.
 check-closed-item-integrity:
     LIVESPEC_BEADS_FAKE=1 uv run python dev-tooling/checks/closed_item_integrity.py
+
+# `check-needs-attention-surface-ownership` — v079 ownership-boundary guard.
+# Scans only `commands/needs_attention.py` and `commands/_needs_attention*.py`
+# for executable overseer/foreman references, while leaving docstring prose and
+# plan-lane modules out of scope. Not a canonical slug, so it is wired in the
+# private block.
+check-needs-attention-surface-ownership:
+    uv run python dev-tooling/checks/needs_attention_surface_ownership.py
 
 # `check-bd-guard` — lint + hermetically test the warn-first `bd` guard wrapper
 # (bd-guard/), the stopgap that fronts every `bd` call and warns/blocks the
