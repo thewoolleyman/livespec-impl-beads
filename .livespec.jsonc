@@ -194,6 +194,37 @@
       "codex_models": {
         "pr": { "model": "gpt-5.4-mini", "reasoning_effort": "high" }
       },
+      // Per-node ACP turn ceilings, restoring THIS repository's pre-v0.80.0
+      // effective values through the surface contracts.md section "ACP node
+      // timeouts" (v081) provides. The plugin's built-in default is 1800s for
+      // every node; that default is the maintainer's ruling and is deliberately
+      // NOT relitigated here -- it stays in force fleet-wide and, in this repo,
+      // for every node absent from this table.
+      //
+      // WHY THIS REPO OVERRIDES, with the measurement rather than a preference.
+      // bd-ib-tsna (the per-node adapter configuration item) was the first
+      // dispatch to run under the 1800s default. Both of its `implement`
+      // attempts died with "ACP turn timed out" at a recorded stage duration of
+      // 1800038 ms -- the configured ceiling to 38 milliseconds, which is the
+      // signature of a constant rather than of a slow turn. The turn was
+      // PRODUCTIVE when it was cut: its exported stage diff carried 3004 lines
+      // across the three new adapter-resolution modules. Two 30-minute turns
+      // were burned and the run reached the human gate with nothing published.
+      //
+      // The values below are exactly what this repository shipped BEFORE the
+      // v0.80.0 default reduction -- implement 14400s (raised deliberately after
+      // two heavy items died near 120 minutes), janitor and fix 3600s. Every
+      // other node (pr, review, review_fix, disposition, and the terminal
+      // handlers) already matched 1800s before the change and is therefore
+      // omitted, so this table restores prior behaviour rather than inventing
+      // new headroom. cnkf's own intake triage named this override as the
+      // operator follow-up owed once evidence appeared; the run above is that
+      // evidence.
+      "node_timeouts": {
+        "implement": 14400,
+        "janitor": 3600,
+        "fix": 3600
+      },
       "factories": {
         "vps": {
           "server": "https://vps.perch-rudd.ts.net:32276"
