@@ -39,6 +39,7 @@ from livespec_orchestrator_beads_fabro.commands._needs_attention_work_items impo
     host_only_items,
     human_valves,
     impl_next,
+    provider_exhaustion_items,
     stranded_dispatch_items,
 )
 from livespec_orchestrator_beads_fabro.commands._sibling_status_lookup import (
@@ -124,6 +125,7 @@ def build_attention(
             hygiene_scan=(),
         )
         + auto_admission_items(project_root=project_root, repo=repo_name, items=materialized)
+        + provider_exhaustion_items(project_root=project_root, repo=repo_name, items=materialized)
         + host_only_items(project_root=project_root, repo=repo_name, items=materialized)
         + stranded_dispatch_items(project_root=project_root, repo=repo_name, items=materialized)
         + capacity_items(project_root=project_root, repo=repo_name, items=materialized)

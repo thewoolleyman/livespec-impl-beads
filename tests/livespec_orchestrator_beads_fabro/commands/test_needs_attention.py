@@ -171,6 +171,7 @@ def _item(
     blocked_reason: str | None = None,
     factory_safety: str | None = None,
     admission_policy: str | None = None,
+    acceptance_policy: str | None = None,
     spec_commitment_hint: str | None = None,
 ) -> WorkItem:
     return WorkItem(
@@ -192,6 +193,7 @@ def _item(
         blocked_reason=blocked_reason,  # type: ignore[arg-type]
         factory_safety=factory_safety,  # type: ignore[arg-type]
         admission_policy=admission_policy,  # type: ignore[arg-type]
+        acceptance_policy=acceptance_policy,  # type: ignore[arg-type]
         spec_commitment_hint=spec_commitment_hint,
     )
 
@@ -401,6 +403,91 @@ def test_build_attention_surfaces_recorded_factory_safety_refusal(tmp_path, monk
     assert [(item.id, item.kind, item.handoff.kind) for item in attention] == [
         ("host-only:recorded-refusal:bd-recorded", "host-only", "shell")
     ]
+
+
+def test_build_attention_surfaces_unexpired_provider_exhaustion_hold(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_config(tmp_path)
+    _stub_spec_next(monkeypatch, output=None)
+    _seed(_item(id_="bd-held", status="ready", rank="a1"))
+    _write_journal_record(
+        tmp_path,
+        record={
+            "stage": "provider-exhaustion-observed",
+            "work_item_id": "bd-prior",
+            "provider": "codex",
+            "governing_condition": "provider_usage_limit",
+            "record_expires_at": "2099-01-01T00:00:00Z",
+        },
+    )
+
+    attention = build_attention(
+        project_root=tmp_path,
+        repo_name="repo",
+        include_hygiene=False,
+    )
+
+    assert [(item.id, item.kind, item.handoff.kind) for item in attention] == [
+        ("provider-exhaustion:codex:bd-held", "internal", "shell")
+    ]
+    [held] = attention
+    assert held.source_ref.work_item == "bd-held"
+    assert "provider=codex" in held.summary
+    assert "record_expires_at=2099-01-01T00:00:00Z" in held.summary
+    assert "Dispatcher admission pass" in held.handoff.command
+
+
+def test_build_attention_enriches_needs_attention_parked_acceptance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_config(tmp_path)
+    _stub_spec_next(monkeypatch, output=None)
+    _seed(
+        _item(
+            id_="bd-parked",
+            status="acceptance",
+            rank="a1",
+            acceptance_policy="human-only",
+        )
+    )
+    _write_journal_record(
+        tmp_path,
+        record={
+            "stage": "acceptance-ai-pass",
+            "work_item_id": "bd-parked",
+            "verdict": "NEEDS_ATTENTION",
+            "acceptance_policy": "human-only",
+            "diff": {"observed": False, "reason": "missing-merge-evidence"},
+            "criteria": {"observed": True, "checks": []},
+            "telemetry": {"observed": False, "reason": "missing-run-turn"},
+        },
+    )
+    _write_journal_record(
+        tmp_path,
+        record={
+            "stage": "acceptance-parked",
+            "work_item_id": "bd-parked",
+            "policy": "human-only",
+            "advisory": True,
+            "acceptance_verdict": "NEEDS_ATTENTION",
+        },
+    )
+
+    attention = build_attention(
+        project_root=tmp_path,
+        repo_name="repo",
+        include_hygiene=False,
+    )
+
+    assert [item.id for item in attention] == ["valve:accept:bd-parked"]
+    [parked] = attention
+    assert parked.kind == "human-valve"
+    assert parked.handoff.action_id == "accept:bd-parked"
+    assert "reject:bd-parked:rework" in parked.summary
+    assert "reject:bd-parked:regroom" in parked.summary
+    assert "NEEDS_ATTENTION" in parked.summary
+    assert "absent evidence: diff, telemetry" in parked.summary
 
 
 def test_build_attention_surfaces_stranded_merged_dispatch(tmp_path, monkeypatch) -> None:
