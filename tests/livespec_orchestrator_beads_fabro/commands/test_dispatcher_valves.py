@@ -117,6 +117,46 @@ def test_resolve_wip_cap_reads_explicit_value(tmp_path: Path) -> None:
     assert _read(resolve_wip_cap(cwd=cwd)) == 2
 
 
+def test_resolve_ready_aging_threshold_hours_defaults_when_no_config(tmp_path: Path) -> None:
+    assert hasattr(valves, "resolve_ready_aging_threshold_hours")
+    assert _read(valves.resolve_ready_aging_threshold_hours(cwd=tmp_path)) == 24
+
+
+def test_resolve_ready_aging_threshold_hours_reads_explicit_value(tmp_path: Path) -> None:
+    cwd = _write_config(
+        tmp_path=tmp_path,
+        text=(
+            '{"livespec-orchestrator-beads-fabro": '
+            '{"dispatcher": {"ready_aging_threshold_hours": 36}}}'
+        ),
+    )
+
+    assert hasattr(valves, "resolve_ready_aging_threshold_hours")
+    assert _read(valves.resolve_ready_aging_threshold_hours(cwd=cwd)) == 36
+
+
+@pytest.mark.parametrize("raw", ['"24"', "true", "0", "-1"])
+def test_resolve_ready_aging_threshold_hours_fails_when_value_invalid(
+    tmp_path: Path, raw: str
+) -> None:
+    cwd = _write_config(
+        tmp_path=tmp_path,
+        text=f'{{"livespec-orchestrator-beads-fabro": {{"dispatcher": {{"ready_aging_threshold_hours": {raw}}}}}}}',
+    )
+
+    assert hasattr(valves, "resolve_ready_aging_threshold_hours")
+    outcome = valves.resolve_ready_aging_threshold_hours(cwd=cwd)
+
+    assert isinstance(outcome, IOFailure)
+    failure = _failed(outcome)
+    assert failure.setting == "ready_aging_threshold_hours"
+    assert "an integer >= 1" in failure.detail
+    assert (
+        unsafe_perform_io(outcome.value_or(valves.DEFAULT_READY_AGING_THRESHOLD_HOURS))
+        == valves.DEFAULT_READY_AGING_THRESHOLD_HOURS
+    )
+
+
 def test_resolve_wip_cap_fails_on_parse_error(tmp_path: Path) -> None:
     """A config that will not PARSE is a failure, not an unconfigured repo.
 
@@ -213,6 +253,10 @@ def test_dispatcher_policy_settings_default_when_no_config(tmp_path: Path) -> No
         _read(valves.resolve_acceptance_rework_cap(cwd=tmp_path))
         == valves.DEFAULT_ACCEPTANCE_REWORK_CAP
     )
+    assert (
+        _read(valves.resolve_ready_aging_threshold_hours(cwd=tmp_path))
+        == valves.DEFAULT_READY_AGING_THRESHOLD_HOURS
+    )
     assert _read(resolve_wip_cap(cwd=tmp_path)) == DEFAULT_WIP_CAP
 
 
@@ -226,6 +270,7 @@ def test_dispatcher_policy_settings_read_explicit_values(tmp_path: Path) -> None
             '"acceptance_mode": "human-only",'
             '"review_fix_cap": 4,'
             '"acceptance_rework_cap": 5,'
+            '"ready_aging_threshold_hours": 48,'
             '"wip_cap": 6'
             "}}}"
         ),
@@ -236,6 +281,7 @@ def test_dispatcher_policy_settings_read_explicit_values(tmp_path: Path) -> None
     assert _read(valves.resolve_acceptance_mode(cwd=cwd)) == "human-only"
     assert _read(valves.resolve_review_fix_cap(cwd=cwd)) == 4
     assert _read(valves.resolve_acceptance_rework_cap(cwd=cwd)) == 5
+    assert _read(valves.resolve_ready_aging_threshold_hours(cwd=cwd)) == 48
     assert _read(resolve_wip_cap(cwd=cwd)) == 6
 
 
@@ -247,13 +293,14 @@ def test_dispatcher_policy_settings_read_explicit_values(tmp_path: Path) -> None
         ("acceptance_mode", '"sometimes"', valves.resolve_acceptance_mode),
         ("review_fix_cap", "true", valves.resolve_review_fix_cap),
         ("acceptance_rework_cap", "0", valves.resolve_acceptance_rework_cap),
+        ("ready_aging_threshold_hours", '"24"', "resolve_ready_aging_threshold_hours"),
     ],
 )
 def test_dispatcher_policy_settings_fail_on_wrong_typed_values(
     tmp_path: Path,
     key: str,
     raw: str,
-    reader: Callable[..., IOResult[object, PolicySettingUnreadable]],
+    reader: Callable[..., IOResult[object, PolicySettingUnreadable]] | str,
 ) -> None:
     """The WRONG key fails; the settings beside it still read their defaults.
 
@@ -266,7 +313,12 @@ def test_dispatcher_policy_settings_fail_on_wrong_typed_values(
         text=(f'{{"livespec-orchestrator-beads-fabro": {{"dispatcher": {{"{key}": {raw}}}}}}}'),
     )
 
-    outcome = reader(cwd=cwd)
+    if isinstance(reader, str):
+        assert hasattr(valves, reader)
+        resolved_reader = getattr(valves, reader)
+    else:
+        resolved_reader = reader
+    outcome = resolved_reader(cwd=cwd)
 
     assert isinstance(outcome, IOFailure)
     assert _failed(outcome).setting == key

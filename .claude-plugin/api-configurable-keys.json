@@ -37,6 +37,12 @@
       "per_item_override": true
     },
     {
+      "key": "ready_aging_threshold_hours",
+      "type": "positive_integer",
+      "default": 24,
+      "per_item_override": false
+    },
+    {
       "key": "wip_cap",
       "type": "non_negative_integer",
       "default": 5,

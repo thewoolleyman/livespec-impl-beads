@@ -54,6 +54,7 @@ __all__: list[str] = [
     "DEFAULT_ADMISSION_POLICY",
     "DEFAULT_AUTO_APPROVE_READY",
     "DEFAULT_MERGE_ON_REVIEW_CAP",
+    "DEFAULT_READY_AGING_THRESHOLD_HOURS",
     "DEFAULT_REVIEW_FIX_CAP",
     "DEFAULT_WIP_CAP",
     "MERGE_ON_REVIEW_CAP_LABEL",
@@ -68,6 +69,7 @@ __all__: list[str] = [
     "resolve_acceptance_rework_cap",
     "resolve_auto_approve_ready",
     "resolve_merge_on_review_cap",
+    "resolve_ready_aging_threshold_hours",
     "resolve_review_fix_cap",
     "resolve_wip_cap",
 ]
@@ -79,6 +81,7 @@ DEFAULT_ADMISSION_POLICY = "manual"
 DEFAULT_ACCEPTANCE_POLICY = "ai-then-human"
 DEFAULT_REVIEW_FIX_CAP = 3
 DEFAULT_ACCEPTANCE_REWORK_CAP = 2
+DEFAULT_READY_AGING_THRESHOLD_HOURS = 24
 
 _AUTO_ADMISSION = "auto"
 _LIVESPEC_CONFIG = ".livespec.jsonc"
@@ -90,6 +93,7 @@ _MERGE_ON_REVIEW_CAP_KEY = "merge_on_review_cap"
 _ACCEPTANCE_MODE_KEY = "acceptance_mode"
 _REVIEW_FIX_CAP_KEY = "review_fix_cap"
 _ACCEPTANCE_REWORK_CAP_KEY = "acceptance_rework_cap"
+_READY_AGING_THRESHOLD_HOURS_KEY = "ready_aging_threshold_hours"
 MERGE_ON_REVIEW_CAP_LABEL = "merge-on-review-cap:"
 REVIEW_FIX_CAP_LABEL = "review-fix-cap:"
 ACCEPTANCE_REWORK_CAP_LABEL = "acceptance-rework-cap:"
@@ -147,6 +151,16 @@ def resolve_acceptance_rework_cap(*, cwd: Path) -> IOResult[int, PolicySettingUn
     """Read `dispatcher.acceptance_rework_cap`, defaulting to 2."""
     return _resolve_int_setting(
         cwd=cwd, key=_ACCEPTANCE_REWORK_CAP_KEY, default=DEFAULT_ACCEPTANCE_REWORK_CAP, minimum=1
+    )
+
+
+def resolve_ready_aging_threshold_hours(*, cwd: Path) -> IOResult[int, PolicySettingUnreadable]:
+    """Read `dispatcher.ready_aging_threshold_hours`, defaulting to 24."""
+    return _resolve_int_setting(
+        cwd=cwd,
+        key=_READY_AGING_THRESHOLD_HOURS_KEY,
+        default=DEFAULT_READY_AGING_THRESHOLD_HOURS,
+        minimum=1,
     )
 
 
