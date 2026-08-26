@@ -384,6 +384,23 @@ def _add_dispatch_common(*, parser: argparse.ArgumentParser) -> None:
     _ = parser.add_argument("--fabro-bin", dest="fabro_bin", default=None)
     _ = parser.add_argument("--janitor", dest="janitor", default=None)
     _ = parser.add_argument("--journal", dest="journal", default=None)
+    # The PER-DISPATCH adapter layer of `SPECIFICATION/contracts.md`. It is an
+    # ARGUMENT and never an environment variable, on purpose: an ad-hoc shell
+    # must not be able to re-provider the factory with nothing in the record,
+    # so the override is given on the command line and journaled on the
+    # dispatch record. Repeatable, one node per occurrence.
+    _ = parser.add_argument(
+        "--acp-node",
+        dest="acp_node",
+        action="append",
+        default=None,
+        metavar="NODE=ADAPTER",
+        help=(
+            "override one ACP node's adapter for this dispatch only, as a complete "
+            "adapter command line (leading KEY=value env assignments, then the "
+            "command and its arguments); repeatable"
+        ),
+    )
     _ = parser.add_argument("--poll-attempts", dest="poll_attempts", type=int, default=80)
     _ = parser.add_argument(
         "--poll-interval-seconds",

@@ -92,7 +92,7 @@ digraph ImplementWorkItem {
     implement [
         label="Implement (Red-Green-Replay)"
         backend="acp"
-        acp.command="{{ inputs.acp_adapter }}"
+        acp.command="{{ inputs.implement_adapter }}"
         timeout="1800s"
         max_retries=1
         goal_gate=true
@@ -129,7 +129,7 @@ digraph ImplementWorkItem {
     fix [
         label="Fix janitor failures"
         backend="acp"
-        acp.command="{{ inputs.acp_adapter }}"
+        acp.command="{{ inputs.fix_adapter }}"
         timeout="1800s"
         max_visits=3
         prompt="@prompts/fix.md"
@@ -142,12 +142,12 @@ digraph ImplementWorkItem {
     // when pr did NOT fail — it exists to satisfy fabro's
     // goal_gate_has_retry lint alongside the real node-retry budget.
     //
-    // Runs on `pr_adapter`, NOT the shared implementer `acp_adapter`: this node
+    // Runs on `pr_adapter`, NOT an implementer adapter: this node
     // executes a fixed `git`/`gh` publish recipe (@prompts/pr.md) with no design
     // judgement in it, so it takes the cheap Codex tier while implement / fix /
     // review_fix stay on the implementer tier. Both adapters are rendered by the
-    // Dispatcher from the dispatch target's `dispatcher.codex_models` config
-    // (commands/_config.py `resolve_codex_model_tiers`); the model rides the
+    // Dispatcher from the dispatch target's `dispatcher.acp_nodes` /
+    // `dispatcher.codex_models` config (commands/_acp_node_layers.py); the model rides the
     // adapter's own `-c model=` override because fabro REJECTS `model` /
     // `reasoning_effort` as acp node attrs, exactly as the review node's
     // ANTHROPIC_MODEL prefix does on the Claude side.
@@ -219,7 +219,7 @@ digraph ImplementWorkItem {
     review_fix [
         label="Implement accepted review findings"
         backend="acp"
-        acp.command="{{ inputs.acp_adapter }}"
+        acp.command="{{ inputs.review_fix_adapter }}"
         timeout="1800s"
         max_visits=10
         prompt="@prompts/review-fix.md"

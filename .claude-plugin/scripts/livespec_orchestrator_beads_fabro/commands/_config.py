@@ -61,6 +61,7 @@ from __future__ import annotations
 
 import os
 import shutil
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -69,6 +70,10 @@ from returns.io import IOFailure, IOResult, IOSuccess
 from returns.unsafe import unsafe_perform_io
 
 from livespec_orchestrator_beads_fabro.commands import _jsonc
+from livespec_orchestrator_beads_fabro.commands._acp_node_adapters import AcpNodeOverlay
+from livespec_orchestrator_beads_fabro.commands._acp_node_repository import (
+    repository_acp_overlays,
+)
 from livespec_orchestrator_beads_fabro.commands._codex_model_tiers import (
     CodexModelTiers,
     codex_model_tiers_from_block,
@@ -86,9 +91,9 @@ from livespec_orchestrator_beads_fabro.types import StoreConfig
 __all__: list[str] = [
     "ConfigUnreadable",
     "FactoryTarget",
-    "has_explicit_codex_implementer_model",
     "has_fabro_factories",
     "has_fabro_factory",
+    "resolve_acp_node_overlays",
     "resolve_codex_model_tiers",
     "resolve_credential_wrapper",
     "resolve_fabro_bin",
@@ -223,6 +228,18 @@ def resolve_codex_model_tiers(*, cwd: Path) -> CodexModelTiers:
     return codex_model_tiers_from_block(block=_dispatcher_block_or_raise(cwd=cwd))
 
 
+def resolve_acp_node_overlays(*, cwd: Path) -> Mapping[str, AcpNodeOverlay] | str:
+    """Resolve the dispatch target's per-node adapter overlays from its .livespec.jsonc.
+
+    The policy itself -- the two spellings, the `codex_models` shorthand
+    and its asymmetric expansion -- lives in `_acp_node_repository`; this
+    is the config-reading seam that feeds it. A refusal comes back as its
+    message so the caller can report it as a failed dispatch before any
+    run exists.
+    """
+    return repository_acp_overlays(block=_dispatcher_block_or_raise(cwd=cwd))
+
+
 def resolve_node_timeouts(*, cwd: Path) -> NodeTimeouts | str:
     """Resolve the dispatch target's node timeouts from its .livespec.jsonc.
 
@@ -235,14 +252,13 @@ def resolve_node_timeouts(*, cwd: Path) -> NodeTimeouts | str:
     return node_timeouts_from_block(block=_dispatcher_block_or_raise(cwd=cwd))
 
 
-def has_explicit_codex_implementer_model(*, cwd: Path) -> bool:
-    """Return whether the target explicitly routes implementer work to Codex."""
-    block = _dispatcher_block_or_raise(cwd=cwd)
-    models_raw = block.get("codex_models")
-    if not isinstance(models_raw, dict):
-        return False
-    implementer_raw = cast("dict[str, Any]", models_raw).get("implementer")
-    return isinstance(implementer_raw, dict)
+# `has_explicit_codex_implementer_model` used to live here. It answered ONE
+# question -- "does this target route implementer work to Codex?" -- for ONE
+# caller, the engine branch that chose between a hard-coded Claude adapter
+# string and a rendered Codex one. That branch is gone: which adapter a node
+# runs is now resolved from configuration through the three layers, and the
+# same test is made where it belongs, inside the `codex_models` shorthand
+# expansion in `_acp_node_repository`.
 
 
 def resolve_fabro_factory(*, cwd: Path, factory: str | None = None) -> FactoryTarget:

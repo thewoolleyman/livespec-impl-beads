@@ -3825,7 +3825,9 @@ def test_dispatch_green_closes_item_and_journals(
     # The admission valve fires first (`ledger-admit`: ready -> active +
     # assignee), then the per-dispatch workflow payload is materialized and
     # its resolved node timeouts journaled (`node-timeouts`, naming the layer
-    # that supplied each one), then the dispatch journals the correlation id
+    # that supplied each one) and every ACP node's resolved adapter journaled
+    # (`acp-nodes`, naming the layer behind each field), then the dispatch
+    # journals the correlation id
     # (29f.3 — projected into the sandbox's CC OTel OTEL_RESOURCE_ATTRIBUTES
     # so telemetry joins to this dispatch). This hermetic fake outcome has no
     # Fabro run id, but review-gate telemetry is ordered after dispositions so
@@ -3847,6 +3849,7 @@ def test_dispatch_green_closes_item_and_journals(
     assert stages == [
         "ledger-admit",
         "node-timeouts",
+        "acp-nodes",
         "dispatch-id",
         "ledger-complete",
         "acceptance-ai-pass",

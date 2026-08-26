@@ -96,10 +96,34 @@ contents = "write"
 pull_requests = "write"
 
 [run.inputs]
-# ACP coding-agent adapter for the implement/fix/review_fix nodes (the
-# IMPLEMENTER nodes). Defaults to Claude Opus 5 + high thinking; the
-# Dispatcher emits this same adapter unless the dispatch target explicitly
-# names `dispatcher.codex_models.implementer`, in which case it routes the
+# ONE ADAPTER INPUT PER ACP NODE. Every node below declares its own input so
+# each node's adapter, model and reasoning effort is INDEPENDENTLY
+# configurable — `dispatcher.acp_nodes.fix` can move the fix node alone
+# without touching the implementer. The three implementer nodes previously
+# shared a single `acp_adapter`, which made per-node configuration of `fix`
+# or `review_fix` inexpressible no matter what the configuration said; the
+# defaults below are deliberately IDENTICAL for the three, so splitting the
+# input changed the surface and not the behaviour.
+#
+# A node's value is a complete adapter command line: leading `KEY=value`
+# environment assignments (fabro parses them into the child's env), then the
+# command, then its arguments. Model and reasoning effort are NOT separate
+# fields — they ride the env for adapters that read them there
+# (`ANTHROPIC_MODEL`, `CLAUDE_CODE_EFFORT_LEVEL`) and the arguments for
+# adapters that read them from the command line (`-c model=...`). That is
+# what makes ANY provider expressible with no code change: an
+# Anthropic-Messages endpoint is `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`
+# + `ANTHROPIC_MODEL` in the env, and an OpenAI-compatible one is
+# `-c model_provider=<name>` plus its provider definition in the arguments.
+# See `SPECIFICATION/contracts.md` §"ACP node adapter configuration".
+#
+# These are the WORKFLOW-DEFAULTS layer — the least specific of the three.
+# The dispatch target's `dispatcher.acp_nodes` overrides them per node and
+# per field, and a `--acp-node <node>=<adapter>` argument overrides both.
+#
+# IMPLEMENTER NODES: Claude Opus 5 + high thinking. The Dispatcher emits
+# these same adapters unless the dispatch target explicitly names
+# `dispatcher.codex_models.implementer`, in which case it routes the
 # implementer work to a Codex worker.
 #
 # LIVE ACCEPTANCE CHECK, still owed: the review adapter caveat below records
@@ -107,7 +131,9 @@ pull_requests = "write"
 # defaulted to Haiku. The first dispatch after this default switch lands must
 # verify the resolved model in the run transcript; an adapter string assertion
 # does not prove runtime behavior.
-acp_adapter = "ANTHROPIC_MODEL=claude-opus-5 CLAUDE_CODE_EFFORT_LEVEL=high npx -y @agentclientprotocol/claude-agent-acp"
+implement_adapter = "ANTHROPIC_MODEL=claude-opus-5 CLAUDE_CODE_EFFORT_LEVEL=high npx -y @agentclientprotocol/claude-agent-acp"
+fix_adapter = "ANTHROPIC_MODEL=claude-opus-5 CLAUDE_CODE_EFFORT_LEVEL=high npx -y @agentclientprotocol/claude-agent-acp"
+review_fix_adapter = "ANTHROPIC_MODEL=claude-opus-5 CLAUDE_CODE_EFFORT_LEVEL=high npx -y @agentclientprotocol/claude-agent-acp"
 
 # ACP adapter for the PR node. Defaults to an un-pinned Claude adapter so a bare
 # `fabro run` of this config still works; the Dispatcher always overrides it
@@ -115,10 +141,9 @@ acp_adapter = "ANTHROPIC_MODEL=claude-opus-5 CLAUDE_CODE_EFFORT_LEVEL=high npx -
 # the target repo's `dispatcher.codex_models.pr` tier (built-in default
 # `gpt-5.4-mini` at `high`).
 #
-# It exists as a SEPARATE input from `acp_adapter` so the publish node's model
-# moves independently of the implementer's. The pr prompt is a fixed `git`/`gh`
-# recipe, so it does not need the implementer tier; implement / fix / review_fix
-# continue to share `acp_adapter`.
+# It exists as a SEPARATE input from the implementer adapters so the publish
+# node's model moves independently of theirs. The pr prompt is a fixed
+# `git`/`gh` recipe, so it does not need the implementer tier.
 pr_adapter = "npx -y @agentclientprotocol/claude-agent-acp"
 
 # ACP adapter for the REVIEW node (Slice A / bd-ib-egms32) — the Claude
@@ -130,7 +155,7 @@ pr_adapter = "npx -y @agentclientprotocol/claude-agent-acp"
 # CLAUDE_CODE_EFFORT_LEVEL onto the command (fabro parses leading KEY=val
 # assignments into the child's env).
 #
-# SAME PACKAGE AS `acp_adapter` ABOVE, AND VERSION-LESS FOR THE SAME REASON.
+# SAME PACKAGE AS THE IMPLEMENTER ADAPTERS ABOVE, AND VERSION-LESS FOR THE SAME REASON.
 # This used to read `npx -y @zed-industries/claude-code-acp@latest`. That name
 # is the DEPRECATED FORMER NAME of @agentclientprotocol/claude-agent-acp — npm
 # says so outright ("This package has been renamed to
@@ -144,7 +169,7 @@ pr_adapter = "npx -y @agentclientprotocol/claude-agent-acp"
 # one adapter, ~28 minor versions apart, and the review node could never receive
 # an upstream fix. Dropping the name and the `@latest` resolves the global baked
 # into the sandbox image (livespec-dev-tooling
-# docker/fabro-sandbox/agent/Dockerfile), exactly as `acp_adapter` already does.
+# docker/fabro-sandbox/agent/Dockerfile), exactly as the implementer adapters do.
 #
 # LIVE ACCEPTANCE CHECK, still owed: a former caveat here recorded that some
 # claude-code-acp versions ignored ANTHROPIC_MODEL and defaulted to haiku. That
@@ -155,7 +180,7 @@ pr_adapter = "npx -y @agentclientprotocol/claude-agent-acp"
 review_adapter = "ANTHROPIC_MODEL=claude-opus-4-8[1m] CLAUDE_CODE_EFFORT_LEVEL=high npx -y @agentclientprotocol/claude-agent-acp"
 
 # ACP adapter for the DISPOSITION node. Defaults to the same un-pinned,
-# implementer-class Claude adapter as `acp_adapter`; maintainers can pin the
+# implementer-class Claude adapter as `implement_adapter`; maintainers can pin the
 # disposition model independently by prefixing adapter-owned env assignments
 # here, using the same ANTHROPIC_MODEL / CLAUDE_CODE_EFFORT_LEVEL mechanism as
 # `review_adapter`.

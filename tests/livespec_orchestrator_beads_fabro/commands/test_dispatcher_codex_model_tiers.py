@@ -12,6 +12,10 @@ import json
 from pathlib import Path
 
 from livespec_orchestrator_beads_fabro.commands import _config
+from livespec_orchestrator_beads_fabro.commands._acp_node_layers import resolve_acp_nodes
+from livespec_orchestrator_beads_fabro.commands._dispatcher_acp_nodes import (
+    dispatch_acp_overlays,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import dispatch_fabro_run_inputs
 from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_argv import CODEX_ADAPTER_BASE
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import build_plan
@@ -21,6 +25,20 @@ _CLAUDE_OPUS_5_ADAPTER = (
     "ANTHROPIC_MODEL=claude-opus-5 CLAUDE_CODE_EFFORT_LEVEL=high "
     "npx -y @agentclientprotocol/claude-agent-acp"
 )
+_CLAUDE_ADAPTER = "npx -y @agentclientprotocol/claude-agent-acp"
+
+# The workflow-defaults layer these tests resolve against — one adapter
+# input per ACP node, mirroring this repo's committed workflow. The
+# `codex_models` shorthand is a PER-REPOSITORY layer, so it must be seen
+# beating these defaults rather than asserted in isolation.
+_WORKFLOW_INPUTS = {
+    "implement_adapter": _CLAUDE_OPUS_5_ADAPTER,
+    "fix_adapter": _CLAUDE_OPUS_5_ADAPTER,
+    "review_fix_adapter": _CLAUDE_OPUS_5_ADAPTER,
+    "pr_adapter": _CLAUDE_ADAPTER,
+    "review_adapter": _CLAUDE_ADAPTER,
+    "disposition_adapter": _CLAUDE_ADAPTER,
+}
 
 
 def _write_dispatcher_config(*, cwd: Path, dispatcher: dict[str, object]) -> None:
@@ -31,6 +49,15 @@ def _write_dispatcher_config(*, cwd: Path, dispatcher: dict[str, object]) -> Non
 
 
 def _dispatch_inputs(*, repo: Path) -> tuple[str, ...]:
+    """The `--input` pairs a dispatch of `repo` renders, adapters resolved."""
+    overlays = _config.resolve_acp_node_overlays(cwd=repo)
+    assert not isinstance(overlays, str), overlays
+    resolution = resolve_acp_nodes(
+        workflow_inputs=_WORKFLOW_INPUTS,
+        repository=overlays,
+        dispatch=dispatch_acp_overlays(overrides=()),
+    )
+    assert not isinstance(resolution, str), resolution
     return dispatch_fabro_run_inputs(
         plan=build_plan(
             repo=repo,
@@ -40,18 +67,52 @@ def _dispatch_inputs(*, repo: Path) -> tuple[str, ...]:
             fabro_bin="fabro",
             janitor=None,
             janitor_checkout=repo / "janitor",
+            acp_nodes=resolution,
         )
     )
+
+
+def _input(*, inputs: tuple[str, ...], name: str) -> str:
+    """The single `--input` pair for one workflow input name."""
+    matches = [pair for pair in inputs if pair.startswith(f"{name}=")]
+    assert len(matches) == 1, (name, inputs)
+    return matches[0]
 
 
 def test_default_dispatch_acp_adapter_is_claude_opus_5(tmp_path: Path) -> None:
     """An unconfigured target defaults implementation work to Claude Opus 5."""
     inputs = _dispatch_inputs(repo=tmp_path)
-    assert inputs[0] == f"acp_adapter={_CLAUDE_OPUS_5_ADAPTER}"
-    assert "@agentclientprotocol/claude-agent-acp" in inputs[0]
+    implement = _input(inputs=inputs, name="implement_adapter")
+    assert implement == f"implement_adapter={_CLAUDE_OPUS_5_ADAPTER}"
+    assert "@agentclientprotocol/claude-agent-acp" in implement
     assert (
-        inputs[1] == f"pr_adapter={CODEX_ADAPTER_BASE} "
+        _input(inputs=inputs, name="pr_adapter") == f"pr_adapter={CODEX_ADAPTER_BASE} "
         "-c model=gpt-5.4-mini -c model_reasoning_effort=high"
+    )
+
+
+def test_a_plan_without_a_resolution_passes_no_adapter_input(tmp_path: Path) -> None:
+    """No resolution means no adapter override, leaving the workflow's own defaults.
+
+    This is what keeps a hard-coded provider out of the package entirely:
+    the un-resolved path does not fall back to an adapter string, it
+    declines to override, and fabro applies the workflow's declared default.
+    """
+    inputs = dispatch_fabro_run_inputs(
+        plan=build_plan(
+            repo=tmp_path,
+            work_item_id="bd-ib-test",
+            workflow_toml=tmp_path / "workflow.toml",
+            goal_file=tmp_path / "goal.md",
+            fabro_bin="fabro",
+            janitor=None,
+            janitor_checkout=tmp_path / "janitor",
+        )
+    )
+    assert not [pair for pair in inputs if pair.endswith("_adapter") or "_adapter=" in pair]
+    assert inputs == (
+        "review_fix_visit_cap=4",
+        "merge_on_review_cap_outcome=__merge_on_review_cap_disabled__",
     )
 
 
@@ -65,7 +126,8 @@ def test_explicit_implementer_pin_keeps_codex_acp_adapter(tmp_path: Path) -> Non
     )
     inputs = _dispatch_inputs(repo=tmp_path)
     assert (
-        inputs[0] == f"acp_adapter={CODEX_ADAPTER_BASE} "
+        _input(inputs=inputs, name="implement_adapter")
+        == f"implement_adapter={CODEX_ADAPTER_BASE} "
         "-c model=gpt-5.4 -c model_reasoning_effort=high"
     )
 
@@ -77,7 +139,9 @@ def test_empty_implementer_model_keeps_codex_base_adapter(tmp_path: Path) -> Non
         dispatcher={"codex_models": {"implementer": {"model": "", "reasoning_effort": "high"}}},
     )
     inputs = _dispatch_inputs(repo=tmp_path)
-    assert inputs[0] == f"acp_adapter={CODEX_ADAPTER_BASE}"
+    assert (
+        _input(inputs=inputs, name="implement_adapter") == f"implement_adapter={CODEX_ADAPTER_BASE}"
+    )
 
 
 def test_implementer_table_without_model_keeps_codex_default_adapter(
@@ -90,7 +154,8 @@ def test_implementer_table_without_model_keeps_codex_default_adapter(
     )
     inputs = _dispatch_inputs(repo=tmp_path)
     assert (
-        inputs[0] == f"acp_adapter={CODEX_ADAPTER_BASE} "
+        _input(inputs=inputs, name="implement_adapter")
+        == f"implement_adapter={CODEX_ADAPTER_BASE} "
         "-c model=gpt-5.5 -c model_reasoning_effort=high"
     )
 

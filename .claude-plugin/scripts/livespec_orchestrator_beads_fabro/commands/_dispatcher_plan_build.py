@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from livespec_orchestrator_beads_fabro.commands._acp_node_layers import AcpNodeResolution
 from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_argv import (
     janitor_argv_with_default,
     janitor_core_checkout_path,
@@ -60,6 +61,19 @@ class DispatchPlan:
     janitor_core_ref: str
     review_fix_visit_cap: int
     merge_on_review_cap_outcome: str
+    # Every ACP node's adapter, already resolved through the workflow /
+    # repository / per-dispatch layers (`_acp_node_layers`). It rides the
+    # plan rather than being re-resolved at launch because BOTH launchers
+    # render the `--input` pairs from it, and because the resolution is
+    # what the dispatch record already journaled -- re-deriving it at
+    # launch is how the record and the run come to disagree.
+    #
+    # None is NOT a provider fallback: it means this plan carried no
+    # resolution, so the dispatch passes NO adapter `--input` at all and
+    # the workflow's own declared defaults stand. That is layer 1 doing
+    # its job through fabro rather than through us, which is why no
+    # adapter string survives anywhere in this package as a literal.
+    acp_nodes: AcpNodeResolution | None = None
     # The `fabro run` subprocess ceiling, DERIVED from this dispatch's
     # resolved node timeouts and stall timeout rather than fixed by a
     # constant — so lengthening a node cannot outrun the poller and
@@ -85,6 +99,7 @@ def build_plan(  # noqa: PLR0913 — kw-only plan resolver; each field is an ind
     review_fix_cap: int = DEFAULT_REVIEW_FIX_CAP,
     merge_on_review_cap: bool = DEFAULT_MERGE_ON_REVIEW_CAP,
     fabro_timeout_seconds: float = DEFAULT_FABRO_TIMEOUT_SECONDS,
+    acp_nodes: AcpNodeResolution | None = None,
 ) -> DispatchPlan:
     """Resolve the per-item dispatch plan (publish branch, argv config)."""
     return DispatchPlan(
@@ -107,4 +122,5 @@ def build_plan(  # noqa: PLR0913 — kw-only plan resolver; each field is an ind
             "succeeded" if merge_on_review_cap else _MERGE_ON_REVIEW_CAP_DISABLED_OUTCOME
         ),
         fabro_timeout_seconds=fabro_timeout_seconds,
+        acp_nodes=acp_nodes,
     )

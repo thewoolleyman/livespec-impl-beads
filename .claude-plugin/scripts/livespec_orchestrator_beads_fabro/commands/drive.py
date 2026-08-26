@@ -54,8 +54,16 @@ def run_action(
     action_id: str,
     runner: CommandRunner | None = None,
     dispatcher_bin: Path | None = None,
+    acp_nodes: tuple[str, ...] = (),
 ) -> dict[str, Any]:
-    """Run one selected action-id."""
+    """Run one selected action-id.
+
+    `acp_nodes` carries the per-dispatch ACP adapter overrides through to
+    the Dispatcher unchanged. They are forwarded rather than interpreted
+    here: `drive` is a transport onto `dispatcher.py loop`, and the layer
+    that validates a node name is the one that also knows which workflow
+    the dispatch will run.
+    """
     if is_human_valve_action(action_id=action_id):
         return run_human_valve_action(repo=repo, action_id=action_id, runner=runner)
     if is_config_action(action_id=action_id):
@@ -86,6 +94,7 @@ def run_action(
         repo=repo,
         dispatcher_bin=resolved_dispatcher,
         work_item_ref=work_item_ref,
+        acp_nodes=acp_nodes,
     )
     result = resolved_runner(argv=argv, cwd=repo)
     parsed = _parse_json_object_or_array(text=result.stdout)
@@ -110,7 +119,15 @@ def build_dispatcher_argv(
     repo: Path,
     dispatcher_bin: Path,
     work_item_ref: str,
+    acp_nodes: tuple[str, ...] = (),
 ) -> tuple[str, ...]:
+    """Build the `dispatcher.py loop` argv one `impl:<id>` action runs.
+
+    Each ACP adapter override becomes its own `--acp-node NODE=ADAPTER`
+    pair, so the value reaches the Dispatcher as a single argv element and
+    an adapter carrying spaces survives without quoting games.
+    """
+    overrides = tuple(element for override in acp_nodes for element in ("--acp-node", override))
     return (
         "python3",
         str(dispatcher_bin),
@@ -123,6 +140,7 @@ def build_dispatcher_argv(
         "1",
         "--item",
         work_item_ref,
+        *overrides,
         "--json",
     )
 
@@ -138,7 +156,12 @@ def main(*, argv: list[str] | None = None, runner: CommandRunner | None = None) 
     if not repo.exists():
         _ = write_stderr(text=f"ERROR: --repo does not exist: {repo}\n")
         return _EXIT_PRECONDITION_ERROR
-    result = run_action(repo=repo, action_id=args.action, runner=runner)
+    result = run_action(
+        repo=repo,
+        action_id=args.action,
+        runner=runner,
+        acp_nodes=tuple(args.acp_node or ()),
+    )
     _emit_payload(payload=result, as_json=args.as_json)
     return _exit_code_for_status(status=str(result["status"]))
 
@@ -180,6 +203,21 @@ def _build_parser() -> argparse.ArgumentParser:
     _ = parser.add_argument("retired_subcommand", nargs="?")
     _ = parser.add_argument("--repo", dest="repo", required=False, default=None)
     _ = parser.add_argument("--action", dest="action", required=False, default=None)
+    # The PER-DISPATCH ACP adapter layer, reachable from the operator
+    # surface as well as from `dispatcher.py` directly. It is an ARGUMENT
+    # and never an environment variable so the override lands in the
+    # recorded argv and on the dispatch record.
+    _ = parser.add_argument(
+        "--acp-node",
+        dest="acp_node",
+        action="append",
+        default=None,
+        metavar="NODE=ADAPTER",
+        help=(
+            "override one ACP node's adapter for this dispatch only, as a complete "
+            "adapter command line; repeatable"
+        ),
+    )
     _ = parser.add_argument("--json", dest="as_json", action="store_true")
     return parser
 
