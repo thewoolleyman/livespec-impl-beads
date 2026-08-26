@@ -1,23 +1,48 @@
-"""Minimal action-id executor for the drive operator surface."""
+"""Minimal action-id executor for the drive operator surface.
+
+`drive` is a published state-changing entry point, so per the journal invoker
+attribution contract in `SPECIFICATION/contracts.md` it accepts
+`--invoker <id>` and otherwise honors `LIVESPEC_INVOKER`, falling back to the
+`unattributed:<os-user>@<hostname>` MARK. The resolved identity is threaded
+into the human-valve journal writes and forwarded to `dispatcher.py loop` on
+an `impl:` dispatch, so one operator act is attributed the same way wherever it
+lands. Its two READ-ONLY actions (`config`, `config-manifest`) resolve identity
+identically but are never refused on attribution grounds.
+
+This module is the CLI supervisor and action ROUTER: parse, refuse, pick a
+handler, render. The handlers live beside it — `_drive_valves` for the human
+valves, `_drive_config` for the settings surface, and `_drive_impl_dispatch`
+for the one handler that shells out to the Dispatcher.
+"""
 
 from __future__ import annotations
 
 import argparse
 import json
-import subprocess
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol, cast
+from typing import Any, cast
 
+from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import (
+    InvokerIdentity,
+    add_invoker_argument,
+    default_invoker_identity,
+    invoker_from_args,
+    require_invoker_refusal,
+)
 from livespec_orchestrator_beads_fabro.commands._drive_config import (
     is_config_action,
     run_config_action,
+)
+from livespec_orchestrator_beads_fabro.commands._drive_impl_dispatch import (
+    CommandRun,
+    CommandRunner,
+    build_dispatcher_argv,
+    run_impl_dispatch,
 )
 from livespec_orchestrator_beads_fabro.commands._drive_valves import (
     is_human_valve_action,
     run_human_valve_action,
 )
-from livespec_orchestrator_beads_fabro.effects import JsonParseFailure, parse_json
 from livespec_orchestrator_beads_fabro.io import write_stderr, write_stdout
 
 __all__: list[str] = [
@@ -28,24 +53,29 @@ __all__: list[str] = [
     "run_human_valve_action",
 ]
 
-
-@dataclass(frozen=True, kw_only=True)
-class CommandRun:
-    argv: tuple[str, ...]
-    returncode: int
-    stdout: str
-    stderr: str
-
-
-class CommandRunner(Protocol):
-    def __call__(self, *, argv: tuple[str, ...], cwd: Path | None = None) -> CommandRun:
-        """Run argv and return captured output."""
-        ...
-
-
 _EXIT_FAILURE = 1
 _EXIT_PRECONDITION_ERROR = 3
 _EXIT_BLOCKED = 4
+_IMPL_PREFIX = "impl:"
+
+# The drive actions that only READ. Per the journal invoker attribution contract
+# in contracts.md, a read-only invocation resolves and stamps identity
+# identically when it journals, but is never REFUSED on attribution grounds.
+_READ_ONLY_ACTIONS = frozenset({"config", "config-manifest"})
+
+_UNSUPPORTED_ACTION_SUMMARY = (
+    "Unsupported action id; expected 'impl:<id>', 'approve:<id>', "
+    "'accept:<id>', 'reject:<id>:rework|regroom', "
+    "'set-admission:<id>:auto|manual', "
+    "'set-acceptance:<id>:ai-only|human-only|ai-then-human', "
+    "'set-workflow-scope-override:<id>:citation-only', "
+    "'set-merge-on-review-cap:<id>:true|false', "
+    "'set-review-fix-cap:<id>:<positive-int>', "
+    "'set-acceptance-rework-cap:<id>:<positive-int>' "
+    "(any set-*-cap accepts 'clear' as the value to inherit-global), "
+    "'move:<id>:backlog|ready|blocked', "
+    "'config', 'config-manifest', or 'set-config:<key>:<value>'."
+)
 
 
 def run_action(
@@ -55,6 +85,7 @@ def run_action(
     runner: CommandRunner | None = None,
     dispatcher_bin: Path | None = None,
     acp_nodes: tuple[str, ...] = (),
+    identity: InvokerIdentity | None = None,
 ) -> dict[str, Any]:
     """Run one selected action-id.
 
@@ -63,85 +94,32 @@ def run_action(
     here: `drive` is a transport onto `dispatcher.py loop`, and the layer
     that validates a node name is the one that also knows which workflow
     the dispatch will run.
+
+    `identity` is the invocation's resolved invoker. `None` means "resolve it
+    from the environment here" so a direct caller is still attributed; the CLI
+    supervisor passes the identity it resolved, flag included.
     """
+    resolved_identity = default_invoker_identity() if identity is None else identity
     if is_human_valve_action(action_id=action_id):
-        return run_human_valve_action(repo=repo, action_id=action_id, runner=runner)
+        return run_human_valve_action(
+            repo=repo, action_id=action_id, runner=runner, identity=resolved_identity
+        )
     if is_config_action(action_id=action_id):
         return run_config_action(repo=repo, action_id=action_id)
-    if not action_id.startswith("impl:"):
+    if not action_id.startswith(_IMPL_PREFIX):
         return {
             "action_id": action_id,
             "kind": "unknown",
             "status": "failed",
-            "summary": (
-                "Unsupported action id; expected 'impl:<id>', 'approve:<id>', "
-                "'accept:<id>', 'reject:<id>:rework|regroom', "
-                "'set-admission:<id>:auto|manual', "
-                "'set-acceptance:<id>:ai-only|human-only|ai-then-human', "
-                "'set-workflow-scope-override:<id>:citation-only', "
-                "'set-merge-on-review-cap:<id>:true|false', "
-                "'set-review-fix-cap:<id>:<positive-int>', "
-                "'set-acceptance-rework-cap:<id>:<positive-int>' "
-                "(any set-*-cap accepts 'clear' as the value to inherit-global), "
-                "'move:<id>:backlog|ready|blocked', "
-                "'config', 'config-manifest', or 'set-config:<key>:<value>'."
-            ),
+            "summary": _UNSUPPORTED_ACTION_SUMMARY,
         }
-    work_item_ref = action_id.removeprefix("impl:")
-    resolved_runner = _SubprocessRunner() if runner is None else runner
-    resolved_dispatcher = _resolve_dispatcher_bin(dispatcher_bin=dispatcher_bin)
-    argv = build_dispatcher_argv(
+    return run_impl_dispatch(
         repo=repo,
-        dispatcher_bin=resolved_dispatcher,
-        work_item_ref=work_item_ref,
+        work_item_ref=action_id.removeprefix(_IMPL_PREFIX),
+        runner=runner,
+        dispatcher_bin=dispatcher_bin,
         acp_nodes=acp_nodes,
-    )
-    result = resolved_runner(argv=argv, cwd=repo)
-    parsed = _parse_json_object_or_array(text=result.stdout)
-    status = _dispatch_status(returncode=result.returncode, parsed=parsed)
-    return {
-        "action_id": action_id,
-        "kind": "impl",
-        "work_item_ref": work_item_ref,
-        "status": status,
-        "dispatcher": {
-            "argv": list(argv),
-            "exit_code": result.returncode,
-            "stdout_json": parsed,
-            "stderr": result.stderr,
-        },
-        "summary": _dispatch_summary(status=status, work_item_ref=work_item_ref),
-    }
-
-
-def build_dispatcher_argv(
-    *,
-    repo: Path,
-    dispatcher_bin: Path,
-    work_item_ref: str,
-    acp_nodes: tuple[str, ...] = (),
-) -> tuple[str, ...]:
-    """Build the `dispatcher.py loop` argv one `impl:<id>` action runs.
-
-    Each ACP adapter override becomes its own `--acp-node NODE=ADAPTER`
-    pair, so the value reaches the Dispatcher as a single argv element and
-    an adapter carrying spaces survives without quoting games.
-    """
-    overrides = tuple(element for override in acp_nodes for element in ("--acp-node", override))
-    return (
-        "python3",
-        str(dispatcher_bin),
-        "loop",
-        "--repo",
-        str(repo),
-        "--budget",
-        "1",
-        "--parallel",
-        "1",
-        "--item",
-        work_item_ref,
-        *overrides,
-        "--json",
+        identity=resolved_identity,
     )
 
 
@@ -156,14 +134,36 @@ def main(*, argv: list[str] | None = None, runner: CommandRunner | None = None) 
     if not repo.exists():
         _ = write_stderr(text=f"ERROR: --repo does not exist: {repo}\n")
         return _EXIT_PRECONDITION_ERROR
+    refusal_exit = _invoker_refusal_exit(args=args, repo=repo)
+    if refusal_exit is not None:
+        return refusal_exit
     result = run_action(
         repo=repo,
         action_id=args.action,
         runner=runner,
         acp_nodes=tuple(args.acp_node or ()),
+        identity=invoker_from_args(args=args),
     )
     _emit_payload(payload=result, as_json=args.as_json)
     return _exit_code_for_status(status=str(result["status"]))
+
+
+def _invoker_refusal_exit(*, args: argparse.Namespace, repo: Path) -> int | None:
+    """Refuse an unattributed STATE-CHANGING invocation before `run_action`.
+
+    Called from the supervisor rather than from a handler on purpose: at this
+    point no valve has read the store, no journal line has been written, and no
+    dispatch has been spawned. The two read-only actions are exempt — the
+    contract refuses state-changing invocations on attribution grounds, reads
+    never.
+    """
+    if args.action in _READ_ONLY_ACTIONS:
+        return None
+    refusal = require_invoker_refusal(args=args, repo=repo)
+    if refusal is None:
+        return None
+    _ = write_stderr(text=refusal)
+    return _EXIT_PRECONDITION_ERROR
 
 
 def _exit_code_for_status(*, status: str) -> int:
@@ -179,23 +179,6 @@ def _resolve_repo(*, repo_arg: str | None) -> Path:
     if repo_arg is None:
         return Path.cwd()
     return Path(repo_arg)
-
-
-class _SubprocessRunner:
-    def __call__(self, *, argv: tuple[str, ...], cwd: Path | None = None) -> CommandRun:
-        completed = subprocess.run(  # noqa: S603 - argv is constructed without shell.
-            argv,
-            check=False,
-            cwd=cwd,
-            text=True,
-            capture_output=True,
-        )
-        return CommandRun(
-            argv=argv,
-            returncode=completed.returncode,
-            stdout=completed.stdout,
-            stderr=completed.stderr,
-        )
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -218,37 +201,9 @@ def _build_parser() -> argparse.ArgumentParser:
             "adapter command line; repeatable"
         ),
     )
+    add_invoker_argument(parser=parser)
     _ = parser.add_argument("--json", dest="as_json", action="store_true")
     return parser
-
-
-def _dispatch_status(*, returncode: int, parsed: object) -> str:
-    if isinstance(parsed, list) and parsed:
-        parsed_list = cast("list[object]", parsed)
-        first = parsed_list[0]
-        if isinstance(first, dict):
-            first_dict = cast("dict[str, object]", first)
-            status = first_dict.get("status")
-            if isinstance(status, str):
-                return status
-    if returncode == 0:
-        return "green"
-    return "failed"
-
-
-def _dispatch_summary(*, status: str, work_item_ref: str) -> str:
-    if status == "green":
-        return f"Dispatcher reported green for {work_item_ref}."
-    if status == "blocked":
-        return f"Dispatcher reported a human-gated blocked run for {work_item_ref}."
-    return f"Dispatcher did not report green for {work_item_ref}."
-
-
-def _parse_json_object_or_array(*, text: str) -> object:
-    parsed = parse_json(text=text)
-    if isinstance(parsed, JsonParseFailure):
-        return None
-    return parsed
 
 
 def _emit_payload(*, payload: dict[str, Any], as_json: bool) -> None:
@@ -273,13 +228,3 @@ def _run_markdown(*, payload: dict[str, Any]) -> str:
         lines.append(f"- dispatcher exit code: {dispatcher_dict.get('exit_code')}")
     lines.append(f"- {payload.get('summary', '')}")
     return "\n".join(lines)
-
-
-def _resolve_dispatcher_bin(*, dispatcher_bin: Path | None) -> Path:
-    if dispatcher_bin is not None:
-        return dispatcher_bin
-    return _scripts_root() / "bin" / "dispatcher.py"
-
-
-def _scripts_root() -> Path:
-    return Path(__file__).resolve().parents[2]

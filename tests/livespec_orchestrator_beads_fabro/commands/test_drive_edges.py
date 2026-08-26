@@ -8,6 +8,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 import pytest
+from livespec_orchestrator_beads_fabro.commands import _drive_impl_dispatch as impl_dispatch
 from livespec_orchestrator_beads_fabro.commands import _drive_valves as drive_valves
 from livespec_orchestrator_beads_fabro.commands import drive
 from livespec_orchestrator_beads_fabro.commands.drive import CommandRun
@@ -400,7 +401,9 @@ def test_run_action_without_injected_runner_uses_subprocess_runner(
         assert kwargs["capture_output"] is True
         return _Completed(returncode=0, stdout=json.dumps([{"status": "green"}]), stderr="")
 
-    monkeypatch.setattr(drive.subprocess, "run", fake_run)
+    # The subprocess seam moved with the impl-dispatch transport; patch it where
+    # it now lives rather than through `drive`, which no longer imports it.
+    monkeypatch.setattr(impl_dispatch.subprocess, "run", fake_run)
 
     result = drive.run_action(repo=repo, action_id="impl:bd-ib-123")
 
@@ -414,6 +417,59 @@ def test_main_without_action_reports_usage(capsys: pytest.CaptureFixture[str]) -
 
     assert exc_info.value.code == 2
     assert "the following arguments are required: --action" in capsys.readouterr().err
+
+
+def _require_invoker_repo(*, tmp_path: Path) -> Path:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _ = (repo / ".livespec.jsonc").write_text(
+        '{"livespec-orchestrator-beads-fabro": {"dispatcher": {"require_invoker": true}}}',
+        encoding="utf-8",
+    )
+    return repo
+
+
+def test_main_refuses_an_unattributed_state_changing_action(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Refused at startup: the valve never reads the store or journals."""
+    monkeypatch.delenv("LIVESPEC_INVOKER", raising=False)
+    repo = _require_invoker_repo(tmp_path=tmp_path)
+
+    exit_code = drive.main(argv=["--repo", str(repo), "--action", "accept:bd-ib-123"])
+
+    assert exit_code == 3
+    err = capsys.readouterr().err
+    assert "--invoker" in err
+    assert "LIVESPEC_INVOKER" in err
+
+
+def test_main_admits_an_asserted_state_changing_action(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The discriminating case: the dial refuses UNATTRIBUTED acts, not all acts."""
+    monkeypatch.delenv("LIVESPEC_INVOKER", raising=False)
+    repo = _require_invoker_repo(tmp_path=tmp_path)
+    updates = _install_valve_store(monkeypatch, items=[_item(status="acceptance")])
+
+    exit_code = drive.main(
+        argv=["--repo", str(repo), "--action", "accept:bd-ib-123", "--invoker", "human:cw"]
+    )
+
+    assert exit_code == 0
+    assert updates == [("bd-ib-123", "done", None)]
+
+
+def test_main_never_refuses_a_read_only_action_on_attribution_grounds(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("LIVESPEC_INVOKER", raising=False)
+    repo = _require_invoker_repo(tmp_path=tmp_path)
+
+    exit_code = drive.main(argv=["--repo", str(repo), "--action", "config-manifest", "--json"])
+
+    assert exit_code == 0
+    assert "require_invoker" not in capsys.readouterr().out
 
 
 def test_main_unknown_action_renders_markdown_without_dispatcher(

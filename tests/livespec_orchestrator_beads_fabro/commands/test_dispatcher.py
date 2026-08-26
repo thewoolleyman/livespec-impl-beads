@@ -282,6 +282,21 @@ _real_fetch_fleet_manifest_text = fetch_fleet_manifest_text
 _real_github_token_supplier = github_token_supplier
 
 
+_STAMPED_ENVELOPE_KEYS = ("at", "invoker", "invoker_source")
+
+
+def _journal_payload(*, record: dict[str, object]) -> dict[str, object]:
+    """Drop the append layer's stamped envelope, leaving the writer's payload.
+
+    The stamped `at` / `invoker` / `invoker_source` values depend on the clock
+    and the invoking environment, so an exact-equality assertion about a
+    record's PAYLOAD strips them rather than pinning them. The stamping itself
+    is asserted where it is the subject — `test_dispatcher_journal_stamping.py`
+    and the invoker integration tier — never accidentally here.
+    """
+    return {key: value for key, value in record.items() if key not in _STAMPED_ENVELOPE_KEYS}
+
+
 def _span_attrs(*, line: str) -> dict[str, object]:
     request = json.loads(line)
     resource_spans = cast("list[dict[str, object]]", request["resourceSpans"])
@@ -666,17 +681,20 @@ def test_dispatch_gate_auto_normalizes_beads_native_open(
     assert exit_code == 1
     assert calls == [("native-open", "backlog")]
     records = [json.loads(line) for line in journal.read_text(encoding="utf-8").splitlines()]
-    assert records[0] == {
-        "stage": "status-normalization",
-        "normalized": [
-            {
-                "from": "open",
-                "item_id": "native-open",
-                "reason": "beads-native intake default",
-                "to": "backlog",
-            }
-        ],
-    }
+    # The normalization note now routes through the append layer, so it carries
+    # the stamped envelope (`at` + the resolved invoker) alongside its payload.
+    assert records[0]["stage"] == "status-normalization"
+    assert records[0]["normalized"] == [
+        {
+            "from": "open",
+            "item_id": "native-open",
+            "reason": "beads-native intake default",
+            "to": "backlog",
+        }
+    ]
+    assert records[0]["at"]
+    assert records[0]["invoker"]
+    assert records[0]["invoker_source"] in {"flag", "env", "fallback"}
     assert records[1]["stage"] == "ledger-check"
     assert records[1]["findings"] == [
         {
@@ -3734,9 +3752,9 @@ def test_provider_usage_limit_outcome_records_dispatcher_owned_expiry(
 
     records = [json.loads(line) for line in journal.path.read_text(encoding="utf-8").splitlines()]
     observed = [record for record in records if record["stage"] == "provider-exhaustion-observed"]
-    assert observed == [
+    assert [record["at"] for record in observed] == ["2026-08-23T10:00:00Z"]
+    assert [_journal_payload(record=record) for record in observed] == [
         {
-            "at": "2026-08-23T10:00:00Z",
             "stage": "provider-exhaustion-observed",
             "work_item_id": item.id,
             "provider": "codex",
@@ -4402,7 +4420,12 @@ def test_complete_and_accept_fail_reworks_and_persists_count_across_passes(
         json.loads(line) for line in second_journal.path.read_text(encoding="utf-8").splitlines()
     ]
     rework = next(record for record in records if record["stage"] == "acceptance-auto-rework")
-    assert rework == {
+    # Migrated onto the append layer: this disposition record now carries the
+    # stamped envelope it previously lacked ENTIRELY — it was written by a
+    # direct journal-path open, with no timestamp and no attribution.
+    assert rework["at"]
+    assert rework["invoker_source"] in {"flag", "env", "fallback"}
+    assert _journal_payload(record=rework) == {
         "stage": "acceptance-auto-rework",
         "work_item_id": item.id,
         "policy": "ai-then-human",
@@ -4455,7 +4478,9 @@ def test_complete_and_accept_fail_past_label_cap_blocks_needs_human(
     escalation = next(
         record for record in records if record["stage"] == "acceptance-rework-cap-exceeded"
     )
-    assert escalation == {
+    assert escalation["at"]
+    assert escalation["invoker_source"] in {"flag", "env", "fallback"}
+    assert _journal_payload(record=escalation) == {
         "stage": "acceptance-rework-cap-exceeded",
         "work_item_id": item.id,
         "policy": "ai-only",

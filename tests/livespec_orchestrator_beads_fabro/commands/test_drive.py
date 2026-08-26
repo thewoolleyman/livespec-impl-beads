@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 from livespec_orchestrator_beads_fabro.commands import drive
+from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import InvokerIdentity
 from livespec_orchestrator_beads_fabro.commands.drive import CommandRun, build_dispatcher_argv
 
 
@@ -44,6 +45,30 @@ def test_build_dispatcher_argv_uses_targeted_loop_for_selected_impl_item(tmp_pat
         "bd-ib-123",
         "--json",
     )
+
+
+def test_build_dispatcher_argv_forwards_an_asserted_identity(tmp_path: Path) -> None:
+    """An asserted identity rides through to the spawned Dispatcher as a flag."""
+    argv = build_dispatcher_argv(
+        repo=tmp_path / "repo",
+        dispatcher_bin=tmp_path / "dispatcher.py",
+        work_item_ref="bd-ib-123",
+        identity=InvokerIdentity(invoker="human:cw", invoker_source="flag"),
+    )
+
+    assert argv[3:5] == ("--invoker", "human:cw")
+
+
+def test_build_dispatcher_argv_never_forwards_the_fallback_mark(tmp_path: Path) -> None:
+    """The mark means "nobody asserted"; forwarding it would relabel it `flag`."""
+    argv = build_dispatcher_argv(
+        repo=tmp_path / "repo",
+        dispatcher_bin=tmp_path / "dispatcher.py",
+        work_item_ref="bd-ib-123",
+        identity=InvokerIdentity(invoker="unattributed:cw@box", invoker_source="fallback"),
+    )
+
+    assert "--invoker" not in argv
 
 
 def test_drive_rejects_retired_spec_action_handoffs(tmp_path: Path) -> None:

@@ -9,6 +9,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandResult,
     CommandRunner,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import InvokerIdentity
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
 
 __all__: list[str] = [
@@ -62,9 +63,17 @@ def source_checkout_preflight_refusal(
     )
 
 
-def journal_source_checkout_refusal(*, journal_path: Path, refusal: SourceCheckoutRefusal) -> None:
-    """Persist the distinct terminal preflight outcome in the dispatch journal."""
-    JournalFile(path=journal_path).append(record=refusal.record)
+def journal_source_checkout_refusal(
+    *, journal_path: Path, identity: InvokerIdentity, refusal: SourceCheckoutRefusal
+) -> None:
+    """Persist the distinct terminal preflight outcome in the dispatch journal.
+
+    The refusing invocation's own resolved identity is threaded in rather than
+    re-derived: this record is written from inside a dispatch that may well have
+    passed `--invoker`, and a re-derivation here would silently downgrade that
+    assertion to the environment or the fallback mark.
+    """
+    JournalFile(path=journal_path, identity=identity).append(record=refusal.record)
 
 
 def _is_git_worktree(*, repo: Path, runner: CommandRunner) -> bool:
