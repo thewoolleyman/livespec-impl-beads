@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import shlex
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -46,7 +46,7 @@ class ReadyAgingContext:
 @dataclass(frozen=True, kw_only=True)
 class ReadyAgingSeams:
     live_lock_lookup: Callable[..., object | None]
-    watchable_run_lookup: Callable[..., object | None]
+    watchable_run_item_ids: Callable[..., Collection[str]]
     now_iso: str | None = None
 
 
@@ -71,7 +71,7 @@ def ready_aging_items(
         project_root=context.project_root,
         items=items,
         live_lock_lookup=seams.live_lock_lookup,
-        watchable_run_lookup=seams.watchable_run_lookup,
+        watchable_run_item_ids=seams.watchable_run_item_ids,
     ):
         return []
     threshold_hours = unsafe_perform_io(
@@ -138,12 +138,12 @@ def _dispatch_in_flight(
     project_root: Path,
     items: list[WorkItem],
     live_lock_lookup: Callable[..., object | None],
-    watchable_run_lookup: Callable[..., object | None],
+    watchable_run_item_ids: Callable[..., Collection[str]],
 ) -> bool:
-    return any(
-        live_lock_lookup(repo=project_root, work_item_id=item.id) is not None
-        or watchable_run_lookup(repo=project_root, work_item_id=item.id) is not None
-        for item in items
+    item_ids = frozenset(item.id for item in items)
+    live_watchable_ids = frozenset(watchable_run_item_ids(repo=project_root))
+    return bool(item_ids & live_watchable_ids) or any(
+        live_lock_lookup(repo=project_root, work_item_id=item.id) is not None for item in items
     )
 
 
