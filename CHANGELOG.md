@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.82.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.81.0...v0.82.0) (2026-08-26)
+
+
+### Features
+
+* **dispatcher:** render the Codex ACP adapter at its baked path via CODEX_CONFIG ([1d08013](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/1d080136abc8e95afc79adc63c29b0bfaf27e6fb))
+
 ## [0.81.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.80.1...v0.81.0) (2026-08-26)
 
 
