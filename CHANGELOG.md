@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.76.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.75.1...v0.76.0) (2026-08-26)
+
+
+### Features
+
+* cover complete wait composition ([b33e5d7](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/b33e5d7c06f9be8726b20fff30977709d9f4eca6))
+
+
+### Bug Fixes
+
+* guard needs-attention ownership boundary ([cd6c361](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/cd6c361f0d9d85046158f46e56facad978b4e359))
+
 ## [0.75.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.75.0...v0.75.1) (2026-08-26)
 
 
