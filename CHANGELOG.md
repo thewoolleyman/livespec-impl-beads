@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.75.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.75.0...v0.75.1) (2026-08-26)
+
+
+### Bug Fixes
+
+* allow leased publish retry after rebase ([1a30cdc](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/1a30cdc8e19405f79be41cab674728183351c3c6))
+
 ## [0.75.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.74.0...v0.75.0) (2026-08-25)
 
 
