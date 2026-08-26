@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.84.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.83.0...v0.84.0) (2026-08-26)
+
+
+### Features
+
+* **dispatcher:** stamp journal invoker attribution at the append chokepoint ([d4371ad](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/d4371adcc2fc0d8e4682ecf6e1c9f6605f9ace2b))
+
 ## [0.83.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.82.0...v0.83.0) (2026-08-26)
 
 
