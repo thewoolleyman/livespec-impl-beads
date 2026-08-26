@@ -46,6 +46,8 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     CODEX_ADAPTER_BASE,
+    CODEX_AGENT_MODE_READ_ONLY,
+    CODEX_AGENT_MODE_WRITE,
     build_plan,
     codex_adapter,
     render_run_config_overlay,
@@ -796,6 +798,27 @@ def test_codex_adapter_renders_the_base_command_for_an_unpinned_tier() -> None:
     assert rendered == CODEX_ADAPTER_BASE
     assert '"model"' not in rendered
     assert '"model_reasoning_effort"' not in rendered
+
+
+def test_codex_adapter_renders_a_read_only_agent_mode_on_request() -> None:
+    """The read-only agent mode is the ONLY thing it changes.
+
+    A reviewer performs no writes, so it takes `read-only` where the
+    implementer and publish classes take `agent-full-access`. Asserting the
+    two renderings differ by exactly that substitution is the point: the agent
+    mode must not disturb CODEX_CONFIG, the key order, or the command, and a
+    test that only checked `read-only` was present could not tell.
+    """
+    tier = CodexModelTier(model="gpt-5.6-terra", reasoning_effort="xhigh")
+    read_only = codex_adapter(tier=tier, agent_mode=CODEX_AGENT_MODE_READ_ONLY)
+    write = codex_adapter(tier=tier, agent_mode=CODEX_AGENT_MODE_WRITE)
+
+    assert "INITIAL_AGENT_MODE=read-only" in read_only
+    assert read_only == write.replace(
+        f"INITIAL_AGENT_MODE={CODEX_AGENT_MODE_WRITE}",
+        f"INITIAL_AGENT_MODE={CODEX_AGENT_MODE_READ_ONLY}",
+    )
+    assert write == codex_adapter(tier=tier), "agent-full-access is the default"
 
 
 def test_codex_adapter_appends_model_overrides_for_a_pinned_tier() -> None:
