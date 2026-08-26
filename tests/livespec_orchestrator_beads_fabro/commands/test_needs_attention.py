@@ -41,6 +41,14 @@ def _seed(item: WorkItem) -> None:
     append_work_item(path=_config(), item=item)
 
 
+def _set_ready_since(*, id_: str, ready_since: object) -> None:
+    client = make_beads_client(config=_config())
+    record = client.show_issue(issue_id=id_)
+    metadata = dict(record.get("metadata")) if isinstance(record.get("metadata"), dict) else {}
+    metadata["ready_since"] = ready_since
+    client.update_issue(issue_id=id_, metadata=metadata)
+
+
 def _seed_raw(
     *,
     id_: str,
@@ -79,13 +87,21 @@ def _seed_raw(
 
 
 def _write_config(
-    project_root: Path, *, auto_approve_ready: bool = False, wip_cap: int | None = None
+    project_root: Path,
+    *,
+    auto_approve_ready: bool = False,
+    wip_cap: int | None = None,
+    ready_aging_threshold_hours: int | None = None,
 ) -> None:
     dispatcher_items = []
     if auto_approve_ready:
         dispatcher_items.append(f'      "auto_approve_ready": {str(auto_approve_ready).lower()}')
     if wip_cap is not None:
         dispatcher_items.append(f'      "wip_cap": {wip_cap}')
+    if ready_aging_threshold_hours is not None:
+        dispatcher_items.append(
+            f'      "ready_aging_threshold_hours": {ready_aging_threshold_hours}'
+        )
     dispatcher_body = ",\n".join(dispatcher_items)
     dispatcher = (
         f""",
@@ -562,6 +578,181 @@ def test_build_attention_composes_capacity_residue_from_accounting(tmp_path, mon
     assert not any(item.id == "host-only:stranded-dispatch:bd-unreadable" for item in attention)
     assert journal.is_dir()
     assert original_journal == b""
+
+
+def test_build_attention_surfaces_ready_aging_fact_after_threshold(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_config(tmp_path, ready_aging_threshold_hours=24)
+    _stub_spec_next(monkeypatch, output=None)
+    _seed(_item(id_="bd-oldest", status="ready", rank="a1"))
+    _seed(_item(id_="bd-younger", status="ready", rank="a2"))
+    _set_ready_since(id_="bd-oldest", ready_since="2026-08-24T00:00:00Z")
+    _set_ready_since(id_="bd-younger", ready_since="2026-08-25T12:00:00Z")
+    monkeypatch.setattr(
+        needs_attention,
+        "_utc_now_iso",
+        lambda: "2026-08-26T12:00:00Z",
+        raising=False,
+    )
+
+    attention = build_attention(
+        project_root=tmp_path,
+        repo_name="repo",
+        include_hygiene=False,
+    )
+
+    [aging] = [item for item in attention if item.id == "hygiene:ready-aging:repo"]
+    assert aging.kind == "hygiene"
+    assert aging.urgency == "high"
+    assert aging.source_ref.repo == "repo"
+    assert aging.source_ref.work_item is None
+    assert "1 ready work-item has waited past 24h" in aging.summary
+    assert "oldest age 60h" in aging.summary
+    assert "oldest work-item bd-oldest" in aging.summary
+    assert "Unblock handoff: start or inspect the Dispatcher admission pass" in aging.summary
+    assert "ready-aging repo" in aging.handoff.command
+    assert str(tmp_path) in aging.handoff.command
+    assert "< /dev/null" in aging.handoff.command
+
+
+def test_build_attention_omits_ready_aging_when_dispatch_lock_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_config(tmp_path, ready_aging_threshold_hours=24)
+    _stub_spec_next(monkeypatch, output=None)
+    _seed(_item(id_="bd-old", status="ready", rank="a1"))
+    _set_ready_since(id_="bd-old", ready_since="2026-08-24T00:00:00Z")
+    _write_dispatch_lock(tmp_path, work_item_id="bd-old")
+    monkeypatch.setattr(
+        needs_attention,
+        "_utc_now_iso",
+        lambda: "2026-08-26T12:00:00Z",
+        raising=False,
+    )
+
+    attention = build_attention(
+        project_root=tmp_path,
+        repo_name="repo",
+        include_hygiene=False,
+    )
+
+    assert not any(item.id == "hygiene:ready-aging:repo" for item in attention)
+
+
+def test_build_attention_omits_ready_aging_when_watchable_run_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_config(tmp_path, ready_aging_threshold_hours=24)
+    _stub_spec_next(monkeypatch, output=None)
+    _seed(_item(id_="bd-old", status="ready", rank="a1"))
+    _set_ready_since(id_="bd-old", ready_since="2026-08-24T00:00:00Z")
+    monkeypatch.setattr(
+        needs_attention,
+        "_utc_now_iso",
+        lambda: "2026-08-26T12:00:00Z",
+        raising=False,
+    )
+
+    def _watchable(*, repo: Path, work_item_id: str) -> object:
+        _ = repo
+        _ = work_item_id
+        return object()
+
+    monkeypatch.setattr(
+        "livespec_orchestrator_beads_fabro.commands._needs_attention_work_items._watchable_fabro_run",
+        _watchable,
+    )
+
+    attention = build_attention(
+        project_root=tmp_path,
+        repo_name="repo",
+        include_hygiene=False,
+    )
+
+    assert not any(item.id == "hygiene:ready-aging:repo" for item in attention)
+
+
+def test_build_attention_omits_ready_aging_when_no_ready_item_exceeds_threshold(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_config(tmp_path, ready_aging_threshold_hours=24)
+    _stub_spec_next(monkeypatch, output=None)
+    _seed(_item(id_="bd-fresh", status="ready", rank="a1"))
+    _set_ready_since(id_="bd-fresh", ready_since="2026-08-26T00:00:00Z")
+    monkeypatch.setattr(
+        needs_attention,
+        "_utc_now_iso",
+        lambda: "2026-08-26T12:00:00Z",
+        raising=False,
+    )
+
+    attention = build_attention(
+        project_root=tmp_path,
+        repo_name="repo",
+        include_hygiene=False,
+    )
+
+    assert not any(item.id == "hygiene:ready-aging:repo" for item in attention)
+
+
+def test_build_attention_reports_unknown_ready_age_with_aged_fact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_config(tmp_path, ready_aging_threshold_hours=24)
+    _stub_spec_next(monkeypatch, output=None)
+    _seed(_item(id_="bd-aged", status="ready", rank="a1"))
+    _seed(_item(id_="bd-unknown", status="ready", rank="a2"))
+    _set_ready_since(id_="bd-aged", ready_since="2026-08-24T00:00:00Z")
+    _set_ready_since(id_="bd-unknown", ready_since="not-a-date")
+    monkeypatch.setattr(
+        needs_attention,
+        "_utc_now_iso",
+        lambda: "2026-08-26T12:00:00Z",
+        raising=False,
+    )
+
+    attention = build_attention(
+        project_root=tmp_path,
+        repo_name="repo",
+        include_hygiene=False,
+    )
+
+    [aging] = [item for item in attention if item.id == "hygiene:ready-aging:repo"]
+    assert "1 ready work-item has waited past 24h" in aging.summary
+    assert "age-unknown: bd-unknown" in aging.summary
+
+
+def test_watchable_fabro_run_lookup_returns_none_when_ps_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = __import__(
+        "livespec_orchestrator_beads_fabro.commands._needs_attention_work_items",
+        fromlist=["_needs_attention_work_items"],
+    )
+    assert hasattr(module, "watchable_fabro_run_lookup")
+
+    class _Command:
+        exit_code = 1
+
+    class _PsResult:
+        command = _Command()
+        runs = ()
+
+    class _FabroPort:
+        def __init__(self, **kwargs: object) -> None:
+            _ = kwargs
+
+        def ps(self, *, timeout_seconds: float) -> _PsResult:
+            _ = timeout_seconds
+            return _PsResult()
+
+    monkeypatch.setattr(
+        "livespec_orchestrator_beads_fabro.commands._needs_attention_work_items.FabroPort",
+        _FabroPort,
+    )
+
+    assert module.watchable_fabro_run_lookup(repo=tmp_path, work_item_id="bd-run") is None
 
 
 def test_build_attention_omits_capacity_when_all_counted_holds_are_live(

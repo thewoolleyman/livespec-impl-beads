@@ -41,8 +41,10 @@ __all__: list[str] = [
     "host_only_items",
     "human_valves",
     "impl_next",
+    "live_dispatch_lock_lookup",
     "provider_exhaustion_items",
     "stranded_dispatch_items",
+    "watchable_fabro_run_lookup",
 ]
 
 
@@ -154,6 +156,14 @@ def stranded_dispatch_items(
         live_lock_lookup=_live_dispatch_lock,
         watchable_run_lookup=_watchable_fabro_run,
     )
+
+
+def live_dispatch_lock_lookup(*, repo: Path, work_item_id: str) -> object | None:
+    return _live_dispatch_lock(repo=repo, work_item_id=work_item_id)
+
+
+def watchable_fabro_run_lookup(*, repo: Path, work_item_id: str) -> object | None:
+    return _watchable_fabro_run(repo=repo, work_item_id=work_item_id)
 
 
 def _live_dispatch_lock(*, repo: Path, work_item_id: str) -> object | None:
