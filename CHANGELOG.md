@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.81.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.80.1...v0.81.0) (2026-08-26)
+
+
+### Features
+
+* **dispatcher:** resolve every ACP node's adapter from three configuration layers ([8cb6023](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/8cb6023644737102016f4f2373e7c8b9ceecee35))
+
 ## [0.80.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.80.0...v0.80.1) (2026-08-26)
 
 
