@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.79.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.79.0...v0.79.1) (2026-08-26)
+
+
+### Bug Fixes
+
+* bind explicit implementer tables to Codex ([2149839](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/2149839c13c0303d5b0963e4498396cc7ce0d681))
+
 ## [0.79.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.78.1...v0.79.0) (2026-08-26)
 
 
