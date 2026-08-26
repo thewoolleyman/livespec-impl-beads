@@ -112,7 +112,12 @@ def _provider_exhaustion_item(
     provider: str,
 ) -> AttentionItem:
     return AttentionItem(
-        id=f"provider-exhaustion:{provider}:{item.id}",
+        # `provider-exhaustion` is not a ratified stable-ID prefix, so this id
+        # failed the runtime validator outright. It rides the orchestrator-owned
+        # `hygiene:<type>:<resource>` form instead; the resource keeps both
+        # identifying components verbatim, which the grammar admits because it
+        # splits the id at most twice.
+        id=f"hygiene:provider-exhaustion:{provider}:{item.id}",
         kind="internal",
         urgency="high",
         summary=_provider_exhaustion_summary(project_root=project_root, work_item=item.id),

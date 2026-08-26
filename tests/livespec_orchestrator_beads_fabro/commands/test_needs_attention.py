@@ -353,7 +353,7 @@ def test_build_attention_advertises_approve_only_for_effective_manual_policy(
 
     assert [item.id for item in attention] == [
         "valve:approve:bd-manual",
-        "internal:awaiting-admission:bd-auto",
+        "hygiene:awaiting-admission:bd-auto",
     ]
     assert attention[0].handoff.action_id == "approve:bd-manual"
     assert attention[1].kind == "internal"
@@ -445,7 +445,7 @@ def test_build_attention_surfaces_unexpired_provider_exhaustion_hold(
     )
 
     assert [(item.id, item.kind, item.handoff.kind) for item in attention] == [
-        ("provider-exhaustion:codex:bd-held", "internal", "shell")
+        ("hygiene:provider-exhaustion:codex:bd-held", "internal", "shell")
     ]
     [held] = attention
     assert held.source_ref.work_item == "bd-held"

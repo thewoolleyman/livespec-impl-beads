@@ -11,19 +11,24 @@ from typing import Protocol
 
 from livespec_runtime.attention_item import AttentionItem
 from livespec_runtime.hygiene_scan import scan_hygiene
-from livespec_runtime.needs_attention import (
-    SpecNextOutput,
-    compose_needs_attention,
-)
+from livespec_runtime.needs_attention import SpecNextOutput
 
 from livespec_orchestrator_beads_fabro.commands._config import resolve_store_config
 from livespec_orchestrator_beads_fabro.commands._cross_repo import load_manifest
 from livespec_orchestrator_beads_fabro.commands._needs_attention_capacity import (
     capacity_items,
 )
+from livespec_orchestrator_beads_fabro.commands._needs_attention_conformance import (
+    ConformanceContext,
+    composed_conformant,
+    conformant_items,
+)
 from livespec_orchestrator_beads_fabro.commands._needs_attention_core_roots import (
     default_core_root_bases,
     resolve_spec_next_command,
+)
+from livespec_orchestrator_beads_fabro.commands._needs_attention_envelope import (
+    render_envelope_markdown,
 )
 from livespec_orchestrator_beads_fabro.commands._needs_attention_handoffs import (
     plans,
@@ -115,57 +120,65 @@ def build_attention(
     hygiene_scan = (
         scan_hygiene(repo_path=project_root, repo_name=repo_name) if include_hygiene else []
     )
-    return (
-        compose_needs_attention(
-            repo=repo_name,
-            spec_next=_spec_next(project_root=project_root),
-            impl_next=impl_next(
-                project_root=project_root,
+    # Every candidate crosses a conformance gate before it reaches the wire: a
+    # runtime-validator rejection surfaces as a visible failure item rather than
+    # shortening the list, because a manufacturable absence reads as resolution
+    # downstream (the machine-envelope contract in SPECIFICATION/contracts.md).
+    context = ConformanceContext(project_root=project_root, repo=repo_name)
+    return composed_conformant(
+        context=context,
+        spec_next=_spec_next(project_root=project_root),
+        impl_next=impl_next(
+            project_root=project_root,
+            items=materialized,
+            manifest=manifest,
+            sibling_status_lookup=sibling_status_lookup,
+        ),
+        human_valve_lanes=human_valves(
+            project_root=project_root,
+            items=materialized,
+            index=index,
+            manifest=manifest,
+            sibling_status_lookup=sibling_status_lookup,
+        ),
+        plan_threads=plans(project_root=project_root, config=config, items=materialized),
+    ) + conformant_items(
+        context=context,
+        candidates=(
+            auto_admission_items(project_root=project_root, repo=repo_name, items=materialized)
+            + provider_exhaustion_items(
+                project_root=project_root, repo=repo_name, items=materialized
+            )
+            + host_only_items(project_root=project_root, repo=repo_name, items=materialized)
+            + stranded_dispatch_items(project_root=project_root, repo=repo_name, items=materialized)
+            + capacity_items(project_root=project_root, repo=repo_name, items=materialized)
+            + ready_aging_items(
+                context=ReadyAgingContext(
+                    project_root=project_root,
+                    repo=repo_name,
+                    manifest=manifest,
+                ),
                 items=materialized,
-                manifest=manifest,
+                ready_dwell_instants=read_ready_dwell_instants(path=config.work_items_path),
                 sibling_status_lookup=sibling_status_lookup,
-            ),
-            human_valve_lanes=human_valves(
-                project_root=project_root,
-                items=materialized,
-                index=index,
-                manifest=manifest,
-                sibling_status_lookup=sibling_status_lookup,
-            ),
-            plan_threads=plans(project_root=project_root, config=config, items=materialized),
-            hygiene_scan=(),
-        )
-        + auto_admission_items(project_root=project_root, repo=repo_name, items=materialized)
-        + provider_exhaustion_items(project_root=project_root, repo=repo_name, items=materialized)
-        + host_only_items(project_root=project_root, repo=repo_name, items=materialized)
-        + stranded_dispatch_items(project_root=project_root, repo=repo_name, items=materialized)
-        + capacity_items(project_root=project_root, repo=repo_name, items=materialized)
-        + ready_aging_items(
-            context=ReadyAgingContext(
+                seams=ReadyAgingSeams(
+                    live_lock_lookup=live_dispatch_lock_lookup,
+                    watchable_run_item_ids=watchable_fabro_run_item_ids,
+                    now_iso=_utc_now_iso(),
+                ),
+            )
+            # A second raw read of the tenant: the triage marker is a label and the
+            # urgency tier is the beads-native `priority` column, and the
+            # materialized `WorkItem` above carries neither (labels are decoded into
+            # named fields; `priority` was dropped for `rank`). Same shape as the
+            # other narrow raw read, `read_work_item_native_priorities`.
+            + untriaged_backlog_items(
                 project_root=project_root,
                 repo=repo_name,
-                manifest=manifest,
-            ),
-            items=materialized,
-            ready_dwell_instants=read_ready_dwell_instants(path=config.work_items_path),
-            sibling_status_lookup=sibling_status_lookup,
-            seams=ReadyAgingSeams(
-                live_lock_lookup=live_dispatch_lock_lookup,
-                watchable_run_item_ids=watchable_fabro_run_item_ids,
-                now_iso=_utc_now_iso(),
-            ),
-        )
-        # A second raw read of the tenant: the triage marker is a label and the
-        # urgency tier is the beads-native `priority` column, and the
-        # materialized `WorkItem` above carries neither (labels are decoded into
-        # named fields; `priority` was dropped for `rank`). Same shape as the
-        # other narrow raw read, `read_work_item_native_priorities`.
-        + untriaged_backlog_items(
-            project_root=project_root,
-            repo=repo_name,
-            records=read_intake_triage_records(path=config.work_items_path),
-        )
-        + hygiene_scan
+                records=read_intake_triage_records(path=config.work_items_path),
+            )
+            + hygiene_scan
+        ),
     )
 
 
@@ -181,17 +194,16 @@ def render_json(*, attention: list[AttentionItem]) -> str:
 
 
 def render_markdown(*, attention: list[AttentionItem]) -> str:
-    if not attention:
-        return "No attention items.\n"
-    lines = ["# Needs Attention", ""]
-    for item in attention:
-        lines.extend(
-            [
-                f"- `{item.id}` [{item.urgency}] {item.summary}",
-                f"  - Handoff: `{item.handoff.command}`",
-            ]
-        )
-    return "\n".join(lines) + "\n"
+    """Render the operator Markdown by consuming this producer's OWN wire envelope.
+
+    The consumer-tolerance posture binds this repository's own consuming
+    surfaces, so the operator view is not rendered from the in-memory
+    composition: it is rendered from exactly the bytes a downstream consumer
+    receives, through the same tolerant per-item parse. That is what makes the
+    posture executable here rather than merely advertised — a malformed item can
+    only ever cost itself, and an unknown `kind` renders generically.
+    """
+    return render_envelope_markdown(envelope=render_json(attention=attention))
 
 
 _SPEC_NEXT_TIMEOUT_SECONDS = 60

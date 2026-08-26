@@ -211,7 +211,11 @@ def _fabro_ps(*, repo: Path) -> FabroPsResult:
 
 def _awaiting_admission_item(*, project_root: Path, repo: str, item: WorkItem) -> AttentionItem:
     return AttentionItem(
-        id=f"internal:awaiting-admission:{item.id}",
+        # `internal` is a ratified `kind`, but it is NOT a ratified stable-ID
+        # PREFIX, so `internal:...` failed the runtime validator outright. The
+        # orchestrator-owned fact form is `hygiene:<type>:<resource>`; the kind
+        # is unchanged because the validator governs the id alone.
+        id=f"hygiene:awaiting-admission:{item.id}",
         kind="internal",
         urgency="medium",
         summary=(
