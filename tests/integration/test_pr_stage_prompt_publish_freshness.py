@@ -1,4 +1,4 @@
-"""PR-stage prompt freshness and bounded workflow-permission retry contract."""
+"""PR-stage prompt freshness and bounded publish retry contract."""
 
 from __future__ import annotations
 
@@ -17,10 +17,16 @@ _PR_PROMPT = (
 _FETCH = "mise exec -- git fetch origin master --quiet"
 _REBASE = "mise exec -- git rebase origin/master"
 _PUSH = "mise exec -- git push -u origin HEAD:refs/heads/feat/<work-item-id>"
+_LEASE_PUSH = (
+    "mise exec -- git push --force-with-lease="
+    "refs/heads/feat/<work-item-id>:<observed-remote-tip> "
+    "origin HEAD:refs/heads/feat/<work-item-id>"
+)
 _WORKFLOWS_PERMISSION_REJECTION = (
     "refusing to allow a GitHub App to create or update workflow "
     ".github/workflows/ci.yml without workflows permission"
 )
+_NON_FAST_FORWARD_REJECTION = "non-fast-forward"
 
 
 def _prompt_text() -> str:
@@ -52,6 +58,32 @@ def test_pr_stage_retries_once_only_for_exact_workflows_permission_rejection() -
     assert "If that retry gets the same rejection" in prompt
     assert "Do NOT loop and do NOT retry on any" in prompt
     assert "different error signature" in prompt
+
+
+def test_pr_stage_retries_own_feature_branch_non_fast_forward_with_lease() -> None:
+    """A rewritten own feature branch is reconciled with an explicit lease."""
+    prompt = _prompt_text()
+    normalized_prompt = " ".join(prompt.split())
+
+    assert _NON_FAST_FORWARD_REJECTION in normalized_prompt
+    assert _LEASE_PUSH in prompt
+    assert "--force-with-lease" in prompt
+    assert "bare `--force` push remains forbidden" in normalized_prompt
+    assert "the lease is what makes this overwrite safe" in normalized_prompt.lower()
+    assert "refs/heads/feat/<work-item-id>:<observed-remote-tip>" in normalized_prompt
+    assert "never the current run branch" in normalized_prompt
+    assert "cannot prove the remote branch tip is this run's own prior push" in normalized_prompt
+    assert "report the output verbatim and end with the needs-human protocol" in normalized_prompt
+    assert "lease mismatch" in normalized_prompt
+
+
+def test_pr_stage_never_instructs_bare_force_push() -> None:
+    """The publish recipe allows only the leased force form."""
+    prompt = _prompt_text()
+
+    assert "--force-with-lease" in prompt
+    assert " --force " not in prompt
+    assert " --force\n" not in prompt
 
 
 def test_pr_stage_does_not_authorize_workflow_file_edits() -> None:
