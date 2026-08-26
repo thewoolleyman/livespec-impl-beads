@@ -362,6 +362,128 @@ def test_loop_dry_run_plans_selection_without_dispatch_or_ledger_mutation(
     assert pick["picked"] == ["a-1"]
 
 
+def _loop_pick_record(*, repo: Path) -> dict[str, object]:
+    journal = repo / "tmp" / "fabro-dispatch-journal.jsonl"
+    records = [json.loads(line) for line in journal.read_text(encoding="utf-8").splitlines()]
+    record = next(record for record in records if record["stage"] == "loop-pick")
+    assert isinstance(record, dict)
+    return record
+
+
+def test_loop_dry_run_reports_picked_ids_in_its_json_outcome_list(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """--dry-run --json reports the picks, and they equal the loop-pick record.
+
+    bd-ib-omvia6: the dry-run branch emitted an unconditional empty outcome
+    list, so the "what would this drain do?" surface answered `[]` while the
+    selection sat only in the gitignored journal. Three ready items against a
+    budget of 2 pin the budget honoring at the same time.
+    """
+    repo, workflow = _repo_with_workflow(tmp_path=tmp_path)
+    append_work_item(path=_config(), item=_item(id="a-1", rank="a1"))
+    append_work_item(path=_config(), item=_item(id="b-2", rank="a2"))
+    append_work_item(path=_config(), item=_item(id="c-3", rank="a3"))
+    recording = _RecordingRunDispatch()
+    monkeypatch.setattr(_dispatcher_loop, "run_dispatch", recording)
+
+    exit_code = main(
+        argv=[
+            "loop",
+            "--repo",
+            str(repo),
+            "--budget",
+            "2",
+            "--dry-run",
+            "--json",
+            "--workflow",
+            str(workflow),
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    reported = [entry["work_item_id"] for entry in payload]
+    assert reported == ["a-1", "b-2"]
+    pick = _loop_pick_record(repo=repo)
+    assert pick["dry_run"] is True
+    assert reported == pick["picked"]
+    assert recording.calls == []
+    stored = _read_items()
+    assert [stored[item_id].status for item_id in ("a-1", "b-2", "c-3")] == ["ready"] * 3
+
+
+def test_loop_dry_run_prints_the_picked_id_for_an_explicit_item_filter(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The human stdout line names the picked id, honoring --item.
+
+    b-2 ranks second, so a filtered dry-run reporting b-2 alone proves the
+    reported picks follow the item filter rather than the ranked head.
+    """
+    repo, workflow = _repo_with_workflow(tmp_path=tmp_path)
+    append_work_item(path=_config(), item=_item(id="a-1", rank="a1"))
+    append_work_item(path=_config(), item=_item(id="b-2", rank="a2"))
+    recording = _RecordingRunDispatch()
+    monkeypatch.setattr(_dispatcher_loop, "run_dispatch", recording)
+
+    exit_code = main(
+        argv=[
+            "loop",
+            "--repo",
+            str(repo),
+            "--budget",
+            "2",
+            "--dry-run",
+            "--item",
+            "b-2",
+            "--workflow",
+            str(workflow),
+        ]
+    )
+
+    assert exit_code == 0
+    stdout = capsys.readouterr().out
+    assert "b-2" in stdout
+    assert "a-1" not in stdout
+    assert _loop_pick_record(repo=repo)["picked"] == ["b-2"]
+    assert recording.calls == []
+
+
+def test_loop_dry_run_reports_an_empty_outcome_list_without_candidates(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With no ready work the dry-run outcome list is empty, not fabricated."""
+    repo, workflow = _repo_with_workflow(tmp_path=tmp_path)
+    recording = _RecordingRunDispatch()
+    monkeypatch.setattr(_dispatcher_loop, "run_dispatch", recording)
+
+    exit_code = main(
+        argv=[
+            "loop",
+            "--repo",
+            str(repo),
+            "--budget",
+            "2",
+            "--dry-run",
+            "--json",
+            "--workflow",
+            str(workflow),
+        ]
+    )
+
+    assert exit_code == 0
+    assert json.loads(capsys.readouterr().out) == []
+    assert _loop_pick_record(repo=repo)["picked"] == []
+    assert recording.calls == []
+
+
 def test_loop_with_item_not_ready_exits_precondition_error(
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,

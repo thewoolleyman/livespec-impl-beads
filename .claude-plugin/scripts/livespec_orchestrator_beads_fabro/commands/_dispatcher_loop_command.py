@@ -83,15 +83,19 @@ def run_loop_command(*, args: argparse.Namespace) -> int:
     journal = started.journal
     selected_candidates = candidates(args=args, items=items, repo=repo)[: args.budget]
     if args.dry_run:
+        picked = _dry_run_outcomes(selected_candidates=selected_candidates)
+        # The journal record and the reported outcome list are projected from
+        # the SAME `picked` value, so the audit record and the "what would this
+        # drain do?" surface can never disagree.
         journal.append(
             record={
                 "stage": "loop-pick",
                 "dry_run": True,
                 "budget": args.budget,
-                "picked": [item.id for item in selected_candidates],
+                "picked": [outcome.work_item_id for outcome in picked],
             }
         )
-        emit_outcomes(outcomes=[], as_json=args.as_json)
+        emit_outcomes(outcomes=picked, as_json=args.as_json)
         return 0
     outcomes = _dispatch_loop_wave(
         args=args,
@@ -143,6 +147,29 @@ def run_loop_command(*, args: argparse.Namespace) -> int:
     )
     reflector_oob_after_verdict(args=args, repo=repo, journal=journal)
     return exit_code
+
+
+def _dry_run_outcomes(*, selected_candidates: list[WorkItem]) -> list[DispatchOutcome]:
+    """Project the planned selection onto the reported outcome surface.
+
+    SPECIFICATION/contracts.md requires --dry-run to "compute and report
+    exactly the selection the same invocation would dispatch", and permits
+    journaling that selection only as an ADDITION — not as the discharge of
+    the reporting obligation. Nothing here launches a run, mutates the ledger,
+    or writes the work-item store: the candidates are re-labelled, never
+    dispatched.
+    """
+    return [
+        DispatchOutcome(
+            work_item_id=item.id,
+            status="dry-run",
+            stage="loop-pick",
+            pr_number=None,
+            merge_sha=None,
+            detail="planned selection; not dispatched",
+        )
+        for item in selected_candidates
+    ]
 
 
 def _dispatch_loop_wave(
