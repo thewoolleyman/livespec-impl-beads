@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.77.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.76.0...v0.77.0) (2026-08-26)
+
+
+### Features
+
+* declare ready aging threshold config ([541ab9a](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/541ab9ad7ef7e933f04673b11765600d0826a64d))
+
 ## [0.76.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.75.1...v0.76.0) (2026-08-26)
 
 
