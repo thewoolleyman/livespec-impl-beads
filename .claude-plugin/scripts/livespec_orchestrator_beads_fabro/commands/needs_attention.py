@@ -50,7 +50,7 @@ from livespec_orchestrator_beads_fabro.commands._needs_attention_work_items impo
     live_dispatch_lock_lookup,
     provider_exhaustion_items,
     stranded_dispatch_items,
-    watchable_fabro_run_lookup,
+    watchable_fabro_run_item_ids,
 )
 from livespec_orchestrator_beads_fabro.commands._sibling_status_lookup import (
     make_sibling_status_lookup,
@@ -151,7 +151,7 @@ def build_attention(
             sibling_status_lookup=sibling_status_lookup,
             seams=ReadyAgingSeams(
                 live_lock_lookup=live_dispatch_lock_lookup,
-                watchable_run_lookup=watchable_fabro_run_lookup,
+                watchable_run_item_ids=watchable_fabro_run_item_ids,
                 now_iso=_utc_now_iso(),
             ),
         )

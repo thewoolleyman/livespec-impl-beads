@@ -654,14 +654,14 @@ def test_build_attention_omits_ready_aging_when_watchable_run_exists(
         raising=False,
     )
 
-    def _watchable(*, repo: Path, work_item_id: str) -> object:
+    def _watchable_item_ids(*, repo: Path) -> frozenset[str]:
         _ = repo
-        _ = work_item_id
-        return object()
+        return frozenset({"bd-old"})
 
     monkeypatch.setattr(
-        "livespec_orchestrator_beads_fabro.commands._needs_attention_work_items._watchable_fabro_run",
-        _watchable,
+        needs_attention,
+        "watchable_fabro_run_item_ids",
+        _watchable_item_ids,
     )
 
     attention = build_attention(
@@ -671,6 +671,42 @@ def test_build_attention_omits_ready_aging_when_watchable_run_exists(
     )
 
     assert not any(item.id == "hygiene:ready-aging:repo" for item in attention)
+
+
+def test_build_attention_checks_watchable_runs_once_for_ready_aging(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_config(tmp_path, ready_aging_threshold_hours=24)
+    _stub_spec_next(monkeypatch, output=None)
+    for item_id in ("bd-old-1", "bd-old-2", "bd-old-3"):
+        _seed(_item(id_=item_id, status="ready", rank="a1"))
+        _set_ready_since(id_=item_id, ready_since="2026-08-24T00:00:00Z")
+    monkeypatch.setattr(
+        needs_attention,
+        "_utc_now_iso",
+        lambda: "2026-08-26T12:00:00Z",
+        raising=False,
+    )
+    calls: list[Path] = []
+
+    def _watchable_item_ids(*, repo: Path) -> frozenset[str]:
+        calls.append(repo)
+        return frozenset()
+
+    monkeypatch.setattr(
+        needs_attention,
+        "watchable_fabro_run_item_ids",
+        _watchable_item_ids,
+    )
+
+    attention = build_attention(
+        project_root=tmp_path,
+        repo_name="repo",
+        include_hygiene=False,
+    )
+
+    assert calls == [tmp_path]
+    assert any(item.id == "hygiene:ready-aging:repo" for item in attention)
 
 
 def test_build_attention_omits_ready_aging_when_no_ready_item_exceeds_threshold(
@@ -753,6 +789,38 @@ def test_watchable_fabro_run_lookup_returns_none_when_ps_fails(
     )
 
     assert module.watchable_fabro_run_lookup(repo=tmp_path, work_item_id="bd-run") is None
+
+
+def test_watchable_fabro_run_item_ids_returns_empty_when_ps_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = __import__(
+        "livespec_orchestrator_beads_fabro.commands._needs_attention_work_items",
+        fromlist=["_needs_attention_work_items"],
+    )
+    assert hasattr(module, "watchable_fabro_run_item_ids")
+
+    class _Command:
+        exit_code = 1
+
+    class _PsResult:
+        command = _Command()
+        runs = ()
+
+    class _FabroPort:
+        def __init__(self, **kwargs: object) -> None:
+            _ = kwargs
+
+        def ps(self, *, timeout_seconds: float) -> _PsResult:
+            _ = timeout_seconds
+            return _PsResult()
+
+    monkeypatch.setattr(
+        "livespec_orchestrator_beads_fabro.commands._needs_attention_work_items.FabroPort",
+        _FabroPort,
+    )
+
+    assert module.watchable_fabro_run_item_ids(repo=tmp_path) == frozenset()
 
 
 def test_build_attention_omits_capacity_when_all_counted_holds_are_live(

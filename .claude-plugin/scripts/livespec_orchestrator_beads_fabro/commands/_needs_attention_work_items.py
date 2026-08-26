@@ -19,7 +19,11 @@ from livespec_orchestrator_beads_fabro.commands._drive_valve_predicates import (
     awaits_dispatcher_admission,
     can_approve_item,
 )
-from livespec_orchestrator_beads_fabro.commands._fabro_port import FabroPort, FabroTarget
+from livespec_orchestrator_beads_fabro.commands._fabro_port import (
+    FabroPort,
+    FabroPsResult,
+    FabroTarget,
+)
 from livespec_orchestrator_beads_fabro.commands._needs_attention_handoffs import (
     dispatcher_loop_command,
     drive_command,
@@ -44,6 +48,7 @@ __all__: list[str] = [
     "live_dispatch_lock_lookup",
     "provider_exhaustion_items",
     "stranded_dispatch_items",
+    "watchable_fabro_run_item_ids",
     "watchable_fabro_run_lookup",
 ]
 
@@ -166,17 +171,23 @@ def watchable_fabro_run_lookup(*, repo: Path, work_item_id: str) -> object | Non
     return _watchable_fabro_run(repo=repo, work_item_id=work_item_id)
 
 
+def watchable_fabro_run_item_ids(*, repo: Path) -> frozenset[str]:
+    result = _fabro_ps(repo=repo)
+    if result.command.exit_code != 0:
+        return frozenset()
+    return frozenset(
+        run.work_item_id
+        for run in result.runs
+        if run.work_item_id is not None and run.status_kind in {"runnable", "running"}
+    )
+
+
 def _live_dispatch_lock(*, repo: Path, work_item_id: str) -> object | None:
     return live_dispatch_lock(repo=repo, work_item_id=work_item_id)
 
 
 def _watchable_fabro_run(*, repo: Path, work_item_id: str) -> object | None:
-    result = FabroPort(
-        fabro_bin=resolve_fabro_bin(cwd=repo),
-        target=FabroTarget(),
-        runner=ShellCommandRunner(),
-        cwd=repo,
-    ).ps(timeout_seconds=15)
+    result = _fabro_ps(repo=repo)
     if result.command.exit_code != 0:
         return None
     return next(
@@ -187,6 +198,15 @@ def _watchable_fabro_run(*, repo: Path, work_item_id: str) -> object | None:
         ),
         None,
     )
+
+
+def _fabro_ps(*, repo: Path) -> FabroPsResult:
+    return FabroPort(
+        fabro_bin=resolve_fabro_bin(cwd=repo),
+        target=FabroTarget(),
+        runner=ShellCommandRunner(),
+        cwd=repo,
+    ).ps(timeout_seconds=15)
 
 
 def _awaiting_admission_item(*, project_root: Path, repo: str, item: WorkItem) -> AttentionItem:
