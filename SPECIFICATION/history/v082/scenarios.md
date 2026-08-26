@@ -1,0 +1,2253 @@
+# scenarios.md — livespec-orchestrator-beads-fabro
+
+End-to-end behavioral journeys illustrating the plugin's intended use
+across the workflow loops defined in `livespec/SPECIFICATION/`. They are
+now expressed in Gherkin `Given` / `When` / `Then` form (matching the
+house style `livespec` core uses in its own `SPECIFICATION/scenarios.md`),
+but they remain reader-facing journeys an agent or contributor follows —
+not the pytest test cases (those live under `tests/`).
+
+## Scenario 1 — Gap-tied fix cycle
+
+```gherkin
+Feature: Gap-tied fix cycle
+  As an agent maintaining an impl against a freshly-revised spec
+  I want the gap-tied work to be detected, ranked, implemented, and closed
+  So that a new spec MUST clause becomes honored impl with a verified audit trail
+
+Scenario: A new MUST clause is detected, filed, implemented, and closed in place
+  Given a consumer project has a fresh `livespec` revision (vNNN+1)
+  And that revision introduced a new MUST clause not yet honored in the impl
+  When the user invokes `/livespec-orchestrator-beads-fabro:capture-impl-gaps`
+  Then the skill loads the rule set via the Spec Reader
+  And enumerates every MUST/SHOULD rule from spec text alone (no read of the impl)
+  And surfaces every rule not yet tracked by a work-item, one at a time
+  When the user consents to file a gap
+  Then the skill creates a beads issue via the 2-step append carrying the `origin:gap-tied` label
+  And the `gap-id:<stable-id>` label
+  And the intake Definition-of-Ready routes it (an item that passes the Definition-of-Ready checklist lands `pending-approval`, approved into `ready` when its effective admission_policy is `auto`; an effective-`manual` item rests at `pending-approval` awaiting the human's explicit `approve`)
+  And the user-confirmed title and description
+  When the user invokes `/livespec-orchestrator-beads-fabro:next`
+  Then the ranker reads the materialized work-items back from `bd`
+  And surfaces the newly-filed gap-tied item as the recommendation (the top-ranked `ready` item — earliest `rank`)
+  When the user invokes `/livespec-orchestrator-beads-fabro:implement` for that work-item
+  Then the skill walks Red → Green → closure
+  And at closure evaluates the recorded check-path (never `gap_id`)
+  And confirms the check passes and its negative control fails
+  And closes the issue IN PLACE with `bd close --reason …`
+  And `bd update` sets the `resolution:completed` label
+  And the `AuditRecord` (`verification_timestamp`, `commits`, `files_changed`, `merge_sha`, optional `pr_number`) is written into the issue's `metadata` column
+```
+
+## Scenario 4 — Freeform bug fix
+
+```gherkin
+Feature: Freeform bug fix
+  As a user who spots a bug unrelated to any open gap
+  I want to file it as a freeform work-item and fix it
+  So that it closes without any gap re-detection
+
+Scenario: A freeform bug is filed, implemented, and closed
+  Given the user spots a bug unrelated to any open gap
+  When the user invokes `/livespec-orchestrator-beads-fabro:capture-work-item`
+  And supplies title, description, and `type: bug`
+  Then the skill creates a beads issue carrying the `origin:freeform` label and no `gap-id:` label
+  When the user invokes `/livespec-orchestrator-beads-fabro:implement` for that item
+  Then Red → Green proceeds normally
+  And at closure the skill takes the freeform path
+  And closes the issue IN PLACE with `resolution:completed` and the user-supplied `--reason` (`bd close --reason`, `bd update` for the resolution label)
+  And no `gap_id` re-detection runs
+```
+
+## Scenario 5 — Doctor cross-boundary read
+
+```gherkin
+Feature: Doctor cross-boundary read
+  As a user running doctor in a consumer project
+  I want doctor's cross-boundary phase to read this plugin's query surfaces
+  So that the work-item structural invariants are evaluated deterministically
+
+Scenario: Doctor reads spec directly and invokes the thin-transport query skills
+  Given the user invokes `/livespec:doctor` in a consumer project
+  When doctor's static phase runs
+  Then it reads `<spec-root>/` directly
+  When doctor's cross-boundary phase runs
+  Then it invokes `/livespec-orchestrator-beads-fabro:list-work-items --json` for the work-item structural invariants
+  And the invocation reads the tenant DB through `bd`
+  And completes deterministically with the contract-mandated JSON schema
+  And a missing or malformed plugin surface fires a `fail` finding (no silent skips)
+  And in hermetic / CI contexts the in-memory fake backend stands in for a live tenant DB and satisfies the same schema
+```
+
+## Scenario 6 — Cross-repo dispatch via the Dispatcher
+
+```gherkin
+Feature: Cross-repo dispatch via the Dispatcher
+  # Cross-reference: the Dispatcher (`dispatcher.py` `dispatch` / `loop`)
+  # is the dispatch surface for routine cross-repo work — it polls the
+  # beads Ledger for ready work-items and drives each through Fabro
+  # autonomously. This plugin's `next` skill provides the impl-side ranking
+  # the Dispatcher consumes; it MUST NOT bake a cross-repo sequencing or
+  # cross-side weighting in — cross-repo sequencing and empty-queue
+  # handling are the Dispatcher's concern, not this skill's.
+  As the Dispatcher draining ready impl-side slices
+  I want to consume this plugin's `next` surface for impl-side ranking
+  So that cross-repo work is dispatched in rank order without impl-side `next` encoding cross-repo sequencing
+
+Scenario: The Dispatcher consumes next for impl-side ranking
+  Given the Dispatcher is dispatching impl-side slices
+  When it invokes `/livespec-orchestrator-beads-fabro:next --json`
+  Then it obtains an impl-side ranked candidate list
+  And gap-detection and drift-detection invocations (`/livespec-orchestrator-beads-fabro:capture-impl-gaps`, `/livespec-orchestrator-beads-fabro:capture-spec-drift`) are Dispatcher-side concerns invoked outside `next`'s ranking — `next` ranks materialized work-items only
+
+Scenario: Empty-queue handoff offers a hygiene fallback
+  Given `/livespec-orchestrator-beads-fabro:next` emits an empty `candidates: []` array (the no-work signal)
+  When the Dispatcher or operator reaches the empty-queue handoff
+  Then it SHOULD offer a hygiene fallback — at minimum a `/livespec:doctor` pass and a `/livespec:critique` pass
+  And it MAY also offer `/livespec:prune-history` if `next.prune_history_threshold` would otherwise have suppressed it
+  And the hygiene fallback is a Dispatcher / operator concern that is NEVER baked into the `next` emission itself
+```
+
+## Scenario 7 — Regroom an oversized work-item
+
+```gherkin
+Feature: Regroom an oversized work-item
+  # Cross-reference: the grooming PATTERN this scenario realizes is
+  # repo-agnostic non-functional guidance in `livespec`'s
+  # `non-functional-requirements.md`; the realization shown here (the
+  # groom front-end, the `backlog` bounce, the per-slice fields, the
+  # calibration journal fields) is this orchestrator's own, codified in
+  # §"Grooming and slice-size calibration" of `contracts.md`.
+  As a maintainer with an oversized or non-converging work-item
+  I want to regroom it into dependency-layered slices via the groom front-end
+  So that the Dispatcher can drain the slices by dependency layer
+
+Scenario: An oversized item is regroomed into dependency-layered slices and drained
+  Given an item sits in `backlog` needing re-decomposition — either an intake-routed epic (more than one coherent "done") or a Dispatcher non-convergence bounce (a dispatched slice that would not converge through the janitor gate, bounced and surfaced rather than infinite-retried)
+  When the maintainer runs the groom front-end (`groom <id>`)
+  Then it reads the item, the relevant spec / scenarios, and the ledger
+  And DRAFTS candidate slices read-only — each pre-filled with acceptance / autonomy tier / dependency links / repo target / scope, arranged into dependency layers
+  When the maintainer edits the cut / acceptance / deps / tiers and approves (or sends it back to re-draft; the maintainer OWNS the cut and the acceptance, the front-end only drafts)
+  Then on approval the front-end files the approved slices via `capture-work-item` with dependency edges linked
+  And routes any spec-change slice to `/livespec:propose-change` instead of the factory
+  And the Dispatcher then drains the resulting `ready` (effective-`auto` or human-approved) slices by dependency layer, re-running `just check` + `/livespec:doctor` + the named scenarios after each layer converges before the next layer dispatches
+```
+
+## Scenario 8 — Intake Definition-of-Ready triage
+
+```gherkin
+Feature: Intake Definition-of-Ready triage
+  As a capture front-end running the intake Definition-of-Ready checklist
+  I want to route each captured item into its lifecycle state
+  So that only autonomously-dispatchable work reaches the factory
+
+Scenario: A single-acceptance item is routed toward ready
+  Given a freshly-described single-acceptance item with one coherent "done", autonomously verifiable, autonomy-tiered, dependency-linked, repo-targeted, and above the size floor
+  When it is filed via a capture front-end running the intake Definition-of-Ready checklist
+  Then it lands in `pending-approval` and is approved into `ready` when its effective admission_policy is `auto`
+  And when its effective admission_policy is `manual` it rests at `pending-approval` awaiting the human's explicit `approve`
+  And once `ready` it is eligible for autonomous dispatch
+
+Scenario: An epic lands in backlog
+  Given a described epic with more than one coherent "done"
+  When it is filed via a capture front-end
+  Then it lands in `backlog` for decomposition
+  And it is surfaced for grooming rather than filed as `ready`
+
+Scenario: A non-autonomously-verifiable or blocked item does not reach ready
+  Given an item whose acceptance is not autonomously verifiable (it needs a human judgement call) OR that has open blockers
+  When it is filed via a capture front-end
+  Then a not-autonomously-verifiable item lands in `blocked` with `blocked_reason: needs-human`
+  And an item with open blockers carries its dependency edges (deriving the `blocked:dependency` lane)
+  And it is not auto-dispatched
+```
+
+## Scenario 9 — backlog bounce state and transitions
+
+```gherkin
+Feature: backlog bounce state and transitions
+  As the grooming realization
+  I want every path into and out of the backlog re-decomposition state to be observable
+  So that an oversized item is always surfaced, never silently dropped
+
+Scenario: An intake Definition-of-Ready epic failure enters backlog
+  Given an intake Definition-of-Ready epic failure (more than one coherent "done")
+  When capture runs
+  Then the item is at `backlog`
+  And it is surfaced
+
+Scenario: A non-converging dispatched slice enters backlog
+  Given a dispatched slice that will not converge through the janitor gate
+  When the Dispatcher bounces it
+  Then the item is at `backlog`
+  And it is surfaced
+
+Scenario: A groomed-and-approved item transitions out of backlog
+  Given a `backlog` item the maintainer has groomed and approved
+  When the groom front-end files the approved slices
+  Then the slices transit `pending-approval` (approved on into `ready` when a slice's effective admission_policy is `auto`; an effective-`manual` slice rests at `pending-approval` awaiting the human's explicit `approve`)
+  And the original item is regroomed-out (not silently dropped)
+```
+
+## Scenario 10 — Dispatcher never auto-approves a manual-admission spec-change item
+
+```gherkin
+Feature: Manual-admission spec-change items rest at pending-approval
+  As the Dispatcher draining ready slices
+  I want to leave any spec-change item whose effective admission_policy is manual resting at pending-approval
+  So that spec change always reaches the maintainer instead of the factory
+
+Scenario: A manual-admission spec-change slice is surfaced rather than auto-approved
+  Given a `pending-approval` slice whose effective admission_policy is `manual` (the spec-change / risky autonomy tier)
+  When the Dispatcher reaches it in the dependency-layer drain
+  Then it does not auto-approve the slice into `ready`
+  And it is surfaced to the maintainer for their explicit `approve`
+  And it is not auto-dispatched into a Fabro sandbox
+```
+
+## Scenario 11 — Dispatcher bounces a non-converging slice to backlog
+
+```gherkin
+Feature: Dispatcher bounces a non-converging slice to backlog
+  As the Dispatcher observing a slice that will not converge
+  I want to bounce it to backlog and surface it
+  So that an empirically-too-big slice is escalated, never infinite-retried
+
+Scenario: A non-converging slice is bounced to backlog and surfaced
+  Given a dispatched slice that repeatedly fails the janitor gate (`just check` + `/livespec:doctor`) and will not converge within the fix-loop cap
+  When the Dispatcher observes non-convergence
+  Then the item is bounced to `backlog`
+  And it is surfaced to the maintainer
+  And it is never infinite-retried
+```
+
+## Scenario 12 — Dispatcher emits calibration telemetry
+
+```gherkin
+Feature: Dispatcher emits calibration telemetry
+  As the Dispatcher recording a terminal Fabro run
+  I want to write an outcome signal plus mechanical size proxies onto the existing journal
+  So that calibration can correlate size against convergence without any new always-on service
+
+Scenario: A terminal run writes outcome and size proxies onto the existing journal
+  Given a dispatched slice whose Fabro run reaches a terminal outcome
+  When the Dispatcher records the run
+  Then an outcome signal (converged?; fix-loop count; outcome class; wall-clock and token/cost; bounced-to-regroom?) is written onto the EXISTING Dispatcher journal record
+  And mechanical size proxies (acceptance count; merged-PR diff size; dependency fan-out; spec surface touched; dispatch context size; archetype; repo) are written onto the same record
+  And no new always-on service is started
+```
+
+## Scenario 13 — Calibration analysis pass proposes advisory thresholds
+
+```gherkin
+Feature: Calibration analysis pass proposes advisory thresholds
+  As the periodic calibration analysis pass
+  I want to correlate outcomes against size proxies and propose ceiling thresholds
+  So that the intake size-gate gains advisory numbers a maintainer may later adopt
+
+Scenario: The analysis pass proposes thresholds that stay advisory until adopted
+  Given an accumulated journal of run outcomes and size proxies
+  When the periodic calibration analysis pass runs
+  Then it correlates outcomes against size proxies and proposes ceiling thresholds
+  And the proposed thresholds remain advisory (the intake size-gate flags oversized items only advisorily) until a maintainer adopts them
+  And they are never auto-enforced
+```
+
+## Scenario 14 — Fabro non-convergence routes back to the Dispatcher
+
+```gherkin
+Feature: Fabro non-convergence routes back to the Dispatcher
+  As the single Fabro workflow-DOT tweak
+  I want a fix-loop cap plus a non-converged exit edge within the existing DOT vocabulary
+  So that a non-converging slice routes back to the Dispatcher with no Fabro platform change
+
+Scenario: A non-converged Fabro run routes control back to the Dispatcher
+  Given a Fabro workflow whose DOT carries a fix-loop cap and a "non-converged" exit edge within the existing DOT vocabulary
+  When a dispatched slice hits the fix-loop cap (`max_node_visits` governor) without converging
+  Then the "non-converged" exit edge routes control back to the Dispatcher (which bounces the item to `backlog`)
+  And no Fabro platform or setup change was required
+```
+
+## Scenario 15 — Dispatcher composes next's ranking
+
+```gherkin
+Feature: Dispatcher composes next's ranking
+  As the Dispatcher choosing which ready slice to dispatch
+  I want to compose `next`'s ranking rather than re-rank inline
+  So that `next` remains the single ranking authority
+
+Scenario: The Dispatcher selects via next's ranking
+  # Already-satisfied: this behavior is already implemented per in-flight
+  # work-item `livespec-impl-beads-i3jiny`, so it is documented and
+  # scenario-covered but is NOT a fresh gap.
+  Given the Dispatcher must choose which `ready` slice to dispatch
+  When it selects the next item
+  Then it composes `next`'s ranking (the single ranking authority) rather than re-ranking inline
+```
+
+## Scenario 16 — Closed-item-integrity check rejects "closed but unproven"
+
+```gherkin
+Feature: Closed-item-integrity check rejects "closed but unproven"
+  As the maintainer trusting that a closed gap-tied item is proven
+  I want the closed_item_integrity check wired into just check
+  So that a closed gap-tied item whose acceptance scenario is unbound, or which lacks the resolution:completed label, surfaces mechanically rather than passing CI green
+
+Scenario: A closed-but-unproven gap-tied item surfaces a finding
+  Given a gap-tied work-item is closed and its `gap-id` resolves through the `clauses[]` map to an acceptance scenario whose `tests/heading-coverage.json` entry is still bound to the `TODO` sentinel (or the item lacks the `resolution:completed` label)
+  When the `closed_item_integrity` check runs as part of `just check`
+  Then it emits a `closed-item-integrity` finding naming that item
+  And the finding is a warning in `warn` mode (the default, exit 0) and an error in `fail` mode (`LIVESPEC_CLOSED_ITEM_INTEGRITY=fail`, exit non-zero)
+
+Scenario: A fully-proven closed gap-tied item emits no finding
+  Given a gap-tied work-item is closed, carries the `resolution:completed` label, and its `gap-id` resolves through the `clauses[]` map to an acceptance scenario whose `tests/heading-coverage.json` entry binds to a real integration-tier test node id (not `TODO`)
+  When the `closed_item_integrity` check runs
+  Then it emits NO finding for that item
+```
+
+## Scenario 17 — drive operator-surface defaults
+
+```gherkin
+Feature: drive operator surface defaults to the ergonomic path
+  As an operator working inside a governed repo
+  I want a cwd-default repo and Markdown output
+  So that the everyday operator execution step needs no boilerplate
+  while scripts and the Dispatcher keep a fully specified invocation
+
+Scenario: An omitted --repo resolves to the current working directory's repo
+  Given the operator's current working directory is inside a governed repo
+  When the operator invokes `drive --action <action-id>` without `--repo`
+  Then the surface resolves the target repo to that current-directory repo
+  And an explicit `--repo <path>` still overrides the default when supplied
+
+Scenario: Console output is Markdown by default and JSON only with --json
+  Given any `drive` invocation
+  When the operator omits `--json`
+  Then the surface renders human-readable Markdown
+  And passing `--json` renders the same payload as machine-readable JSON
+```
+
+## Scenario 18 — Dispatcher projects a non-rotatable subscription credential into a worker sandbox
+
+```gherkin
+Feature: Dispatcher projects non-rotatable subscription credentials
+  As the Dispatcher running a worker on one or more provider subscriptions
+  I want to project credentials the worker cannot rotate
+  So that no worker can invalidate the shared credential for the host or peers
+
+Scenario: A dispatched worker receives non-rotatable snapshots for every projected provider
+  Given the orchestrator host holds a valid Claude-subscription credential and a valid OpenAI/ChatGPT-subscription credential whose usable lifetimes exceed the worker run budget
+  When the Dispatcher dispatches a ready work-item to a worker sandbox
+  Then the Dispatcher projects each provider's credential as a non-rotatable snapshot into the same sandbox such that the worker cannot rotate any shared refresh credential
+  And the worker authenticates its coding-agent runtimes from those projected snapshots
+  And no refresh performed or attempted inside the sandbox invalidates the host's or any peer worker's credential for any provider
+```
+
+## Scenario 19 — Dispatcher refuses dispatch when the credential freshness gate fails
+
+```gherkin
+Feature: Dispatcher freshness-gates subscription-credentialed dispatch
+  As the Dispatcher protecting unattended runs
+  I want to refuse dispatch when a covered credential cannot outlive the run
+  So that a worker never starts on a credential that may expire mid-run
+
+Scenario: A too-short-lived credential refuses dispatch with a renewal message
+  Given a host provider-subscription credential covered by the freshness gate has a usable lifetime that does NOT exceed the worker run budget
+  When the Dispatcher considers dispatching a ready work-item
+  Then the Dispatcher refuses the dispatch
+  And the Dispatcher surfaces that the host credential requires renewal rather than projecting a credential that may expire mid-run
+```
+
+## Scenario 20 — Review gate routes a green build through code review before PR
+
+```gherkin
+Feature: A senior-engineer review gate reviews a green build before the PR stage
+  As the Dispatcher running an unattended implementation loop
+  I want a code-review gate between a green janitor and the PR stage
+  So that correctness and design defects the mechanical check suite cannot
+    catch are surfaced, and a still-blocking change is held for a human unless
+    the operator has set merge_on_review_cap
+
+  Background:
+    Given the janitor gate (the mechanical check suite) is green
+
+  Scenario: An approved review proceeds to the PR stage
+    When the review gate reviews the change and raises no blocking findings
+    Then the run proceeds to the PR stage
+
+  Scenario: A blocking finding is adjudicated, and accepted findings are fixed and re-validated
+    Given the review gate raised at least one blocking finding
+    And the review fix-round budget (dispatcher.review_fix_cap) is not yet exhausted
+    When the disposition stage adjudicates each blocking finding — accepting it, or rejecting it with a one-line rationale
+    And at least one blocking finding is accepted
+    And the fix stage implements each accepted finding and no rejected one
+    Then the change is re-validated by the janitor and reviewed again
+    And the disposition record is carried to the re-review, which honors each rejection unless it re-confirms a genuine correctness or security defect
+
+  Scenario: A round whose blocking findings are all rejected re-reviews without a fix pass
+    Given the review gate raised at least one blocking finding
+    And the review fix-round budget (dispatcher.review_fix_cap) is not yet exhausted
+    When the disposition stage rejects every blocking finding, each with a rationale
+    Then the run routes directly back to review
+    And the janitor does not re-run (no code changed)
+    And the rejection record is carried to the re-review, which honors it unless it re-confirms a genuine correctness or security defect
+
+  Scenario: A capped-out review ships when merge_on_review_cap is set
+    Given the review gate has reached its review fix-round cap (dispatcher.review_fix_cap)
+    And the review gate still raises a blocking finding
+    And the item's effective merge_on_review_cap is true
+    Then the run ships to the PR stage anyway
+    And the still-blocking finding does not gate the change
+
+  Scenario: A capped-out review blocks under the default merge_on_review_cap
+    Given the review gate has reached its review fix-round cap (dispatcher.review_fix_cap)
+    And the review gate still raises a blocking finding
+    And the item's effective merge_on_review_cap is false (the default)
+    Then the change does not ship
+    And the item transitions to blocked with blocked_reason needs-human
+    And it is surfaced to a human
+
+  Scenario: A terminal dispatch emits review-gate telemetry from Fabro events
+    Given a Fabro run has reached any terminal Dispatcher outcome: green, blocked, or failed
+    And `fabro events <run-id> --json` contains `edge.selected` events from the review node
+    When the Dispatcher observes the terminal outcome
+    Then it queries the structured Fabro event stream for that run
+    And it emits a `livespec-dispatcher` span carrying `review.verdict`, `review.fix_rounds`, `review.hit_cap`, and `pr.shipped_on_cap`
+    And a review-to-PR fallthrough at the review cap is queryable as `pr.shipped_on_cap=true`
+```
+
+## Scenario 21 — Codex plugin discovery and full-access posture
+
+```gherkin
+Feature: Codex plugin discovery and full-access posture
+  As an operator using the Codex TUI and Codex-backed factory review
+  I want the orchestrator's Codex plugin to be discoverable and full-access only
+    under the manifest-gated contract
+  So that official fleet/adopter repos get honest executable review without
+    silently changing unrelated external repos
+
+Scenario: The /skills picker renders drive under this plugin
+  Given the livespec-orchestrator-beads-fabro Codex plugin is installed
+  And the operator opens the Codex TUI
+  When the operator opens "/skills"
+  And chooses "List skills"
+  And searches for "drive"
+  Then the picker renders "drive (livespec-orchestrator-beads-fabro)"
+  And the rendered row is typed as a Skill
+  And the operator does not need to search for the colon-qualified
+    "livespec-orchestrator-beads-fabro:drive" form
+
+Scenario: A fleet-listed repository gets Codex full access
+  Given the repository's committed "codex_full_access.fleet_listed" marker is
+    true, previously derived from the livespec core fleet manifest by the
+    "refresh" operation
+  And no local opt-out is set
+  When the orchestrator's Codex full-access gate is evaluated
+  Then the companion-plugin review/rescue chokepoint is rewritten to
+    "danger-full-access"
+  And the canary classifies the active companion source by matching the exact
+    full-access rewrite expression
+  And the orchestrator-owned raw "codex exec" credential-refresh command runs
+    with the full-access flag and stdin redirected from an EOF-reaching source
+
+Scenario: An unrelated external repository remains default-off
+  Given the repository has no committed fleet-listed marker
+  And no local Codex full-access opt-in is set
+  When the orchestrator's Codex full-access gate is evaluated
+  Then the companion-plugin chokepoint is not rewritten by this plugin
+  And the orchestrator-owned raw "codex exec" credential-refresh command does
+    not infer full access from plugin installation alone
+
+Scenario: A gate that cannot be evaluated denies full access
+  Given the gate mechanism cannot be loaded or evaluated
+  When a surface governed by the gate is invoked
+  Then that surface runs WITHOUT full access
+  And the failure does not crash the invoking hook or command
+```
+
+## Scenario 22 — Dispatcher admits the top-ranked ready item up to the per-repo WIP cap
+
+```gherkin
+Feature: Dispatcher admission valve with a per-repo WIP cap
+  As the Dispatcher enforcing the admission valve
+  I want to admit the top-ranked (earliest-rank) admission-eligible ready item when a slot frees
+  So that work flows up to the per-repo WIP cap and no further
+
+Scenario: Admission fills slots in rank order until the cap is reached
+  Given a per-repo wip_cap of 2
+  And three admission-eligible ready items with ranks "a0", "a1", "a2"
+  When the Dispatcher runs with no active items
+  Then it admits the items with ranks "a0" and "a1" first
+  And it sets an assignee on each admitted item
+  And it transitions each admitted item to active
+  And it does not admit the item with rank "a2" until an active slot frees
+```
+
+## Scenario 23 — Dispatcher never auto-approves a manual-admission item
+
+```gherkin
+Feature: Manual admission policy rests an item at pending-approval
+  As the Dispatcher enforcing safe-by-default approval
+  I want to refuse to auto-approve an item whose effective admission_policy is manual
+  So that risky or irreversible work waits for an explicit human approval
+
+Scenario: A manual-admission item is surfaced rather than auto-approved
+  Given a `pending-approval` item whose effective admission_policy is manual
+  And no human has explicitly approved it through the operator valve surface
+  When the Dispatcher reaches it
+  Then it does not transition the item to `ready`
+  And it surfaces the item for the maintainer's explicit `approve`
+```
+
+## Scenario 24 — complete merges on green into the acceptance state
+
+```gherkin
+Feature: Post-merge acceptance — complete merges on green
+  As the Dispatcher completing an active item
+  I want complete to merge on green and move the item to the acceptance state
+  So that acceptance verifies the shipped, observable artifact
+
+Scenario: complete ships on green into acceptance, not straight to done
+  Given an active item whose pre-merge just check floor has passed green
+  When the doer declares the implementation complete
+  Then the change is merged on green via gh pr merge --rebase --auto
+  And the item transitions to the acceptance state
+  And the item does not transition straight to done
+```
+
+## Scenario 25 — accept confirms post-ship per acceptance_policy
+
+```gherkin
+Feature: Post-merge acceptance — accept honors acceptance_policy
+  As the acceptance valve confirming a shipped change
+  I want accept to honor the item's effective acceptance_policy — the item's own
+    acceptance_policy label, or the global dispatcher.acceptance_mode default
+    when the item carries no label
+  So that no change reaches done without at least one AI verification pass, that
+    pass being a read-and-judge of the merged diff against the item's acceptance
+    criteria plus a telemetry watch, yielding a PASS or FAIL verdict (its FAIL
+    routes are exercised by Scenario 35)
+
+Scenario: ai-then-human parks in acceptance until a human confirms
+  Given an item in the acceptance state whose effective acceptance_policy is ai-then-human
+  When the AI acceptance pass PASSES against the shipped artifact and surfaces findings
+  Then the item parks in the acceptance state on the ledger
+  And it transitions to done only after a human confirms from the console (the `drive --action accept:<id>` valve action)
+
+Scenario: reject from acceptance routes by corrective kind
+  Given an item in the acceptance state
+  When the reviewer rejects it for rework
+  Then the item transitions to active for a fix-forward patch
+  And when the reviewer instead rejects it for re-grooming
+  Then the merged change is reverted and the item transitions to backlog
+```
+
+## Scenario 26 — list-work-items emits lane and lane_reason
+
+```gherkin
+Feature: list-work-items emits the derived lane and lane_reason
+  As a consumer of list-work-items --json
+  I want each item to carry a computed lane and lane_reason
+  So that the console consumes the lane instead of re-deriving it
+
+Scenario: lane and lane_reason are computed from lane_of
+  Given a stored ready item with an open dependency
+  And a stored blocked item whose blocked_reason is needs-human
+  And a stored active item
+  When list-work-items --json is run
+  Then the ready-with-open-dependency item emits lane "blocked" and lane_reason "dependency"
+  And the stored blocked item emits lane "blocked" and lane_reason "needs-human"
+  And the active item emits lane "active" and lane_reason null
+```
+
+## Scenario 27 — next ranks ready items by rank
+
+```gherkin
+Feature: next ranks ready items by the rank ordering authority
+  As the single ranking authority the Dispatcher composes
+  I want next to order ready items by rank then id
+  So that the pull order is the deterministic rank order
+
+Scenario: ready candidates are returned in rank order
+  Given ready items with ranks "a2", "a0", "a1"
+  When next is run
+  Then the candidates are returned in the order ranked "a0", "a1", "a2"
+  And ties are broken by id lexicographic order
+```
+
+## Scenario 28 — append_work_item registers and lands a custom status in two steps
+
+```gherkin
+Feature: 2-step append into a beads custom status
+  As the beads store adapter writing a work-item
+  I want to create then update because bd create cannot land a custom status
+  So that an item filed into backlog carries the correct lifecycle status
+
+Scenario: a file create lands open then updates to a custom status
+  Given a tenant with the 5 custom statuses registered
+  When append_work_item files a new item whose initial state is backlog
+  Then bd create lands the issue with status open
+  And bd update sets the issue status to the custom backlog status
+```
+
+## Scenario 29 — Factory GitHub App token on the dispatch path
+
+```gherkin
+Feature: Factory GitHub App installation-token authentication
+  As the Dispatcher running the self-contained dispatch path
+  I want every automated GitHub operation to authenticate with a freshly-minted App installation token
+  So that no dispatch path depends on a fleet PAT or an ambient gh login
+
+Scenario: Dispatch refuses fail-closed when no App environment is resolvable
+  Given the App environment (GITHUB_APP_ID + GITHUB_PRIVATE_KEY) is absent
+  And the dispatch target repo has no credential_wrapper to re-exec through
+  When a dispatch is attempted
+  Then the Dispatcher refuses with an actionable diagnostic
+  And it does not fall through to a fleet credential or an ambient gh login
+
+Scenario: A credential-seam refusal names the missing variable and the target's own wrapper
+  Given a dispatch target whose configured credential_wrapper omits one of the required per-dispatch credentials (App environment, tenant store secret, or the engine LLM credential)
+  When the consuming seam on the dispatch path reaches the absent variable
+  Then the seam fails closed naming the specific missing variable
+  And the diagnostic names the dispatch target's own configured credential_wrapper as the corrective injection path, never a fleet wrapper
+
+Scenario: A long merge-poll survives token expiry via first-class remint
+  Given a merge-poll that outlives a single installation token's roughly one-hour validity
+  When the Dispatcher spawns each polling subprocess
+  Then each subprocess resolves a currently-valid token from the caching provider
+  And the operation survives the token expiry transparently
+
+Scenario: The sandbox receives only an ephemeral installation token
+  Given a dispatched Fabro worker sandbox
+  When the sandbox environment table is materialized
+  Then it carries a freshly-minted EPHEMERAL installation token
+  And neither the durable App private key nor any long-lived personal access token is projected
+```
+
+## Scenario 30 — Dispatch-time baseline conformance gate
+
+```gherkin
+Feature: Dispatch-time baseline conformance gate
+  As the Dispatcher's Fabro prepare chain
+  I want to provision each sandbox to the baseline profile and gate on the shared Verifiers
+  So that every dispatched sandbox is conformant by construction
+
+Scenario: A conformant sandbox proceeds to work
+  Given the prepare chain installed the canonical commit-refuse hook and declared the sandbox exemption marker
+  When the baseline Verifiers run over the provisioned sandbox
+  And every Verifier exits zero
+  Then the work-item is driven
+
+Scenario: A baseline violation aborts the dispatch before work is driven
+  Given a provisioned sandbox where a baseline Verifier exits non-zero
+  When the prepare chain gates on the Verifiers
+  Then the run aborts before any work is driven
+  And the baseline violation surfaces as a failed dispatch rather than silently non-conformant work
+```
+
+## Scenario 31 — drive human valve actions
+
+```gherkin
+Feature: drive human valve actions
+  As the operator (or the console acting on the operator's behalf)
+  I want approve, accept, reject, set-admission, and set-acceptance commands on the drive surface
+  So that the two human-delegable gates and the policy edits are commanded through the plugin's published surface, never a direct ledger write
+
+Scenario: approve authorizes a resting manual-admission item into ready
+  Given a `pending-approval` item whose effective admission_policy is manual
+  When the operator invokes `drive --action approve:<work-item-id>`
+  Then the item transitions to `ready` (the human approval act — `pending-approval → ready`)
+  And admission to `active` then follows mechanically when a WIP slot frees, dependencies are clear, an assignee resolves, and `factory_safety` is null
+  And the journal records the actor
+
+Scenario: accept confirms a parked item to done
+  Given an item parked in the acceptance state awaiting the human leg of its acceptance_policy
+  When the operator invokes `drive --action accept:<work-item-id>`
+  Then the item transitions to done
+
+Scenario: reject routes by corrective kind
+  Given an item in the acceptance state
+  When the operator invokes `drive --action reject:<work-item-id>:rework`
+  Then the item transitions to active for a fix-forward patch
+    And when the operator instead invokes `drive --action reject:<work-item-id>:regroom`
+  Then the merged change is reverted and the item transitions to backlog
+
+Scenario: set-admission edits the policy without touching the status
+  Given an item whose stored admission_policy is manual
+  When the operator invokes `drive --action set-admission:<work-item-id>:auto`
+  Then the item's admission_policy becomes auto
+  And the item's status is unchanged
+  And the journal records the actor
+
+Scenario: a manual → auto flip on a pending-approval item does not approve it
+  Given a `pending-approval` item whose stored admission_policy is manual
+  When the operator invokes `drive --action set-admission:<work-item-id>:auto`
+  Then the item remains at `pending-approval`
+  And moving it to `ready` still requires an explicit `approve:<work-item-id>`
+```
+
+## Scenario 32 — Adopter-target dispatch compatibility
+
+```gherkin
+Feature: Adopter-target dispatch compatibility
+  As the Dispatcher driving an adopter repo (not a fleet member)
+  I want per-tenant engine identity, target-toolchain workflows, and default-branch awareness
+  So that an adopter dispatch succeeds without fleet-specific assumptions
+
+Scenario: Preflight verifies the serving App reaches the target repo
+  Given an adopter target repo the fleet's shared Fabro server App cannot reach
+  When the dispatch preflight runs against the serving Fabro server
+  Then it refuses before launching with a diagnostic naming the per-tenant server requirement (the target tenant's own App identity)
+  And the diagnostic surfaces the App workflows read-write grant as deliberately withheld from the dispatch credential, naming the attended-host-session route
+
+Scenario: A target-local workflow supplies the target's toolchain facts
+  Given an adopter repo carrying its own .fabro/workflows/implement-work-item workflow
+  And the dispatch is invoked with the --workflow override pointing at it
+  Then the prepare steps run the target repo's own toolchain facts
+  And no fleet-toolchain prepare constant (uv / lefthook / livespec_dev_tooling) is assumed for the target
+
+Scenario: Pull-primary resolves the target's default branch
+  Given a target repo whose default branch is main
+  When the post-merge janitor's pull-primary stage refreshes the primary checkout
+  Then it resolves the target repo's default branch and pulls that ref
+  And it never hardcodes master
+```
+
+## Scenario 33 — auto_approve_ready governs admission and a per-item label wins
+
+```gherkin
+Feature: The auto_approve_ready global default and its per-item override
+  As an operator delegating routine approval
+  I want an unlabeled routine item auto-approved while a per-item manual label still holds it
+  So that admission delegation is granular and never reaches design-human-gated work
+
+  Background:
+    Given dispatcher.auto_approve_ready is true
+
+  Scenario: An unlabeled routine item inherits the global and is auto-approved
+    Given a routine `pending-approval` item that carries no explicit admission_policy label
+    When the Dispatcher reaches it
+    Then its effective admission_policy is auto and it is approved into `ready` without a human
+    And the auto-approval is journaled with the item id and the setting that governed it
+
+  Scenario: A per-item manual label beats the permissive global
+    Given a `pending-approval` item carrying an explicit admission_policy label of manual
+    When the Dispatcher reaches it
+    Then it does not transition the item to `ready`
+    And the item rests at `pending-approval` awaiting the human's explicit `approve`
+
+  Scenario: A spec-change-tier item is never auto-approved
+    Given a design-human-gated (spec-change-tier) `pending-approval` item
+    When the Dispatcher reaches it
+    Then it does not auto-approve the item, regardless of the setting or of any per-item label
+    And the item stays escalated to a human
+```
+
+## Scenario 34 — acceptance_mode governs the acceptance leg
+
+```gherkin
+Feature: The acceptance_mode global default and its per-item override
+  As an operator choosing how shipped work is accepted
+  I want acceptance_mode to select the acceptance leg, with a per-item label overriding it
+  So that acceptance delegation is granular and every path still carries an AI pass
+
+Scenario: ai-only accepts to done on a passing AI pass
+  Given dispatcher.acceptance_mode is ai-only
+  And an item parked in acceptance that carries no explicit acceptance_policy label
+  When the AI acceptance pass PASSES
+  Then the item transitions to done without a human
+  And the auto-acceptance is journaled with the item id and the setting that governed it
+
+Scenario: ai-then-human parks for the human accept valve
+  Given dispatcher.acceptance_mode is ai-then-human (the default)
+  And an item parked in acceptance that carries no explicit acceptance_policy label
+  When the AI acceptance pass PASSES
+  Then the item parks in acceptance for the human `accept` valve action
+
+Scenario: human-only parks for the human with the AI pass advisory
+  Given dispatcher.acceptance_mode is human-only
+  And an item parked in acceptance that carries no explicit acceptance_policy label
+  When the AI acceptance pass runs
+  Then the item parks in acceptance for the human
+  And the AI pass is advisory — it informs the human and never disposes of the item
+
+Scenario: A per-item acceptance_policy label overrides the global
+  Given dispatcher.acceptance_mode is ai-only
+  And an item parked in acceptance carrying an explicit acceptance_policy label of human-only
+  When the AI acceptance pass PASSES
+  Then the item parks in acceptance for the human rather than transitioning to done
+
+Scenario: Every acceptance path carries at least one AI pass
+  Given an item parked in acceptance under any of the three acceptance modes
+  When the acceptance leg runs
+  Then at least one AI acceptance pass has run before the item can reach done
+```
+
+## Scenario 35 — A failing AI acceptance pass reworks only in the AI-dispositive modes
+
+```gherkin
+Feature: The FAIL route of the AI acceptance pass is scoped to the AI-dispositive modes
+  As a maintainer relying on the acceptance valve
+  I want a failing AI pass to auto-rework only where the AI is dispositive
+  So that no rework loop is unbounded and a human-only item is never disposed of by the machine
+
+Scenario: An AI-dispositive item is auto-reworked on a failing pass
+  Given an item in acceptance whose effective acceptance_policy is ai-only or ai-then-human
+  When the AI acceptance pass judges the merged artifact against its acceptance criteria and FAILS
+  Then the item transitions to active for fix-forward rework without a human
+  And the item carries the rework:pending label
+  And the disposing dispatch does not itself perform the rework
+  And the auto-rework is journaled with the item id and the setting that governed it
+
+Scenario: Repeated failure past the rework cap escalates instead of reworking again
+  Given an item whose failed AI acceptance passes have reached dispatcher.acceptance_rework_cap
+  When the AI acceptance pass FAILS again
+  Then the item is not reworked again
+  And it escalates to blocked with blocked_reason needs-human and is surfaced to a human
+
+Scenario: A human-only item's failing AI pass advises but never disposes
+  Given an item in acceptance whose effective acceptance_policy is human-only
+  When the AI acceptance pass FAILS
+  Then the item stays parked in the acceptance state
+  And the failure is surfaced to the human as an advisory finding
+  And the item is not auto-reworked
+  And the human retains the accept / `reject` decision
+```
+
+## Scenario 36 — Every needs-human block always escalates
+
+```gherkin
+Feature: No dispatcher policy setting auto-disposes a needs-human escalation
+  As a maintainer relying on the residual human escalation path
+  I want every needs-human block surfaced to a human rather than machine-resolved
+  So that no policy setting can turn a human decision into a machine guess
+
+Scenario: A needs-human block is surfaced, never auto-resolved
+  Given an item blocked with blocked_reason needs-human
+  And any combination of dispatcher policy settings
+  When the Dispatcher reaches it
+  Then it does not auto-resolve the decision
+  And the item remains blocked and is surfaced to a human
+  And the escalation is queryable from the journal
+
+Scenario: A design-human-gated decision escalates by design even at high confidence
+  Given a design-human-gated decision — a spec-change slice, a regroom/backlog bounce, or a human-only acceptance — that the LLM could resolve with high confidence
+  When the Dispatcher evaluates it
+  Then it does not auto-dispose the decision, because the design reserves it to a human
+  And the decision is left on its human path — a spec-change to `/livespec:propose-change`, a bounce resting in backlog — and surfaced to a human
+  And the escalation is queryable from the journal
+
+Scenario: A drift acceptance is routed to the spec lifecycle, never auto-disposed
+  Given a drift acceptance that the LLM could resolve with high confidence
+  When the Dispatcher evaluates it
+  Then it does not auto-dispose the decision
+  And the decision is left on the Spec-Plane revise path, where acceptance is human by default and MAY be owned by the consensus tier only under an explicit per-repo `spec_governance.drift_acceptance_mode` opt-in
+  And the escalation is queryable from the journal
+```
+
+## Scenario 37 — Safe defaults hold when nothing is configured
+
+```gherkin
+Feature: The dispatcher policy settings are safe by default
+  As a maintainer
+  I want the defaults alone to arm no dangerous behavior
+  So that a dangerous disposition is never entered by accident
+
+Scenario: An all-default configuration arms nothing
+  Given a `.livespec.jsonc` that sets no `dispatcher.*` policy settings
+  And no work-item carries a per-item policy label (`admission_policy`, `acceptance_policy`, or the merge-on-review-cap label)
+  When the Dispatcher runs
+  Then `auto_approve_ready` and `merge_on_review_cap` are false, `acceptance_mode` is ai-then-human, `review_fix_cap` is 3, and `acceptance_rework_cap` is 2
+  And no such unlabeled item is auto-approved, no past-cap review ships, and no acceptance reaches done without a human
+```
+
+## Scenario 38 — capture-spec-drift surfaces ledger intent missing from spec
+
+```gherkin
+Feature: Ledger-intent drift surfaces missing spec behavior
+  As a maintainer keeping the spec honest against the Ledger
+  I want work-item intent that never made it into the spec surfaced as drift
+  So that decisions recorded only in work-items still reach the spec
+
+Scenario: A recent work-item's intent absent from the spec becomes a drift finding
+  Given a recent Ledger work-item whose description encodes a behavior not present in the current spec
+  When capture-spec-drift runs, optionally scoped by --since-version
+  Then it surfaces a ledger-intent drift finding
+  And on user consent it hands off to /livespec:propose-change
+  And it never mutates the work-item or writes spec-side state directly
+```
+
+## Scenario 39 — Ratified lesson injects into dispatch briefs
+
+```gherkin
+Feature: dispatch-brief lessons injection
+  As the factory operator
+  I want human-ratified lessons to reach every dispatch brief
+  So that the ratified improvement loop actually changes future dispatch behavior
+
+Scenario: a merged ratified lesson appears in composed briefs
+  Given loop-reflection-gate/lessons.md is committed and carries ratified lesson text "L"
+  When the Dispatcher composes a dispatch brief for an admitted work-item
+  Then the composed brief contains lesson text "L" in its delimited lessons section
+```
+
+## Scenario 40 — Unratified or absent lessons never alter briefs
+
+```gherkin
+Feature: unratified lessons are inert
+  As the maintainer supervising the improvement loop
+  I want unratified or absent lessons to leave briefs untouched
+  So that only content I merged can steer future dispatches
+
+Scenario: absent or placeholder-only lessons leave the brief unchanged
+  Given loop-reflection-gate/lessons.md is absent, or present with no ratified lessons
+  When the Dispatcher composes a dispatch brief
+  Then the composed brief is identical to one composed with no lessons file
+  And no lessons heading or placeholder text appears in the brief
+
+Scenario: an unmerged reflector proposal never injects
+  Given an open reflector PR proposes lesson text "M" against loop-reflection-gate/lessons.md
+  And the committed loop-reflection-gate/lessons.md does not contain "M"
+  When the Dispatcher composes a dispatch brief
+  Then the composed brief does not contain "M"
+
+Scenario: an unreadable lessons file fails open
+  Given loop-reflection-gate/lessons.md exists but cannot be read or parsed
+  When the Dispatcher composes a dispatch brief
+  Then the composed brief is identical to one composed with no lessons file
+  And the dispatch proceeds normally
+```
+
+## Scenario 41 — standalone analysis lands in a plan, not a root research tree
+
+```gherkin
+Feature: analysis placement honors the retired research tree
+  As a maintainer recording standalone analysis
+  I want new analysis to land in the plan store
+  So that no root research/ tree re-accretes after its fleet-wide retirement
+
+Scenario: a new analysis note lands under the plan store
+  Given a maintainer records standalone analysis for slug "t" via the plan front-end
+  When the plan stores the reasoning note
+  Then the note lands as write-once research under plan/t/research/
+  And no root research/ path is created anywhere in the repository
+  And no live handoff.md, supervisor-handoff.md, or mutable plan-state file is created
+```
+
+## Scenario 42 — list-plans enumerates unarchived plans
+
+```gherkin
+Feature: list-plans enumerates unarchived plans
+  As a consumer of the read/awareness surface
+  I want open plans enumerated as a thin-transport read
+  So that an unarchived plan is never invisible to the awareness picture
+
+Scenario: unarchived plans enumerate in lexicographic order; archived plans do not
+  Given a governed repo whose plan/ plan store contains unarchived plan directories plan/beta-topic/ and plan/alpha-topic/
+  And an archived plan directory plan/archive/old-topic/
+  When list-plans --json is run
+  Then plans is exactly ["alpha-topic", "beta-topic"]
+  And no entry references old-topic or the plan/archive/ path
+  And the invocation mutates nothing
+
+Scenario: a repo with no plan directory yields zero plans
+  Given a governed repo with no plan/ directory
+  When list-plans --json is run
+  Then plans is empty
+  And the invocation exits 0
+```
+
+## Scenario 43 — loop drains the ranked queue by default
+
+```gherkin
+Feature: The dispatch loop drains the ranked queue with no mode flag
+  As the Dispatcher draining ready work unattended
+  I want the loop to drain the ranked queue by default
+  So that an unattended drain needs no arming argument and no run mode
+
+Scenario: An invocation with no --item drains the ranked queue within budget
+  Given a ranked queue of dispatch-eligible ready items
+  When the Dispatcher loop is invoked with --budget and no --item and no --dry-run
+  Then it selects items from the ranked queue in the same order the next surface advertises
+  And it dispatches at most --budget items in the run
+  And the drain stays bounded by the per-repo wip_cap regardless of --parallel
+  And no run-mode argument is passed or recognized
+
+Scenario: --item narrows the ranked selection without bypassing admission
+  Given a ranked queue of dispatch-eligible ready items
+  And a work-item that is NOT dispatch-eligible because it rests at pending-approval under an effective admission_policy of manual
+  When the Dispatcher loop is invoked with --item naming that ineligible work-item
+  Then it is not dispatched
+  And the run dispatches only named items that are themselves dispatch-eligible
+```
+
+## Scenario 44 — --dry-run plans the ranked queue and dispatches nothing
+
+```gherkin
+Feature: The dispatch loop can plan a drain without performing it
+  As an operator inspecting what the factory would do
+  I want a dry run that plans the identical selection and dispatches nothing
+  So that a drain can be previewed without launching a run or mutating the ledger
+
+Scenario: A dry run reports the selection it would dispatch and launches nothing
+  Given a ranked queue of dispatch-eligible ready items
+  When the Dispatcher loop is invoked with --dry-run
+  Then it reports exactly the selection the same invocation would dispatch, honoring --budget, the wip_cap, and any --item scoping
+  And it launches no Fabro run
+  And it mutates no work-item and writes no work-item store
+  And it produces no per-run cost signal and therefore no cost-gate verdict
+```
+
+## Scenario 45 — Unobservable cost fails closed on an unattended drain and warns on a hand-picked dispatch
+
+```gherkin
+Feature: The fail-closed cost gate keys on --item presence, not on a run mode
+  As the Dispatcher protecting unattended spend
+  I want an unobservable per-run cost to refuse only when no human is present
+  So that an unattended drain never burns spend cost-blind, while a hand-picked dispatch is not blocked by a dark cost signal
+
+Scenario: Unobservable cost on an unattended drain refuses under the enforce posture
+  Given LIVESPEC_COST_MODE is enforce
+  And the Dispatcher loop was invoked with no --item (an unattended queue drain)
+  And a dispatched run reached a successful terminal outcome and its run id resolves against the cost source
+  When that run's per-run cost signal is unobservable
+  Then the gate verdict is a fail-closed refusal and the Dispatcher stops picking
+  And a gate record is journaled with the work-item id, the run id, the severity, and the refusal
+
+Scenario: Unobservable cost on a hand-picked dispatch warns rather than refusing
+  Given LIVESPEC_COST_MODE is enforce
+  And the Dispatcher loop was invoked with --item naming a single work-item (a human is present)
+  And that run reached a successful terminal outcome and its run id resolves against the cost source
+  When that run's per-run cost signal is unobservable
+  Then the gate verdict is a warning and the Dispatcher does not refuse
+  And a gate record is journaled
+
+Scenario: An observed cost never trips the unobservable gate
+  Given LIVESPEC_COST_MODE is enforce
+  When a gated run's per-run cost signal is observable
+  Then the unobservable-cost gate does not refuse, whether or not --item was passed
+
+Scenario: An unresolvable run id is journaled as a skipped gate and is fail-open
+  Given LIVESPEC_COST_MODE is enforce
+  And the Dispatcher loop was invoked with no --item (an unattended queue drain)
+  And a dispatched run's run id cannot be resolved against the cost source
+  When the cost gate runs
+  Then the run is journaled as a skipped gate record naming the work-item and the unresolvable-run-id reason
+  And the Dispatcher does not refuse, because this disposition is deliberately fail-open
+
+Scenario: A run that did not reach a successful terminal outcome is not gated
+  Given LIVESPEC_COST_MODE is enforce
+  And a dispatched run did not reach a successful terminal outcome
+  When the cost gate runs
+  Then that run yields no cost observation and no gate verdict
+  And the Dispatcher does not refuse on its account
+
+Scenario: The default report posture journals a gate record but derives no keyed verdict
+  Given LIVESPEC_COST_MODE is unset, empty, or unrecognized, so it resolves to report
+  And the Dispatcher loop was invoked with no --item
+  When a gated run's per-run cost signal is unobservable
+  Then the cost signal is still observed and a gate record is still journaled, carrying the observability of the signal
+  And no keyed verdict is derived, the record's severity is report
+  And the Dispatcher does not refuse and applies no cost cap
+```
+
+## Scenario 46 — Per-item cap overrides set a label or clear to reinherit the global default
+
+```gherkin
+Feature: Per-item cap overrides set one label and clear-to-inherit removes it
+  As the operator (or the console acting on the operator's behalf)
+  I want the three per-item cap-override actions to set or clear exactly one override
+  So that a work-item can override, then reinherit, a global dispatcher cap without any status change
+
+Scenario: set-review-fix-cap writes the override without touching the status
+  Given a ready work-item carrying no per-item review_fix_cap override
+  When the operator invokes `drive --action set-review-fix-cap:<work-item-id>:5`
+  Then the item's per-item review_fix_cap override becomes 5
+  And the item's status is unchanged
+  And the journal records the actor
+
+Scenario: set-merge-on-review-cap takes a boolean value
+  Given a work-item carrying no per-item merge_on_review_cap override
+  When the operator invokes `drive --action set-merge-on-review-cap:<work-item-id>:true`
+  Then the item's per-item merge_on_review_cap override becomes true
+  And the item's status is unchanged
+
+Scenario: clear removes the override so the item reinherits the global default
+  Given a work-item carrying a per-item acceptance_rework_cap override
+  When the operator invokes `drive --action set-acceptance-rework-cap:<work-item-id>:clear`
+  Then the per-item acceptance_rework_cap override is removed
+  And the item reinherits the global dispatcher.acceptance_rework_cap default
+  And the item's status is unchanged
+
+Scenario: clearing an already-absent override is a green no-op
+  Given a work-item carrying no per-item review_fix_cap override
+  When the operator invokes `drive --action set-review-fix-cap:<work-item-id>:clear`
+  Then the action succeeds without error
+  And the item still carries no per-item review_fix_cap override
+  And the item's status is unchanged
+```
+
+## Scenario 47 — The guarded move relocates within the operator-movable statuses only
+
+```gherkin
+Feature: The guarded move performs operator queue control without force-shipping
+  As the operator commanding hands-on queue control
+  I want move to relocate a selected item only among the operator-movable statuses
+  So that queue control writes only the status and never force-ships unverified work past the acceptance ship-guard
+
+Scenario: move relocates an item to an allowed status and writes only the status
+  Given a work-item at backlog
+  When the operator invokes `drive --action move:<work-item-id>:ready`
+  Then the item's status becomes ready
+  And nothing other than the item's status is changed
+  And the journal records the actor
+
+Scenario: move to done is refused
+  Given a work-item the operator wants to force to done
+  When the operator invokes `drive --action move:<work-item-id>:done`
+  Then the action is refused with a clear error
+  And the item's status is unchanged
+  And done stays reachable only by accepting from acceptance
+
+Scenario: move to acceptance or pending-approval is refused
+  Given a work-item at active
+  When the operator invokes `drive --action move:<work-item-id>:acceptance`
+  Then the action is refused with a clear error
+    And when the operator instead invokes `drive --action move:<work-item-id>:pending-approval`
+  Then that action is also refused with a clear error
+  And acceptance and pending-approval are entered only on their own guarded or entry paths
+```
+
+## Scenario 48 — Dispatcher refuses a not-factory-safe item at admission
+
+```gherkin
+Feature: A ready work-item whose `factory_safety` is non-null is refused at
+  the admission valve before any sandbox launch and surfaced for routing to
+  an attended host session that performs it automatically.
+
+  Scenario: A ready item carrying factory_safety needs-host-secrets is refused
+    Given a `ready` work-item whose `factory_safety` is `needs-host-secrets`
+    And a free WIP slot, cleared dependencies, and a resolvable assignee
+    When the Dispatcher's admission valve evaluates it
+    Then the item is not admitted to `active`
+    And no Fabro sandbox run is launched for it
+    And the Dispatcher surfaces an actionable host-route refusal naming the
+      `needs-host-secrets` reason
+    And the item stays `ready` (it is not marked `blocked`)
+
+  Scenario: A ready item editing .github/workflows/ is refused pre-dispatch
+    Given a `ready` work-item whose scope edits a file under `.github/workflows/`
+    And ordinary CI executes on GitHub-hosted runners
+    And a free WIP slot, cleared dependencies, and a resolvable assignee
+    When the Dispatcher's admission valve evaluates it
+    Then the item is not admitted to `active`
+    And no Fabro sandbox run is launched for it
+    And the refusal names the attended-host-session route
+    And the refusal is unchanged by the hosted CI execution substrate because the workflow would rewrite the factory's own examiner
+    And the refusal reaches a terminal verdict without an interactive prompt
+    And the item's published `awaits_scope_override` signal becomes true
+    And the item stays `ready` (it is not marked `blocked`)
+
+  Scenario: A citation-only scope override clears the refusal signal
+    Given a `ready` work-item whose `factory_safety` is null
+    And its published `awaits_scope_override` signal is true after a declared-workflow-edit refusal
+    When the operator invokes `set-workflow-scope-override:<work-item-id>:citation-only`
+    Then the durable citation-only override is recorded without changing item status
+    And the published `awaits_scope_override` signal becomes false
+    And the next admission evaluation may admit the item if every other admission condition is satisfied
+
+  Scenario: A citation-only scope override cannot admit intrinsic host-only work
+    Given a `ready` work-item whose `factory_safety` is `mutates-host-machinery`
+    When the operator attempts `set-workflow-scope-override:<work-item-id>:citation-only`
+    Then the action is refused because `factory_safety` is evaluated first
+    And `awaits_scope_override` remains false
+
+  Scenario: A ready item editing .github/actions/ is NOT refused
+    Given a `ready` work-item whose scope edits a composite action under
+      `.github/actions/` and no file under `.github/workflows/`
+    And a free WIP slot, cleared dependencies, and a resolvable assignee
+    When the Dispatcher's admission valve evaluates it
+    Then the item is admitted to `active`
+```
+
+## Scenario 50 — A committed wip_cap of 0 admits nothing (dispatch-off)
+
+```gherkin
+Feature: A per-repo wip_cap of 0 is the consumer project's dispatch-off posture
+  As a consumer project that has committed a dispatch-off posture
+  I want a committed wip_cap of 0 to admit nothing
+  So that switching dispatch off is a committed, verifiable fact of the repo
+
+Scenario: No admission-eligible ready item is admitted under a committed wip_cap of 0
+  Given a per-repo wip_cap of 0 committed in `.livespec.jsonc`
+  And an admission-eligible ready item
+  When the Dispatcher runs with no active items
+  Then the committed wip_cap of 0 resolves to 0 rather than falling back to the default
+  And the Dispatcher admits nothing
+  And the item stays `ready`
+```
+
+## Scenario 51 — The rework-return valve leaves a durable journal record
+
+```gherkin
+Feature: A human rework return from acceptance is attributable in the journal
+  As a maintainer auditing how a work-item re-entered `active`
+  I want the `reject:rework` valve to journal its transition durably
+  So that every rework return into `active` has exactly one journaled owner
+
+Scenario: Rejecting an acceptance item for rework journals the transition
+  Given a work-item in `acceptance`
+  When the operator invokes `reject:<work-item-id>:rework`
+  Then the work-item moves to `active`
+  And a durable journal record is written for that transition
+  And the record names the acting party, the stage identifier, and the work-item id
+  And the record outlives the invocation rather than existing only in the response payload
+```
+
+
+## Scenario 52 — A repository mise tool cannot shadow the lifecycle-guarded bd entry point
+
+Given a beads-backed repository runs on a host with the lifecycle guard installed
+
+And the repository carries project-local developer-tool pins in its mise configuration
+
+When the plugin resolves `bd` from `LIVESPEC_BD_PATH` or its configured default
+
+Then the resolved public entry point MUST be the lifecycle guard
+
+And the repository's mise configuration MUST NOT declare or install `bd`
+
+And normal plugin, ledger, and operator calls MUST NOT invoke the guard's private delegate executable
+
+## Scenario 53 — A dispatch proceeds when the host is busy; the scheduler queues it
+
+```gherkin
+Feature: The Orchestrator performs no host-level concurrency check, so host
+  throughput is governed solely by the Fabro server's own scheduler
+
+  Scenario: A dispatch is not refused when other runs are already in flight
+    Given factory runs already in flight on the shared host
+    And an admission-eligible `ready` work-item with a free per-repo WIP slot
+    When the Dispatcher evaluates the dispatch
+    Then no host-level concurrency check is performed
+    And the dispatch is not refused on host-concurrency grounds
+    And the run is submitted to the Fabro server
+
+  Scenario: A dispatch past the host's scheduler limit queues rather than failing
+    Given the shared host's Fabro server is already at its configured
+      concurrency limit
+    And an admission-eligible `ready` work-item with a free per-repo WIP slot
+    When the Dispatcher dispatches it
+    Then the Dispatcher does not exit with a host-capacity refusal
+    And the work-item is admitted to `active`
+    And the run waits for scheduler capacity rather than being rejected
+```
+
+## Scenario 54 — Host-side dispatch runs a released payload, never the working tree
+
+```gherkin
+Feature: The host-side Dispatcher executes a released payload, so a dispatcher
+  version is usable only once it is past versioning and the release gates
+
+  Scenario: An unreleased working-tree edit does not take effect on the dispatch path
+    Given an orchestrator working checkout carrying an unreleased local edit
+    And a provisioned released payload that does not carry that edit
+    When a host-side dispatch runs
+    Then the dispatch executes the released payload
+    And the unreleased working-tree edit has no effect on it
+    And no promotion into an orchestrator working tree is attempted
+
+  Scenario: A newer provisioned payload is canaried and alarmed, never promoted
+    Given a running release and a newer provisioned released payload
+    When the Dispatcher evaluates whether a newer payload is available
+    Then it compares the running release against the provisioned release
+    And it validates the newer payload with a canary on this host
+    And a passing canary surfaces that a restart is due
+    And a failing canary keeps the last-known-good payload running and alarms a human
+    And in neither case does the Dispatcher modify or re-point its own execution artifact
+
+  Scenario: An undeterminable available release is recorded as undetermined
+    Given the available release cannot be determined
+    When the Dispatcher evaluates whether to update itself
+    Then it records that the available release could not be determined
+    And that record is distinguishable from recording that no update was available
+```
+
+## Scenario 55 — plan archive commissions a missing independent completeness review
+
+```gherkin
+Feature: A plan archive gate obtains the independent evidence it requires
+  As a maintainer resuming an implementation-complete plan
+  I want the plan operation to commission a missing independent review
+  So that archive does not depend on a human noticing an evidence gap
+
+Scenario: A mechanically complete plan without review evidence obtains a fresh review
+  Given a plan epic whose child requirements and implementation items are all closed
+  And the plan ledger timeline carries no independent completeness-review evidence
+  When the plan operation resumes the archive attempt
+  Then it commissions a fresh independent adversarial completeness reviewer
+  And that reviewer has had no role in the plan's implementation
+  And the plan remains unarchived until the reviewer records durable evidence
+  And an evidence record that does not attest every research requirement including deferrals has no archive authority
+```
+
+## Scenario 56 — A not-human-gated decision is taken by the session, never escalated
+
+```gherkin
+Feature: The escalation floor has a positive complement no session escalates past
+  As a maintainer whose attention is the scarce resource
+  I want decisions the design leaves to the session taken by the session
+  So that a rule about what MUST escalate cannot be read as a rule that everything escalates
+
+Scenario: A conformance fix to unratified behavior is taken without a human valve
+  Given implementation behavior that no ratified clause requires
+  And no pending proposed change under proposed_changes/ has that behavior as its subject
+  And a change that removes that behavior so the implementation matches the ratified specification
+  And the session can confidently resolve the decision
+  When a session evaluates the change
+  Then it takes the change itself
+  And it records the rationale naming the change as conformance
+  And it does not route the change to `/livespec:propose-change`
+  And it does not escalate the change as a spec-change decision
+
+Scenario: Deleting behavior a pending proposed change would ratify is escalated, not taken
+  Given implementation behavior that no ratified clause requires
+  And a pending proposed change under proposed_changes/ that would ratify that behavior
+  When a session evaluates a change that removes the behavior
+  Then it escalates the change to the revise valve that owns the queued question
+  And it does not take the deletion itself
+  And the Precedence rule never reaches the decision, because deleting the behavior changes no ratified text
+
+Scenario: Deleting behavior a pending proposed change would forbid is also escalated, not taken
+  Given implementation behavior that no ratified clause requires
+  And a pending proposed change under proposed_changes/ that would forbid that behavior
+  When a session evaluates a change that removes the behavior
+  Then it escalates the change to the revise valve that owns the queued question
+  And it does not take the deletion itself, even though the valve is expected to rule the same way
+  And the exclusion holds on the behavior being the subject of a pending change, not on the direction the valve will rule
+
+Scenario: A decision the session cannot confidently resolve is surfaced even inside an enumerated class
+  Given a decision that falls in an enumerated not-human-gated class
+  And the session cannot confidently resolve that particular decision
+  When the session evaluates it
+  Then it blocks and surfaces the decision to a human under the floor's cannot-resolve arm
+  And the escalation is queryable from the journal
+  And the enumeration does not assert that the session can resolve every instance of the class
+
+Scenario: A substantiated class-wide inability still surfaces under the floor's cannot-resolve arm
+  Given a decision that falls in an enumerated not-human-gated class
+  And the session lacks a concrete capability that every instance of that class would need
+  And the recorded rationale names that missing capability
+  When the session evaluates the decision
+  Then it blocks and surfaces the decision to a human under the floor's cannot-resolve arm
+  And the escalation is admitted even though the inability applies to every instance of the class
+
+Scenario: Rote hedging does not satisfy the cannot-resolve arm's record requirement
+  Given a decision that falls in an enumerated not-human-gated class
+  And the session genuinely cannot confidently resolve that particular decision
+  And a recorded rationale that asserts low confidence without naming anything the session lacks
+  When the rationale is adjudicated
+  Then the rationale does not satisfy the clause, because the inability is unsubstantiated
+  And the decision still blocks and surfaces under the floor's cannot-resolve arm, with the cure being a substantiated rationale
+
+Scenario: A hedged escalation from a session that could resolve the decision does not shed the duty to take it
+  Given a decision that falls in an enumerated not-human-gated class
+  And the decision is not one of the floor's design-human-gated classes
+  And it does not change what the specification requires
+  And the session can confidently resolve that particular decision
+  And a recorded rationale that asserts low confidence without naming anything the session lacks
+  When the rationale is adjudicated
+  Then the rationale does not satisfy the clause, because the inability is unsubstantiated
+  And the duty to take the decision remains with the session, because the cannot-resolve arm never applied
+
+Scenario: An unlisted decision outside the floor is resolved by the governing test, not by its absence from the list
+  Given a decision whose class is not enumerated in the not-human-gated set
+  And the decision is not one of the floor's design-human-gated classes
+  When a session evaluates it
+  Then it applies the governing test of whether the decision changes what the specification requires
+  And it does not escalate on the sole ground that the class is unlisted
+
+Scenario: A floor decision still escalates even though it changes nothing the specification requires
+  Given a regroom or backlog bounce, or a `human-only` acceptance
+  And the decision changes nothing that the specification requires
+  When a session evaluates it
+  Then it escalates the decision on the design-human-gated path
+  And the escalation is queryable from the journal
+  And the governing test does not admit it, because this rule subtracts nothing from the floor
+
+Scenario: A spec-change-tier child's disposition escalates instead of being taken by the session
+  Given a plan child whose autonomy tier is spec-change
+  And a decision to close that child or move it to a different parent
+  When a session evaluates the decision
+  Then it escalates the decision on the design-human-gated path
+  And it does not take the disposition itself
+  And removing the refusal is not admitted as a conformance fix, because this rule requires the refusal
+
+Scenario: An impl-follow-up child's disposition is taken by the session, not escalated
+  Given a plan child carrying a non-null spec_commitment_hint for an already-ratified change
+  And the decision is not one of the floor's design-human-gated classes
+  And the child's autonomy tier is not spec-change
+  And the session can confidently resolve the decision
+  When a session evaluates a decision to close it or move it to a different parent
+  Then it takes the disposition itself
+  And it records the rationale durably
+  And it does not escalate the disposition, because the hint marks ratified follow-up work rather than a spec-change slice
+
+Scenario: A freeform child with no spec commitment and no spec-change tier is disposed by the session
+  Given a plan child whose spec_commitment_hint is null
+  And the decision is not one of the floor's design-human-gated classes
+  And the child's autonomy tier is not spec-change
+  And the session can confidently resolve the decision
+  When a session evaluates a decision to close it or move it to a different parent
+  Then it takes the disposition itself
+  And it records the rationale durably
+  And it does not refuse the disposition, because a null hint is not evidence of a spec-change tier
+
+Scenario: An implementation that cannot determine the autonomy tier refuses the disposition
+  Given a plan child whose autonomy tier cannot be determined from any ratified datum
+  When an implementation evaluates a decision to close that child or move it to a different parent
+  Then it refuses the disposition and surfaces it
+  And it does not substitute spec_commitment_hint for the missing datum
+
+Scenario: A fabricated lack passes textual adjudication without invoking the arm or shedding the duty to take
+  Given a decision that falls in an enumerated not-human-gated class
+  And the decision is not one of the floor's design-human-gated classes
+  And it does not change what the specification requires
+  And the session can confidently resolve that particular decision
+  And a recorded rationale that names a concrete lack the session does not in fact have
+  When the rationale is adjudicated
+  Then the adjudication admits the record, because the inspection is answerable against the text alone
+  And the duty to take the decision remains with the session, because the cannot-resolve arm never applied
+  And the record does not satisfy the clause, because the named lack is not one the session has
+
+Scenario: A listed decision that also changes what the specification requires still escalates
+  Given a decision in an enumerated not-human-gated class
+  And the same decision would also change what a ratified clause requires
+  When a session evaluates it
+  Then it escalates the decision on the design-human-gated path
+  And the escalation is queryable from the journal
+  And the enumeration does not override the governing test
+```
+
+## Scenario 60 — An observed provider exhaustion refuses admission, and expires
+
+```gherkin
+Feature: The Dispatcher does not spend an allowance it has already observed to be gone
+  As a maintainer holding one metered Codex subscription against several Anthropic ones
+  I want dispatch refused while a provider window is known exhausted
+  So that one exhaustion event costs one run rather than every run that follows it
+
+Scenario: An unexpired observed exhaustion refuses admission without disposing the item
+  Given the Dispatcher has observed a provider usage-limit refusal on a completed run against provider "codex"
+  And that observation carries an expiry instant in the future
+  And a ready work-item whose dispatch would run against provider "codex"
+  When the Dispatcher evaluates the admission valve for that item
+  Then the item is not admitted
+  And no sandbox run is launched
+  And the item remains at status "ready"
+  And the item is not marked "blocked"
+  And the refusal is journaled with the work-item id, the governing condition, the provider and the expiry
+
+Scenario: The record expires and admission resumes
+  Given an observed provider-exhaustion record against provider "codex"
+  And the record's expiry instant has passed
+  And a ready work-item whose dispatch would run against provider "codex"
+  When the Dispatcher evaluates the admission valve on a subsequent pass
+  Then the item is admitted normally
+  And the expired record does not refuse it
+
+Scenario: A provider with no observed record is admitted normally
+  Given the Dispatcher holds no unexpired exhaustion record for provider "anthropic"
+  And a ready work-item whose dispatch would run against provider "anthropic"
+  When the Dispatcher evaluates the admission valve for that item
+  Then the item is admitted normally
+  And the containment condition refuses nothing
+
+Scenario: The exhaustion signal is never derived from credential material
+  Given a provider whose host-side credential file is readable
+  And no completed run has reported a usage-limit refusal for that provider
+  When the Dispatcher evaluates the admission valve
+  Then it does not read the credential file to decide admission
+  And it holds no exhaustion record for that provider
+  And the item is admitted normally
+
+Scenario: A containment refusal never disposes a needs-human item
+  Given a work-item carrying blocked_reason "needs-human"
+  And an unexpired observed exhaustion record covering the provider it would dispatch against
+  When the Dispatcher evaluates that item
+  Then the item is not auto-resolved
+  And the item stays surfaced through the needs-attention awareness surface
+```
+
+## Scenario 61 — A dead implementer does not spend the second vendor
+
+```gherkin
+Feature: A dead implementer stops the workflow rather than handing an empty tree to another vendor
+  As a maintainer whose Codex exhaustion should not also consume Anthropic allowance
+  I want review and disposition skipped when the implementer produced nothing
+  So that an exhausted window costs one vendor's allowance rather than two
+
+Scenario: Review and disposition are skipped against an unchanged tree
+  Given a factory run whose implementer node terminated without producing any change to the worktree relative to the dispatch base
+  When the workflow advances past the implementer node
+  Then no review round is executed against that tree
+  And no review-fix round is executed against that tree
+  And no disposition round is executed against that tree
+  And the run is finalized carrying the implementer's own failure as its surfaced cause
+  And the truncation is journaled with the work-item id and the governing condition
+
+Scenario: A run whose implementer did change the tree proceeds normally
+  Given a factory run whose implementer node produced a change to the worktree relative to the dispatch base
+  When the workflow advances past the implementer node
+  Then the review round is executed normally
+  And the dead-implementer rule truncates nothing
+```
+
+## Scenario 64 — Every Codex ACP node runs a pinned model, and the opt-out is a true no-op
+
+```gherkin
+Feature: The factory chooses its Codex model rather than inheriting a decode failure
+  As a maintainer holding one metered Codex subscription
+  I want every Codex node pinned to a chosen model and effort
+  So that spend is a decision rather than the residue of a stale baked adapter
+
+Scenario: A repository with no configuration inherits the fleet default adapters
+  Given a dispatch target whose configuration carries no "dispatcher.codex_models" block
+  When the Dispatcher renders the workflow adapter inputs
+  Then the implementer adapter is the Claude ACP adapter carrying the built-in fleet default model and effort as leading environment assignments
+  And the publish adapter carries its own built-in fleet default Codex model and reasoning effort
+  And the publish adapter is the base Codex adapter command followed by its model and reasoning-effort overrides
+
+Scenario: A repository override replaces only what it names
+  Given a dispatch target whose "dispatcher.codex_models" block sets the implementer model only
+  When the Dispatcher renders the workflow adapter inputs
+  Then the implementer adapter carries the configured model
+  And the implementer adapter carries the built-in default reasoning effort
+  And the publish adapter is unaffected by the implementer override
+
+Scenario: An empty model renders the adapter byte-identically to the unpinned base
+  Given a dispatch target whose configured model for a tier is the empty string
+  When the Dispatcher renders that tier's adapter
+  Then the rendered adapter equals the base adapter command exactly
+  And the rendered adapter carries no model override
+  And the rendered adapter carries no reasoning-effort override
+
+Scenario: A malformed tier entry falls back rather than failing the dispatch
+  Given a dispatch target whose configured tier entry is not a table
+  When the Dispatcher renders that tier's adapter
+  Then the adapter carries the built-in fleet default model and reasoning effort
+  And the dispatch is not refused on account of the malformed entry
+```
+
+## Scenario 65 — A provider ceiling is permanent and surfaces the provider's own sentence
+
+```gherkin
+Feature: A refusal that retrying cannot fix is not reported as transient
+  As an operator reading a failed dispatch
+  I want the provider's own ceiling message surfaced and classified permanent
+  So that the outcome names the fault instead of the transport that carried it
+
+Scenario: A usage ceiling is classified permanent and flagged as typed state
+  Given a failed run whose cause chain carries a provider usage ceiling
+  When the Dispatcher derives the failure detail for that run
+  Then the failure category is permanent rather than transient infrastructure
+  And the failure signature carries the same permanent verdict
+  And the failure detail carries the typed provider-limit flag
+
+Scenario: The surfaced cause is the innermost element, not the transport wrapper
+  Given a failed run whose cause chain carries a transport wrapper as its outermost element
+  And whose innermost element carries the provider's payload
+  When the Dispatcher derives the failure detail
+  Then the surfaced cause is the innermost element
+  And the surfaced cause is not the transport wrapper
+
+Scenario: The provider's embedded sentence is surfaced rather than the raw enclosing text
+  Given a provider payload that embeds its message inside a structured object
+  When the Dispatcher derives the failure detail
+  Then the surfaced cause is the embedded message
+  And the surfaced cause names the ceiling and its reset instant
+
+Scenario: A remote-compaction 404 is permanent but is not a spend ceiling
+  Given a failed run whose cause chain carries a remote-compaction 404
+  When the Dispatcher derives the failure detail
+  Then the failure category is permanent rather than transient infrastructure
+  And the failure signature carries the same permanent verdict
+  And the typed provider-limit flag is not set
+
+Scenario: An ordinary transient failure keeps its classification
+  Given a failed run whose cause chain carries no permanent cause of either recognised class
+  When the Dispatcher derives the failure detail
+  Then the failure category is the one the run reported
+  And the failure signature is unchanged
+  And the typed provider-limit flag is not set
+```
+
+## Scenario 66 — A parked rework item is re-dispatched before new ready work
+
+```gherkin
+Feature: The fix-forward rework contract is executable
+  As a maintainer relying on the acceptance valve
+  I want a rework-routed item to be picked up by the next drain
+  So that rework parks visibly and briefly instead of invisibly forever
+
+Scenario: The drain drives a rework-pending item before admitting new ready work
+  Given an active item carrying the rework:pending label and holding no live dispatch lock
+  And ready items exist in the queue
+  And the count of active items other than the marked item is below wip_cap
+  When the Dispatcher drain runs
+  Then a fix-forward rework dispatch starts for the marked item before any new ready item is admitted
+  And starting the rework journals the rework admission and leaves the label in place until the rework dispatch's terminal disposition
+  And the merged change is not reverted
+
+Scenario: A rework dispatch that dies before publishing leaves the item re-selectable
+  Given a marked item whose rework dispatch acquired a dispatch lock and died before publishing a branch
+  When a later drain runs and the lock is no longer live
+  Then the item is still marked and is selected for rework again
+
+Scenario: A parked rework item neither holds capacity nor reads as an abandoned claim
+  Given an active item carrying the rework:pending label and holding no live dispatch lock
+  When the admission accounting runs
+  Then the item is classified rework-pending
+  And it is excluded from the capacity count
+  And it is not recorded as an abandoned claim
+  And no stranded-dispatch surface reports it as stranded
+```
+
+## Scenario 67 — The human rework reject parks the same selectable state
+
+```gherkin
+Feature: The two rework entries do not diverge in selectability
+  As an operator using the reject valve
+  I want a human rework reject to be picked up exactly like an AI-fail rework
+  So that the valve I am offered is not a dead end
+
+Scenario: reject:rework stamps the marker and the operator can drive it immediately
+  Given an item parked in acceptance
+  When the operator performs reject rework via the drive valve
+  Then the item transitions to active carrying the rework:pending label
+  And dispatch --item on that item is accepted and drives the fix-forward rework
+  And dispatch --item on an active item without the label is refused as a precondition error
+```
+
+## Scenario 68 — reconcile-merged refuses a rework-pending item
+
+```gherkin
+Feature: The recovery valve stays scoped to dispatches that died mid-flight
+  As an operator recovering a stranded dispatch
+  I want reconcile-merged to refuse an item whose disposition already completed
+  So that a completed rework disposition is never re-run as a recovery
+
+Scenario: A rework-pending item is refused with the rework route named
+  Given an item carrying the rework:pending label whose merged PR completed post-run disposition
+  When the operator invokes reconcile-merged for that item
+  Then the invocation is refused
+  And the refusal names the rework re-dispatch route as the remedy
+  And force does not bypass the refusal
+
+Scenario: An unmarked merged item remains recoverable
+  Given an active item without the rework:pending label whose dispatch died after its PR merged without completing disposition
+  When the operator invokes reconcile-merged for that item
+  Then it is accepted, because that is the recovery this valve exists for
+```
+
+## Scenario 69 — Zero-criteria AI-dispositive work is walled before any spend
+
+```gherkin
+Feature: Ungradeable acceptance criteria refuse before the factory, not after the merge
+  As a maintainer paying for dispatches
+  I want an unverifiable item stopped at ready and at dispatch
+  So that a guaranteed acceptance failure is discovered before a single token is spent
+
+Scenario: The pre-dispatch wall refuses with the dedicated exit code
+  Given an item whose effective acceptance_policy is ai-only or ai-then-human
+  And its effective acceptance criteria parse to zero gradeable assertions
+  When the drain or dispatch --item reaches it
+  Then the dispatch is refused before any factory run is created
+  And the refusal names the item id and states the criteria are empty or ungradeable
+  And the exit code is 5, distinct from the precondition exit 3
+
+Scenario: The approve valve refuses and the item rests in place
+  Given a pending-approval item with the same empty effective criteria and an AI-dispositive policy
+  When a human approves it or an auto admission policy considers it
+  Then entry to ready is refused or withheld with the parse result surfaced
+  And the item rests at pending-approval
+
+Scenario: Criteria that yield gradeable assertions through the merged read or the fallback pass the wall
+  Given an item whose gradeable criteria reach the primitive only through the metadata-merged value, or only through a description section titled Exit criteria
+  When the walls evaluate it
+  Then its effective criteria parse to at least one gradeable assertion and it is dispatched normally rather than refused
+```
+
+## Scenario 70 — Absent evidence parks; it never manufactures a verdict
+
+```gherkin
+Feature: The NEEDS_ATTENTION verdict is the absent-evidence disposition under every policy
+  As a maintainer relying on the acceptance valve
+  I want a pass that cannot observe its evidence to park the item for me
+  So that no judgment is rendered with no evidence examined
+
+Scenario: Unobservable telemetry with a readable diff parks instead of failing
+  Given an item in acceptance whose run telemetry is unobservable
+  And its merged diff is readable
+  When the AI acceptance pass runs under any acceptance_policy
+  Then the verdict is NEEDS_ATTENTION
+  And the item stays parked in acceptance
+  And no rework is triggered and acceptance_rework_cap is not consumed
+  And the parking is journaled with the absent evidence leg
+  And the human disposes of it with the existing accept or reject valve
+
+Scenario: Zero parsed checks past the wall park instead of failing
+  Given an item in acceptance whose effective criteria parse to zero gradeable assertions
+  When the AI acceptance pass runs
+  Then the verdict is NEEDS_ATTENTION and the item is not auto-accepted and not reworked
+```
+
+## Scenario 71 — One effective-criteria authority for every gate
+
+```gherkin
+Feature: Every gate reads the same effective acceptance criteria
+  As an item author
+  I want capture advice, the walls, and the acceptance pass to agree on my criteria
+  So that a criteria text that passes one gate is never absent at another
+
+Scenario: The same resolution order is used at capture, ready, dispatch, and acceptance
+  Given an item whose criteria resolve through the merged criteria value or the description Exit criteria section
+  When the capture front-end displays the parse, the ready wall evaluates it, the pre-dispatch wall evaluates it, and the acceptance pass judges it
+  Then all four surfaces resolve the identical effective criteria text through the single public primitive
+```
+
+## Scenario 72 — Every journal record carries a resolved invoker
+
+```gherkin
+Feature: Journal invoker attribution with a defined resolution order
+  As an operator reconstructing an incident
+  I want every journaled act to say who invoked it and how that identity was resolved
+  So that attribution never depends on a writer's honor
+
+Scenario: The flag wins over the environment
+  Given a state-changing dispatcher invocation with --invoker set and LIVESPEC_INVOKER set
+  When the invocation journals its records
+  Then every record carries the flag identity with invoker_source flag
+
+Scenario: The environment is used when no flag is passed
+  Given a state-changing dispatcher invocation with only LIVESPEC_INVOKER set
+  When the invocation journals its records
+  Then every record carries that identity with invoker_source env
+
+Scenario: An unasserted identity is marked, never trusted
+  Given a state-changing dispatcher invocation with neither input set
+  And dispatcher.require_invoker is false
+  When the invocation journals its records
+  Then every record carries the derived fallback identity with invoker_source fallback
+
+Scenario: The append layer is the only writer and refuses forged fields
+  Given a caller supplying a record that already carries an invoker or invoker_source field
+  When the record reaches the append layer
+  Then the append is refused as a programming error
+  And a mechanical control proves no code appends to the journal path outside the layer
+```
+
+## Scenario 73 — The tightened posture refuses before it mutates
+
+```gherkin
+Feature: require_invoker refuses unattributed state-changing invocations at startup
+  As a maintainer tightening attribution
+  I want an unattributed invocation refused before any mutation
+  So that the refusal itself never creates a half-performed act or an attribution gap
+
+Scenario: A fallback-only invocation is refused as a precondition error
+  Given dispatcher.require_invoker is true in the committed configuration
+  And a state-changing dispatcher invocation with neither --invoker nor LIVESPEC_INVOKER
+  When the invocation starts
+  Then it is refused with the precondition exit code before any store mutation, journal write, or run creation
+  And the refusal names the two accepted identity inputs
+
+Scenario: The dial is not in this repo's API-configurable key manifest
+  Given the orchestrator's API-configurable key manifest
+  When its key set is read
+  Then dispatcher.require_invoker is not among the keys
+  And changing it requires a committed configuration change
+```
+
+## Scenario 74 — The probe demonstrates the loop on a taken item and leaves only explained state
+
+```gherkin
+Feature: The loop probe drives one pre-filed item through the whole cycle
+  As a maintainer who must report the loop live
+  I want a probe that demonstrates the composed cycle with scoped assertions
+  So that steady-state ownership is demonstrated, never declared from documents
+
+Scenario: A full probe cycle passes every stage assertion
+  Given a work-item filed through capture-work-item with an ai-only acceptance policy, clear dependencies, a resolvable assignee, and a change confined to the .livespec-probe directory
+  And a free WIP slot exists
+  And the probe is invoked with --item and an asserted invoker identity
+  When the probe drives the item through admission, the factory run, merge, and acceptance
+  Then every stage assertion passes: non-empty effective criteria, clean journaled step outcomes, an evidence-grounded verdict, and terminal done
+  And the probe's journal records carry a non-fallback invoker_source and the probe run identifier
+  And no attention item referencing the reserved identifier set remains
+  And the unrelated before/after delta is reported without being asserted
+  And the operator may then remove the probe artifact without any surface complaining
+
+Scenario: An escaping change fails the probe before the merge
+  Given a probe item whose change touches a path outside .livespec-probe
+  When the driven cycle verifies confinement before merging
+  Then the cycle fails without merging, naming the escaping path
+
+Scenario: A merged escape fails the probe and names the revert obligation
+  Given an escaping change that nonetheless merged
+  When the probe evaluates the merged diff backstop
+  Then the probe fails naming the merged commit and the revert obligation
+```
+
+## Scenario 75 — The probe takes; it never files, and absence of evidence never passes it
+
+```gherkin
+Feature: The probe respects the consent boundary and fails closed
+  As a maintainer relying on the consent discipline
+  I want the probe unable to create work and unable to pass on unread state
+  So that a health command can never become an unconsented intake path or a false green
+
+Scenario: The probe refuses to run without a designated item
+  Given a probe invocation without --item
+  When the probe starts
+  Then it refuses without creating any work-item
+
+Scenario: The probe refuses an item it cannot drive to done
+  Given a designated item whose effective acceptance policy is not ai-only
+  When the probe starts
+  Then it refuses naming the acceptance policy label to set at filing
+
+Scenario: An unavailable attention source fails the probe
+  Given a probe cycle whose attention source cannot be read at the after snapshot
+  When the probe evaluates its residue assertions
+  Then the probe fails with a source-unavailable outcome
+  And nothing is reported cleared or resolved
+
+Scenario: A defect-seeding probe fixture never touches the live Dispatcher
+  Given a probe variant that creates an empty-criteria fixture item
+  When it runs
+  Then it runs against the hermetic fake backend or a disposable tenant only
+```
+
+## Scenario 76 — A missing required integration point stops the next dispatch, not silently every dispatch
+
+```gherkin
+Feature: Degraded step outcomes persist into refusals
+  As a maintainer whose repository must provide the factory's integration points
+  I want a known-missing integration point to refuse the next dispatch with the remedy named
+  So that the factory degrades loudly once instead of silently forever
+
+Scenario: The next dispatch is refused after a degraded janitor outcome
+  Given the journal's latest outcome for the repository names a missing required integration point
+  And no committed waiver covers that step
+  When the next drain or dispatch --item runs for the repository
+  Then the dispatch is refused at the pre-dispatch gate with the precondition exit code
+  And the refusal names the missing integration point, the originating outcome record, and the remedy
+
+Scenario: The refusal clears when re-verification observes the point provided
+  Given the same journal history
+  And the governed repository now provides the named integration point
+  When the pre-dispatch re-verification runs
+  Then it observes the integration point provided and the dispatch proceeds
+  And a clearing record is journaled naming the step identifier and the degraded outcome it clears
+
+Scenario: A committed waiver proceeds visibly
+  Given a committed step waiver naming the step, an owner, and a reason
+  When a dispatch runs and the waived step fails
+  Then the dispatch proceeds
+  And the waived failure is journaled as waived with the waiver's owner
+```
+
+## Scenario 77 — The master-CI preflight resolves the pipeline the repository declares
+
+```gherkin
+Feature: Declared pipeline resolution with a fail-closed default
+  As an adopter whose CI workflow is not named CI
+  I want to declare my pipeline so the preflight can prove my master green
+  So that a conforming repository is not permanently unprovable by naming convention
+
+Scenario: A declared green pipeline proves master health
+  Given a repository whose committed dispatcher.master_ci names its workflow and aggregate job
+  And the latest run of that workflow on the resolved default branch has a green aggregate job
+  When the master-CI preflight runs
+  Then the dispatch proceeds with the pass journaled
+
+Scenario: A declared red pipeline refuses
+  Given the same declaration with a red aggregate job on the latest resolved-branch run
+  When the master-CI preflight runs
+  Then the dispatch is refused naming the red run
+
+Scenario: The branch is resolved, never assumed
+  Given a repository whose default branch is not named master
+  When the master-CI preflight runs
+  Then the run lookup targets the resolved default branch
+
+Scenario: An undeclared repository uses the default convention
+  Given a repository with no dispatcher.master_ci key and a workflow named CI with a ci-green job
+  When the master-CI preflight runs
+  Then it resolves the default convention unchanged
+
+Scenario: An unresolvable pipeline refuses, and the old fail-open paths refuse too
+  Given a repository whose declared or default pipeline cannot be found, or a host with no usable gh credential, or a repository with no runs yet
+  When the master-CI preflight runs
+  Then the dispatch is refused with the refusal naming the attempted resolution, the declaring key, and the remedy including the step-waiver escape
+```
+
+## Scenario 78 — A temporary throttle carries its own restore work-item
+
+```gherkin
+Feature: Temporary setting postures are owned ledger work, not comments
+  As a maintainer lowering a setting for a bounded trial
+  I want the restore obligation to be first-class tracked work with an owner and criteria
+  So that the trial ending cannot leave the throttle in place silently
+
+Scenario: The lowered cap is paired with an owned restore item
+  Given an operator deliberately lowers a committed dispatcher setting for a bounded trial
+  When the settings change is reviewed for merge
+  Then an owned ledger work-item exists naming the setting and the restore target
+  And the item carries an owner label naming the responsible party
+  And its restore condition is written as gradeable acceptance criteria
+  And it carries a dependency edge to the ledger-tracked trigger where one exists
+
+Scenario: A comment-only restore note is the reviewable violation
+  Given a committed settings change that lowers a setting with only a configuration comment as the restore carrier
+  When the change is reviewed for merge
+  Then the review names the missing restore work-item as a violation of this contract
+  And no configuration schema offers a temporary variant or restore-condition field to reach for
+```
+
+## Scenario 79 — One malformed item never blinds the inbox, and never vanishes silently
+
+```gherkin
+Feature: Per-item tolerance on the consumer side, loud validation on the producer side
+  As an operator relying on the attention surface
+  I want a bad item skipped-and-surfaced by consumers and surfaced loudly by the producer
+  So that neither a blinded inbox nor a silently shorter list can read as all-clear
+
+Scenario: A consumer skips and surfaces a malformed item
+  Given an envelope holding one malformed item and several well-formed items
+  When a conforming consumer parses it
+  Then the well-formed items are consumed
+  And the malformed item is surfaced as skipped, not silently dropped
+  And the envelope is not discarded
+
+Scenario: An unknown kind is a well-formed item
+  Given an envelope holding an item whose kind the consumer does not recognize
+  When the consumer parses it
+  Then the item is treated as well-formed and surfaced generically
+
+Scenario: The producer surfaces a validation failure instead of omitting the candidate
+  Given composition inputs holding one candidate that fails the runtime validator and one valid candidate
+  When needs-attention composes the envelope
+  Then the valid item is emitted
+  And the validation failure is surfaced as a visible failure
+  And the invalid candidate is not silently absent
+```
+
+## Scenario 80 — Every advertised handoff is executable as advertised
+
+```gherkin
+Feature: The advertiser and the enforcer are mechanically bound
+  As an operator pasting a handoff command
+  I want every advertised action to be one the enforcer accepts
+  So that the attention surface never routes me into a refusal by construction
+
+Scenario: An advertised drive handoff is accepted by drive
+  Given an attention item carrying a drive-kind handoff for an item state
+  When the advertised action id is submitted to drive for that item
+  Then drive accepts it
+
+Scenario: A state drive refuses is never advertised
+  Given an item state for which drive refuses an action by construction
+  When needs-attention composes the envelope
+  Then no handoff advertising that action for that item is emitted
+```
+
+## Scenario 81 — Only a complete successful pass advances the coverage point
+
+```gherkin
+Feature: Attempt records and all-or-nothing completed coverage
+  As a maintainer relying on detection recency
+  I want an aborted or partial detection run to leave the coverage point unchanged
+  So that a half-run can never read as coverage and silence detection again
+
+Scenario: A complete pass writes both records and clears staleness
+  Given a detection run over its declared scope whose every surfaced candidate is durably disposed
+  When it reaches a successful terminal outcome
+  Then an attributed attempt record and a completed-coverage record are appended to the designated anchor
+  And the staleness fact derived from that coverage point clears
+
+Scenario: An aborted or partial pass leaves the prior point standing
+  Given a detection run that exits non-zero, is interrupted, or leaves a surfaced candidate undisposed
+  When its records are written
+  Then an attempt record is appended and no completed-coverage record is written
+  And the prior completed point and the live staleness fact are unchanged
+
+Scenario: The self-bookkeeping exception writes nothing else
+  Given a detection run appending its records
+  Then no work-item is created and no other ledger record is written or edited by the detection operation
+```
+
+## Scenario 82 — Staleness facts surface owned triggers, never headless runs
+
+```gherkin
+Feature: Detection recency is computed from completed coverage and surfaced with a handoff
+  As an operator owning the operating rhythm
+  I want overdue detection surfaced with the skill named
+  So that the convergence engine is owned by a surface, not a session recap
+
+Scenario: A ratification without a completed gap capture surfaces the backstop fact
+  Given a ratified spec revision newer than the last completed gap-capture coverage point
+  When needs-attention composes the snapshot
+  Then a gap-capture-staleness fact appears whose handoff names capture-impl-gaps and the stale range
+  And no detector is invoked by the composition
+
+Scenario: Merges past the threshold surface the drift fact
+  Given default-branch merges since the last completed drift coverage point at or past the effective threshold
+  When needs-attention composes the snapshot
+  Then a drift-staleness fact appears whose handoff names capture-spec-drift
+  And the consent-gated dialogue remains the only way the detector runs
+```
+
+## Scenario 83 — Capacity truth is composed from the accounting, never re-derived
+
+```gherkin
+Feature: The admission accounting's verdict is readable attention data
+  As an operator asking whether a slot is free
+  I want the accounting's own verdict composed with each actionable hold explained
+  So that three surfaces can never again re-derive capacity from raw statuses and agree on a wrong answer
+
+Scenario: A reached cap with an unreadable-journal hold composes the residue fact
+  Given a wip_cap of 2
+  And one active item holding a live dispatch lock backed by a watchable run
+  And one active item whose dispatch journal cannot be read
+  And one active item whose journal shows a green terminal outcome after its last admit
+  And one rework-pending parked item
+  When needs-attention composes the snapshot
+  Then the capacity fact reports 2 counted holds and 0 free slots
+  And the unreadable-journal hold appears as its own item naming the holder and an inspection handoff
+  And the live-lock item is not reported as a stale claim
+  And the rework-pending item is not reported as abandoned
+  And no capacity item advertises a status-move handoff for the green-terminal claim
+  And composing the snapshot appends no record to the dispatch journal
+
+Scenario: A busy cap backed entirely by live runs emits no capacity item
+  Given a wip_cap of 2 and two active items each holding a live dispatch lock backed by a watchable run
+  When needs-attention composes the snapshot
+  Then no capacity item appears
+```
+
+## Scenario 84 — Aged ready work with nothing in flight surfaces an unblock
+
+```gherkin
+Feature: Ready-work aging composes when nothing is moving
+  As a maintainer whose queue silently stalled for a day
+  I want aged ready work surfaced with the unblock named
+  So that a stalled repository says so instead of looking busy
+
+Scenario: The aging fact appears past the threshold and clears in flight
+  Given admission-eligible ready items whose latest transition into ready is older than the effective threshold
+  And no live dispatch lock and no watchable run for this repository
+  When needs-attention composes the snapshot
+  Then an aging fact appears naming the aged count, the oldest age, and an unblock handoff
+  And when a dispatch is in flight the fact does not appear
+
+Scenario: An item whose ready instant is unknowable is reported, never omitted
+  Given an admission-eligible ready item whose latest transition into ready cannot be determined
+  When needs-attention composes the snapshot
+  Then that item is reported as age-unknown
+  And an item that only recently entered ready after a long time captured does not count as aged
+```
+
+## Scenario 85 — Every enumerated orchestrator-owned wait composes with its unblock
+
+```gherkin
+Feature: The enumerated wait set is complete and each wait is actionable
+  As an operator scanning one list for everything that is stuck
+  I want each orchestrator-created wait present with the action that clears it
+  So that a wait cannot hide by living in a surface nobody reads
+
+Scenario: All six enumerated waits compose, and a non-wait does not
+  Given a capacity-deferred eligible item
+  And a NEEDS_ATTENTION-parked acceptance
+  And a blocked item whose blocked reason is needs-human
+  And a pending-approval item under an effective manual admission policy
+  And a factory-unsafe ready item awaiting host routing
+  And a ready item held by an unexpired observed provider-exhaustion record
+  And one healthy ready item admitted for dispatch
+  When needs-attention composes the snapshot
+  Then each of the six waits appears with an unblock handoff
+  And the parked acceptance appears as exactly one item whose handoff carries the accept action
+  And that item's summary names both reject dispositions
+  And the healthy admitted item produces no wait item
+```
+
+## Scenario 86 — The implementer defaults to Claude Opus 5 and an explicit Codex pin still routes to Codex
+
+```gherkin
+Feature: The implementer runs Claude Opus 5 unless a repository pins it to Codex
+  As a maintainer who wants the strongest implementer by default and a config-only way to stay on Codex
+  I want the default implementer adapter to be the Claude adapter pinned to Opus 5
+  So that switching the implementer model is a configuration change, never a code change
+
+Scenario: A default dispatch renders the Claude implementer adapter
+  Given a dispatch target whose configuration carries no "dispatcher.codex_models" implementer entry
+  When the Dispatcher renders the acp_adapter input
+  Then the rendered adapter is the Claude ACP adapter command
+  And it carries ANTHROPIC_MODEL set to claude-opus-5 and CLAUDE_CODE_EFFORT_LEVEL set to high as leading environment assignments
+  And it carries no context-window suffix on the model name
+
+Scenario: An explicit implementer pin routes the implementer class to Codex
+  Given a dispatch target whose "dispatcher.codex_models" block carries an implementer entry naming a model
+  When the Dispatcher renders the acp_adapter input
+  Then the rendered adapter is the Codex adapter carrying that model and its reasoning effort
+  And the publish adapter is unchanged by the implementer entry
+
+Scenario: The publish class is unaffected by the implementer default
+  Given a dispatch target with no "dispatcher.codex_models" block
+  When the Dispatcher renders the pr_adapter input
+  Then the rendered adapter is the pinned Codex publish adapter
+```
+
+## Scenario 87 — A node's adapter resolves through three layers and the record names the supplying layer
+
+```gherkin
+Feature: Per-node adapter configuration resolves most-specific-wins
+  As a maintainer who wants to switch any node to any model with a config change
+  I want workflow defaults, per-repository configuration and a per-dispatch argument to layer predictably
+  So that the factory's model choice is always a recorded configuration decision
+
+Scenario: A repository entry overrides the workflow default for one node only
+  Given a workflow whose acp_adapter default names the Claude adapter
+  And a dispatch target whose "dispatcher.acp_nodes" table sets the implement node's command to a different adapter
+  When the Dispatcher renders the workflow adapter inputs
+  Then the implement node's rendered adapter carries the repository command
+  And every other node's rendered adapter carries its workflow default
+  And the dispatch record names the repository layer for the implement node's command
+
+Scenario: A per-dispatch argument overrides the repository entry and is journaled
+  Given a dispatch target whose "dispatcher.acp_nodes" table sets the implement node's env ANTHROPIC_MODEL
+  And a dispatch invoked with an "--acp-node implement=…" argument setting a different ANTHROPIC_MODEL
+  When the Dispatcher renders the workflow adapter inputs
+  Then the implement node's rendered adapter carries the per-dispatch ANTHROPIC_MODEL
+  And the repository's other env keys for that node are preserved
+  And the dispatch record carries the per-dispatch argument and names the per-dispatch layer for that key
+
+Scenario: A per-dispatch value cannot arrive through the environment
+  Given an environment variable that names a model for a node
+  And no per-dispatch argument
+  When the Dispatcher renders the workflow adapter inputs
+  Then the rendered adapter is unaffected by the environment variable
+
+Scenario: A layer naming an unknown node refuses the dispatch
+  Given a dispatch target whose "dispatcher.acp_nodes" table names a node the workflow does not declare
+  When the Dispatcher prepares the dispatch
+  Then it refuses before any run exists naming the unknown node
+```
+
+## Scenario 88 — An arbitrary adapter with an env map and args renders without a code change
+
+```gherkin
+Feature: Any model behind any provider protocol is a configuration value
+  As a maintainer who runs open-weight models behind a local router
+  I want a node's adapter expressed as a command, an env map and args
+  So that a local or open-source model needs no orchestrator code change
+
+Scenario: A Claude-adapter node pointed at an Anthropic-compatible endpoint renders its env map
+  Given a dispatch target whose "dispatcher.acp_nodes" table sets the implement node's env with ANTHROPIC_BASE_URL, ANTHROPIC_AUTH_TOKEN and ANTHROPIC_MODEL naming a router-qualified model
+  When the Dispatcher renders the implement node's adapter
+  Then the rendered adapter is the env pairs in sorted key order, then the Claude adapter command
+  And no orchestrator code names the endpoint or the model
+
+Scenario: A Codex-adapter node with a provider definition renders its args
+  Given a dispatch target whose "dispatcher.acp_nodes" table sets the pr node's args to a model_provider definition and a model
+  When the Dispatcher renders the pr node's adapter
+  Then the rendered adapter is the Codex adapter command followed by those args in order
+
+Scenario: The rendering is proven hermetically
+  Given a test that renders an adapter against a stub endpoint or the fake backend
+  When the test runs
+  Then it passes without reaching any real provider over the network
+```
+
+## Scenario 89 — Node timeouts resolve from configuration and land as literal durations
+
+```gherkin
+Feature: Per-node timeouts are configuration, rendered literally
+  As a maintainer whose implementer no longer dies on compaction
+  I want each node's timeout to be a configured value with a 30-minute default
+  So that the node timeout is the only ceiling and it is always a decision
+
+Scenario: A default target renders every node at 1800 seconds
+  Given a dispatch target with no "dispatcher.node_timeouts" table
+  When the Dispatcher renders the dispatch payload's workflow graph
+  Then every node's timeout attribute is the literal duration 1800s
+  And the run's stall_timeout attribute is the literal duration 7200s
+  And no timeout attribute contains a template opener
+
+Scenario: A configured node keeps its value and the others keep the default
+  Given a dispatch target whose "dispatcher.node_timeouts" sets implement to 7200
+  When the Dispatcher renders the dispatch payload's workflow graph
+  Then the implement node's timeout attribute is the literal duration 7200s
+  And every other node's timeout attribute is the literal duration 1800s
+  And the dispatch record names the repository layer for the implement timeout
+
+Scenario: The subprocess ceiling follows the resolved graph
+  Given a dispatch target whose resolved node timeouts sum to a longer worst-case path than the default
+  When the Dispatcher computes its fabro run subprocess ceiling
+  Then the ceiling exceeds that worst-case path by the fixed margin
+
+Scenario: An invalid timeout refuses the dispatch
+  Given a dispatch target whose "dispatcher.node_timeouts" sets a node to zero or to a non-integer
+  When the Dispatcher prepares the dispatch
+  Then it refuses before any run exists naming the key
+```
+
+## Scenario 90 — The Codex adapter is identified by its baked path and pinned through its environment
+
+```gherkin
+Feature: A reader can predict the rendered Codex adapter string and check it against the run
+  As a maintainer auditing which model a factory node actually ran
+  I want the Codex adapter identified by a baked path and pinned through its environment
+  So that the rendered string cannot name one package while executing another
+
+Scenario: A default dispatch renders both adapters in their ratified forms
+  Given a dispatch whose publish node resolves to the Codex tier and whose implementer node resolves to the Claude default
+  When the Dispatcher renders both adapters
+  Then the publish adapter is its environment assignments in sorted key order followed by the baked codex-acp path
+  And the publish adapter carries model and model_reasoning_effort inside CODEX_CONFIG
+  And the publish adapter carries no "-c model" argument
+  And the implementer adapter is byte-identical to the ratified Claude default string
+
+Scenario: The publish adapter declares its agent mode
+  Given a dispatch whose publish node resolves to the Codex tier
+  When the Dispatcher renders the publish adapter
+  Then the rendered adapter carries INITIAL_AGENT_MODE set to agent-full-access
+
+Scenario: A node that performs no writes is rendered read-only
+  Given a dispatch target whose "dispatcher.acp_nodes" table routes the review node to the Codex adapter
+  When the Dispatcher renders the review node's adapter
+  Then the rendered adapter carries INITIAL_AGENT_MODE set to read-only
+
+Scenario: Package-name resolution is never used to identify the adapter
+  Given a sandbox image carrying two codex-acp packages that share a global bin link
+  When the Dispatcher renders any Codex adapter
+  Then the rendered command is the baked path
+  And the rendered command does not resolve the adapter through npx by package name
+```
+
+## Scenario 91 — The empty-model opt-out renders no model key inside CODEX_CONFIG
+
+```gherkin
+Feature: Disabling a Codex pin is a true no-op rather than a differently-spelled default
+  As an operator disabling a model pin without deleting its documentation
+  I want an empty model to render the un-pinned base string exactly
+  So that the opt-out cannot smuggle in an empty model value
+
+Scenario: An empty model omits the key rather than emptying it
+  Given a dispatch target whose Codex tier sets "model" to the empty string
+  When the Dispatcher renders that tier's adapter
+  Then CODEX_CONFIG carries no model key
+  And CODEX_CONFIG carries no model_reasoning_effort key
+  And the rendered adapter is byte-identical to the un-pinned base string
+```
