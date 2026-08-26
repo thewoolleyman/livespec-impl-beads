@@ -48,6 +48,9 @@ from typing import Protocol
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_argv import (
     CODEX_ADAPTER_BASE,
+    CODEX_ADAPTER_COMMAND,
+    CODEX_AGENT_MODE_READ_ONLY,
+    CODEX_AGENT_MODE_WRITE,
     CODEX_IMPLEMENTER_ADAPTER,
     FleetMembers,
     codex_adapter,
@@ -113,6 +116,9 @@ from livespec_orchestrator_beads_fabro.types import WorkItem
 
 __all__: list[str] = [
     "CODEX_ADAPTER_BASE",
+    "CODEX_ADAPTER_COMMAND",
+    "CODEX_AGENT_MODE_READ_ONLY",
+    "CODEX_AGENT_MODE_WRITE",
     "CODEX_FRESHNESS_MARGIN_SECONDS",
     "CODEX_FRESHNESS_RUN_BUDGET_SECONDS",
     "CODEX_IMPLEMENTER_ADAPTER",

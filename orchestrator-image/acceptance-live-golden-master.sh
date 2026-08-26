@@ -110,7 +110,8 @@ SCRATCH_DIR=""
 THROWAWAY_REPO=""
 THROWAWAY_CREATED=0
 # Optional codex-acp version override (the auto-bump factory gate). Empty =
-# normal behavior (use the image-baked codex-acp global, unchanged). Reset
+# normal behavior (use the image-baked install under the dedicated prefix
+# /opt/livespec/codex-acp, unchanged). Reset
 # UNCONDITIONALLY so an inherited env value never leaks in; only --codex-acp-version
 # sets it.
 CODEX_ACP_VERSION=""
@@ -132,12 +133,13 @@ Options:
   --name NAME       Greeting name to assert. Default: Ada.
   --poll-attempts N Dispatcher PR-merge poll attempts. Default: 80.
   --codex-acp-version VER
-                    Test an ARBITRARY @zed-industries/codex-acp version end-to-end
-                    (the codex-acp auto-bump factory gate). Injects a Fabro
-                    prepare-step that runs `npm install -g
-                    @zed-industries/codex-acp@VER` in the sandbox before the work
-                    graph, overwriting the image-baked global so the version-less
-                    `npx --no-install` implementer adapter runs the target version.
+                    Test an ARBITRARY @agentclientprotocol/codex-acp version
+                    end-to-end (the codex-acp auto-bump factory gate). Injects a
+                    Fabro prepare-step that runs `npm install -g --prefix
+                    /opt/livespec/codex-acp @agentclientprotocol/codex-acp@VER`
+                    in the sandbox before the work graph, overwriting the
+                    image-baked install at exactly the baked path the rendered
+                    adapter invokes, so it runs the target version.
                     Default: empty (use the image-baked version, unchanged).
 
 Required env (normally from /data/projects/1password-env-wrapper/with-livespec-env.sh):
@@ -520,11 +522,39 @@ target_item_id() {
 }
 
 # Materialize an IN-CONTAINER temp copy of the committed implement-work-item
-# workflow with ONE extra `[[run.prepare.steps]]` block appended that overwrites
-# the image-baked @zed-industries/codex-acp global with $CODEX_ACP_VERSION. The
-# version-less `npx --no-install` implementer adapter then runs the target
-# version — byte-identical to how the base Dockerfile bakes it, so the target
-# version is tested faithfully (including the Codex credential projection).
+# workflow with extra `[[run.prepare.steps]]` blocks appended.
+#
+# STEP 1 — CREDENTIAL PROJECTION PRE-CHECK, appended on EVERY run. Proving the
+# Dispatcher's Codex credential projection end-to-end is this script's headline
+# job, and until now nothing asserted it: a Codex node that completed a turn was
+# the only evidence, which conflates "the credential arrived" with "the node
+# happened to succeed". The step asserts, from inside the sandbox, that
+# $CODEX_HOME is the projected _SANDBOX_CODEX_HOME (`/workspace/.codex`, the
+# constant `_dispatcher_overlay.py` writes into the container env table), that
+# the auth.json SNAPSHOT reached the sandbox as $CODEX_AUTH_JSON, and that the
+# successor codex-acp adapter is executable at its baked path. It tests the
+# snapshot through `${#CODEX_AUTH_JSON}` — a LENGTH, never the value — so the
+# credential cannot reach a log, and so the multi-line JSON cannot word-split
+# the `test` it is an argument to.
+#
+# WHY THIS STEP DOES NOT READ $CODEX_HOME/auth.json, which is the obvious thing
+# to assert and would be WRONG HERE: the Dispatcher's overlay APPENDS its own
+# prepare steps AFTER the committed workflow's (see `overlay_text`'s
+# `rewritten + sibling_steps + tmux_steps + gh_refresh_steps + codex_steps`), and
+# the step that WRITES $CODEX_HOME/auth.json is the last of them. Anything this
+# script appends therefore runs BEFORE the projection lands, so a read here would
+# fail on a perfectly healthy dispatch. The read-back of the projected auth.json
+# under _SANDBOX_CODEX_HOME is performed by that projection step itself, which
+# verifies its own write and aborts the run before any agent node if it is empty.
+#
+# STEP 2 — CODEX-ACP VERSION PIN, appended only when --codex-acp-version is set.
+# It installs @agentclientprotocol/codex-acp@$CODEX_ACP_VERSION under the
+# DEDICATED npm prefix /opt/livespec/codex-acp, overwriting the image-baked
+# install at exactly the path the rendered adapter invokes — byte-identical to
+# how the base Dockerfile bakes it, so the target version is tested faithfully.
+# The prefix is why no forced overwrite is needed and why nothing
+# collides: the predecessor package owns the GLOBAL bin link and the successor
+# owns this prefix, so the two never contend for one `codex-acp` bin name.
 #
 # The WHOLE directory (workflow.toml + workflow.fabro + prompts/) is copied, not
 # just workflow.toml, because the Dispatcher resolves the graph path relative to
@@ -535,11 +565,17 @@ target_item_id() {
 # It runs IN the orchestrator container because dispatcher.py (which reads
 # `--workflow <path>`) runs there; the container is torn down on exit, so the
 # mktemp dir needs no explicit cleanup. Echoes the in-container temp workflow.toml
-# path on success. The extra prepare step is APPENDED (TOML array-of-tables
+# path on success. The extra prepare steps are APPENDED (TOML array-of-tables
 # headers are absolute, so position is irrelevant) and no existing line is
 # modified, so the Dispatcher's own overlay (which literal-string-replaces the
 # `graph = "..."` line and appends its own steps) still applies cleanly.
-build_codex_acp_version_workflow() {
+#
+# The pre-check is NOT wrapped in `livespec-step-timer`: it is an `&&` chain
+# rather than a single command, and the timer's `--` form takes one argv. The
+# `\$` escapes keep `$CODEX_HOME` / `$CODEX_AUTH_JSON` LITERAL in the emitted
+# TOML — they must be expanded by the SANDBOX shell that runs the step, not by
+# this orchestrator-container shell that writes it.
+build_sandbox_probe_workflow() {
   docker exec "$CONTAINER" sh -lc '
     set -eu
     src="$1/.claude-plugin/.fabro/workflows/implement-work-item"
@@ -548,13 +584,27 @@ build_codex_acp_version_workflow() {
     cp -R "$src/." "$tmp/"
     {
       printf "\n"
-      printf "# --- golden-master codex-acp version pin (TEST-ONLY; appended by\n"
-      printf "# --- acceptance-live-golden-master.sh --codex-acp-version). Overwrites\n"
-      printf "# --- the image-baked codex-acp global so the version-less\n"
-      printf "# --- npx --no-install implementer adapter runs the target version. ---\n"
+      printf "# --- golden-master Codex credential-projection pre-check (TEST-ONLY;\n"
+      printf "# --- appended by acceptance-live-golden-master.sh). Asserts the\n"
+      printf "# --- sandbox CODEX_HOME is the projected _SANDBOX_CODEX_HOME, that\n"
+      printf "# --- the auth.json snapshot reached the sandbox, and that the\n"
+      printf "# --- successor codex-acp is executable at its baked path. ---\n"
       printf "[[run.prepare.steps]]\n"
-      printf "script = \"livespec-step-timer codex-acp-version-pin -- npm install -g @zed-industries/codex-acp@%s\"\n" "$2"
+      printf "script = \"test \$CODEX_HOME = /workspace/.codex"
+      printf " && test \${#CODEX_AUTH_JSON} -gt 0"
+      printf " && test -x /opt/livespec/codex-acp/bin/codex-acp\"\n"
     } >> "$tmp/workflow.toml"
+    if [ -n "$2" ]; then
+      {
+        printf "\n"
+        printf "# --- golden-master codex-acp version pin (TEST-ONLY; appended by\n"
+        printf "# --- acceptance-live-golden-master.sh --codex-acp-version).\n"
+        printf "# --- Overwrites the image-baked install at the dedicated prefix so\n"
+        printf "# --- the baked-path adapter runs the target version. ---\n"
+        printf "[[run.prepare.steps]]\n"
+        printf "script = \"livespec-step-timer codex-acp-version-pin -- npm install -g --prefix /opt/livespec/codex-acp @agentclientprotocol/codex-acp@%s\"\n" "$2"
+      } >> "$tmp/workflow.toml"
+    fi
     printf "%s\n" "$tmp/workflow.toml"
   ' sh "$WORKSPACE_REPO" "$CODEX_ACP_VERSION"
 }
@@ -564,16 +614,19 @@ run_dispatch() {
   log "dispatching greeting work-item ($item_id) into the Fabro factory"
   docker exec "$CONTAINER" mkdir -p "$(dirname "$JOURNAL_PATH")"
 
-  # When --codex-acp-version is set, materialize the in-container temp workflow
-  # that pins codex-acp to the target version and thread it via --workflow. When
-  # UNSET, wf_override stays empty and the dispatch runs EXACTLY as before (no
-  # --workflow), against the image-baked codex-acp global.
+  # The temp workflow is materialized on EVERY run: it always carries the
+  # credential-projection pre-check, and additionally the codex-acp version pin
+  # when --codex-acp-version is set. One path rather than two means the
+  # `--workflow` route is exercised by every golden-master run instead of only
+  # by the auto-bump gate.
   local wf_override=""
+  wf_override="$(build_sandbox_probe_workflow)" \
+    || fail "could not materialize the sandbox-probe test workflow"
+  [ -n "$wf_override" ] || fail "sandbox-probe workflow path came back empty"
   if [ -n "$CODEX_ACP_VERSION" ]; then
-    wf_override="$(build_codex_acp_version_workflow)" \
-      || fail "could not materialize the codex-acp-version test workflow"
-    [ -n "$wf_override" ] || fail "codex-acp-version workflow path came back empty"
     log "codex-acp version override: testing @$CODEX_ACP_VERSION via $wf_override"
+  else
+    log "codex credential-projection pre-check injected via $wf_override"
   fi
 
   set +e

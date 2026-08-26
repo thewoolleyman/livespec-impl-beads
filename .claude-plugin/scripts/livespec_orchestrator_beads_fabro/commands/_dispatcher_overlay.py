@@ -323,12 +323,21 @@ def _codex_auth_prepare_steps_block(*, codex_auth_snapshot: str | None) -> str:
     `$CODEX_AUTH_JSON` are inherited from the container-level env table the
     same overlay declares, so the shell needs no inline value. The script
     is `json.dumps`-ed to TOML-quote it, matching the sibling-clone steps.
+
+    The trailing `test -s` READS THE PROJECTION BACK, so a projection that
+    silently produced an empty file aborts the run here rather than surfacing
+    as a Codex node that cannot authenticate several minutes later. This is
+    the ONLY position from which the read-back is possible: `overlay_text`
+    appends these steps AFTER the committed workflow's own, so this is the
+    last prepare step and nothing an outside caller appends to the committed
+    file can observe the file this step writes.
     """
     if codex_auth_snapshot is None:
         return ""
     script = (
         'mkdir -p "$CODEX_HOME" && printf %s "$CODEX_AUTH_JSON" >'
         ' "$CODEX_HOME/auth.json" && chmod 600 "$CODEX_HOME/auth.json"'
+        ' && test -s "$CODEX_HOME/auth.json"'
     )
     lines = [
         "",
