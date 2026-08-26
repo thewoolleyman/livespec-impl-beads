@@ -2202,3 +2202,52 @@ Scenario: An invalid timeout refuses the dispatch
   When the Dispatcher prepares the dispatch
   Then it refuses before any run exists naming the key
 ```
+
+## Scenario 90 — The Codex adapter is identified by its baked path and pinned through its environment
+
+```gherkin
+Feature: A reader can predict the rendered Codex adapter string and check it against the run
+  As a maintainer auditing which model a factory node actually ran
+  I want the Codex adapter identified by a baked path and pinned through its environment
+  So that the rendered string cannot name one package while executing another
+
+Scenario: A default dispatch renders both adapters in their ratified forms
+  Given a dispatch whose publish node resolves to the Codex tier and whose implementer node resolves to the Claude default
+  When the Dispatcher renders both adapters
+  Then the publish adapter is its environment assignments in sorted key order followed by the baked codex-acp path
+  And the publish adapter carries model and model_reasoning_effort inside CODEX_CONFIG
+  And the publish adapter carries no "-c model" argument
+  And the implementer adapter is byte-identical to the ratified Claude default string
+
+Scenario: The publish adapter declares its agent mode
+  Given a dispatch whose publish node resolves to the Codex tier
+  When the Dispatcher renders the publish adapter
+  Then the rendered adapter carries INITIAL_AGENT_MODE set to agent-full-access
+
+Scenario: A node that performs no writes is rendered read-only
+  Given a dispatch target whose "dispatcher.acp_nodes" table routes the review node to the Codex adapter
+  When the Dispatcher renders the review node's adapter
+  Then the rendered adapter carries INITIAL_AGENT_MODE set to read-only
+
+Scenario: Package-name resolution is never used to identify the adapter
+  Given a sandbox image carrying two codex-acp packages that share a global bin link
+  When the Dispatcher renders any Codex adapter
+  Then the rendered command is the baked path
+  And the rendered command does not resolve the adapter through npx by package name
+```
+
+## Scenario 91 — The empty-model opt-out renders no model key inside CODEX_CONFIG
+
+```gherkin
+Feature: Disabling a Codex pin is a true no-op rather than a differently-spelled default
+  As an operator disabling a model pin without deleting its documentation
+  I want an empty model to render the un-pinned base string exactly
+  So that the opt-out cannot smuggle in an empty model value
+
+Scenario: An empty model omits the key rather than emptying it
+  Given a dispatch target whose Codex tier sets "model" to the empty string
+  When the Dispatcher renders that tier's adapter
+  Then CODEX_CONFIG carries no model key
+  And CODEX_CONFIG carries no model_reasoning_effort key
+  And the rendered adapter is byte-identical to the un-pinned base string
+```
