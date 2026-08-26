@@ -55,6 +55,7 @@ __all__: list[str] = [
     "DEFAULT_AUTO_APPROVE_READY",
     "DEFAULT_MERGE_ON_REVIEW_CAP",
     "DEFAULT_READY_AGING_THRESHOLD_HOURS",
+    "DEFAULT_REQUIRE_INVOKER",
     "DEFAULT_REVIEW_FIX_CAP",
     "DEFAULT_WIP_CAP",
     "MERGE_ON_REVIEW_CAP_LABEL",
@@ -70,6 +71,7 @@ __all__: list[str] = [
     "resolve_auto_approve_ready",
     "resolve_merge_on_review_cap",
     "resolve_ready_aging_threshold_hours",
+    "resolve_require_invoker",
     "resolve_review_fix_cap",
     "resolve_wip_cap",
 ]
@@ -82,6 +84,7 @@ DEFAULT_ACCEPTANCE_POLICY = "ai-then-human"
 DEFAULT_REVIEW_FIX_CAP = 3
 DEFAULT_ACCEPTANCE_REWORK_CAP = 2
 DEFAULT_READY_AGING_THRESHOLD_HOURS = 24
+DEFAULT_REQUIRE_INVOKER = False
 
 _AUTO_ADMISSION = "auto"
 _LIVESPEC_CONFIG = ".livespec.jsonc"
@@ -94,6 +97,7 @@ _ACCEPTANCE_MODE_KEY = "acceptance_mode"
 _REVIEW_FIX_CAP_KEY = "review_fix_cap"
 _ACCEPTANCE_REWORK_CAP_KEY = "acceptance_rework_cap"
 _READY_AGING_THRESHOLD_HOURS_KEY = "ready_aging_threshold_hours"
+_REQUIRE_INVOKER_KEY = "require_invoker"
 MERGE_ON_REVIEW_CAP_LABEL = "merge-on-review-cap:"
 REVIEW_FIX_CAP_LABEL = "review-fix-cap:"
 ACCEPTANCE_REWORK_CAP_LABEL = "acceptance-rework-cap:"
@@ -162,6 +166,17 @@ def resolve_ready_aging_threshold_hours(*, cwd: Path) -> IOResult[int, PolicySet
         default=DEFAULT_READY_AGING_THRESHOLD_HOURS,
         minimum=1,
     )
+
+
+def resolve_require_invoker(*, cwd: Path) -> IOResult[bool, PolicySettingUnreadable]:
+    """Read `dispatcher.require_invoker` (default False; bool only).
+
+    Deliberately NOT a member of the API-configurable key manifest: a dial that
+    RELAXES attribution must not be reachable over the surface whose acts it
+    attributes, so it is editable only by a committed `.livespec.jsonc` change
+    (the journal invoker attribution contract in contracts.md).
+    """
+    return _resolve_bool_setting(cwd=cwd, key=_REQUIRE_INVOKER_KEY, default=DEFAULT_REQUIRE_INVOKER)
 
 
 def effective_admission_policy(

@@ -29,6 +29,18 @@ append-only JSONL, one
 record per engine stage / loop event, machine-readable for post-hoc
 audit. Appends are lock-serialized so parallel dispatch threads cannot
 interleave lines.
+
+It is also THE APPEND LAYER of the journal invoker attribution contract in
+`SPECIFICATION/contracts.md`: every record it writes is stamped with `invoker`
+and `invoker_source` ONCE, here, and a record whose caller already supplied
+either field is refused as a programming error. Stamping in one place is
+what makes the attribution unforgeable — a writer that could stamp its own
+identity could assert any identity, one caller at a time. The refusal is
+the enforcement of that: it fails loudly at the seam rather than silently
+preferring one of two disagreeing values. EVERY journal write MUST route
+through `append`; opening the journal path directly is forbidden, and
+`tests/test_journal_append_chokepoint.py` is the mechanical control that
+proves no code does.
 """
 
 from __future__ import annotations
@@ -49,6 +61,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandResult,
     CommandRunner,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import (
+    InvokerIdentity,
+    default_invoker_identity,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io_fabro_launcher import (
     WatchedFabroLauncher,
 )
@@ -67,6 +83,13 @@ __all__: list[str] = [
 # uses) reads its token from; the run-config overlay projects the SAME name
 # into the sandbox env table. A NAME, never a secret value.
 GITHUB_TOKEN_ENV_VAR = "GH_TOKEN"  # noqa: S105 - env-var NAME, not a secret value
+
+# The two envelope fields the append layer stamps, and which therefore no
+# caller may supply. Named once so the stamp and the refusal cannot drift.
+_STAMPED_INVOKER_FIELDS: tuple[str, ...] = (
+    "invoker",
+    "invoker_source",
+)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -155,10 +178,31 @@ class JournalFile:
     """Append-only JSONL journal; thread-safe across parallel dispatches."""
 
     path: Path
+    identity: InvokerIdentity = field(default_factory=default_invoker_identity)
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
     def append(self, *, record: dict[str, object]) -> None:
-        stamped: dict[str, object] = {"at": utc_now_iso(), **record}
+        """Stamp `at` + the resolved invoker onto `record` and append it.
+
+        A caller that supplies `invoker` or `invoker_source` itself is a BUG,
+        not an expected error: the stamped-once guarantee is exactly what makes
+        the attribution unforgeable, so the append refuses rather than letting
+        one writer assert an identity of its own choosing.
+        """
+        forged = [name for name in _STAMPED_INVOKER_FIELDS if name in record]
+        if forged:
+            msg = (
+                "journal record supplied stamped invoker field(s) "
+                f"{', '.join(forged)}; the append layer stamps them once and "
+                "no writer may supply them"
+            )
+            raise ValueError(msg)
+        stamped: dict[str, object] = {
+            "at": utc_now_iso(),
+            "invoker": self.identity.invoker,
+            "invoker_source": self.identity.invoker_source,
+            **record,
+        }
         line = json.dumps(stamped, sort_keys=True) + "\n"
         with self._lock:
             self.path.parent.mkdir(parents=True, exist_ok=True)

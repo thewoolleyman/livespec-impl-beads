@@ -21,6 +21,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_completion import (
     escalate_needs_human_block,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
+from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import invoker_from_args
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile, utc_now_iso
 from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_close import load_items
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
@@ -76,7 +77,10 @@ def prepare(
     if not repo.is_dir() or not workflow_toml(args=args).is_file():
         _ = write_stderr(text="ERROR: --repo or workflow config does not exist\n")
         return None
-    journal = JournalFile(path=journal_path(args=args, repo=repo))
+    journal = JournalFile(
+        path=journal_path(args=args, repo=repo),
+        identity=invoker_from_args(args=args),
+    )
     staleness_exit = apply_dispatcher_staleness_gate(
         plugin_root=plugin_root(),
         journal=journal,

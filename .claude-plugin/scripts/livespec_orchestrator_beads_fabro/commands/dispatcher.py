@@ -24,7 +24,7 @@ orchestrator-PRIVATE tooling: core's contract sees only the three
   dispatcher.py janitor-check [--repo <path>] [--json]
   dispatcher.py stale-run-sweep [--repo <path>] [--factory <name>]
                                  [--fabro-bin <path>] [--json]
-  dispatcher.py reconcile-merged --repo <path> --item <id> [--json]
+  dispatcher.py reconcile-merged --repo <path> --item <id> [--invoker <id>] [--json]
   dispatcher.py dispatch --repo <path> --item <id> [common flags]
   dispatcher.py loop --repo <path> --budget <n> [--parallel <k>]
                      [--dry-run] [--item <id>]... [common flags]
@@ -59,10 +59,24 @@ rather than bricking it, the same fail-soft exit-code contract the
 `check-ledger-conformance-live` recipe consumes (see
 `_dispatcher_ledger_gate`).
 
-Common flags: [--workflow <toml>] [--fabro-bin <path>]
+Common flags: [--invoker <id>] [--workflow <toml>] [--fabro-bin <path>]
 [--janitor <json-argv>] [--journal <path>] [--poll-attempts <n>]
 [--poll-interval-seconds <s>] [--no-close-on-merge]
 [--skip-ledger-check] [--json]
+
+Invoker attribution (the journal invoker attribution contract in
+contracts.md): every state-changing entry point here — `loop`, `dispatch`,
+`reconcile-merged` — accepts `--invoker <id>` and otherwise honors the
+`LIVESPEC_INVOKER` environment variable, falling back to the
+`unattributed:<os-user>@<hostname>` MARK when neither is asserted. The resolved
+identity is stamped onto every journal record by the append layer
+(`_dispatcher_io.JournalFile.append`), never by a writer. With the committed
+`dispatcher.require_invoker` true, a fallback-only invocation is refused at
+startup as a precondition error (exit 3) before any store mutation, journal
+write, or run creation. That dial is
+deliberately absent from the API-configurable key manifest: a setting that
+relaxes attribution must not be reachable over the surface whose acts it
+attributes.
 
 Credential channel (Architecture C): the per-dispatch UNCOMMITTED
 run-config overlay materialized under the temp dir is the RUN-SCOPED
@@ -191,6 +205,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_completion import (
     complete_and_accept,
     host_only_refusal,
     warn_item_sizing,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import (
+    add_invoker_argument,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_close import (
     emit_outcomes,
@@ -361,6 +378,7 @@ def _add_reconcile_merged(*, parser: argparse.ArgumentParser) -> None:
     _ = parser.add_argument("--item", dest="item", required=True)
     _ = parser.add_argument("--janitor", dest="janitor", default=None)
     _ = parser.add_argument("--journal", dest="journal", default=None)
+    add_invoker_argument(parser=parser)
     _ = parser.add_argument(
         "--force",
         dest="force",
@@ -374,6 +392,10 @@ def _add_reconcile_merged(*, parser: argparse.ArgumentParser) -> None:
 
 
 def _add_dispatch_common(*, parser: argparse.ArgumentParser) -> None:
+    # `--invoker` is the FIRST of the two accepted identity inputs of
+    # the journal invoker attribution contract in contracts.md; it wins over
+    # `LIVESPEC_INVOKER`, which wins over the derived unattributed mark.
+    add_invoker_argument(parser=parser)
     _ = parser.add_argument("--repo", dest="repo", required=True)
     _ = parser.add_argument("--factory", dest="factory", default=None)
     _ = parser.add_argument("--workflow", dest="workflow", default=None)

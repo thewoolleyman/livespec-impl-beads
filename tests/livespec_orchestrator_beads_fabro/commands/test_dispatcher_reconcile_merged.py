@@ -413,6 +413,33 @@ def test_reconcile_merged_refuses_unknown_repo_and_item(
     assert "work-item bd-ib-missing not found" in err
 
 
+def test_reconcile_merged_refuses_an_unattributed_invocation_before_the_tenant_read(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`require_invoker` refuses this valve at startup, naming both inputs.
+
+    The item is deliberately NEVER filed: if the refusal fired after the tenant
+    read, this invocation would have died on "work-item not found" instead, so
+    the assertion on the refusal TEXT is what proves the ordering.
+    """
+    _assert_reconcile_command_registered(capsys=capsys)
+    monkeypatch.delenv("LIVESPEC_INVOKER", raising=False)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _ = (repo / ".livespec.jsonc").write_text(
+        '{"livespec-orchestrator-beads-fabro": {"dispatcher": {"require_invoker": true}}}',
+        encoding="utf-8",
+    )
+
+    exit_code = main(argv=["reconcile-merged", "--repo", str(repo), "--item", "bd-ib-unfiled"])
+
+    assert exit_code == 3
+    err = capsys.readouterr().err
+    assert "--invoker" in err
+    assert "LIVESPEC_INVOKER" in err
+    assert "not found" not in err
+
+
 def test_reconcile_merged_refuses_bad_janitor_argv(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:

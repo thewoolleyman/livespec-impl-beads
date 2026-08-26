@@ -11,6 +11,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandResult,
     CommandRunner,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import InvokerIdentity
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
 
 __all__: list[str] = [
@@ -70,9 +71,16 @@ def master_ci_preflight_refusal(*, repo: Path, runner: CommandRunner) -> MasterC
     return refusal
 
 
-def journal_master_ci_refusal(*, journal_path: Path, refusal: MasterCiRefusal) -> None:
-    """Persist the distinct terminal preflight outcome in the dispatch journal."""
-    JournalFile(path=journal_path).append(record=refusal.record)
+def journal_master_ci_refusal(
+    *, journal_path: Path, identity: InvokerIdentity, refusal: MasterCiRefusal
+) -> None:
+    """Persist the distinct terminal preflight outcome in the dispatch journal.
+
+    The refusing invocation's own resolved identity is threaded in rather than
+    re-derived, so a dispatch that asserted `--invoker` is not downgraded to the
+    environment or the fallback mark on the one record that says it refused.
+    """
+    JournalFile(path=journal_path, identity=identity).append(record=refusal.record)
 
 
 def _classify_latest_run(

@@ -16,6 +16,10 @@ from livespec_orchestrator_beads_fabro.commands._config import (
     resolve_fabro_factory,
 )
 from livespec_orchestrator_beads_fabro.commands._cross_repo import load_manifest
+from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import (
+    invoker_from_args,
+    require_invoker_refusal,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import ShellCommandRunner
 from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_checks import run_janitor_checks
 from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_checks import (
@@ -257,7 +261,17 @@ def dispatch_preamble(
     misconfigured engine binary refuses with ZERO side effects and provably
     before admission (ready -> active) rather than stranding an item at active.
     Sets `args.fabro_bin` to the resolved path as a side effect.
+
+    The invoker refusal runs FIRST of all, ahead of even the janitor parse:
+    with `dispatcher.require_invoker` true, a fallback-only invocation must be
+    refused before ANY store mutation, journal write, or run creation, so that
+    the refusal cannot itself leave a half-performed act or an unattributed
+    record behind (the journal invoker attribution contract in contracts.md).
     """
+    invoker_refusal = require_invoker_refusal(args=args, repo=repo)
+    if invoker_refusal is not None:
+        _ = write_stderr(text=invoker_refusal)
+        return None, _EXIT_PRECONDITION_ERROR
     janitor, janitor_ok = parse_janitor(raw=args.janitor)
     if not janitor_ok:
         return None, _EXIT_USAGE_ERROR
@@ -271,6 +285,7 @@ def dispatch_preamble(
     if source_refusal is not None:
         journal_source_checkout_refusal(
             journal_path=journal_path(args=args, repo=repo),
+            identity=invoker_from_args(args=args),
             refusal=source_refusal,
         )
         _ = write_stderr(text=source_refusal.detail)
@@ -279,6 +294,7 @@ def dispatch_preamble(
     if master_ci_refusal is not None:
         journal_master_ci_refusal(
             journal_path=journal_path(args=args, repo=repo),
+            identity=invoker_from_args(args=args),
             refusal=master_ci_refusal,
         )
         _ = write_stderr(text=master_ci_refusal.detail)

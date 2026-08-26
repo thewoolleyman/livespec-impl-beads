@@ -1,4 +1,11 @@
-"""Ledger close status normalization and outcome emission for the Dispatcher."""
+"""Ledger close status normalization and outcome emission for the Dispatcher.
+
+The status-normalization note routes through `JournalFile.append` — the single
+append layer of the journal invoker attribution contract in
+`SPECIFICATION/contracts.md`. It used to open the journal path directly, so the
+one record saying which rows the Dispatcher silently re-statused carried no
+timestamp and no attribution.
+"""
 
 from __future__ import annotations
 
@@ -127,13 +134,7 @@ def _append_normalization_note(
     journal: JournalFile,
     normalized: list[dict[str, str]],
 ) -> None:
-    line = json.dumps(
-        {"stage": "status-normalization", "normalized": normalized},
-        sort_keys=True,
-    )
-    journal.path.parent.mkdir(parents=True, exist_ok=True)
-    with journal.path.open("a", encoding="utf-8") as handle:
-        _ = handle.write(f"{line}\n")
+    journal.append(record={"stage": "status-normalization", "normalized": normalized})
 
 
 def ledger_blocked_after_normalization(

@@ -1,8 +1,15 @@
-"""Dispatcher disposition for failing AI acceptance passes."""
+"""Dispatcher disposition for failing AI acceptance passes.
+
+Both disposition records route through `JournalFile.append` — the single append
+layer of the journal invoker attribution contract in
+`SPECIFICATION/contracts.md`. They used to open the journal path directly, which
+left the acceptance-rework record — the very provenance carrier that
+contract's rework-pending re-dispatch counterpart designates — carrying neither
+a timestamp nor an attribution.
+"""
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from returns.unsafe import unsafe_perform_io
@@ -57,8 +64,7 @@ def rework_or_block_failed_acceptance(
             status="blocked",
             blocked_reason="needs-human",
         )
-        _append_disposition(
-            journal=journal,
+        journal.append(
             record={
                 "stage": "acceptance-rework-cap-exceeded",
                 "work_item_id": item.id,
@@ -85,8 +91,7 @@ def rework_or_block_failed_acceptance(
         )
         return
     update_work_item_status(path=config, item_id=item.id, status="active")
-    _append_disposition(
-        journal=journal,
+    journal.append(
         record={
             "stage": "acceptance-auto-rework",
             "work_item_id": item.id,
@@ -103,12 +108,6 @@ def rework_or_block_failed_acceptance(
             governing_settings=("acceptance_mode", "acceptance_rework_cap"),
         )
     )
-
-
-def _append_disposition(*, journal: JournalFile, record: dict[str, object]) -> None:
-    journal.path.parent.mkdir(parents=True, exist_ok=True)
-    with journal.path.open("a", encoding="utf-8") as handle:
-        _ = handle.write(json.dumps(record, sort_keys=True) + "\n")
 
 
 def _acceptance_rework_cap_source(*, raw_labels: tuple[str, ...]) -> str:
