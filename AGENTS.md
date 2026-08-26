@@ -1104,6 +1104,35 @@ it there; the bullets below are what this repo was missing.
   satisfied by a standing directive once the goal is named — do not re-prompt.
   Surface real blockers and true judgment calls; drop routine "should I
   proceed?" confirmations. Default to acting, then reporting outcomes.
+- **Export, then reap: a dead factory run may be removed without a
+  per-instance ask** (maintainer-declared 2026-08-26). For any DEAD factory
+  run, capture its full record — the `ps -a` row, run id, terminal state and
+  blocked reason, completed nodes, node visits and retries, checkpoint sha,
+  review verdict, sandbox image and container id, the verbatim failure cause,
+  and every dispatch-journal row for the item — into a durable ledger comment
+  on the work-item, VERIFY IT BY READ-BACK, and only then run
+  `fabro rm --force`. The export is the precondition, not a courtesy: it is
+  what converts an irreversible destruction on shared infrastructure into a
+  safe one, so a reap whose export has not been read-back verified is not
+  covered by this rule. **Read the comment back through `bd comments <id>
+  --json` and index `text`, never `body`** — `bd show --json` carries no
+  comments at all, so the obvious verification reports the write as lost when
+  it succeeded (both traps are catalogued above).
+  **Scope this narrowly.** It authorizes exactly one class — removing a run
+  that is already dead, after a verified export. It is NOT standing
+  authorization for destructive acts generally, and it does not extend to
+  reaping a LIVE run, deleting branches or worktrees another thread owns, or
+  any other irreversible shared-infrastructure action; those still take a
+  per-instance decision from the maintainer. Note also what the reap costs:
+  everything reachable only through `fabro inspect` / `dump` / `attach`
+  against that run id — the sandbox filesystem included — is gone, so a run
+  holding UNPUBLISHED work is not a candidate until that work is recovered or
+  written off. Establish publication against the forge and the remote first;
+  per the trap catalogue a run's own claim of non-publication has proven
+  false. (Context: two orphaned runs on shared `hp` — one blocked at `pr`
+  after its work had already merged, one dead at `implement` on the
+  compaction-404 defect — each held a scheduler slot while a per-instance
+  round-trip was made for permission that the export had already made safe.)
 - **Revert decisively; do not diagnose first** (maintainer-declared
   2026-07-11). When something erroneously landed and the corrective action is
   already unambiguous (a throwaway/mistaken change on `master` that must be
