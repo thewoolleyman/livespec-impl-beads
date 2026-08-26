@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.80.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.79.1...v0.80.0) (2026-08-26)
+
+
+### Features
+
+* **dispatcher:** make the Codex compaction token limit configurable ([116526a](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/116526a6c74ff8d12bb14ff55654bf5bd07e89e3))
+* **dispatcher:** resolve every node timeout from configuration ([702d5a5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/702d5a596b875ae33bc774b51a5715c153e84fd1))
+
 ## [0.79.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.79.0...v0.79.1) (2026-08-26)
 
 
