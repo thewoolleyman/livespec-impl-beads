@@ -3255,22 +3255,41 @@ pedantic: the pins below ride the adapter's declared environment, and reading
 this rule as a ban on environment assignments generally would forbid the very
 channel this section specifies.
 
-**The rendered form, literally.** The base adapter command is the successor
+**The rendered form, literally.** The adapter command is the successor
 `codex-acp` package invoked AT ITS BAKED PATH:
 
     /opt/livespec/codex-acp/bin/codex-acp
 
-A pinned adapter MUST be that command with its settings carried as leading
-`KEY=value` ENVIRONMENT assignments in sorted key order, exactly as
-§"ACP node adapter configuration" requires of every node's `env` map. Two
-assignments are defined here. `CODEX_CONFIG` MUST carry a JSON object merged
-into the adapter's session configuration, holding the `approval_policy`,
-`model`, `model_reasoning_effort` and `sandbox_mode` keys; `INITIAL_AGENT_MODE`
+Its settings ride the command as leading `KEY=value` ENVIRONMENT assignments in
+sorted key order, exactly as §"ACP node adapter configuration" requires of every
+node's `env` map. Two assignments are defined here. `CODEX_CONFIG` MUST carry a
+JSON object merged into the adapter's session configuration; `INITIAL_AGENT_MODE`
 MUST carry `agent-full-access` for the implementer and publish classes, and
 `read-only` for a node that performs no writes. The settings MUST ride the
 environment rather than an ACP node attribute because Fabro REJECTS `model` and
 `reasoning_effort` as node attributes, so neither a node attribute nor a model
 stylesheet is available here.
+
+**The UN-PINNED BASE STRING, spelled out.** The posture keys are ALWAYS present:
+an adapter carrying no pin still declares its sandbox and approval posture, just
+as the retired `-c` form carried `sandbox_mode` and `approval_policy` on every
+rendered string. The un-pinned base string for a write-capable node is therefore,
+literally:
+
+    CODEX_CONFIG={"approval_policy":"never","sandbox_mode":"danger-full-access"} INITIAL_AGENT_MODE=agent-full-access /opt/livespec/codex-acp/bin/codex-acp
+
+and for a node that performs no writes it is that string with
+`INITIAL_AGENT_MODE=read-only`. This is the ONE referent of "the un-pinned base
+string" everywhere in this section. Spelling it out is load-bearing rather than
+decorative: the opt-out below is defined as byte-identity against it, and the
+posture keys live inside `CODEX_CONFIG` rather than on the command, so a reader
+cannot reconstruct the un-pinned string from the bare path alone.
+
+**A PINNED adapter is the un-pinned base string with `model` and
+`model_reasoning_effort` ADDED inside `CODEX_CONFIG`**, the object's keys
+remaining in sorted order. Pinning adds keys to that object and changes nothing
+else: it never alters `INITIAL_AGENT_MODE`, never reorders the environment
+assignments, and never appends an argument.
 
 **The adapter is identified by its baked path, never by package name.** The
 invocation MUST NOT be resolved through `npx` by package name. The baked path
@@ -3349,8 +3368,10 @@ string; environment assignments prefixed onto the command as leading
 strings; appended to the command verbatim, e.g. `-c model_provider=<name>`). Model and
 reasoning effort are NOT fields of their own: they ride in `env` for adapters
 that read them from the environment (`ANTHROPIC_MODEL`,
-`CLAUDE_CODE_EFFORT_LEVEL`) and in `args` for adapters that read them from the
-command line (`-c model=…`, `-c model_reasoning_effort=…`). A provider behind
+`CLAUDE_CODE_EFFORT_LEVEL` on the Claude adapter, `CODEX_CONFIG` on the Codex
+adapter), and MAY ride in `args` for an adapter whose own interface takes them
+on the command line. No adapter this specification pins uses the `args` route
+for model or effort today; both read them from the environment. A provider behind
 an Anthropic-Messages or OpenAI-compatible endpoint is expressed the same way —
 `env` carries `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_MODEL`
 on the Claude adapter, `args` carries `-c model_provider=<name>` and its
