@@ -186,8 +186,12 @@
       // default). See commands/_config.py for why the reachable tiers are
       // gpt-5.5 / gpt-5.4 / gpt-5.4-mini and why the gpt-5.6 line is NOT
       // usable until the sandbox image's CODEX_ACP_VERSION is bumped.
+      // No "implementer" entry: per contracts.md section "Codex ACP node model
+      // pins" (v080), an ABSENT implementer entry renders the fleet default
+      // Claude adapter (claude-opus-5, high effort). Writing an implementer
+      // table here -- pinned or with the empty-string opt-out -- routes the
+      // implement/fix/review_fix nodes back to Codex.
       "codex_models": {
-        "implementer": { "model": "gpt-5.5", "reasoning_effort": "low" },
         "pr": { "model": "gpt-5.4-mini", "reasoning_effort": "high" }
       },
       "factories": {
