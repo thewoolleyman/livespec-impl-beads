@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.80.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.80.0...v0.80.1) (2026-08-26)
+
+
+### Bug Fixes
+
+* **dispatcher:** report loop --dry-run picks instead of an empty outcome list ([115b3e4](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/115b3e4b6fbc68a6bf9c1a14808a396ce703bf67))
+
 ## [0.80.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.79.1...v0.80.0) (2026-08-26)
 
 
