@@ -24,6 +24,10 @@ _CODEX_PROVIDER_LIMIT = (
     'or try again at Aug 20th, 2026 3:33 AM.", '
     '"codex_error_info": "usage_limit_exceeded"}}'
 )
+_CLAUDE_OPUS_5_ADAPTER = (
+    "ANTHROPIC_MODEL=claude-opus-5 CLAUDE_CODE_EFFORT_LEVEL=high "
+    "npx -y @agentclientprotocol/claude-agent-acp"
+)
 
 
 def _plan(*, repo: Path):
@@ -66,15 +70,13 @@ def _failure_payload(*, cause: str) -> list[object]:
 def test_scenario64_dispatcher_renders_pinned_codex_adapters_and_true_opt_out(
     tmp_path: Path,
 ) -> None:
-    """Scenario 64: dispatch inputs carry pinned tiers and empty-model no-op."""
+    """Scenario 64: dispatch inputs carry explicit Codex pins and the PR tier."""
     default_inputs = dispatch_fabro_run_inputs(plan=_plan(repo=tmp_path))
     default_implementer = _input_value(inputs=default_inputs, name="acp_adapter")
     default_pr = _input_value(inputs=default_inputs, name="pr_adapter")
 
-    assert default_implementer.startswith(CODEX_ADAPTER_BASE)
+    assert default_implementer == _CLAUDE_OPUS_5_ADAPTER
     assert default_pr.startswith(CODEX_ADAPTER_BASE)
-    assert " -c model=" in default_implementer
-    assert " -c model_reasoning_effort=" in default_implementer
     assert " -c model=" in default_pr
     assert " -c model_reasoning_effort=" in default_pr
     assert default_implementer != default_pr
@@ -99,7 +101,11 @@ def test_scenario64_dispatcher_renders_pinned_codex_adapters_and_true_opt_out(
         codex_models={"implementer": {"model": "", "reasoning_effort": "high"}},
     )
     opt_out_inputs = dispatch_fabro_run_inputs(plan=_plan(repo=tmp_path))
-    assert _input_value(inputs=opt_out_inputs, name="acp_adapter") == CODEX_ADAPTER_BASE
+    assert _input_value(inputs=opt_out_inputs, name="acp_adapter") == _CLAUDE_OPUS_5_ADAPTER
+
+    _write_dispatcher_config(repo=tmp_path, codex_models={"implementer": "repo-implementer"})
+    malformed_inputs = dispatch_fabro_run_inputs(plan=_plan(repo=tmp_path))
+    assert _input_value(inputs=malformed_inputs, name="acp_adapter") == _CLAUDE_OPUS_5_ADAPTER
 
 
 def test_scenario65_provider_usage_ceiling_is_permanent_and_transients_stay_transient() -> None:

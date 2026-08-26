@@ -96,18 +96,24 @@ contents = "write"
 pull_requests = "write"
 
 [run.inputs]
-# ACP coding-agent adapter for the implement/fix/pr/review_fix nodes (the
-# IMPLEMENTER nodes). Defaults to the Claude adapter; the Dispatcher
-# overrides it per provider via `fabro run --input acp_adapter=...` to route
-# the implementer work to a Codex worker (Slice B / bd-ib-g7e34u wires the
-# Codex credential projection that makes that switch live).
-acp_adapter = "npx -y @agentclientprotocol/claude-agent-acp"
+# ACP coding-agent adapter for the implement/fix/review_fix nodes (the
+# IMPLEMENTER nodes). Defaults to Claude Opus 5 + high thinking; the
+# Dispatcher emits this same adapter unless the dispatch target explicitly
+# names `dispatcher.codex_models.implementer`, in which case it routes the
+# implementer work to a Codex worker.
+#
+# LIVE ACCEPTANCE CHECK, still owed: the review adapter caveat below records
+# that some old claude-agent-acp predecessors ignored ANTHROPIC_MODEL and
+# defaulted to Haiku. The first dispatch after this default switch lands must
+# verify the resolved model in the run transcript; an adapter string assertion
+# does not prove runtime behavior.
+acp_adapter = "ANTHROPIC_MODEL=claude-opus-5 CLAUDE_CODE_EFFORT_LEVEL=high npx -y @agentclientprotocol/claude-agent-acp"
 
-# ACP adapter for the PR node. Defaults to the same un-pinned Claude adapter as
-# `acp_adapter` so a bare `fabro run` of this config still works; the Dispatcher
-# always overrides it via `fabro run --input pr_adapter=...` with the Codex
-# adapter rendered from the target repo's `dispatcher.codex_models.pr` tier
-# (built-in default `gpt-5.4-mini` at `high`).
+# ACP adapter for the PR node. Defaults to an un-pinned Claude adapter so a bare
+# `fabro run` of this config still works; the Dispatcher always overrides it
+# via `fabro run --input pr_adapter=...` with the Codex adapter rendered from
+# the target repo's `dispatcher.codex_models.pr` tier (built-in default
+# `gpt-5.4-mini` at `high`).
 #
 # It exists as a SEPARATE input from `acp_adapter` so the publish node's model
 # moves independently of the implementer's. The pr prompt is a fixed `git`/`gh`

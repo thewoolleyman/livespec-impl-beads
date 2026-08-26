@@ -322,11 +322,12 @@ def test_fabro_port_run_routes_implementer_to_codex_adapter(tmp_path: Path) -> N
     input_values = [
         value for index, value in enumerate(argv[1:], start=1) if argv[index - 1] == "--input"
     ]
-    # `tmp_path` carries no .livespec.jsonc, so both tiers resolve to the
-    # plugin's built-in fleet defaults -- which is the case that matters: a repo
-    # that has not opted in still gets the pinned tiers.
+    # `tmp_path` carries no .livespec.jsonc, so implementation work uses the
+    # fleet's Claude Opus 5 default while the PR node keeps the Codex publish
+    # tier.
     assert input_values == [
-        f"acp_adapter={CODEX_ADAPTER_BASE} -c model=gpt-5.5 -c model_reasoning_effort=low",
+        "acp_adapter=ANTHROPIC_MODEL=claude-opus-5 CLAUDE_CODE_EFFORT_LEVEL=high "
+        "npx -y @agentclientprotocol/claude-agent-acp",
         f"pr_adapter={CODEX_ADAPTER_BASE} -c model=gpt-5.4-mini -c model_reasoning_effort=high",
         "review_fix_visit_cap=4",
         "merge_on_review_cap_outcome=__merge_on_review_cap_disabled__",
@@ -336,11 +337,9 @@ def test_fabro_port_run_routes_implementer_to_codex_adapter(tmp_path: Path) -> N
         "-c sandbox_mode=danger-full-access -c approval_policy=never"
     )
     assert expected_base == CODEX_ADAPTER_BASE
-    # The sandbox and approval overrides survive alongside the model pin.
-    assert all(
-        value.startswith(("acp_adapter=", "pr_adapter=")) is False or expected_base in value
-        for value in input_values
-    )
+    # The publish adapter still carries the Codex sandbox and approval overrides
+    # alongside its model pin.
+    assert expected_base in input_values[1]
     # The un-pinned adapter is no longer emitted bare on either node.
     assert f"acp_adapter={expected_base}" not in input_values
     assert f"pr_adapter={expected_base}" not in input_values
@@ -568,7 +567,8 @@ def test_fabro_port_run_routes_effective_review_cap_policy_inputs(tmp_path: Path
         value for index, value in enumerate(argv[1:], start=1) if argv[index - 1] == "--input"
     ]
     assert input_values == [
-        f"acp_adapter={CODEX_ADAPTER_BASE} -c model=gpt-5.5 -c model_reasoning_effort=low",
+        "acp_adapter=ANTHROPIC_MODEL=claude-opus-5 CLAUDE_CODE_EFFORT_LEVEL=high "
+        "npx -y @agentclientprotocol/claude-agent-acp",
         f"pr_adapter={CODEX_ADAPTER_BASE} -c model=gpt-5.4-mini -c model_reasoning_effort=high",
         "review_fix_visit_cap=8",
         "merge_on_review_cap_outcome=succeeded",

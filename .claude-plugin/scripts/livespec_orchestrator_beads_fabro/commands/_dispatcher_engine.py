@@ -55,7 +55,10 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Protocol, cast
 
-from livespec_orchestrator_beads_fabro.commands._config import resolve_codex_model_tiers
+from livespec_orchestrator_beads_fabro.commands._config import (
+    has_explicit_codex_implementer_model,
+    resolve_codex_model_tiers,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_janitor import post_merge
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_journal import (
     failed_outcome,
@@ -101,6 +104,10 @@ __all__: list[str] = [
 # mid-run while the server-side engine keeps executing the graph.
 _FABRO_TIMEOUT_SECONDS = 54000.0
 _FABRO_AUTH_TIMEOUT_SECONDS = 300.0
+_CLAUDE_OPUS_5_IMPLEMENTER_ADAPTER = (
+    "ANTHROPIC_MODEL=claude-opus-5 CLAUDE_CODE_EFFORT_LEVEL=high "
+    "npx -y @agentclientprotocol/claude-agent-acp"
+)
 SleepFn = Callable[[float], None]
 
 
@@ -362,16 +369,21 @@ def run_dispatch(
 def dispatch_fabro_run_inputs(*, plan: DispatchPlan) -> tuple[str, ...]:
     """Render the `--input` pairs for one dispatch's `fabro run`.
 
-    The implementer and pr nodes take SEPARATE adapters so their Codex model
-    tiers move independently: `pr` is a scripted publish recipe and runs on the
-    cheap tier, while `implement` / `fix` / `review_fix` share the implementer
-    tier. Tiers are resolved from the DISPATCH TARGET's own `.livespec.jsonc`
+    The implementer and pr nodes take SEPARATE adapters so their providers
+    move independently: `pr` is a scripted publish recipe and keeps the cheap
+    Codex tier, while `implement` / `fix` / `review_fix` share the implementer
+    adapter. Tiers are resolved from the DISPATCH TARGET's own `.livespec.jsonc`
     (`plan.repo`), not the orchestrator's cwd, so a repo dispatched
     cross-tenant gets its own policy rather than the driver's.
     """
     tiers = resolve_codex_model_tiers(cwd=plan.repo)
+    acp_adapter = (
+        codex_adapter(tier=tiers.implementer)
+        if has_explicit_codex_implementer_model(cwd=plan.repo)
+        else _CLAUDE_OPUS_5_IMPLEMENTER_ADAPTER
+    )
     return (
-        f"acp_adapter={codex_adapter(tier=tiers.implementer)}",
+        f"acp_adapter={acp_adapter}",
         f"pr_adapter={codex_adapter(tier=tiers.pr)}",
         f"review_fix_visit_cap={plan.review_fix_visit_cap}",
         f"merge_on_review_cap_outcome={plan.merge_on_review_cap_outcome}",
