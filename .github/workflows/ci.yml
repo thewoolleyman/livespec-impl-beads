@@ -125,7 +125,7 @@ jobs:
     needs: setup
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.34.0
+      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.35.0
     env:
       MISE_DATA_DIR: /root/.local/share/mise
       MISE_NOT_FOUND_AUTO_INSTALL: "0"
@@ -316,7 +316,7 @@ jobs:
     needs: setup
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.34.0
+      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.35.0
     env:
       MISE_DATA_DIR: /root/.local/share/mise
       MISE_NOT_FOUND_AUTO_INSTALL: "0"
@@ -412,7 +412,7 @@ jobs:
     needs: [setup, check-per-file-coverage]
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.34.0
+      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.35.0
     env:
       MISE_DATA_DIR: /root/.local/share/mise
       MISE_NOT_FOUND_AUTO_INSTALL: "0"
@@ -507,7 +507,7 @@ jobs:
     needs: setup
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.34.0
+      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.35.0
     env:
       MISE_DATA_DIR: /root/.local/share/mise
       MISE_NOT_FOUND_AUTO_INSTALL: "0"
@@ -631,7 +631,7 @@ jobs:
     name: check-doctor-static
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.34.0
+      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.35.0
     env:
       MISE_DATA_DIR: /root/.local/share/mise
       MISE_NOT_FOUND_AUTO_INSTALL: "0"
@@ -696,7 +696,7 @@ jobs:
     needs: setup
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.34.0
+      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.35.0
     env:
       MISE_DATA_DIR: /root/.local/share/mise
       MISE_NOT_FOUND_AUTO_INSTALL: "0"
@@ -788,7 +788,7 @@ jobs:
     needs: setup
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.34.0
+      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.35.0
     # SINGLE env block — this job already had a job-level `env:` carrying
     # LIVESPEC_E2E_HARNESS before the baked-image cutover, so the container
     # preamble's vars are MERGED in here rather than added as a second `env:`
@@ -853,7 +853,7 @@ jobs:
     name: check-metadata-batch
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.34.0
+      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.35.0
     env:
       MISE_DATA_DIR: /root/.local/share/mise
       MISE_NOT_FOUND_AUTO_INSTALL: "0"
@@ -931,7 +931,7 @@ jobs:
     needs: setup
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.34.0
+      image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.35.0
     env:
       MISE_DATA_DIR: /root/.local/share/mise
       MISE_NOT_FOUND_AUTO_INSTALL: "0"
