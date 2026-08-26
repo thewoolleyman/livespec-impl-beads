@@ -96,13 +96,14 @@ __all__: list[str] = [
     "run_fabro_factory_auth_login",
 ]
 
-# Worst-case phase-graph wall clock the foreground `fabro run` subprocess
-# must outlive (workflow.fabro budgets): implement 2 attempts x 14400s
-# (one transient auto-retry) + janitor 3 visits x 3600s + fix 2 visits x
-# 3600s + pr 2 attempts x 1800s = 50400s, plus sandbox-provisioning
-# slack. A subprocess budget below the graph's own ceiling kills the CLI
-# mid-run while the server-side engine keeps executing the graph.
-_FABRO_TIMEOUT_SECONDS = 54000.0
+# The worst-case phase-graph wall clock the foreground `fabro run`
+# subprocess must outlive is no longer a constant here: it is DERIVED per
+# dispatch from the resolved node timeouts and stall timeout and carried on
+# `plan.fabro_timeout_seconds` (`_node_timeouts.derive_fabro_timeout_seconds`).
+# A subprocess budget below the graph's own ceiling kills the CLI mid-run
+# while the server-side engine keeps executing the graph; a budget fixed
+# above it masks a shortened node. Following the graph is what keeps both
+# from happening silently.
 _FABRO_AUTH_TIMEOUT_SECONDS = 300.0
 _CLAUDE_OPUS_5_IMPLEMENTER_ADAPTER = (
     "ANTHROPIC_MODEL=claude-opus-5 CLAUDE_CODE_EFFORT_LEVEL=high "
@@ -210,8 +211,8 @@ class SynchronousFabroLauncher:
     """No-watchdog launcher: a plain blocking `fabro run` (the legacy path).
 
     Preserves the exact pre-watchdog behavior — one `runner.run` of
-    `fabro run` with the 15h `_FABRO_TIMEOUT_SECONDS` subprocess ceiling
-    (bn4's coarse timeout, which COEXISTS with the watchdog as defense in
+    `fabro run` with the plan's derived subprocess ceiling (bn4's coarse
+    timeout, which COEXISTS with the watchdog as defense in
     depth). It never reports a stall, so `run_dispatch` routes purely on
     the exit code. `run_dispatch` defaults to this launcher so callers
     that do not wire the watchdog (and the existing engine tests) are
@@ -231,7 +232,7 @@ class SynchronousFabroLauncher:
             workflow_toml=plan.workflow_toml,
             goal_file=plan.goal_file,
             inputs=dispatch_fabro_run_inputs(plan=plan),
-            timeout_seconds=_FABRO_TIMEOUT_SECONDS,
+            timeout_seconds=plan.fabro_timeout_seconds,
         )
         return FabroRunResult(command=cast("CommandResult", result.command), run_id=result.run_id)
 

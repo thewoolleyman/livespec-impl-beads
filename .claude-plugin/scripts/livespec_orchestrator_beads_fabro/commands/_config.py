@@ -73,6 +73,10 @@ from livespec_orchestrator_beads_fabro.commands._codex_model_tiers import (
     CodexModelTiers,
     codex_model_tiers_from_block,
 )
+from livespec_orchestrator_beads_fabro.commands._node_timeouts import (
+    NodeTimeouts,
+    node_timeouts_from_block,
+)
 from livespec_orchestrator_beads_fabro.errors import (
     ConnectionPrefixMissingError,
     LivespecConfigUnreadableError,
@@ -90,6 +94,7 @@ __all__: list[str] = [
     "resolve_fabro_bin",
     "resolve_fabro_factory",
     "resolve_fabro_sandbox_image",
+    "resolve_node_timeouts",
     "resolve_store_config",
 ]
 
@@ -216,6 +221,18 @@ def resolve_codex_model_tiers(*, cwd: Path) -> CodexModelTiers:
     this is the config-reading seam that feeds it.
     """
     return codex_model_tiers_from_block(block=_dispatcher_block_or_raise(cwd=cwd))
+
+
+def resolve_node_timeouts(*, cwd: Path) -> NodeTimeouts | str:
+    """Resolve the dispatch target's node timeouts from its .livespec.jsonc.
+
+    The policy itself -- the 30-minute default, the validation, and the
+    worst-case visit map behind the derived subprocess ceiling -- lives in
+    `_node_timeouts`; this is the config-reading seam that feeds it. A
+    refusal comes back as its message so the caller can report it as a
+    failed dispatch before any run exists.
+    """
+    return node_timeouts_from_block(block=_dispatcher_block_or_raise(cwd=cwd))
 
 
 def has_explicit_codex_implementer_model(*, cwd: Path) -> bool:

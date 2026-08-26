@@ -137,6 +137,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_spec_commitments imp
     collect_obligations_and_supersedes,
 )
 from livespec_orchestrator_beads_fabro.commands._fabro_port import FabroPort, FabroTarget
+from livespec_orchestrator_beads_fabro.commands._node_timeouts import (
+    default_node_timeouts,
+    derive_fabro_timeout_seconds,
+)
 from livespec_orchestrator_beads_fabro.commands._otel_enrich import (
     CorrelationJoin,
     correlation_keys_from_attrs,
@@ -221,6 +225,7 @@ def test_dispatcher_plan_decomposition_contract() -> None:
         "SiblingClones",
         "escape_minijinja_literal",
         "render_run_config_overlay",
+        "workflow_graph_path",
     }
     assert set(_dispatcher_goal.__all__) == {
         "GoalBriefMiniJinjaFinding",
@@ -1550,6 +1555,21 @@ _COMMITTED_WORKFLOW_TOML = (
     "\n"
     "[run.environment]\n"
     'id = "livespec-ci"\n'
+)
+
+# A minimal workflow graph for the payload materializer to render: one node
+# timeout plus the run-level stall watchdog, which is the shape the literal-
+# duration rewrite requires (commands/_dispatcher_graph_render.py).
+_MINIMAL_GRAPH = (
+    "digraph ImplementWorkItem {\n"
+    "    graph [\n"
+    '        stall_timeout="7200s"\n'
+    "    ]\n"
+    "\n"
+    "    implement [\n"
+    '        timeout="1800s"\n'
+    "    ]\n"
+    "}\n"
 )
 
 
@@ -3130,6 +3150,7 @@ def _repo_with_workflow(*, tmp_path: Path) -> tuple[Path, Path]:
     )
     workflow = tmp_path / "workflow.toml"
     _ = workflow.write_text(_COMMITTED_WORKFLOW_TOML, encoding="utf-8")
+    _ = (workflow.parent / "workflow.fabro").write_text(_MINIMAL_GRAPH, encoding="utf-8")
     return repo, workflow
 
 
@@ -3775,7 +3796,7 @@ def test_dispatch_green_closes_item_and_journals(
     )
     monkeypatch.setattr(_dispatcher_run_commands, "cost_gate_after_verdict", lambda **_: None)
     monkeypatch.setattr(
-        "livespec_orchestrator_beads_fabro.commands._dispatcher_loop.tempfile.gettempdir",
+        "livespec_orchestrator_beads_fabro.commands._dispatcher_loop_plan.tempfile.gettempdir",
         lambda: str(tmp_path),
     )
     exit_code = main(
@@ -3802,7 +3823,9 @@ def test_dispatch_green_closes_item_and_journals(
     journal_text = (repo / "tmp" / "fabro-dispatch-journal.jsonl").read_text(encoding="utf-8")
     stages = [json.loads(line)["stage"] for line in journal_text.splitlines()]
     # The admission valve fires first (`ledger-admit`: ready -> active +
-    # assignee), then the dispatch journals the per-dispatch correlation id
+    # assignee), then the per-dispatch workflow payload is materialized and
+    # its resolved node timeouts journaled (`node-timeouts`, naming the layer
+    # that supplied each one), then the dispatch journals the correlation id
     # (29f.3 — projected into the sandbox's CC OTel OTEL_RESOURCE_ATTRIBUTES
     # so telemetry joins to this dispatch). This hermetic fake outcome has no
     # Fabro run id, but review-gate telemetry is ordered after dispositions so
@@ -3823,6 +3846,7 @@ def test_dispatch_green_closes_item_and_journals(
     # the default `observe` lever (work-item 29f.2).
     assert stages == [
         "ledger-admit",
+        "node-timeouts",
         "dispatch-id",
         "ledger-complete",
         "acceptance-ai-pass",
@@ -4545,7 +4569,14 @@ def test_dispatch_materializes_mode600_overlay_and_cleans_up(
     assert _FAKE_GITHUB_TOKEN_LINE in overlay_text
     assert _ENV_INTERPOLATION_LITERAL not in overlay_text
     assert _GH_ENV_INTERPOLATION_LITERAL not in overlay_text
-    assert f'graph = "{workflow.parent / "workflow.fabro"}"' in overlay_text
+    # The graph the run receives is the PER-DISPATCH payload's rendered copy,
+    # carrying this dispatch's resolved node timeouts as literal durations —
+    # and it is torn down with the overlay when the run returns.
+    payload_graph = Path(overlay_text.split('graph = "', 1)[1].split('"', 1)[0])
+    assert payload_graph.name == "workflow.fabro"
+    assert payload_graph.parent.name == f"fabro-workflow-{item.id}"
+    assert payload_graph.parent != workflow.parent
+    assert not payload_graph.parent.exists()
     journal_text = (repo / "tmp" / "fabro-dispatch-journal.jsonl").read_text(encoding="utf-8")
     assert "test-oauth-token" not in journal_text
     assert "test-github-token" not in journal_text
@@ -4974,6 +5005,13 @@ def test_dispatch_fails_when_workflow_config_is_not_materializable(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """A run config declaring no graph refuses at payload materialization.
+
+    That is one stage EARLIER than the overlay it used to refuse at — the
+    payload materializer needs the declared graph to render this dispatch's
+    node timeouts into, so it discovers the same unusable config first and
+    names what the config must carry.
+    """
     repo = tmp_path / "repo"
     repo.mkdir()
     _ = (repo / ".livespec.jsonc").write_text(
@@ -4990,7 +5028,8 @@ def test_dispatch_fails_when_workflow_config_is_not_materializable(
     )
     assert exit_code == 1
     out = capsys.readouterr().out
-    assert "run-config-overlay" in out
+    assert "workflow-payload" in out
+    assert "declares no [workflow] graph" in out
     assert _stored()[item.id].status == "ready"
 
 
@@ -5579,15 +5618,20 @@ def test_item_sizing_warnings_flags_enumerated_parts() -> None:
     assert item_sizing_warnings(item=two_parts) == ()
 
 
-def test_fabro_run_uses_long_haul_subprocess_timeout(tmp_path: Path) -> None:
-    """The foreground `fabro run` subprocess budget must outlive the
-    worst-case phase graph (implement 2x14400s + janitor 3x3600s +
-    fix 2x3600s + pr 2x1800s = 50400s) plus provisioning slack; a budget
-    below the graph's own ceiling kills the CLI mid-run."""
+def test_fabro_run_uses_the_derived_subprocess_timeout(tmp_path: Path) -> None:
+    """The foreground `fabro run` subprocess budget FOLLOWS the resolved graph.
+
+    It must outlive the graph's worst-case wall clock (every node at its
+    resolved timeout, taken at its worst-case visit count) plus provisioning
+    slack: a budget below the graph's own ceiling kills the CLI mid-run
+    while the server-side engine keeps executing. It is derived rather than
+    fixed so that lengthening a node cannot outrun it and shortening one is
+    not masked.
+    """
     runner = _FakeRunner(queue=[_err()])
     outcome, _journal, _naps = _dispatch(runner=runner, repo=tmp_path)
     assert outcome.status == "failed"
-    assert runner.timeouts[0] == 54000.0
+    assert runner.timeouts[0] == derive_fabro_timeout_seconds(timeouts=default_node_timeouts())
 
 
 def test_dispatch_goal_text_carries_ledger_comments(
@@ -5611,7 +5655,7 @@ def test_dispatch_goal_text_carries_ledger_comments(
     fake = _FakeRunDispatch(outcomes={item.id: _green_outcome(item_id=item.id)})
     monkeypatch.setattr(_dispatcher_loop, "run_dispatch", fake)
     monkeypatch.setattr(
-        "livespec_orchestrator_beads_fabro.commands._dispatcher_loop.tempfile.gettempdir",
+        "livespec_orchestrator_beads_fabro.commands._dispatcher_loop_plan.tempfile.gettempdir",
         lambda: str(tmp_path),
     )
     exit_code = main(

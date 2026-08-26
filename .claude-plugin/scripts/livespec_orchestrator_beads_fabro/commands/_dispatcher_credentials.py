@@ -128,7 +128,7 @@ def read_dispatch_labels(
     return tuple(label for label in raw_labels if isinstance(label, str))
 
 
-def materialize_overlay(
+def materialize_overlay(  # noqa: PLR0913 — kw-only overlay materializer; each argument is an independent projection input, matching `render_run_config_overlay` it feeds.
     *,
     committed: Path,
     overlay: Path,
@@ -136,6 +136,7 @@ def materialize_overlay(
     work_item_id: str,
     dispatch_id: str,
     token: Callable[[], str],
+    graph_override: Path | None = None,
 ) -> str | None:
     """Write the uncommitted mode-600 run-config overlay.
 
@@ -210,6 +211,9 @@ def materialize_overlay(
         # visibly and here rather than inside the reader. `unsafe_perform_io`
         # is required: `IOResult.value_or` returns `IO[value]`, not the value.
         fabro_sandbox_image=unsafe_perform_io(resolve_fabro_sandbox_image(cwd=repo).value_or(None)),
+        # The per-dispatch payload's rendered graph, carrying this dispatch's
+        # resolved node timeouts as literal durations.
+        graph_override=graph_override,
     )
     if rendered is None:
         return (

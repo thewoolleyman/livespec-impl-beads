@@ -24,6 +24,11 @@ _PRE_RUN_FAILURE_STAGES = frozenset(
         "ledger-comments",
         "ledger-labels",
         "run-config-overlay",
+        # Node-timeout resolution and workflow-payload materialization both
+        # refuse BEFORE any Fabro run exists, so a refusal here is a pre-run
+        # failure by construction — leaving the claim on would strand the
+        # item `active` with no run behind it.
+        "workflow-payload",
     )
 )
 

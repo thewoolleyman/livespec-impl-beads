@@ -13,6 +13,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings impo
     DEFAULT_MERGE_ON_REVIEW_CAP,
     DEFAULT_REVIEW_FIX_CAP,
 )
+from livespec_orchestrator_beads_fabro.commands._node_timeouts import (
+    DEFAULT_FABRO_TIMEOUT_SECONDS,
+)
 
 __all__: list[str] = [
     "DispatchPlan",
@@ -57,6 +60,12 @@ class DispatchPlan:
     janitor_core_ref: str
     review_fix_visit_cap: int
     merge_on_review_cap_outcome: str
+    # The `fabro run` subprocess ceiling, DERIVED from this dispatch's
+    # resolved node timeouts and stall timeout rather than fixed by a
+    # constant — so lengthening a node cannot outrun the poller and
+    # shortening one is not masked. Both launchers read it from here, which
+    # is what keeps the watched and synchronous paths on one number.
+    fabro_timeout_seconds: float = DEFAULT_FABRO_TIMEOUT_SECONDS
 
 
 def build_plan(  # noqa: PLR0913 — kw-only plan resolver; each field is an independent caller input.
@@ -75,6 +84,7 @@ def build_plan(  # noqa: PLR0913 — kw-only plan resolver; each field is an ind
     janitor_core_ref: str = _DEFAULT_JANITOR_CORE_REF,
     review_fix_cap: int = DEFAULT_REVIEW_FIX_CAP,
     merge_on_review_cap: bool = DEFAULT_MERGE_ON_REVIEW_CAP,
+    fabro_timeout_seconds: float = DEFAULT_FABRO_TIMEOUT_SECONDS,
 ) -> DispatchPlan:
     """Resolve the per-item dispatch plan (publish branch, argv config)."""
     return DispatchPlan(
@@ -96,4 +106,5 @@ def build_plan(  # noqa: PLR0913 — kw-only plan resolver; each field is an ind
         merge_on_review_cap_outcome=(
             "succeeded" if merge_on_review_cap else _MERGE_ON_REVIEW_CAP_DISABLED_OUTCOME
         ),
+        fabro_timeout_seconds=fabro_timeout_seconds,
     )

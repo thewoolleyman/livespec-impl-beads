@@ -58,6 +58,21 @@ _COMMITTED_WORKFLOW_TOML = (
     '[workflow]\ngraph = "graph.toml"\n\n[run.environment]\nid = "fabro-sandbox"\n'
 )
 
+# A minimal workflow graph for the payload materializer to render: one node
+# timeout plus the run-level stall watchdog, which is the shape the literal-
+# duration rewrite requires (commands/_dispatcher_graph_render.py).
+_MINIMAL_GRAPH = (
+    "digraph ImplementWorkItem {\n"
+    "    graph [\n"
+    '        stall_timeout="7200s"\n'
+    "    ]\n"
+    "\n"
+    "    implement [\n"
+    '        timeout="1800s"\n'
+    "    ]\n"
+    "}\n"
+)
+
 
 @pytest.fixture(autouse=True)
 def _hermetic_dispatch_env(
@@ -142,6 +157,7 @@ def _repo_with_workflow(*, tmp_path: Path) -> tuple[Path, Path]:
     )
     workflow = tmp_path / "workflow.toml"
     _ = workflow.write_text(_COMMITTED_WORKFLOW_TOML, encoding="utf-8")
+    _ = (workflow.parent / "graph.toml").write_text(_MINIMAL_GRAPH, encoding="utf-8")
     return repo, workflow
 
 

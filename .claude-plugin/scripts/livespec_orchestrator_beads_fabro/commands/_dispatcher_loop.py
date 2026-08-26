@@ -3,13 +3,9 @@
 from __future__ import annotations
 
 import argparse
-import tempfile
 import time
 from contextlib import ExitStack
 from pathlib import Path
-from typing import cast
-
-from returns.unsafe import unsafe_perform_io
 
 from livespec_orchestrator_beads_fabro.commands import (
     _dispatcher_self_update as selfup,
@@ -49,12 +45,17 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_lessons import (
 from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_outcomes import (
     failed_dispatch_outcome,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_plan import (
+    dispatch_plan_for_item,
+    goal_file_path,
+    overlay_file_path,
+    workflow_payload_dir,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_run import (
     DispatchRunContext,
     run_dispatch_with_watchdog,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_selection import (
-    janitor_core_ref,
     post_run_dispositions,
     run_id,
 )
@@ -62,18 +63,13 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
     spans_path,
     workflow_toml,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_payload import (
+    prepare_workflow_payload,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
-    build_plan,
-    janitor_checkout_path,
     minijinja_findings_detail,
     minijinja_openers_in_goal_sources,
     render_goal,
-)
-from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings import (
-    DEFAULT_MERGE_ON_REVIEW_CAP,
-    DEFAULT_REVIEW_FIX_CAP,
-    effective_merge_on_review_cap,
-    effective_review_fix_cap,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_pre_run_claim import (
     release_pre_run_claim_if_needed,
@@ -127,7 +123,7 @@ def dispatch_one(
         return outcome
 
 
-def _dispatch_one_locked(
+def _dispatch_one_locked(  # noqa: PLR0911 — one return per PRE-RUN REFUSAL STAGE (ledger labels, workflow payload, ledger comments, GitHub App auth, run-config overlay, goal preflight) plus the dispatched outcome; each names its own stage in the journal and collapsing any two would report the wrong one.
     *,
     args: argparse.Namespace,
     repo: Path,
@@ -136,41 +132,39 @@ def _dispatch_one_locked(
     janitor: tuple[str, ...] | None,
     identity: DispatchJournalIdentity,
 ) -> DispatchOutcome:
-    goal_file = Path(tempfile.gettempdir()) / f"fabro-goal-{item.id}.md"
-    overlay_file = Path(tempfile.gettempdir()) / f"fabro-run-config-{item.id}.toml"
-    janitor_checkout = janitor_checkout_path(repo=repo, work_item_id=item.id)
+    goal_file = goal_file_path(work_item_id=item.id)
+    overlay_file = overlay_file_path(work_item_id=item.id)
     raw_labels = read_dispatch_labels(repo=repo, item=item)
     if isinstance(raw_labels, str):
         return failed_dispatch_outcome(
             journal=journal, work_item_id=item.id, stage="ledger-labels", detail=raw_labels
         )
-    factory_target = cast("FactoryTarget", args.fabro_factory_target)
-    plan = build_plan(
+    # Resolved once and journaled: `workflow_toml` now picks the dispatch
+    # target's OWN committed workflow over the plugin's bundled default, and
+    # that config carries the sandbox image pin — so which file won is the
+    # first thing to read when a dispatch dies on a missing toolchain. The
+    # payload materializer then renders THIS dispatch's resolved node
+    # timeouts into a per-run copy of that workflow's graph as literal
+    # durations; a config typo refuses here, before any Fabro run exists.
+    committed_workflow = workflow_toml(args=args)
+    payload = prepare_workflow_payload(
         repo=repo,
+        committed=committed_workflow,
+        payload_dir=workflow_payload_dir(work_item_id=item.id),
+        journal=journal,
         work_item_id=item.id,
-        workflow_toml=overlay_file,
-        goal_file=goal_file,
-        fabro_bin=args.fabro_bin,
-        fabro_factory_name=factory_target.name,
-        fabro_factory_server=factory_target.server,
-        fabro_factory_dev_token=factory_target.dev_token,
+    )
+    if isinstance(payload, str):
+        return failed_dispatch_outcome(
+            journal=journal, work_item_id=item.id, stage="workflow-payload", detail=payload
+        )
+    plan = dispatch_plan_for_item(
+        args=args,
+        repo=repo,
+        item=item,
         janitor=janitor,
-        janitor_checkout=janitor_checkout,
-        janitor_core_ref=janitor_core_ref(repo=repo),
-        # An unreadable `.livespec.jsonc` falls back to the documented
-        # defaults, visibly and here rather than inside the reader.
-        # `unsafe_perform_io` is required: `IOResult.value_or` returns
-        # `IO[value]`, not the value.
-        review_fix_cap=unsafe_perform_io(
-            effective_review_fix_cap(item=item, cwd=repo, raw_labels=raw_labels).value_or(
-                DEFAULT_REVIEW_FIX_CAP
-            )
-        ),
-        merge_on_review_cap=unsafe_perform_io(
-            effective_merge_on_review_cap(item=item, cwd=repo, raw_labels=raw_labels).value_or(
-                DEFAULT_MERGE_ON_REVIEW_CAP
-            )
-        ),
+        raw_labels=raw_labels,
+        timeouts=payload.timeouts,
     )
     warn_item_sizing(item=item, journal=journal)
     comments = read_dispatch_comments(repo=repo, item=item)
@@ -178,11 +172,6 @@ def _dispatch_one_locked(
         return failed_dispatch_outcome(
             journal=journal, work_item_id=item.id, stage="ledger-comments", detail=comments
         )
-    # Resolved once and journaled: `workflow_toml` now picks the dispatch
-    # target's OWN committed workflow over the plugin's bundled default, and
-    # that config carries the sandbox image pin — so which file won is the
-    # first thing to read when a dispatch dies on a missing toolchain.
-    committed_workflow = workflow_toml(args=args)
     append_dispatch_id_record(
         journal=journal,
         work_item_id=item.id,
@@ -205,6 +194,7 @@ def _dispatch_one_locked(
         work_item_id=item.id,
         dispatch_id=identity.dispatch_id,
         token=token_supplier,
+        graph_override=payload.graph,
     )
     if overlay_error is not None:
         return failed_dispatch_outcome(
@@ -237,6 +227,7 @@ def _dispatch_one_locked(
             plan=plan,
             journal=journal,
             overlay_file=overlay_file,
+            payload_dir=payload.payload_dir,
             token_supplier=token_supplier,
         ),
         run_dispatch_func=run_dispatch,
