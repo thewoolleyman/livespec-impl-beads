@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.78.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.78.0...v0.78.1) (2026-08-26)
+
+
+### Bug Fixes
+
+* switch implementer default adapter ([4db2ec4](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/4db2ec47c7621ca620928de120d3d67fd401b7ef))
+
 ## [0.78.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.77.0...v0.78.0) (2026-08-26)
 
 
