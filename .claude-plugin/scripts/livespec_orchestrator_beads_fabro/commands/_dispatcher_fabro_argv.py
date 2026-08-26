@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,6 +16,9 @@ if TYPE_CHECKING:
 
 __all__: list[str] = [
     "CODEX_ADAPTER_BASE",
+    "CODEX_ADAPTER_COMMAND",
+    "CODEX_AGENT_MODE_READ_ONLY",
+    "CODEX_AGENT_MODE_WRITE",
     "CODEX_IMPLEMENTER_ADAPTER",
     "FleetMembers",
     "codex_adapter",
@@ -60,27 +64,59 @@ _DEFAULT_JANITOR_CORE_REPO_URL = "https://github.com/thewoolleyman/livespec.git"
 _DEFAULT_JANITOR_CORE_REF = "master"
 
 
-# The Codex ACP adapter the implementer nodes (implement/fix/pr/review_fix)
-# run on. VERSION-FREE + fetch-free: `--no-install` runs the codex-acp
-# GLOBAL baked into the sandbox image (livespec-dev-tooling's base
-# Dockerfile `ARG CODEX_ACP_VERSION`) with NO npm registry round-trip — it
-# runs even under `--network none`, so the baked image's CODEX_ACP_VERSION
-# is the SINGLE source of truth for the adapter version (no orchestrator-side
-# pin to keep in sync). The implementer already runs inside Fabro's ephemeral
-# Docker sandbox; on the current host AppArmor blocks Codex's inner bwrap
-# namespace, after which Fabro grants an ACP permission retry outside that inner
-# sandbox. `sandbox_mode=danger-full-access` makes the real Docker boundary
-# explicit, and `approval_policy=never` removes that failed escalation path. The
-# non-rotatable refresh sentinel's load-but-cannot-refresh behavior
+# The Codex ACP adapter command: the successor `@agentclientprotocol/codex-acp`
+# package invoked AT ITS BAKED PATH (the Codex-ACP-node-model-pins contract in
+# `SPECIFICATION/contracts.md`, whose "identified by its baked path, never by
+# package name" rule this implements). livespec-dev-tooling's sandbox image
+# installs that package under the dedicated npm prefix `/opt/livespec/codex-acp`,
+# which owns NO global bin link.
+#
+# WHY A PATH RATHER THAN `npx --no-install <package>`. The retired npx form was
+# chosen for four properties: version-free, fetch-free (so it runs under
+# `--network none`), and the baked image as the SINGLE source of truth for the
+# adapter version. The baked path keeps all of them and adds the one the npx
+# form lacked — an unambiguous IDENTITY. `npx` resolves a package's bin through
+# the SHARED global bin link, so where two `codex-acp` packages are installed,
+# invoking EITHER package name runs whichever package owns that link: the
+# rendered string can name one package while executing another, which defeats
+# that contract's own claim that a reader can predict the adapter string and
+# check it against `run_turn.command`. Measured on the released image
+# python-agent-v1.35.0 (2026-08-26): the baked path reports
+# `@agentclientprotocol/codex-acp 1.6.2` while `npx --no-install
+# @zed-industries/codex-acp` still runs the predecessor 0.16.0.
+CODEX_ADAPTER_COMMAND = "/opt/livespec/codex-acp/bin/codex-acp"
+
+# `INITIAL_AGENT_MODE` values. The implementer and publish classes WRITE (they
+# edit the workspace, commit, and push), so they take `agent-full-access`; a
+# node that performs no writes — a reviewer — takes `read-only`.
+CODEX_AGENT_MODE_WRITE = "agent-full-access"
+CODEX_AGENT_MODE_READ_ONLY = "read-only"
+
+# The sandbox and approval posture every rendered Codex adapter declares,
+# pinned or not. The implementer already runs inside Fabro's ephemeral Docker
+# sandbox; on the current host AppArmor blocks Codex's inner bwrap namespace,
+# after which Fabro grants an ACP permission retry outside that inner sandbox.
+# `sandbox_mode=danger-full-access` makes the real Docker boundary explicit and
+# `approval_policy=never` removes that failed escalation path.
+_CODEX_POSTURE_CONFIG: dict[str, str] = {
+    "approval_policy": "never",
+    "sandbox_mode": "danger-full-access",
+}
+
+# The UN-PINNED BASE STRING for a write-capable node, spelled out literally so
+# a reader can reconstruct it from this module exactly as contracts.md spells
+# it out — the two are bound by a test rather than by trust. The read-only
+# variant is this string with `INITIAL_AGENT_MODE=read-only`.
+#
+# The non-rotatable refresh sentinel's load-but-cannot-refresh behavior
 # (project_codex_auth_snapshot; tracked by bd-ib-ss7rkr) is RE-VERIFIED on every
-# version change by the Codex-mode golden-master at
-# orchestrator-image/acceptance-live-golden-master.sh, which dispatches via
-# `dispatcher.py loop` and always routes implementer nodes to THIS adapter — so
-# a factory-gated CODEX_ACP_VERSION bump exercises the credential projection
-# end-to-end instead of relying on a manual TODO.
+# adapter change by the Codex-mode golden-master at
+# orchestrator-image/acceptance-live-golden-master.sh, whose injected prepare
+# steps install the successor under the same dedicated prefix and read the
+# projected auth.json back from the sandbox `$CODEX_HOME`.
 CODEX_ADAPTER_BASE = (
-    "npx --no-install @zed-industries/codex-acp "
-    "-c sandbox_mode=danger-full-access -c approval_policy=never"
+    'CODEX_CONFIG={"approval_policy":"never","sandbox_mode":"danger-full-access"} '
+    f"INITIAL_AGENT_MODE={CODEX_AGENT_MODE_WRITE} {CODEX_ADAPTER_COMMAND}"
 )
 
 # Back-compat alias for the un-pinned adapter. `codex_adapter` is what the
@@ -88,33 +124,46 @@ CODEX_ADAPTER_BASE = (
 CODEX_IMPLEMENTER_ADAPTER = CODEX_ADAPTER_BASE
 
 
-def codex_adapter(*, tier: CodexModelTier) -> str:
+def codex_adapter(*, tier: CodexModelTier, agent_mode: str = CODEX_AGENT_MODE_WRITE) -> str:
     """Render the Codex ACP adapter command for one resolved model tier.
 
-    The overrides ride the SAME `-c key=value` channel the sandbox and
-    approval settings already use, which is what makes this expressible at all:
-    fabro REJECTS `model` / `reasoning_effort` as acp-node attributes
+    The settings ride the adapter's own ENVIRONMENT as leading `KEY=value`
+    assignments in sorted key order, which is what makes them expressible at
+    all: fabro REJECTS `model` / `reasoning_effort` as acp-node attributes
     (fabro-validate `backend_valid`), so a node attr or a model_stylesheet is
-    not available here. An un-pinned tier renders the base string byte-for-byte,
-    so the opt-out is a true no-op rather than a differently-spelled default.
+    not available here. The successor adapter reads its whole session
+    configuration from `CODEX_CONFIG` — a JSON object merged into that
+    configuration — rather than from the `-c key=value` arguments the retired
+    predecessor took.
 
-    The tier's `compaction_token_limit` rides that same `-c` channel as
-    `model_auto_compact_token_limit`, and it is emitted INDEPENDENTLY of the
-    model pin: a node can opt out of the model override while still needing
-    its compaction threshold moved, so folding the limit into the `pinned`
-    branch would silently drop it for exactly that configuration.
+    A PINNED tier is the un-pinned base string with `model` and
+    `model_reasoning_effort` ADDED inside `CODEX_CONFIG`, the object's keys
+    remaining in sorted order; nothing else changes. An un-pinned tier renders
+    the base string byte-for-byte, so the opt-out is a true no-op rather than a
+    differently-spelled default carrying empty values.
+
+    The tier's `compaction_token_limit` stays an adapter ARGUMENT
+    (`model_auto_compact_token_limit`), which is where the ACP-node-timeouts
+    contract in `SPECIFICATION/contracts.md` puts it, and it is emitted
+    INDEPENDENTLY of the model pin: a node can opt out of the model override
+    while still needing its compaction threshold moved, so folding the limit
+    into the `pinned` branch would silently drop it for exactly that
+    configuration.
     """
-    pins = (
-        ""
-        if not tier.pinned
-        else f" -c model={tier.model} -c model_reasoning_effort={tier.reasoning_effort}"
-    )
+    config = dict(_CODEX_POSTURE_CONFIG)
+    if tier.pinned:
+        config["model"] = tier.model
+        config["model_reasoning_effort"] = tier.reasoning_effort
+    rendered_config = json.dumps(config, sort_keys=True, separators=(",", ":"))
     compaction = (
         ""
         if tier.compaction_token_limit == 0
         else f" -c model_auto_compact_token_limit={tier.compaction_token_limit}"
     )
-    return f"{CODEX_ADAPTER_BASE}{pins}{compaction}"
+    return (
+        f"CODEX_CONFIG={rendered_config} INITIAL_AGENT_MODE={agent_mode} "
+        f"{CODEX_ADAPTER_COMMAND}{compaction}"
+    )
 
 
 # GitHub owner / repo-name shape. The matched values are spliced into

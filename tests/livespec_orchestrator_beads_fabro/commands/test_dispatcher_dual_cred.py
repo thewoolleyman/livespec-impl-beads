@@ -148,6 +148,7 @@ def test_render_overlay_projects_codex_auth_snapshot(tmp_path: Path) -> None:
     assert (
         'mkdir -p \\"$CODEX_HOME\\" && printf %s \\"$CODEX_AUTH_JSON\\" > '
         '\\"$CODEX_HOME/auth.json\\" && chmod 600 \\"$CODEX_HOME/auth.json\\"'
+        ' && test -s \\"$CODEX_HOME/auth.json\\"'
     ) in prepare_region
     assert "[[run.prepare.steps]]" in prepare_region
     # The container-level env table carries CODEX_HOME + CODEX_AUTH_JSON so
@@ -353,23 +354,30 @@ def test_fabro_port_run_routes_implementer_to_codex_adapter(
         "disposition_adapter=npx -y @agentclientprotocol/claude-agent-acp",
         f"fix_adapter={claude_opus_5}",
         f"implement_adapter={claude_opus_5}",
-        f"pr_adapter={CODEX_ADAPTER_BASE} -c model=gpt-5.4-mini -c model_reasoning_effort=high",
+        'pr_adapter=CODEX_CONFIG={"approval_policy":"never","model":"gpt-5.4-mini",'
+        '"model_reasoning_effort":"high","sandbox_mode":"danger-full-access"} '
+        "INITIAL_AGENT_MODE=agent-full-access /opt/livespec/codex-acp/bin/codex-acp",
         "review_adapter=npx -y @agentclientprotocol/claude-agent-acp",
         f"review_fix_adapter={claude_opus_5}",
         "review_fix_visit_cap=4",
         "merge_on_review_cap_outcome=__merge_on_review_cap_disabled__",
     ]
     expected_base = (
-        "npx --no-install @zed-industries/codex-acp "
-        "-c sandbox_mode=danger-full-access -c approval_policy=never"
+        'CODEX_CONFIG={"approval_policy":"never","sandbox_mode":"danger-full-access"} '
+        "INITIAL_AGENT_MODE=agent-full-access /opt/livespec/codex-acp/bin/codex-acp"
     )
     assert expected_base == CODEX_ADAPTER_BASE
-    # The publish adapter still carries the Codex sandbox and approval overrides
-    # alongside its model pin. Keyed by input NAME rather than by position:
-    # the pairs are rendered in sorted-name order, so an index would bind to
-    # the ordering rather than to the publish node.
+    # The publish adapter still carries the Codex sandbox and approval posture
+    # alongside its model pin -- pinning ADDS keys to `CODEX_CONFIG` and changes
+    # nothing else. Keyed by input NAME rather than by position: the pairs are
+    # rendered in sorted-name order, so an index would bind to the ordering
+    # rather than to the publish node.
     [pr_input] = [pair for pair in input_values if pair.startswith("pr_adapter=")]
-    assert expected_base in pr_input
+    assert '"approval_policy":"never"' in pr_input
+    assert '"sandbox_mode":"danger-full-access"' in pr_input
+    assert pr_input.endswith(
+        " INITIAL_AGENT_MODE=agent-full-access /opt/livespec/codex-acp/bin/codex-acp"
+    )
     # The un-pinned adapter is no longer emitted bare on any node.
     assert not [pair for pair in input_values if pair.endswith(f"={expected_base}")]
     # The routing inputs precede --no-upgrade-check.
@@ -786,14 +794,21 @@ def test_codex_adapter_renders_the_base_command_for_an_unpinned_tier() -> None:
     """
     rendered = codex_adapter(tier=CodexModelTier(model="", reasoning_effort=""))
     assert rendered == CODEX_ADAPTER_BASE
-    assert "-c model=" not in rendered
-    assert "-c model_reasoning_effort=" not in rendered
+    assert '"model"' not in rendered
+    assert '"model_reasoning_effort"' not in rendered
 
 
 def test_codex_adapter_appends_model_overrides_for_a_pinned_tier() -> None:
-    """A pinned tier keeps the sandbox/approval overrides and adds the model."""
+    """A pinned tier keeps the sandbox/approval posture and adds the model.
+
+    This is the literal string contracts.md section "Codex ACP node model pins"
+    spells out for the publish class, asserted whole rather than by fragments:
+    the section's own stated control is that a reader can predict the adapter
+    string from the specification alone and check it against `run_turn.command`.
+    """
     rendered = codex_adapter(tier=CodexModelTier(model="gpt-5.4-mini", reasoning_effort="high"))
-    assert rendered.startswith(CODEX_ADAPTER_BASE)
-    assert rendered.endswith(" -c model=gpt-5.4-mini -c model_reasoning_effort=high")
-    assert "-c sandbox_mode=danger-full-access" in rendered
-    assert "-c approval_policy=never" in rendered
+    assert rendered == (
+        'CODEX_CONFIG={"approval_policy":"never","model":"gpt-5.4-mini",'
+        '"model_reasoning_effort":"high","sandbox_mode":"danger-full-access"} '
+        "INITIAL_AGENT_MODE=agent-full-access /opt/livespec/codex-acp/bin/codex-acp"
+    )

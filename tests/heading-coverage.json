@@ -983,16 +983,16 @@
     "heading": "## Scenario 90 — The Codex adapter is identified by its baked path and pinned through its environment",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
+    "test": "tests.integration.test_codex_adapter_baked_path_scenarios90_91.test_scenario90_a_default_dispatch_renders_both_adapters_in_their_ratified_forms",
     "work_item": "bd-ib-nr3pon",
-    "reason": "Bound by bd-ib-nr3pon (commission item E2) leg (a); that item lands the exercising INTEGRATION-tier test, and the binding cannot precede the renderer it exercises. The scenario asserts the rendered Codex adapter is its env assignments in sorted key order followed by the baked /opt/livespec/codex-acp/bin/codex-acp path, carries model and model_reasoning_effort inside CODEX_CONFIG rather than as -c arguments, declares INITIAL_AGENT_MODE per node class, and leaves the Claude implementer string byte-identical. A unit-tier test cannot discharge it: the assertion is about the adapter string a real dispatch renders, so the exercising test must run at the integration tier or above."
+    "reason": "Bound by bd-ib-nr3pon (commission item E2) leg (a) to the INTEGRATION-tier journey the scenario describes: a real three-layer resolution against this repository's committed workflow inputs, rendered through the dispatch argv builder, asserting the publish adapter is its env assignments in sorted key order followed by the baked /opt/livespec/codex-acp/bin/codex-acp path, that model and model_reasoning_effort ride inside CODEX_CONFIG rather than as -c arguments, and that the Claude implementer string is byte-identical. The same module carries the scenario's other three cases — the publish class declaring INITIAL_AGENT_MODE agent-full-access, a review node routed to Codex rendering read-only, and the prohibition on identifying the adapter by package name. A unit-tier test cannot discharge it: the assertion is about the adapter string a real dispatch renders."
   },
   {
     "heading": "## Scenario 91 — The empty-model opt-out renders no model key inside CODEX_CONFIG",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
+    "test": "tests.integration.test_codex_adapter_baked_path_scenarios90_91.test_scenario91_the_empty_model_opt_out_omits_the_keys_rather_than_emptying_them",
     "work_item": "bd-ib-nr3pon",
-    "reason": "Bound by bd-ib-nr3pon leg (a), same dependency as Scenario 90: the opt-out's new spelling — no model key inside CODEX_CONFIG rather than an empty value — is only observable once that channel exists. bd-ib-nr3pon lands the exercising INTEGRATION-tier test; its third acceptance criterion is this assertion. The byte-identity claim against the un-pinned base string is a property of a rendered dispatch payload, so it is graded at the integration tier, never by a unit-tier test."
+    "reason": "Bound by bd-ib-nr3pon leg (a), same module and same tier as Scenario 90: the opt-out's spelling — no model key inside CODEX_CONFIG rather than an empty value — is only observable through a rendered dispatch payload, so the byte-identity claim against the un-pinned base string is graded at the integration tier rather than by a unit-tier test."
   }
 ]

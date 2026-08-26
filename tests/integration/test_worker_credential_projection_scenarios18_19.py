@@ -127,6 +127,7 @@ def test_scenario18_dispatch_overlay_projects_dual_credentials(
     assert (
         'mkdir -p \\"$CODEX_HOME\\" && printf %s \\"$CODEX_AUTH_JSON\\" > '
         '\\"$CODEX_HOME/auth.json\\" && chmod 600 \\"$CODEX_HOME/auth.json\\"'
+        ' && test -s \\"$CODEX_HOME/auth.json\\"'
     ) in rendered
     assert _HOST_REFRESH_TOKEN not in rendered
 

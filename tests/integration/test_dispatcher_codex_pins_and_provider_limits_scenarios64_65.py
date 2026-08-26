@@ -10,6 +10,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     CODEX_ADAPTER_BASE,
+    CODEX_ADAPTER_COMMAND,
     build_plan,
 )
 from livespec_orchestrator_beads_fabro.commands._fabro_port import (
@@ -95,9 +96,10 @@ def test_scenario64_dispatcher_renders_pinned_codex_adapters_and_true_opt_out(
     default_pr = _input_value(inputs=default_inputs, name="pr_adapter")
 
     assert default_implementer == _CLAUDE_OPUS_5_ADAPTER
-    assert default_pr.startswith(CODEX_ADAPTER_BASE)
-    assert " -c model=" in default_pr
-    assert " -c model_reasoning_effort=" in default_pr
+    assert default_pr.endswith(f" {CODEX_ADAPTER_COMMAND}")
+    assert '"model":"gpt-5.4-mini"' in default_pr
+    assert '"model_reasoning_effort":"high"' in default_pr
+    assert " -c model=" not in default_pr
     assert default_implementer != default_pr
 
     _write_dispatcher_config(
@@ -110,11 +112,15 @@ def test_scenario64_dispatcher_renders_pinned_codex_adapters_and_true_opt_out(
     override_inputs = dispatch_fabro_run_inputs(
         plan=_plan(repo=tmp_path, resolve=resolve_test_acp_nodes)
     )
-    assert _input_value(inputs=override_inputs, name="implement_adapter").endswith(
-        " -c model=repo-implementer -c model_reasoning_effort=high"
+    assert _input_value(inputs=override_inputs, name="implement_adapter") == (
+        'CODEX_CONFIG={"approval_policy":"never","model":"repo-implementer",'
+        '"model_reasoning_effort":"high","sandbox_mode":"danger-full-access"} '
+        f"INITIAL_AGENT_MODE=agent-full-access {CODEX_ADAPTER_COMMAND}"
     )
-    assert _input_value(inputs=override_inputs, name="pr_adapter").endswith(
-        " -c model=repo-publish -c model_reasoning_effort=low"
+    assert _input_value(inputs=override_inputs, name="pr_adapter") == (
+        'CODEX_CONFIG={"approval_policy":"never","model":"repo-publish",'
+        '"model_reasoning_effort":"low","sandbox_mode":"danger-full-access"} '
+        f"INITIAL_AGENT_MODE=agent-full-access {CODEX_ADAPTER_COMMAND}"
     )
 
     _write_dispatcher_config(

@@ -183,9 +183,10 @@
       //
       // Set a tier's "model" to "" to opt that node class out of pinning
       // entirely and restore the pre-pin behaviour (codex-acp picks its own
-      // default). See commands/_config.py for why the reachable tiers are
-      // gpt-5.5 / gpt-5.4 / gpt-5.4-mini and why the gpt-5.6 line is NOT
-      // usable until the sandbox image's CODEX_ACP_VERSION is bumped.
+      // default). See commands/_codex_model_tiers.py for the reachable-tier
+      // measurement, re-taken 2026-08-26 against the successor codex-acp at its
+      // baked path: the whole gpt-5.6 line is reachable now, and the refusal
+      // that used to block it is gone.
       // No "implementer" entry: per contracts.md section "Codex ACP node model
       // pins" (v080), an ABSENT implementer entry renders the fleet default
       // Claude adapter (claude-opus-5, high effort). Writing an implementer
@@ -193,6 +194,44 @@
       // implement/fix/review_fix nodes back to Codex.
       "codex_models": {
         "pr": { "model": "gpt-5.4-mini", "reasoning_effort": "high" }
+      },
+      // Per-node ACP adapters (contracts.md section "ACP node adapter
+      // configuration"). This is the PER-REPOSITORY layer: it overrides the
+      // workflow's own declared default per node and per field, and a
+      // `--acp-node <node>=<value>` argument on the dispatch overrides it in
+      // turn.
+      //
+      // REVIEW -> the successor Codex adapter at gpt-5.6-terra, xhigh.
+      // Maintainer direction 2026-08-26 ("use terra xhigh instead of sol -- save
+      // some tokens and speed"). Reaching the gpt-5.6 line is the whole point of
+      // the codex-acp package succession: the retired predecessor's vendored
+      // Codex generation refused every 5.6 slug, and the successor at its baked
+      // path does not -- gpt-5.6-terra completed a turn at xhigh from a live
+      // sandbox against the projected credential on 2026-08-26 (the full
+      // measurement is recorded in commands/_codex_model_tiers.py).
+      //
+      // INITIAL_AGENT_MODE is read-only because a reviewer performs NO WRITES.
+      // The write-capable classes (implementer, pr) take agent-full-access.
+      //
+      // WHY THE ANTHROPIC KEYS STILL APPEAR IN THE RENDERED REVIEW ADAPTER, so
+      // the next reader does not file it as a defect: `env` MERGES with the
+      // more specific layer's keys winning (ratified; it is what lets a
+      // per-dispatch override move one variable without restating a base URL and
+      // auth token). This table replaces the workflow default's `command`, so
+      // the review node runs codex-acp, but the workflow default's
+      // ANTHROPIC_MODEL / CLAUDE_CODE_EFFORT_LEVEL survive the merge and ride
+      // along inert -- codex-acp reads neither. The dispatch record names the
+      // supplying layer per key, so the residue is legible rather than
+      // mysterious.
+      "acp_nodes": {
+        "review": {
+          "command": "/opt/livespec/codex-acp/bin/codex-acp",
+          "env": {
+            "CODEX_CONFIG": "{\"approval_policy\":\"never\",\"model\":\"gpt-5.6-terra\",\"model_reasoning_effort\":\"xhigh\",\"sandbox_mode\":\"danger-full-access\"}",
+            "INITIAL_AGENT_MODE": "read-only"
+          },
+          "args": []
+        }
       },
       // Per-node ACP turn ceilings, restoring THIS repository's pre-v0.80.0
       // effective values through the surface contracts.md section "ACP node

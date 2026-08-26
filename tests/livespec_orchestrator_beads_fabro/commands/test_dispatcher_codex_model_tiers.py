@@ -85,9 +85,10 @@ def test_default_dispatch_acp_adapter_is_claude_opus_5(tmp_path: Path) -> None:
     implement = _input(inputs=inputs, name="implement_adapter")
     assert implement == f"implement_adapter={_CLAUDE_OPUS_5_ADAPTER}"
     assert "@agentclientprotocol/claude-agent-acp" in implement
-    assert (
-        _input(inputs=inputs, name="pr_adapter") == f"pr_adapter={CODEX_ADAPTER_BASE} "
-        "-c model=gpt-5.4-mini -c model_reasoning_effort=high"
+    assert _input(inputs=inputs, name="pr_adapter") == (
+        'pr_adapter=CODEX_CONFIG={"approval_policy":"never","model":"gpt-5.4-mini",'
+        '"model_reasoning_effort":"high","sandbox_mode":"danger-full-access"} '
+        "INITIAL_AGENT_MODE=agent-full-access /opt/livespec/codex-acp/bin/codex-acp"
     )
 
 
@@ -125,10 +126,10 @@ def test_explicit_implementer_pin_keeps_codex_acp_adapter(tmp_path: Path) -> Non
         },
     )
     inputs = _dispatch_inputs(repo=tmp_path)
-    assert (
-        _input(inputs=inputs, name="implement_adapter")
-        == f"implement_adapter={CODEX_ADAPTER_BASE} "
-        "-c model=gpt-5.4 -c model_reasoning_effort=high"
+    assert _input(inputs=inputs, name="implement_adapter") == (
+        'implement_adapter=CODEX_CONFIG={"approval_policy":"never","model":"gpt-5.4",'
+        '"model_reasoning_effort":"high","sandbox_mode":"danger-full-access"} '
+        "INITIAL_AGENT_MODE=agent-full-access /opt/livespec/codex-acp/bin/codex-acp"
     )
 
 
@@ -153,10 +154,10 @@ def test_implementer_table_without_model_keeps_codex_default_adapter(
         dispatcher={"codex_models": {"implementer": {"reasoning_effort": "high"}}},
     )
     inputs = _dispatch_inputs(repo=tmp_path)
-    assert (
-        _input(inputs=inputs, name="implement_adapter")
-        == f"implement_adapter={CODEX_ADAPTER_BASE} "
-        "-c model=gpt-5.5 -c model_reasoning_effort=high"
+    assert _input(inputs=inputs, name="implement_adapter") == (
+        'implement_adapter=CODEX_CONFIG={"approval_policy":"never","model":"gpt-5.5",'
+        '"model_reasoning_effort":"high","sandbox_mode":"danger-full-access"} '
+        "INITIAL_AGENT_MODE=agent-full-access /opt/livespec/codex-acp/bin/codex-acp"
     )
 
 

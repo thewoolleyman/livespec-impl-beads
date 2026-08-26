@@ -109,9 +109,11 @@ pull_requests = "write"
 # environment assignments (fabro parses them into the child's env), then the
 # command, then its arguments. Model and reasoning effort are NOT separate
 # fields — they ride the env for adapters that read them there
-# (`ANTHROPIC_MODEL`, `CLAUDE_CODE_EFFORT_LEVEL`) and the arguments for
-# adapters that read them from the command line (`-c model=...`). That is
-# what makes ANY provider expressible with no code change: an
+# (`ANTHROPIC_MODEL` and `CLAUDE_CODE_EFFORT_LEVEL` on the Claude adapter,
+# `CODEX_CONFIG` on the Codex adapter) and MAY ride the arguments for an
+# adapter whose own interface takes them on the command line. No adapter
+# this repository pins uses the argument route for model or effort today.
+# That is what makes ANY provider expressible with no code change: an
 # Anthropic-Messages endpoint is `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`
 # + `ANTHROPIC_MODEL` in the env, and an OpenAI-compatible one is
 # `-c model_provider=<name>` plus its provider definition in the arguments.

@@ -248,8 +248,8 @@ def test_the_codex_shorthand_replaces_the_workflow_env_rather_than_merging() -> 
     )
     rendered = resolution.nodes["implement"].rendered
     assert "ANTHROPIC_MODEL" not in rendered
-    assert rendered.startswith("npx --no-install @zed-industries/codex-acp")
-    assert "-c model=gpt-5.5" in rendered
+    assert rendered.endswith(" /opt/livespec/codex-acp/bin/codex-acp")
+    assert '"model":"gpt-5.5"' in rendered
 
 
 def test_a_layer_naming_an_unknown_node_refuses_naming_it() -> None:
