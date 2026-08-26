@@ -219,16 +219,13 @@ def resolve_codex_model_tiers(*, cwd: Path) -> CodexModelTiers:
 
 
 def has_explicit_codex_implementer_model(*, cwd: Path) -> bool:
-    """Return whether the target explicitly names a Codex implementer model."""
+    """Return whether the target explicitly routes implementer work to Codex."""
     block = _dispatcher_block_or_raise(cwd=cwd)
     models_raw = block.get("codex_models")
     if not isinstance(models_raw, dict):
         return False
     implementer_raw = cast("dict[str, Any]", models_raw).get("implementer")
-    if not isinstance(implementer_raw, dict):
-        return False
-    model = cast("dict[str, Any]", implementer_raw).get("model")
-    return isinstance(model, str) and model != ""
+    return isinstance(implementer_raw, dict)
 
 
 def resolve_fabro_factory(*, cwd: Path, factory: str | None = None) -> FactoryTarget:
