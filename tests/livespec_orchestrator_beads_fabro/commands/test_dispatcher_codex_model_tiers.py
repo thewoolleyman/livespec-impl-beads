@@ -70,6 +70,31 @@ def test_explicit_implementer_pin_keeps_codex_acp_adapter(tmp_path: Path) -> Non
     )
 
 
+def test_empty_implementer_model_keeps_codex_base_adapter(tmp_path: Path) -> None:
+    """An explicit implementer table can opt out of Codex pins, not Codex."""
+    _write_dispatcher_config(
+        cwd=tmp_path,
+        dispatcher={"codex_models": {"implementer": {"model": "", "reasoning_effort": "high"}}},
+    )
+    inputs = _dispatch_inputs(repo=tmp_path)
+    assert inputs[0] == f"acp_adapter={CODEX_ADAPTER_BASE}"
+
+
+def test_implementer_table_without_model_keeps_codex_default_adapter(
+    tmp_path: Path,
+) -> None:
+    """An implementer table missing `model` routes to Codex with defaults."""
+    _write_dispatcher_config(
+        cwd=tmp_path,
+        dispatcher={"codex_models": {"implementer": {"reasoning_effort": "high"}}},
+    )
+    inputs = _dispatch_inputs(repo=tmp_path)
+    assert (
+        inputs[0] == f"acp_adapter={CODEX_ADAPTER_BASE} "
+        "-c model=gpt-5.5 -c model_reasoning_effort=high"
+    )
+
+
 def test_absent_config_resolves_the_builtin_fleet_default_tiers(tmp_path: Path) -> None:
     """No config at all still pins both tiers — the fleet inherits the policy."""
     tiers = _config.resolve_codex_model_tiers(cwd=tmp_path)

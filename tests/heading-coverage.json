@@ -951,7 +951,7 @@
     "heading": "## Scenario 86 — The implementer defaults to Claude Opus 5 and an explicit Codex pin still routes to Codex",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
+    "test": "tests.integration.test_dispatcher_codex_pins_and_provider_limits_scenarios64_65.test_default_dispatch_acp_adapter_is_claude_opus_5",
     "work_item": "bd-ib-rcl7",
     "reason": "Ratified by the implementer-default-claude-opus-5 revise (plan homelab-loop-hardening-orchestrator, commission item A). bd-ib-rcl7 implements the Claude default and lands the default-string test plus the explicit-Codex-pin negative control that bind this heading; the Scenario 64 entry's bound integration test is updated by the same item."
   },

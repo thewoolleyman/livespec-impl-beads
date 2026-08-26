@@ -67,6 +67,12 @@ def _failure_payload(*, cause: str) -> list[object]:
     ]
 
 
+def test_default_dispatch_acp_adapter_is_claude_opus_5(tmp_path: Path) -> None:
+    """Scenario 86: absent implementer config renders the Claude default."""
+    inputs = dispatch_fabro_run_inputs(plan=_plan(repo=tmp_path))
+    assert _input_value(inputs=inputs, name="acp_adapter") == _CLAUDE_OPUS_5_ADAPTER
+
+
 def test_scenario64_dispatcher_renders_pinned_codex_adapters_and_true_opt_out(
     tmp_path: Path,
 ) -> None:
@@ -101,7 +107,7 @@ def test_scenario64_dispatcher_renders_pinned_codex_adapters_and_true_opt_out(
         codex_models={"implementer": {"model": "", "reasoning_effort": "high"}},
     )
     opt_out_inputs = dispatch_fabro_run_inputs(plan=_plan(repo=tmp_path))
-    assert _input_value(inputs=opt_out_inputs, name="acp_adapter") == _CLAUDE_OPUS_5_ADAPTER
+    assert _input_value(inputs=opt_out_inputs, name="acp_adapter") == CODEX_ADAPTER_BASE
 
     _write_dispatcher_config(repo=tmp_path, codex_models={"implementer": "repo-implementer"})
     malformed_inputs = dispatch_fabro_run_inputs(plan=_plan(repo=tmp_path))
