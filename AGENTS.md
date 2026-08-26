@@ -659,6 +659,36 @@ time because the evaluator reads the dispatch-time criteria snapshot, so editing
 an item mid-run cannot rescue an in-flight dispatch. The underlying defects and
 measurements are tracked in `bd-ib-tfpdya` and `bd-ib-5z0g`.
 
+**And keep every criterion inside the MERGED DIFF'S OWN VOCABULARY — a criterion
+naming an artifact the diff never mentions cannot pass, however true it is.**
+This is the sibling of the rule above and it defeats that rule's remedy: the line
+can be a single, unwrapped, genuine assertion and still fail. `_judge_criterion`
+passes a criterion when ANY of its significant terms appears literally in the
+normalized merged diff (the mechanism `bd-ib-5z0g` records), so a criterion whose
+subject is a `SPECIFICATION/` scenario, a plan file, or a sibling work-item fails
+with `insufficient merged diff evidence` — the SAME string a genuinely unmet
+assertion produces, which is why it reads as a real defect rather than as a
+mis-aimed instrument.
+
+Measured 2026-08-26 on `bd-ib-ujihbw.2`, merged as PR #1867: ten of eleven
+criteria passed on merged-diff evidence and the eleventh — "Scenario 83's two
+scenarios pass against the implementation." — failed TWICE, burning BOTH
+`acceptance_rework_cap` attempts on correct, already-merged work. Rewording it to
+drop its cross-item demand changed NOTHING, because it still named the scenario
+and so still had no diff vocabulary; only REMOVING the reference works. The
+control is clean: `bd-ib-ujihbw.1` and `bd-ib-ujihbw.3` carry ZERO scenario-naming
+criteria and both passed acceptance and closed on their first pass.
+
+So never put a `## Scenario NN` reference in the acceptance-criteria field of a
+factory-dispatched item. Scenario traceability belongs in the description, and
+binding a scenario heading to an exercising test is its own integration-tier
+deliverable (`bd-ib-w3if5j` for the v071-v079 range), never a by-product of the
+implementing item. Note the second-order trap, because it is the expensive half:
+when the item that owns the binding must land LAST — its closing criterion being
+that no coverage entry still names it — an implementing item whose criteria demand
+that binding is unsatisfiable in BOTH directions, and no re-dispatch can break the
+circle. The live defect class is `bd-ib-99a1`.
+
 **Before IMPLEMENTING an item, read its comments — `bd show` does not carry
 them.** The rule above is about scanning the ledger for prior art. This one is
 narrower and catches a different miss: RIDERS ARRIVE ON A WORK-ITEM AFTER IT IS
