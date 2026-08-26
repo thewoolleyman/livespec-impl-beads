@@ -82,6 +82,7 @@ from livespec_orchestrator_beads_fabro.types import StoreConfig
 __all__: list[str] = [
     "ConfigUnreadable",
     "FactoryTarget",
+    "has_explicit_codex_implementer_model",
     "has_fabro_factories",
     "has_fabro_factory",
     "resolve_codex_model_tiers",
@@ -215,6 +216,19 @@ def resolve_codex_model_tiers(*, cwd: Path) -> CodexModelTiers:
     this is the config-reading seam that feeds it.
     """
     return codex_model_tiers_from_block(block=_dispatcher_block_or_raise(cwd=cwd))
+
+
+def has_explicit_codex_implementer_model(*, cwd: Path) -> bool:
+    """Return whether the target explicitly names a Codex implementer model."""
+    block = _dispatcher_block_or_raise(cwd=cwd)
+    models_raw = block.get("codex_models")
+    if not isinstance(models_raw, dict):
+        return False
+    implementer_raw = cast("dict[str, Any]", models_raw).get("implementer")
+    if not isinstance(implementer_raw, dict):
+        return False
+    model = cast("dict[str, Any]", implementer_raw).get("model")
+    return isinstance(model, str) and model != ""
 
 
 def resolve_fabro_factory(*, cwd: Path, factory: str | None = None) -> FactoryTarget:

@@ -24,6 +24,10 @@ _WORKFLOW_DIR = _REPO_ROOT / ".claude-plugin" / ".fabro" / "workflows" / "implem
 _WORKFLOW_DOT = _WORKFLOW_DIR / "workflow.fabro"
 _WORKFLOW_TOML = _WORKFLOW_DIR / "workflow.toml"
 _CLAUDE_ADAPTER = "npx -y @agentclientprotocol/claude-agent-acp"
+_CLAUDE_OPUS_5_ADAPTER = (
+    "ANTHROPIC_MODEL=claude-opus-5 CLAUDE_CODE_EFFORT_LEVEL=high "
+    "npx -y @agentclientprotocol/claude-agent-acp"
+)
 _IMPLEMENTER_ACP = 'acp.command="{{ inputs.acp_adapter }}"'
 _PR_ACP = 'acp.command="{{ inputs.pr_adapter }}"'
 _REVIEW_ACP = 'acp.command="{{ inputs.review_adapter }}"'
@@ -78,7 +82,7 @@ def test_toml_declares_acp_adapter_defaulting_to_claude() -> None:
     toml = _WORKFLOW_TOML.read_text(encoding="utf-8")
     assert "[run.inputs]" in toml
     assert re.search(
-        r'^\s*acp_adapter\s*=\s*"' + re.escape(_CLAUDE_ADAPTER) + r'"',
+        r'^\s*acp_adapter\s*=\s*"' + re.escape(_CLAUDE_OPUS_5_ADAPTER) + r'"',
         toml,
         re.MULTILINE,
     )

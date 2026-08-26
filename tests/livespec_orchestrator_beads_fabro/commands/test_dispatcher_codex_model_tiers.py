@@ -12,14 +12,61 @@ import json
 from pathlib import Path
 
 from livespec_orchestrator_beads_fabro.commands import _config
+from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import dispatch_fabro_run_inputs
+from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_argv import CODEX_ADAPTER_BASE
+from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import build_plan
 
 _CONFIG_NAME = ".livespec.jsonc"
+_CLAUDE_OPUS_5_ADAPTER = (
+    "ANTHROPIC_MODEL=claude-opus-5 CLAUDE_CODE_EFFORT_LEVEL=high "
+    "npx -y @agentclientprotocol/claude-agent-acp"
+)
 
 
 def _write_dispatcher_config(*, cwd: Path, dispatcher: dict[str, object]) -> None:
     _ = (cwd / _CONFIG_NAME).write_text(
         json.dumps({"livespec-orchestrator-beads-fabro": {"dispatcher": dispatcher}}),
         encoding="utf-8",
+    )
+
+
+def _dispatch_inputs(*, repo: Path) -> tuple[str, ...]:
+    return dispatch_fabro_run_inputs(
+        plan=build_plan(
+            repo=repo,
+            work_item_id="bd-ib-test",
+            workflow_toml=repo / "workflow.toml",
+            goal_file=repo / "goal.md",
+            fabro_bin="fabro",
+            janitor=None,
+            janitor_checkout=repo / "janitor",
+        )
+    )
+
+
+def test_default_dispatch_acp_adapter_is_claude_opus_5(tmp_path: Path) -> None:
+    """An unconfigured target defaults implementation work to Claude Opus 5."""
+    inputs = _dispatch_inputs(repo=tmp_path)
+    assert inputs[0] == f"acp_adapter={_CLAUDE_OPUS_5_ADAPTER}"
+    assert "@agentclientprotocol/claude-agent-acp" in inputs[0]
+    assert (
+        inputs[1] == f"pr_adapter={CODEX_ADAPTER_BASE} "
+        "-c model=gpt-5.4-mini -c model_reasoning_effort=high"
+    )
+
+
+def test_explicit_implementer_pin_keeps_codex_acp_adapter(tmp_path: Path) -> None:
+    """A target can stay on Codex by naming the implementer tier explicitly."""
+    _write_dispatcher_config(
+        cwd=tmp_path,
+        dispatcher={
+            "codex_models": {"implementer": {"model": "gpt-5.4", "reasoning_effort": "high"}}
+        },
+    )
+    inputs = _dispatch_inputs(repo=tmp_path)
+    assert (
+        inputs[0] == f"acp_adapter={CODEX_ADAPTER_BASE} "
+        "-c model=gpt-5.4 -c model_reasoning_effort=high"
     )
 
 
