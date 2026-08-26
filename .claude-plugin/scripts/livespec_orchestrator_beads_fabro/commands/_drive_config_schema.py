@@ -61,6 +61,12 @@ CONFIG_KEYS: tuple[ConfigKey, ...] = (
         per_item_override=True,
     ),
     ConfigKey(
+        key="ready_aging_threshold_hours",
+        value_type="positive_integer",
+        default=24,
+        per_item_override=False,
+    ),
+    ConfigKey(
         key="wip_cap",
         value_type="non_negative_integer",
         default=5,

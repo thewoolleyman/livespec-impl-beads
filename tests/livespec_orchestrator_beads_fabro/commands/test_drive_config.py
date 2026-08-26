@@ -24,13 +24,19 @@ _V049_WIP_CAP_ZERO_MESSAGE = (
 
 def test_config_schema_distinguishes_positive_and_non_negative_integer_domains() -> None:
     review_fix_cap = config_key_by_name(key="review_fix_cap")
+    ready_aging_threshold_hours = config_key_by_name(key="ready_aging_threshold_hours")
     wip_cap = config_key_by_name(key="wip_cap")
 
     assert review_fix_cap is not None
+    assert ready_aging_threshold_hours is not None
     assert wip_cap is not None
     assert coerce_config_value(config_key=review_fix_cap, raw_value=4) == 4
     assert coerce_config_value(config_key=review_fix_cap, raw_value=0) is None
+    assert coerce_config_value(config_key=ready_aging_threshold_hours, raw_value=24) == 24
+    assert coerce_config_value(config_key=ready_aging_threshold_hours, raw_value=0) is None
     assert parse_config_value(config_key=review_fix_cap, raw_value="nope") is None
+    assert parse_config_value(config_key=ready_aging_threshold_hours, raw_value="24") == 24
+    assert parse_config_value(config_key=ready_aging_threshold_hours, raw_value="0") is None
     assert parse_config_value(config_key=wip_cap, raw_value="0") == 0
     assert value_domain(config_key=wip_cap) == "a non-negative integer"
 
@@ -73,6 +79,7 @@ def test_drive_reads_all_effective_dispatcher_settings_with_sources(tmp_path: Pa
                     "dispatcher": {
                         "auto_approve_ready": True,
                         "acceptance_mode": "human-only",
+                        "ready_aging_threshold_hours": 36,
                         "wip_cap": 0,
                     }
                 }
@@ -92,6 +99,7 @@ def test_drive_reads_all_effective_dispatcher_settings_with_sources(tmp_path: Pa
         "acceptance_mode",
         "review_fix_cap",
         "acceptance_rework_cap",
+        "ready_aging_threshold_hours",
         "wip_cap",
     }
     assert by_key["auto_approve_ready"] == {
@@ -114,6 +122,11 @@ def test_drive_reads_all_effective_dispatcher_settings_with_sources(tmp_path: Pa
         "key": "acceptance_rework_cap",
         "value": 2,
         "source": "default",
+    }
+    assert by_key["ready_aging_threshold_hours"] == {
+        "key": "ready_aging_threshold_hours",
+        "value": 36,
+        "source": "explicit",
     }
     assert by_key["wip_cap"] == {"key": "wip_cap", "value": 0, "source": "explicit"}
 
@@ -263,6 +276,12 @@ def test_drive_publishes_api_configurable_key_manifest(tmp_path: Path) -> None:
             "type": "positive_integer",
             "default": 2,
             "per_item_override": True,
+        },
+        "ready_aging_threshold_hours": {
+            "key": "ready_aging_threshold_hours",
+            "type": "positive_integer",
+            "default": 24,
+            "per_item_override": False,
         },
         "wip_cap": {
             "key": "wip_cap",

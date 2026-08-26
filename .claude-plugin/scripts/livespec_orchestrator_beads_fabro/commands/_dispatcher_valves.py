@@ -43,6 +43,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings impo
     DEFAULT_ADMISSION_POLICY,
     DEFAULT_AUTO_APPROVE_READY,
     DEFAULT_MERGE_ON_REVIEW_CAP,
+    DEFAULT_READY_AGING_THRESHOLD_HOURS,
     DEFAULT_REVIEW_FIX_CAP,
     DEFAULT_WIP_CAP,
     effective_acceptance_policy,
@@ -54,6 +55,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings impo
     resolve_acceptance_rework_cap,
     resolve_auto_approve_ready,
     resolve_merge_on_review_cap,
+    resolve_ready_aging_threshold_hours,
     resolve_review_fix_cap,
     resolve_wip_cap,
 )
@@ -70,6 +72,7 @@ __all__: list[str] = [
     "DEFAULT_AUTO_APPROVE_READY",
     "DEFAULT_DOER",
     "DEFAULT_MERGE_ON_REVIEW_CAP",
+    "DEFAULT_READY_AGING_THRESHOLD_HOURS",
     "DEFAULT_REVIEW_FIX_CAP",
     "DEFAULT_WIP_CAP",
     "AcceptanceDecision",
@@ -88,6 +91,7 @@ __all__: list[str] = [
     "resolve_assignee",
     "resolve_auto_approve_ready",
     "resolve_merge_on_review_cap",
+    "resolve_ready_aging_threshold_hours",
     "resolve_review_fix_cap",
     "resolve_wip_cap",
 ]
