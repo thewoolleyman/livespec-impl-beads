@@ -77,6 +77,21 @@ _COMMITTED_WORKFLOW_TOML = (
     'id = "livespec-ci"\n'
 )
 
+# A minimal workflow graph for the payload materializer to render: one node
+# timeout plus the run-level stall watchdog, which is the shape the literal-
+# duration rewrite requires (commands/_dispatcher_graph_render.py).
+_MINIMAL_GRAPH = (
+    "digraph ImplementWorkItem {\n"
+    "    graph [\n"
+    '        stall_timeout="7200s"\n'
+    "    ]\n"
+    "\n"
+    "    implement [\n"
+    '        timeout="1800s"\n'
+    "    ]\n"
+    "}\n"
+)
+
 # Bound to locals before passing as `token=` / `github_token=` so ruff's
 # S106 (hardcoded password) does not flag the literals.
 _FAKE_TOKEN = "test-oauth-token"
@@ -452,6 +467,7 @@ def test_materialize_overlay_refuses_on_stale_host_credential(
     """A stale host credential refuses the overlay at the codex-projection step."""
     committed = tmp_path / "workflow.toml"
     _ = committed.write_text(_COMMITTED_WORKFLOW_TOML, encoding="utf-8")
+    _ = (committed.parent / "workflow.fabro").write_text(_MINIMAL_GRAPH, encoding="utf-8")
     overlay = tmp_path / "overlay.toml"
     monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", _FAKE_TOKEN)
     monkeypatch.setattr(
@@ -484,6 +500,7 @@ def test_materialize_overlay_refuses_on_missing_host_credential(
     """A missing host credential refuses the overlay (names `codex login`)."""
     committed = tmp_path / "workflow.toml"
     _ = committed.write_text(_COMMITTED_WORKFLOW_TOML, encoding="utf-8")
+    _ = (committed.parent / "workflow.fabro").write_text(_MINIMAL_GRAPH, encoding="utf-8")
     overlay = tmp_path / "overlay.toml"
     monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", _FAKE_TOKEN)
     monkeypatch.setattr(
@@ -509,6 +526,7 @@ def test_materialize_overlay_writes_codex_projection_when_fresh(
     """A fresh host credential writes an overlay carrying the codex projection."""
     committed = tmp_path / "workflow.toml"
     _ = committed.write_text(_COMMITTED_WORKFLOW_TOML, encoding="utf-8")
+    _ = (committed.parent / "workflow.fabro").write_text(_MINIMAL_GRAPH, encoding="utf-8")
     overlay = tmp_path / "overlay.toml"
     monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", _FAKE_TOKEN)
     monkeypatch.setattr(
@@ -535,6 +553,35 @@ def test_materialize_overlay_writes_codex_projection_when_fresh(
     assert "[[run.prepare.steps]]" in rendered
     # The overlay stays mode-600 (the run-scoped credential projection).
     assert stat.S_IMODE(overlay.stat().st_mode) == 0o600
+
+
+def test_materialize_overlay_refuses_a_config_without_a_run_environment_id(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A config carrying a graph but no `[run.environment] id` refuses here.
+
+    The payload materializer upstream needs only `[workflow] graph`, so this
+    half of the unusable-config surface is the overlay's alone to catch.
+    """
+    committed = tmp_path / "workflow.toml"
+    _ = committed.write_text('[workflow]\ngraph = "workflow.fabro"\n', encoding="utf-8")
+    _ = (committed.parent / "workflow.fabro").write_text(_MINIMAL_GRAPH, encoding="utf-8")
+    overlay = tmp_path / "overlay.toml"
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", _FAKE_TOKEN)
+    monkeypatch.setattr(
+        _dispatcher_sibling_clones, "fetch_fleet_manifest_text", lambda: _FLEET_MANIFEST_TEXT
+    )
+    error = materialize_overlay(
+        committed=committed,
+        overlay=overlay,
+        repo=tmp_path / "repo",
+        work_item_id="wi-1",
+        dispatch_id="disp-1",
+        token=lambda: _FAKE_GITHUB_TOKEN,
+    )
+    assert error is not None
+    assert "is not materializable" in error
+    assert not overlay.exists()
 
 
 def test_fabro_port_run_routes_effective_review_cap_policy_inputs(tmp_path: Path) -> None:

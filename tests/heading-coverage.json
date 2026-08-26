@@ -762,9 +762,9 @@
     "heading": "## ACP node timeouts",
     "spec_root": "SPECIFICATION",
     "spec_file": "contracts.md",
-    "test": "TODO",
+    "test": "tests.livespec_orchestrator_beads_fabro.commands.test_dispatcher_node_timeouts.test_configured_node_keeps_its_value_and_others_take_the_default",
     "work_item": "bd-ib-cnkf",
-    "reason": "Ratified by the acp-node-timeouts revise (plan homelab-loop-hardening-orchestrator, commission item C). bd-ib-cnkf implements per-node timeout resolution and literal rendering and lands the rendered-graph tests that bind this heading."
+    "reason": "Bound by bd-ib-cnkf: a configured node timeout renders as its own literal duration while every unconfigured node resolves to the 1800-second default. A contracts.md heading MAY bind a unit-tier test; the same module covers the validation refusals, the no-template-opener rendering, and the derived subprocess ceiling."
   },
   {
     "heading": "## Provider-limit permanence and root-cause surfacing",
@@ -975,8 +975,8 @@
     "heading": "## Scenario 89 — Node timeouts resolve from configuration and land as literal durations",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
+    "test": "tests.integration.test_node_timeouts_scenario89.test_configured_node_keeps_its_value_and_others_default",
     "work_item": "bd-ib-cnkf",
-    "reason": "Ratified by the commission item C revise (plan homelab-loop-hardening-orchestrator): configured node timeouts rendered as literal durations; bd-ib-cnkf lands the exercising integration test."
+    "reason": "Bound by bd-ib-cnkf to the integration-tier journey: a real dispatch through dispatcher.main reads back the workflow graph the run receives and asserts the configured node keeps its value while the others take the 1800-second default. The same module carries the scenario's other three cases — the all-default render with no template opener, the derived subprocess ceiling, and the refusal before any run exists."
   }
 ]

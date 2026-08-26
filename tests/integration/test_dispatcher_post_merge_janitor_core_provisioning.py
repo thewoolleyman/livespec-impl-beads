@@ -277,6 +277,20 @@ def _target_repo(*, tmp_path: Path) -> Path:
         '[workflow]\ngraph = "graph.toml"\n\n[run.environment]\nid = "fabro-sandbox"\n',
         encoding="utf-8",
     )
+    # The declared graph must EXIST: the Dispatcher renders this dispatch's
+    # resolved node timeouts into a per-run copy of it before `fabro run`.
+    (target / "graph.toml").write_text(
+        "digraph ImplementWorkItem {\n"
+        "    graph [\n"
+        '        stall_timeout="7200s"\n'
+        "    ]\n"
+        "\n"
+        "    implement [\n"
+        '        timeout="1800s"\n'
+        "    ]\n"
+        "}\n",
+        encoding="utf-8",
+    )
     with (target / "justfile").open("a", encoding="utf-8") as handle:
         _ = handle.write(
             "\ncheck-no-workflow-edits:\n"

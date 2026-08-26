@@ -21,6 +21,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_io import (
     WatchedFabroLauncher,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import heartbeat_path
+from livespec_orchestrator_beads_fabro.commands._dispatcher_payload import (
+    remove_workflow_payload,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import DispatchPlan
 
 __all__: list[str] = [
@@ -36,6 +39,10 @@ class DispatchRunContext:
     plan: DispatchPlan
     journal: JournalFile
     overlay_file: Path
+    # The per-dispatch workflow payload (the rendered graph plus its
+    # prompts). Torn down with the overlay when the run returns, so a
+    # dispatch never leaves a stale rendered graph behind for the next one.
+    payload_dir: Path | None = None
     token_supplier: Callable[[], str]
 
 
@@ -49,6 +56,7 @@ def run_dispatch_with_watchdog(
     runner = GithubTokenEnvRunner(inner=ShellCommandRunner(), token=context.token_supplier)
     with ExitStack() as stack:
         _ = stack.callback(lambda: context.overlay_file.unlink(missing_ok=True))
+        _ = stack.callback(lambda: remove_workflow_payload(payload_dir=context.payload_dir))
         outcome = run_dispatch_func(
             plan=context.plan,
             # Pillar 1 (first-class remint): the decorator re-resolves

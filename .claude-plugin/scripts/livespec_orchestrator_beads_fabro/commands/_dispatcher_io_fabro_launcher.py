@@ -44,7 +44,11 @@ from livespec_orchestrator_beads_fabro.store import read_work_items
 
 __all__: list[str] = ["WatchedFabroLauncher"]
 
-_FABRO_TIMEOUT_SECONDS = 54000.0
+# The `fabro run` subprocess ceiling rides on `plan.fabro_timeout_seconds`,
+# derived per dispatch from the resolved node timeouts and stall timeout
+# (`_node_timeouts.derive_fabro_timeout_seconds`) — the watched and
+# synchronous launchers deliberately read the SAME number, so a repository
+# that lengthens a node cannot have one path outlive the other.
 _FABRO_PROBE_TIMEOUT_SECONDS = 60.0
 _FABRO_RM_TIMEOUT_SECONDS = 120.0
 _WATCHDOG_POLL_INTERVAL_SECONDS = 30.0
@@ -107,7 +111,7 @@ class WatchedFabroLauncher:
                 workflow_toml=plan.workflow_toml,
                 goal_file=plan.goal_file,
                 inputs=dispatch_fabro_run_inputs(plan=plan),
-                timeout_seconds=_FABRO_TIMEOUT_SECONDS,
+                timeout_seconds=plan.fabro_timeout_seconds,
             )
             holder["result"] = cast("CommandResult", result.command)
             run_id_holder["run_id"] = result.run_id

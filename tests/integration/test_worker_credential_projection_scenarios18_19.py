@@ -40,6 +40,21 @@ _COMMITTED_WORKFLOW_TOML = (
     'id = "livespec-ci"\n'
 )
 
+# A minimal workflow graph for the payload materializer to render: one node
+# timeout plus the run-level stall watchdog, which is the shape the literal-
+# duration rewrite requires (commands/_dispatcher_graph_render.py).
+_MINIMAL_GRAPH = (
+    "digraph ImplementWorkItem {\n"
+    "    graph [\n"
+    '        stall_timeout="7200s"\n'
+    "    ]\n"
+    "\n"
+    "    implement [\n"
+    '        timeout="1800s"\n'
+    "    ]\n"
+    "}\n"
+)
+
 _FLEET_MANIFEST_TEXT = (
     "{\n"
     '  "owner": "thewoolleyman",\n'
@@ -71,6 +86,7 @@ def _auth_json_with_exp(*, exp: int) -> str:
 def _workflow_toml(*, tmp_path: Path) -> Path:
     committed = tmp_path / "workflow.toml"
     _ = committed.write_text(_COMMITTED_WORKFLOW_TOML, encoding="utf-8")
+    _ = (committed.parent / "workflow.fabro").write_text(_MINIMAL_GRAPH, encoding="utf-8")
     return committed
 
 

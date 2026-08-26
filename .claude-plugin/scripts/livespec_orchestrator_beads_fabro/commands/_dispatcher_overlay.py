@@ -25,6 +25,7 @@ __all__: list[str] = [
     "SiblingClones",
     "escape_minijinja_literal",
     "render_run_config_overlay",
+    "workflow_graph_path",
 ]
 
 SIBLING_CLONES_ROOT_ENV_VAR = "LIVESPEC_SIBLING_CLONES_ROOT"
@@ -165,6 +166,24 @@ def _toml_section_string(*, text: str, section: str, key: str) -> str | None:
     return key_match.group("value")
 
 
+def workflow_graph_path(*, committed_text: str, workflow_dir: Path) -> Path | None:
+    """The absolute graph path a committed run config declares; None when absent.
+
+    Shared with the payload materializer, which renders that graph's
+    timeouts into the per-dispatch payload — so both readers resolve the
+    same declared file rather than each assuming the conventional name.
+    """
+    graph_value = _toml_section_string(text=committed_text, section="workflow", key="graph")
+    if graph_value is None:
+        return None
+    return _absolute_graph(graph_value=graph_value, workflow_dir=workflow_dir)
+
+
+def _absolute_graph(*, graph_value: str, workflow_dir: Path) -> Path:
+    graph_path = Path(graph_value)
+    return graph_path if graph_path.is_absolute() else workflow_dir / graph_path
+
+
 def render_run_config_overlay(  # noqa: PLR0913 — kw-only pure overlay builder; each field is an independent projection input.
     *,
     committed_text: str,
@@ -175,19 +194,29 @@ def render_run_config_overlay(  # noqa: PLR0913 — kw-only pure overlay builder
     otel_env: dict[str, str] | None = None,
     codex_auth_snapshot: str | None = None,
     fabro_sandbox_image: str | None = None,
+    graph_override: Path | None = None,
 ) -> str | None:
     """Render the dispatch-time run-config overlay.
 
     Rewrites the workflow graph path to an absolute path and appends the
     run-scoped env table plus optional sibling-clone and Codex-auth prepare
     steps. Returns None when the committed TOML shape is unusable.
+
+    `graph_override` points the run at the PER-DISPATCH payload's rendered
+    graph — the copy carrying this dispatch's resolved node timeouts as
+    literal durations — instead of the committed file. Absent (a direct
+    caller that materialized no payload), the committed graph is absolutized
+    exactly as before.
     """
     graph_value = _toml_section_string(text=committed_text, section="workflow", key="graph")
     environment_id = _toml_section_string(text=committed_text, section="run.environment", key="id")
     if graph_value is None or environment_id is None:
         return None
-    graph_path = Path(graph_value)
-    resolved_graph = graph_path if graph_path.is_absolute() else workflow_dir / graph_path
+    resolved_graph = (
+        _absolute_graph(graph_value=graph_value, workflow_dir=workflow_dir)
+        if graph_override is None
+        else graph_override
+    )
     needle = f'graph = "{graph_value}"'
     if needle not in committed_text:
         return None

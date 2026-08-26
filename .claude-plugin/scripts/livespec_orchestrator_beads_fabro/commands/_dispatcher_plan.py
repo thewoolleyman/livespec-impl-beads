@@ -87,6 +87,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_overlay import (
     SiblingClones,
     escape_minijinja_literal,
     render_run_config_overlay,
+    workflow_graph_path,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan_build import (
     DispatchPlan,
@@ -162,6 +163,7 @@ __all__: list[str] = [
     "render_goal",
     "render_run_config_overlay",
     "resolve_sandbox_otel_endpoint",
+    "workflow_graph_path",
 ]
 
 # Sizing heuristics (warn-only; see `item_sizing_warnings`). Calibrated on

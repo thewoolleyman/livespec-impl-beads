@@ -40,10 +40,26 @@ digraph ImplementWorkItem {
     // `deterministic` failures fail immediately WITHOUT consuming the
     // retry budget and route via the `outcome=failed` edges to the
     // human gate exactly as before. So: transient -> ONE auto-retry;
-    // categorical -> park at needs-human. `stall_timeout` stays 7200s:
+    // categorical -> park at needs-human. `stall_timeout` is 7200s:
     // it is the zero-EVENT watchdog (cancels the run on 2h of event
     // silence), not the per-turn ceiling — an active agent turn streams
     // events continuously, so a longer implement turn does not trip it.
+    //
+    // EVERY DURATION BELOW IS A DEFAULT THE DISPATCHER REWRITES. The
+    // dispatch target's `dispatcher.node_timeouts` table and its
+    // `dispatcher.stall_timeout_seconds` key resolve each value, and the
+    // Dispatcher writes the resolved numbers into the per-dispatch
+    // payload's copy of this graph as literal durations before `fabro run`
+    // sees it (commands/_dispatcher_graph_render.py; contracts.md §"ACP
+    // node timeouts"). The values here are the same 1800s/7200s defaults
+    // that resolution applies, so a DIRECT `fabro run` on the committed
+    // file behaves identically to an unconfigured dispatch.
+    //
+    // DO NOT TEMPLATE A `timeout` FROM A WORKFLOW INPUT the way
+    // `acp.command` is. The pinned Fabro build types a quoted duration at
+    // parse time and its template expansion never re-types a rendered
+    // string, so a templated timeout leaves the node with NO timeout at
+    // all — and reports nothing.
     graph [
         goal="Implement one ready work-item per the livespec family discipline"
         default_max_retries=0
@@ -53,15 +69,18 @@ digraph ImplementWorkItem {
     start [shape=Mdiamond, label="Start"]
     exit  [shape=Msquare, label="Exit"]
 
-    // timeout=14400s (was 7200s): two heavy multi-RGR items (dev-tooling
-    // p60, git-jsonl tenpup, both 2026-06-12) died at "ACP turn timed
-    // out" at ~120m — the node timeout is the per-turn ceiling for the
-    // ACP backend (the run PARKED at the human gate afterwards, i.e. the
+    // The implement timeout is the per-turn ceiling for the ACP backend:
+    // two heavy multi-RGR items (dev-tooling p60, git-jsonl tenpup, both
+    // 2026-06-12) died at "ACP turn timed out" at ~120m against the then
+    // 7200s value (the run PARKED at the human gate afterwards, i.e. the
     // node failed; the stall watchdog by contrast CANCELS the whole run,
-    // so it was not the stall_timeout). 4h gives multi-part items one
-    // unattended turn of headroom; the Dispatcher's own fabro-run
-    // subprocess budget covers the worst case (see _dispatcher_engine
-    // _FABRO_TIMEOUT_SECONDS).
+    // so it was not the stall_timeout). It was raised to 14400s for that
+    // headroom and is now the 1800s default of §"ACP node timeouts" — a
+    // DELIBERATE reduction ruled by the maintainer, on a factory whose
+    // implementer no longer dies on Codex compaction. A repository whose
+    // items need the old headroom sets `dispatcher.node_timeouts.implement`
+    // rather than editing this literal; the Dispatcher's own fabro-run
+    // subprocess budget is derived from whatever resolves.
     //
     // retry_target: fires ONLY at exit-node goal-gate enforcement (the
     // `outcome=failed` edge to the human gate takes precedence at node
@@ -74,7 +93,7 @@ digraph ImplementWorkItem {
         label="Implement (Red-Green-Replay)"
         backend="acp"
         acp.command="{{ inputs.acp_adapter }}"
-        timeout="14400s"
+        timeout="1800s"
         max_retries=1
         goal_gate=true
         retry_target="implement"
@@ -91,7 +110,7 @@ digraph ImplementWorkItem {
     implementation_diff [
         label="Check implementer changed tree"
         shape=parallelogram
-        timeout="60s"
+        timeout="1800s"
         script="git diff --quiet origin/master...HEAD; status=$?; if test \"$status\" -eq 0; then echo 'LIVESPEC_DEAD_IMPLEMENTER: implementer terminated without changing the worktree relative to dispatch base origin/master...HEAD; stop before janitor/review/disposition' >&2; exit 1; fi; if test \"$status\" -eq 1; then exit 0; fi; echo 'LIVESPEC_DEAD_IMPLEMENTER_CHECK_FAILED: git diff against origin/master...HEAD failed; fail closed before review' >&2; exit \"$status\""
     ]
 
@@ -103,7 +122,7 @@ digraph ImplementWorkItem {
     janitor [
         label="Janitor: just check"
         shape=parallelogram
-        timeout="3600s"
+        timeout="1800s"
         script="mise exec -- just check-no-workflow-edits check"
     ]
 
@@ -111,7 +130,7 @@ digraph ImplementWorkItem {
         label="Fix janitor failures"
         backend="acp"
         acp.command="{{ inputs.acp_adapter }}"
-        timeout="3600s"
+        timeout="1800s"
         max_visits=3
         prompt="@prompts/fix.md"
     ]
@@ -201,7 +220,7 @@ digraph ImplementWorkItem {
         label="Implement accepted review findings"
         backend="acp"
         acp.command="{{ inputs.acp_adapter }}"
-        timeout="3600s"
+        timeout="1800s"
         max_visits=10
         prompt="@prompts/review-fix.md"
     ]
@@ -214,7 +233,7 @@ digraph ImplementWorkItem {
     dead_implementer [
         label="Dead implementer: unchanged tree; stop before review"
         shape=parallelogram
-        timeout="60s"
+        timeout="1800s"
         script="echo 'LIVESPEC_DEAD_IMPLEMENTER: unchanged tree after implementer; no janitor/review/disposition rounds will run against dispatch base' >&2; exit 1"
     ]
 
@@ -249,7 +268,7 @@ digraph ImplementWorkItem {
     abandon [
         label="Abandon: terminate non-green (work-item stays open)"
         shape=parallelogram
-        timeout="60s"
+        timeout="1800s"
         script="echo 'operator abandoned the run; work-item left open for triage' >&2; exit 1"
     ]
 
@@ -275,7 +294,7 @@ digraph ImplementWorkItem {
     non_converged [
         label="Non-converged: fix-loop cap hit; route back to Dispatcher (needs-regroom)"
         shape=parallelogram
-        timeout="60s"
+        timeout="1800s"
         script="echo 'LIVESPEC_NON_CONVERGED: janitor fix-loop cap hit without converging; routing back to the Dispatcher for needs-regroom' >&2; exit 1"
     ]
 
