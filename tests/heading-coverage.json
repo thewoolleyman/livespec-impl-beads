@@ -978,5 +978,21 @@
     "test": "tests.integration.test_node_timeouts_scenario89.test_configured_node_keeps_its_value_and_others_default",
     "work_item": "bd-ib-cnkf",
     "reason": "Bound by bd-ib-cnkf to the integration-tier journey: a real dispatch through dispatcher.main reads back the workflow graph the run receives and asserts the configured node keeps its value while the others take the 1800-second default. The same module carries the scenario's other three cases — the all-default render with no template opener, the derived subprocess ceiling, and the refusal before any run exists."
+  },
+  {
+    "heading": "## Scenario 90 — The Codex adapter is identified by its baked path and pinned through its environment",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "work_item": "bd-ib-nr3pon",
+    "reason": "Bound by bd-ib-nr3pon (commission item E2) leg (a); that item lands the exercising INTEGRATION-tier test, and the binding cannot precede the renderer it exercises. The scenario asserts the rendered Codex adapter is its env assignments in sorted key order followed by the baked /opt/livespec/codex-acp/bin/codex-acp path, carries model and model_reasoning_effort inside CODEX_CONFIG rather than as -c arguments, declares INITIAL_AGENT_MODE per node class, and leaves the Claude implementer string byte-identical. A unit-tier test cannot discharge it: the assertion is about the adapter string a real dispatch renders, so the exercising test must run at the integration tier or above."
+  },
+  {
+    "heading": "## Scenario 91 — The empty-model opt-out renders no model key inside CODEX_CONFIG",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "work_item": "bd-ib-nr3pon",
+    "reason": "Bound by bd-ib-nr3pon leg (a), same dependency as Scenario 90: the opt-out's new spelling — no model key inside CODEX_CONFIG rather than an empty value — is only observable once that channel exists. bd-ib-nr3pon lands the exercising INTEGRATION-tier test; its third acceptance criterion is this assertion. The byte-identity claim against the un-pinned base string is a property of a rendered dispatch payload, so it is graded at the integration tier, never by a unit-tier test."
   }
 ]

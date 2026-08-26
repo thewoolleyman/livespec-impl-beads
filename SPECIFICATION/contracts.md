@@ -3234,26 +3234,57 @@ defaults.
 
 **An empty model is a legal explicit opt-out.** A tier whose `model` is the empty
 string MUST render the adapter BYTE-IDENTICALLY to the un-pinned base string,
-carrying neither a model nor a reasoning-effort override. The opt-out MUST be
+carrying NO `model` key and NO `model_reasoning_effort` key inside `CODEX_CONFIG`
+rather than carrying either with an empty value. The opt-out MUST be
 spelled as an empty value rather than a removed key, so an operator can disable
 the pin without deleting the surrounding documentation, and it MUST be a true
 no-op rather than a differently-spelled default.
 
 **There is no environment override.** The pins MUST NOT be overridable by an
-environment variable. They are a steady-state cost policy read once per dispatch
-on the orchestrator host; an environment seam would let an ad-hoc shell re-tier
+AD-HOC SHELL environment variable read from the orchestrator host's ambient
+environment. They are a steady-state cost policy read once per dispatch
+on the orchestrator host; such a seam would let an ad-hoc shell re-tier
 the whole factory with nothing in the committed record to show for it.
 
-**The rendered form, literally.** The base adapter command is:
+This rule does NOT constrain an adapter's OWN DECLARED `env` map. That map is
+committed configuration, resolved through the three layers of §"ACP node adapter
+configuration", rendered verbatim into the recorded adapter string, and journaled
+with the layer that supplied each key — so it leaves exactly the committed record
+an ambient seam would destroy. The distinction is load-bearing rather than
+pedantic: the pins below ride the adapter's declared environment, and reading
+this rule as a ban on environment assignments generally would forbid the very
+channel this section specifies.
 
-    npx --no-install @zed-industries/codex-acp -c sandbox_mode=danger-full-access -c approval_policy=never
+**The rendered form, literally.** The base adapter command is the successor
+`codex-acp` package invoked AT ITS BAKED PATH:
 
-A pinned adapter MUST be that base command followed by exactly
-` -c model=<model> -c model_reasoning_effort=<effort>`. The overrides MUST ride
-the same `-c key=value` channel the sandbox and approval settings already use —
-that is what makes the pin expressible at all, because Fabro REJECTS `model` and
-`reasoning_effort` as ACP node attributes, so neither a node attribute nor a
-model stylesheet is available here.
+    /opt/livespec/codex-acp/bin/codex-acp
+
+A pinned adapter MUST be that command with its settings carried as leading
+`KEY=value` ENVIRONMENT assignments in sorted key order, exactly as
+§"ACP node adapter configuration" requires of every node's `env` map. Two
+assignments are defined here. `CODEX_CONFIG` MUST carry a JSON object merged
+into the adapter's session configuration, holding the `approval_policy`,
+`model`, `model_reasoning_effort` and `sandbox_mode` keys; `INITIAL_AGENT_MODE`
+MUST carry `agent-full-access` for the implementer and publish classes, and
+`read-only` for a node that performs no writes. The settings MUST ride the
+environment rather than an ACP node attribute because Fabro REJECTS `model` and
+`reasoning_effort` as node attributes, so neither a node attribute nor a model
+stylesheet is available here.
+
+**The adapter is identified by its baked path, never by package name.** The
+invocation MUST NOT be resolved through `npx` by package name. The baked path
+preserves every property the previous `npx --no-install` form was chosen for —
+it is version-free, it performs no npm registry round-trip so it runs under
+`--network none`, and the baked image remains the single source of truth for the
+adapter version — and it adds the one property that form lacked: an unambiguous
+IDENTITY. `npx` resolves a package's bin through the SHARED global bin link, so
+where two `codex-acp` packages are installed, invoking either package NAME runs
+whichever package owns that link. A renderer using the name can therefore emit a
+string naming one package while executing another, which defeats this section's
+opening claim that a reader can predict the literal adapter string and check it
+against `run_turn.command`. Relying on package-name resolution to distinguish the
+successor from the predecessor is FORBIDDEN.
 
 **The built-in fleet defaults.** Absent any `dispatcher.codex_models` override
 the tiers MUST resolve to:
@@ -3266,12 +3297,12 @@ the tiers MUST resolve to:
 So a default dispatch renders the implementer adapter as the Claude string given
 above, and renders the publish adapter as:
 
-    npx --no-install @zed-industries/codex-acp -c sandbox_mode=danger-full-access -c approval_policy=never -c model=gpt-5.4-mini -c model_reasoning_effort=high
+    CODEX_CONFIG={"approval_policy":"never","model":"gpt-5.4-mini","model_reasoning_effort":"high","sandbox_mode":"danger-full-access"} INITIAL_AGENT_MODE=agent-full-access /opt/livespec/codex-acp/bin/codex-acp
 
 A repository that pins its implementer to Codex with the former default renders
 the implementer adapter as:
 
-    npx --no-install @zed-industries/codex-acp -c sandbox_mode=danger-full-access -c approval_policy=never -c model=gpt-5.5 -c model_reasoning_effort=low
+    CODEX_CONFIG={"approval_policy":"never","model":"gpt-5.5","model_reasoning_effort":"low","sandbox_mode":"danger-full-access"} INITIAL_AGENT_MODE=agent-full-access /opt/livespec/codex-acp/bin/codex-acp
 
 These values are stated here so the section satisfies its own opening claim: a
 reader can reconstruct the literal strings and check them against
@@ -3279,14 +3310,19 @@ reader can reconstruct the literal strings and check them against
 carries design judgement and runs the strongest available model by default; the
 `pr` node runs a scripted recipe and takes the cheap Codex model outright.
 
-**Reachable tiers are bounded by the baked adapter.** Measured 2026-08-22 in the
-pinned sandbox image against the real projected credential: `gpt-5.6-luna`,
-`gpt-5.6-terra` and `gpt-5.3-codex` are ALL refused by the backend from this
-adapter (HTTP 400). The reachable tiers are `gpt-5.5`, `gpt-5.4` and
-`gpt-5.4-mini`. Moving to the gpt-5.6 line REQUIRES bumping the sandbox image's
-`codex-acp` version FIRST; a pin naming an unreachable model fails every dispatch
-that uses it. Note that the same bump also removes the accidental ceiling that
-currently bounds spend. The Claude default adapter is fetched by `npx -y` rather
+**Reachable tiers are bounded by the baked adapter.** The set of models this
+adapter can actually reach is a property OF THE BAKED ADAPTER VERSION, not of
+this specification: the adapter vendors a Codex generation, and a model the
+vendored generation does not know is refused by the backend rather than falling
+back. A pin naming an unreachable model fails every dispatch that uses it.
+
+Therefore the reachable-tier set MUST be RE-MEASURED from the sandbox against the
+real projected credential whenever the baked `codex-acp` version changes, and any
+recorded tier table MUST NAME the adapter version it was measured against. A
+table attributed to a version the image no longer bakes MUST NOT be carried here:
+it reads as current, and a pin chosen from it fails at dispatch time with nothing
+in the table to explain why. The concrete post-succession table is produced by
+ledger item `bd-ib-nr3pon` and is not asserted by this section. The Claude default adapter is fetched by `npx -y` rather
 than baked into the sandbox image, exactly as the review adapter is, and
 authenticates with the `CLAUDE_CODE_OAUTH_TOKEN` the Dispatcher already projects
 for the review node.
@@ -3307,10 +3343,10 @@ local models included, MUST be a configuration change with no code change.
 **The per-node value.** A node's adapter configuration is a table with three
 fields: `command` (string; the ACP adapter command, e.g.
 `npx -y @agentclientprotocol/claude-agent-acp` or
-`npx --no-install @zed-industries/codex-acp`), `env` (table of string to
+`/opt/livespec/codex-acp/bin/codex-acp`), `env` (table of string to
 string; environment assignments prefixed onto the command as leading
 `KEY=value` pairs, the mechanism Fabro already parses), and `args` (array of
-strings; appended to the command verbatim, e.g. `-c model=gpt-5.5`). Model and
+strings; appended to the command verbatim, e.g. `-c model_provider=<name>`). Model and
 reasoning effort are NOT fields of their own: they ride in `env` for adapters
 that read them from the environment (`ANTHROPIC_MODEL`,
 `CLAUDE_CODE_EFFORT_LEVEL`) and in `args` for adapters that read them from the
