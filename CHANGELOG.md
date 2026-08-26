@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.78.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.77.0...v0.78.0) (2026-08-26)
+
+
+### Features
+
+* specify ready-work aging attention ([5c87205](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/5c87205deea87b66915b4a70dcbfb0837df365cf))
+
+
+### Bug Fixes
+
+* batch ready-aging watchable run lookup ([097a748](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/097a7485af603c2b1c0f66d7274a79abbb88d104))
+
 ## [0.77.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.76.0...v0.77.0) (2026-08-26)
 
 
