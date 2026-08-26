@@ -21,6 +21,7 @@ _IMPLEMENTER_TIER_KEY = "implementer"
 _PR_TIER_KEY = "pr"
 _TIER_MODEL_KEY = "model"
 _TIER_EFFORT_KEY = "reasoning_effort"
+_TIER_COMPACTION_KEY = "compaction_token_limit"
 
 # Built-in Codex model pins for the factory's ACP nodes. These are FLEET
 # defaults: every repo dispatching through this plugin inherits them unless
@@ -66,10 +67,25 @@ class CodexModelTier:
     pre-pin behaviour of letting `codex-acp` resolve its own default. It is
     spelled as an empty string rather than a missing key so an operator can
     disable the pin without deleting the surrounding documentation.
+
+    `compaction_token_limit` is the Codex `model_auto_compact_token_limit`
+    for the nodes this tier backs, and ZERO means "unset" -- the same
+    "configure nothing, change nothing" shape as the empty `model`. It
+    belongs here rather than in a key of its own because THIS is the
+    per-node Codex configuration surface, and because the limit rides the
+    adapter's `-c key=value` channel exactly as the model pins do.
+
+    WHY THE LIMIT IS WORTH CONFIGURING AT ALL. Reaching Codex's
+    auto-compaction threshold mid-turn is what made a long implement turn
+    fatal: at the threshold Codex calls a remote compaction endpoint that is
+    dead, with no local fallback, so the turn dies rather than compacting.
+    A node still backed by Codex can therefore need its threshold moved --
+    and moving it must not require an orchestrator code change.
     """
 
     model: str
     reasoning_effort: str
+    compaction_token_limit: int = 0
 
     @property
     def pinned(self) -> bool:
@@ -126,14 +142,28 @@ def _codex_model_tier(
     if not isinstance(entry, dict):
         return CodexModelTier(model=default_model, reasoning_effort=default_effort)
     table = cast("dict[str, Any]", entry)
+    compaction = _tier_compaction_token_limit(value=table.get(_TIER_COMPACTION_KEY))
     model_raw = table.get(_TIER_MODEL_KEY)
     model = model_raw if isinstance(model_raw, str) else default_model
     if model == "":
-        return CodexModelTier(model="", reasoning_effort="")
+        return CodexModelTier(model="", reasoning_effort="", compaction_token_limit=compaction)
     return CodexModelTier(
         model=model,
         reasoning_effort=_tier_effort(value=table.get(_TIER_EFFORT_KEY), default=default_effort),
+        compaction_token_limit=compaction,
     )
+
+
+def _tier_compaction_token_limit(*, value: object) -> int:
+    """The configured compaction token limit, or 0 when none is configured.
+
+    `bool` is excluded explicitly: it is an `int` subclass, so `true` would
+    otherwise resolve to a one-token compaction threshold -- a value that
+    reads as configured and makes every turn compact immediately.
+    """
+    if isinstance(value, bool) or not isinstance(value, int):
+        return 0
+    return max(0, value)
 
 
 def _tier_effort(*, value: object, default: str) -> str:

@@ -97,14 +97,24 @@ def codex_adapter(*, tier: CodexModelTier) -> str:
     (fabro-validate `backend_valid`), so a node attr or a model_stylesheet is
     not available here. An un-pinned tier renders the base string byte-for-byte,
     so the opt-out is a true no-op rather than a differently-spelled default.
+
+    The tier's `compaction_token_limit` rides that same `-c` channel as
+    `model_auto_compact_token_limit`, and it is emitted INDEPENDENTLY of the
+    model pin: a node can opt out of the model override while still needing
+    its compaction threshold moved, so folding the limit into the `pinned`
+    branch would silently drop it for exactly that configuration.
     """
-    if not tier.pinned:
-        return CODEX_ADAPTER_BASE
-    return (
-        f"{CODEX_ADAPTER_BASE} "
-        f"-c model={tier.model} "
-        f"-c model_reasoning_effort={tier.reasoning_effort}"
+    pins = (
+        ""
+        if not tier.pinned
+        else f" -c model={tier.model} -c model_reasoning_effort={tier.reasoning_effort}"
     )
+    compaction = (
+        ""
+        if tier.compaction_token_limit == 0
+        else f" -c model_auto_compact_token_limit={tier.compaction_token_limit}"
+    )
+    return f"{CODEX_ADAPTER_BASE}{pins}{compaction}"
 
 
 # GitHub owner / repo-name shape. The matched values are spliced into
