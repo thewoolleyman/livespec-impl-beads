@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.84.3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.84.2...v0.84.3) (2026-08-27)
+
+
+### Bug Fixes
+
+* **dispatcher:** shell-quote ACP adapter env values so they survive tokenization ([28947b0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/28947b0b00580b29fbfe307b44618c17cad0c3e3))
+
 ## [0.84.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.84.1...v0.84.2) (2026-08-27)
 
 
