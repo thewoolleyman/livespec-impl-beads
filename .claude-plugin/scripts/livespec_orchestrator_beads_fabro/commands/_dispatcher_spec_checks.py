@@ -46,6 +46,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_checks import
 from livespec_orchestrator_beads_fabro.commands._dispatcher_spec_commitments import (
     collect_obligations_and_supersedes,
 )
+from livespec_orchestrator_beads_fabro.commands._plan_anchor import is_spec_commitment
 from livespec_orchestrator_beads_fabro.commands.detect_impl_gaps import detect_rules
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
@@ -145,7 +146,16 @@ def _check_unresolved_commitments(
     spec_root: Path,
 ) -> list[LedgerFinding]:
     obligations, superseded = collect_obligations_and_supersedes(spec_root=spec_root)
-    hints = {item.spec_commitment_hint for item in items if item.spec_commitment_hint}
+    # PRESENCE IS THE WRONG QUESTION: `spec_commitment_hint` is overloaded and
+    # also carries the `plan:<slug>` anchor marker, which commits to no spec
+    # text at all. The set this builds is matched against obligation id_hints,
+    # so it must hold GENUINE commitments — ask `_plan_anchor` rather than
+    # testing the hint for truthiness.
+    hints = {
+        item.spec_commitment_hint
+        for item in items
+        if is_spec_commitment(spec_id=item.spec_commitment_hint)
+    }
     return [
         LedgerFinding(
             check="unresolved-spec-commitment",

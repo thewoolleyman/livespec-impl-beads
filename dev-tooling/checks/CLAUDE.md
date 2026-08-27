@@ -34,6 +34,17 @@ Current checks:
   as the plaintext sibling's JSONL-shaped equivalent; epics exempt
   (child-closure checked instead). Passes trivially when the store is
   empty (the hermetic-fake default tier).
+- `spec_id_presence_discipline.py` — executable guard for the narrowing of
+  the OVERLOADED spec id field (`WorkItem.spec_commitment_hint`, persisted as
+  the beads-native `spec_id` column, carrying both the `plan:<slug>` anchor
+  marker and a genuine spec-clause commitment). AST-scans the orchestrator
+  package and fails on a bare presence / truthiness test outside a measured
+  allowlist; everything else must ask `is_spec_commitment` / `is_plan_anchor`
+  from `commands/_plan_anchor.py`. It reports an ABSENCE, so it carries two
+  positive controls — a discovery control over the package walk and a matcher
+  control over `fixtures/spec_id_presence_control.py.txt` — and refuses to
+  report a clean scan when either fails. Editing the allowlist means
+  re-measuring: add an entry only after confirming the site fires without it.
 - `work_item_state_invariants.py` — the beads-private work-item-state
   doctor check (SPECIFICATION/contracts.md §"Work-item beads-issue
   mapping" invariants block; L1a slice S6). Walks every materialized
