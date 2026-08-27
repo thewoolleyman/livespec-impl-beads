@@ -12,6 +12,7 @@ __all__: list[str] = [
     "FabroFailureDetail",
     "FabroRunSummary",
     "fabro_failure_detail_from_payload",
+    "fabro_inspect_record",
     "fabro_run_id_from_output",
     "fabro_run_summaries_from_payload",
     "fabro_run_summaries_from_stdout",
@@ -107,7 +108,7 @@ def fabro_run_summaries_from_payload(*, payload: object | None) -> tuple[FabroRu
     return tuple(summaries)
 
 
-def _inspect_record(*, payload: object | None) -> dict[str, Any] | None:
+def fabro_inspect_record(*, payload: object | None) -> dict[str, Any] | None:
     """Normalize an `inspect` payload to the single run record it describes.
 
     `fabro inspect <run> --json` returns a single-element LIST on the pinned
@@ -125,7 +126,7 @@ def _inspect_record(*, payload: object | None) -> dict[str, Any] | None:
 
 
 def fabro_status_kind_from_payload(*, payload: object | None) -> str | None:
-    record = _inspect_record(payload=payload)
+    record = fabro_inspect_record(payload=payload)
     if record is None:
         return None
     status_raw: object = record.get("status")
@@ -139,7 +140,7 @@ def fabro_status_kind_from_payload(*, payload: object | None) -> str | None:
 
 
 def fabro_failure_detail_from_payload(*, payload: object | None) -> FabroFailureDetail | None:
-    record = _inspect_record(payload=payload)
+    record = fabro_inspect_record(payload=payload)
     if record is None:
         return None
     typed_payload = cast("dict[object, object]", record)
