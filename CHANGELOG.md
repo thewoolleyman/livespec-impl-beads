@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.85.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.84.4...v0.85.0) (2026-08-27)
+
+
+### Features
+
+* report which adopters have resolved the current release ([6e8ba62](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/6e8ba62cadd5b7b631f80df6ac547ce38c23962e))
+
+
+### Bug Fixes
+
+* key release adoption on this plugin's name, not the governed project's ([86c985a](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/86c985aa70309e6e7ce57ad473186faf8c928cb8))
+
 ## [0.84.4](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.84.3...v0.84.4) (2026-08-27)
 
 
