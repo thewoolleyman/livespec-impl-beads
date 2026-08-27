@@ -79,6 +79,7 @@ targets=(
     check-status-conformance
     check-closed-item-integrity
     check-needs-attention-surface-ownership
+    check-spec-id-presence-discipline
     check-codex-plugin-structure
     check-pi-plugin-structure
     check-bd-guard
