@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.84.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.84.1...v0.84.2) (2026-08-27)
+
+
+### Bug Fixes
+
+* **dispatcher:** stop injecting the plan anchor into the dispatched agent's brief ([02bb61c](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/02bb61ca7157c97355c1529b1fd43d79561f7982))
+
 ## [0.84.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.84.0...v0.84.1) (2026-08-27)
 
 
