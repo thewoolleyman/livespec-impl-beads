@@ -372,6 +372,7 @@ check:
         check-status-conformance
         check-closed-item-integrity
         check-needs-attention-surface-ownership
+        check-spec-id-presence-discipline
         check-codex-plugin-structure
         check-pi-plugin-structure
         check-bd-guard
@@ -577,6 +578,18 @@ check-closed-item-integrity:
 # private block.
 check-needs-attention-surface-ownership:
     uv run python dev-tooling/checks/needs_attention_surface_ownership.py
+
+# `check-spec-id-presence-discipline` — executable guard for the narrowing that
+# four consumers of the OVERLOADED spec id field each got wrong. AST-scans the
+# orchestrator package for a bare presence / truthiness test on
+# `spec_commitment_hint` / `spec_id` and fails unless the site is in the
+# measured allowlist; everything else must ask `is_spec_commitment` or
+# `is_plan_anchor`. Because it reports an absence, it refuses to report a clean
+# scan unless its discovery and matcher positive controls both hold. Pure AST
+# read of committed files: no beads, no store, no network. Not a canonical
+# livespec-dev-tooling slug, so it is wired in the private block.
+check-spec-id-presence-discipline:
+    uv run python dev-tooling/checks/spec_id_presence_discipline.py
 
 # `check-bd-guard` — lint + hermetically test the warn-first `bd` guard wrapper
 # (bd-guard/), the stopgap that fronts every `bd` call and warns/blocks the

@@ -1,0 +1,41 @@
+"""POSITIVE CONTROL for spec_id_presence_discipline — this file MUST produce findings.
+
+Not a module. It is stored with a `.py.txt` suffix so no linter, typechecker,
+coverage gate or mirror-pairing check treats it as first-party source, while
+the check still reads and parses it through the same path it uses for the real
+package walk.
+
+Every function below is a BARE PRESENCE TEST on the overloaded spec id field —
+the shape four independent consumers actually wrote — not merely a mention of
+the field name. If `spec_id_presence_discipline` reports no finding here, the
+matcher is broken and its clean report on the real package means nothing.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+
+def brief_spec_line(*, item: Any) -> str:
+    # `is not None` — the attractive wrong predicate, verbatim.
+    if item.spec_commitment_hint is not None:
+        return f"Spec id: {item.spec_commitment_hint}"
+    return ""
+
+
+def is_spec_change_tier(*, item: Any) -> bool:
+    # Truthiness through `bool(...)`.
+    return bool(item.spec_commitment_hint)
+
+
+def carries_commitment(*, item: Any) -> bool:
+    # Truthiness through a local alias of the field.
+    hint = item.spec_id
+    if hint:
+        return True
+    return False
+
+
+def raw_record_carries_commitment(*, record: dict[str, Any]) -> bool:
+    # Truthiness on the raw column read straight out of a record mapping.
+    return not record.get("spec_id")
