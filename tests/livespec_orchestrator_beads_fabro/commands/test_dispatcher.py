@@ -1314,6 +1314,44 @@ def test_render_goal_includes_optional_spec_id(tmp_path: Path) -> None:
     assert "Spec id" not in without_spec_id
 
 
+def test_render_goal_omits_the_spec_id_line_for_a_plan_anchored_item(tmp_path: Path) -> None:
+    """A plan anchor names where work is TRACKED, not what the spec REQUIRES.
+
+    The rendered brief is the prompt EVERY phase of the dispatched workflow
+    reads, so a presence-only test on the overloaded hint injected the false
+    value straight into the agent's instructions: every plan-stamped item ever
+    dispatched was told `Spec id: plan:<slug>`, presenting a plan anchor as a
+    commitment to ratified spec text.
+    """
+    goal = render_goal(
+        item=_item(spec_commitment_hint="plan:codex-yolo-sandbox"),
+        repo=tmp_path,
+        branch="feat/t",
+    )
+
+    assert "Spec id" not in goal
+    assert "plan:codex-yolo-sandbox" not in goal
+
+
+def test_render_goal_renders_the_spec_id_line_for_a_real_spec_clause_commitment(
+    tmp_path: Path,
+) -> None:
+    """Narrowing the predicate must not cost a genuine commitment its brief line."""
+    # A genuine obligation id_hint, of the bare-slug shape the Spec Reader
+    # parses out of proposed-change front-matter. No obligation slug begins
+    # with the plan prefix, which is what makes the prefix a sound
+    # discriminator; the expected rendered line is stated in full below.
+    commitment = "contracts-dispatcher-admission"
+
+    goal = render_goal(
+        item=_item(spec_commitment_hint=commitment),
+        repo=tmp_path,
+        branch="feat/t",
+    )
+
+    assert "Spec id: contracts-dispatcher-admission\n" in goal
+
+
 def test_render_goal_includes_acceptance_criteria_and_notes_when_present(tmp_path: Path) -> None:
     goal = render_goal(
         item=_item(

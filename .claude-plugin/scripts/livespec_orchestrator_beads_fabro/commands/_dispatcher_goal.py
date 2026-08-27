@@ -20,6 +20,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_overlay import (
 from livespec_orchestrator_beads_fabro.commands._dispatcher_workflow_guard import (
     FACTORY_WORKFLOW_BOUNDARY_TEXT,
 )
+from livespec_orchestrator_beads_fabro.commands._plan_anchor import is_spec_commitment
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
 if TYPE_CHECKING:
@@ -95,8 +96,16 @@ def render_goal(
     MiniJinja open delimiters are escaped so Fabro renders the prose verbatim.
     """
     gap_line = f"Gap id: {item.gap_id}\n" if item.gap_id is not None else ""
+    # PRESENCE IS THE WRONG QUESTION HERE, and this site is the one where
+    # getting it wrong contaminates the BRIEF rather than a routing decision.
+    # `spec_commitment_hint` is overloaded: it also carries the `plan:<slug>`
+    # anchor marker, so a presence test told every plan-stamped item's
+    # implementing agent it was working under a commitment to ratified spec
+    # text. Ask the discriminating question instead (`_plan_anchor`).
     spec_line = (
-        f"Spec id: {item.spec_commitment_hint}\n" if item.spec_commitment_hint is not None else ""
+        f"Spec id: {item.spec_commitment_hint}\n"
+        if is_spec_commitment(spec_id=item.spec_commitment_hint)
+        else ""
     )
     acceptance_line = (
         f"\nAcceptance criteria:\n{item.acceptance_criteria}\n"
