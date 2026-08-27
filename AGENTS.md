@@ -1281,10 +1281,12 @@ it there; the bullets below are what this repo was missing.
 
 ## Verification discipline (repo-additive)
 
-Three rules from a 2026-07-28 three-way exchange between the
+Five rules. Rules 1-3 come from a 2026-07-28 three-way exchange between the
 `dispatch-claim-liveness`, `console-happy-path-mvp` and `factory-hardening`
 tracks, in which **three sessions independently reached confident wrong answers
-on the same question in one day**. Each bad method produced a **confident wrong
+on the same question in one day**; rules 4-5 were added 2026-08-27 by the
+`homelab-loop-hardening-orchestrator` thread, each from a near-miss caught by a
+control rather than by care. Each bad method produced a **confident wrong
 answer rather than an obviously empty one**, which is why none self-announced.
 Full account, with every measurement:
 `plan/archive/dispatch-claim-liveness/handoff.md` §"THE THREE STANDING RULES".
@@ -1331,6 +1333,57 @@ the third near-miss.
    *Worked example:* "expect the stale-base refusal, apply the known recovery"
    was true while a worker ran a week-old plugin and false the moment it
    restarted — and it reached a merged handoff either way.
+
+4. **Concurrence is not independence when the method is shared.** Two parties
+   applying the same method to the same artifact produce **one** measurement, not
+   two. Their agreement shows the method is DETERMINISTIC, not that the answer is
+   right — and it is *more* persuasive than a single wrong answer, because the
+   receiving party sees N reports and cannot see they share one origin. This is
+   the multi-party form of Rule 2's problem; Rule 2 asks whether your instrument
+   is pointed correctly, this one asks whether the second opinion is a second
+   instrument.
+   *Worked example (2026-08-27):* two sessions independently measured a tenant's
+   spec-commitment census by reading the projection's bridged
+   `spec_commitment_hint` while reasoning about a guard that reads the
+   beads-native `spec_id` column, and the concurrence was relayed onward as
+   corroboration. It was one reading taken twice. Re-taken against **both**
+   fields it happened to hold — but a divergence could not have printed under the
+   original method.
+   *The larger instance, same day:* a coordinator PRESCRIBED one reading method
+   to four peers and read their agreement as fourfold confirmation. Two defects
+   existed in the prescription, and both were caught only because two peers
+   **departed** from the brief. Compliance would have banked three greens on a
+   holed method.
+   - *Corollary for anyone standardising a method:* a departure from your brief
+     is **signal**, not noise to be corrected back into line. It is the only
+     thing that can falsify the brief itself.
+   - *What a genuine second reading looks like:* a different artifact, not the
+     same one read again. Another tenant found a free-form value that the first
+     tenant's data structurally could not contain — that is corroboration in the
+     sense the shared-method census was not.
+
+5. **A next-action line EXECUTES — author it from evidence, not from status.**
+   Under an unattended resume (`LIVESPEC_PLAN_UNATTENDED`), `resume_directive`
+   returns `ask: False` whenever the newest plan handoff names exactly one next
+   action, and the session **takes it directly** — no picker, no human. A
+   next-action line is therefore not advice to a successor; it is an instruction
+   that fires.
+   *Worked example (2026-08-27, this repo, caught before dispatch):* a handoff
+   named "Dispatch `bd-ib-6mnyq4`", authored from the item's STATUS — `ready`,
+   already admitted, no dependency edge, factory idle. The item carried a binding
+   rider, "DISPATCH HELD, DELIBERATELY, PENDING `bd-ib-u7nrue`", whose release
+   condition was that sibling's PR merging; it had not merged. Both items insert
+   into the same pre-dispatch sequence in `_dispatcher_run_checks.py`, which is
+   why the hold exists. The directive resolved `ask: False`, so an unattended
+   resume would have dispatched straight into the collision the rider was written
+   to prevent.
+   **Before writing any item id into a next-action line, run
+   `bd comments <id> --json` and read it.** Status is not evidence that an item is
+   dispatchable: riders arrive AFTER filing, they are binding scope, and neither
+   the description nor `acceptance_criteria` announces that any exist — this is
+   the "read its comments" rule above, promoted from a pre-implementation check to
+   a pre-*authoring* one, because the automatic path reaches dispatch without a
+   human ever re-reading the item.
 
 **Run these on your own work, not only on other people's.** Every instance above
 was caught by a second signal disagreeing, never by the check announcing itself.
