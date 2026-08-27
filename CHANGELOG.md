@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.86.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.85.0...v0.86.0) (2026-08-27)
+
+
+### Features
+
+* **dev-tooling:** guard the overloaded spec id field against presence tests ([2c618e8](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/2c618e8ecaff514af49cc125d81313a1706c042f))
+
+
+### Bug Fixes
+
+* **dev-tooling:** catch annotated aliases and walrus reads of the spec id field ([84dcdd2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/84dcdd2c2fd16ad04e78f722e825c0c922b71711))
+
 ## [0.85.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.84.4...v0.85.0) (2026-08-27)
 
 
