@@ -39,6 +39,7 @@ import re
 from dataclasses import dataclass
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
+from livespec_orchestrator_beads_fabro.commands._plan_anchor import is_spec_commitment
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
 __all__: list[str] = [
@@ -218,8 +219,12 @@ def spec_surface_touched(*, item: WorkItem) -> bool:
     to a spec commitment (`spec_commitment_hint`) touches spec surface; a
     pure freeform impl task does not. Derived from the schema fields, never
     a content scan.
+
+    A PLAN ANCHOR MARKER IS NOT A SPEC COMMITMENT even though it rides the
+    same field, so the pairing half asks `is_spec_commitment` rather than
+    testing the hint for presence — a plan epic touches no spec surface.
     """
-    return item.gap_id is not None or item.spec_commitment_hint is not None
+    return item.gap_id is not None or is_spec_commitment(spec_id=item.spec_commitment_hint)
 
 
 def calibration_journal_record(*, record: CalibrationRecord) -> dict[str, object]:

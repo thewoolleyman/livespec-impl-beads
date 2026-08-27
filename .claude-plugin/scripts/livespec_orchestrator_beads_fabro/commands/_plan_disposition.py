@@ -13,7 +13,11 @@ ledger BEFORE the mutation, so a failed mutation leaves an explained intent
 rather than a silent disposition.
 
 One refusal remains. A child carrying a spec commitment is design-human-gated
-by routing, and this module refuses to dispose it, naming the child.
+by routing, and this module refuses to dispose it, naming the child. That
+refusal asks `is_spec_commitment` rather than testing `spec_id` for presence:
+a plan ANCHOR MARKER shares that column with a genuine commitment, so refusing
+on presence alone refused every plan child there is — reinstating the exact
+deadlock the paragraphs above describe.
 """
 
 from __future__ import annotations
@@ -21,6 +25,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from livespec_orchestrator_beads_fabro._beads_client import EDGE_PARENT_CHILD, make_beads_client
+from livespec_orchestrator_beads_fabro.commands._plan_anchor import is_spec_commitment
 
 if TYPE_CHECKING:
     from livespec_orchestrator_beads_fabro._beads_client import BeadsClient
@@ -98,7 +103,7 @@ def reparent_plan_child(  # noqa: PLR0913 — one kw-only argument per recorded 
 def _refuse_spec_change_tier(*, client: BeadsClient, child_id: str) -> None:
     record = client.show_issue(issue_id=child_id)
     spec_id = record.get("spec_id")
-    if isinstance(spec_id, str) and spec_id:
+    if isinstance(spec_id, str) and is_spec_commitment(spec_id=spec_id):
         raise PlanDispositionRefusedError.spec_change_tier(child_id=child_id)
 
 

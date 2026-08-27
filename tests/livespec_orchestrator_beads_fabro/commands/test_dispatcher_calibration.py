@@ -50,6 +50,12 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_io import GithubToke
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import cost_sink_path
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
+# The two values that share `spec_commitment_hint`. The commitment fixture
+# is a bare obligation slug, the shape the Spec Reader parses out of
+# proposed-change front-matter; the anchor is what `create_thread` stamps.
+_SPEC_CLAUSE_COMMITMENT = "contracts-dispatcher-admission"
+_PLAN_ANCHOR_MARKER = "plan:codex-yolo-sandbox"
+
 
 @dataclass(kw_only=True)
 class _RecordingJournal:
@@ -291,6 +297,15 @@ def test_spec_surface_touched_true_for_spec_commitment_hint() -> None:
 
 def test_spec_surface_touched_false_for_freeform() -> None:
     assert spec_surface_touched(item=_item(gap_id=None, spec_commitment_hint=None)) is False
+
+
+def test_spec_surface_touched_false_for_a_plan_anchor_and_true_for_a_real_commitment() -> None:
+    """A plan anchor marker rides the same field and touches no spec surface."""
+    anchored = _item(gap_id=None, spec_commitment_hint=_PLAN_ANCHOR_MARKER)
+    committed = _item(gap_id=None, spec_commitment_hint=_SPEC_CLAUSE_COMMITMENT)
+
+    assert spec_surface_touched(item=anchored) is False
+    assert spec_surface_touched(item=committed) is True
 
 
 def test_calibration_journal_record_flattens_every_field() -> None:

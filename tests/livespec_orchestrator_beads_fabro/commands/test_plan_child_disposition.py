@@ -20,6 +20,13 @@ from livespec_orchestrator_beads_fabro.types import StoreConfig
 _NOW = "2026-08-20T00:00:00Z"
 _AUTHOR = "unattended-plan-operation-plan"
 
+# The two values that share the `spec_id` column and must NOT be treated
+# alike. The commitment fixture is purpose-built to be the shape the Spec
+# Reader parses out of proposed-change front-matter — a bare obligation
+# slug — so the refusal it triggers is the refusal this guard is for.
+_SPEC_CLAUSE_COMMITMENT = "contracts-dispatcher-admission"
+_PLAN_ANCHOR_MARKER = "plan:codex-yolo-sandbox"
+
 
 def _config() -> StoreConfig:
     return StoreConfig(
@@ -161,6 +168,58 @@ def test_a_spec_change_tier_child_refuses_reparenting() -> None:
 
     edges = _fake().show_issue(issue_id="bd-ib-child")["dependencies"]
     assert {"depends_on_id": "bd-ib-epic", "type": EDGE_PARENT_CHILD} in edges
+
+
+def test_a_plan_anchored_child_is_disposable() -> None:
+    """The negative arm: `create_thread` stamps this, and it is not a commitment."""
+    _seed_plan(spec_id=_PLAN_ANCHOR_MARKER)
+
+    close_plan_child(
+        config=_config(),
+        epic_id="bd-ib-epic",
+        child_id="bd-ib-child",
+        rationale="The plan landed; its anchor child is done.",
+        author=_AUTHOR,
+        now=_NOW,
+    )
+
+    assert _fake().show_issue(issue_id="bd-ib-child")["status"] == "closed"
+
+
+def test_a_plan_anchored_child_is_reparentable() -> None:
+    _seed_plan(spec_id=_PLAN_ANCHOR_MARKER)
+
+    reparent_plan_child(
+        config=_config(),
+        epic_id="bd-ib-epic",
+        child_id="bd-ib-child",
+        new_parent_id="bd-ib-other",
+        rationale="Scope creep: this belongs to the sibling thread's epic.",
+        author=_AUTHOR,
+        now=_NOW,
+    )
+
+    edges = _fake().show_issue(issue_id="bd-ib-child")["dependencies"]
+    assert {"depends_on_id": "bd-ib-other", "type": EDGE_PARENT_CHILD} in edges
+
+
+def test_a_real_spec_clause_commitment_still_refuses_closure() -> None:
+    """The true-positive arm: this narrowing must not become a removal."""
+    _seed_plan(spec_id=_SPEC_CLAUSE_COMMITMENT)
+
+    with pytest.raises(PlanDispositionRefusedError) as refusal:
+        close_plan_child(
+            config=_config(),
+            epic_id="bd-ib-epic",
+            child_id="bd-ib-child",
+            rationale="Tidying the epic.",
+            author=_AUTHOR,
+            now=_NOW,
+        )
+
+    assert "bd-ib-child" in str(refusal.value)
+    assert _fake().show_issue(issue_id="bd-ib-child")["status"] != "closed"
+    assert _comment_bodies(issue_id="bd-ib-child") == []
 
 
 def test_removing_an_absent_dependency_is_a_no_op() -> None:
