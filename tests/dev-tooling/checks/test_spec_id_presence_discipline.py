@@ -145,12 +145,17 @@ def test_positive_control_fixture_holds_bare_presence_tests_not_mere_mentions(
     # real presence tests, not merely name the field.
     assert "item.spec_commitment_hint is not None" in persisted
     assert "bool(item.spec_commitment_hint)" in persisted
+    # The two idiomatic shapes a first cut of the matcher let through. They
+    # are in the CONTROL so a regression of that fix fails here, not silently.
+    assert "hint: str | None = item.spec_commitment_hint" in persisted
+    assert "if inline := item.spec_id:" in persisted
     findings = check.path_findings(paths=[fixture], root=fixture.parent)
     assert {finding.form for finding in findings} == {
         "bool-call",
         "none-comparison",
         "truthiness",
     }
+    assert "(inline := item.spec_id)" in {finding.expression for finding in findings}
 
 
 def test_positive_control_fails_the_build_when_the_matcher_reports_no_hit(
@@ -293,7 +298,43 @@ def test_matcher_recognises_every_presence_form(check: ModuleType) -> None:
         (13, "truthiness"),
         (14, "truthiness"),
         (15, "truthiness"),
+        # Both halves of the boolean fire: the walrus itself reads the field,
+        # and `walrus` is an alias of that read.
         (16, "truthiness"),
+        (16, "truthiness"),
+    ]
+
+
+def test_matcher_catches_an_annotated_alias_and_a_walrus_read(check: ModuleType) -> None:
+    # Two forms a reviewer measured as escaping the first cut of the matcher.
+    # An ANNOTATED assignment is the idiomatic way to alias a `str | None`
+    # field, and a WALRUS reads the field inline; either reintroduces a bare
+    # presence test in a shape the original scan reported as clean.
+    source = "\n".join(
+        [
+            "def probe(*, item, record):",
+            "    annotated: str | None = item.spec_commitment_hint",
+            "    if annotated is not None:",
+            "        return 1",
+            "    declared: str | None",
+            "    if (hint := item.spec_id):",
+            "        return 2",
+            "    if (subscripted := record['spec_id']) is None:",
+            "        return 3",
+            "    if bool(walrus := item.spec_id):",
+            "        return 4",
+            "    return declared",
+            "",
+        ]
+    )
+
+    findings = check.source_findings(source=source, relpath="probe.py")
+
+    assert [(finding.lineno, finding.form, finding.expression) for finding in findings] == [
+        (3, "none-comparison", "annotated is not None"),
+        (6, "truthiness", "(hint := item.spec_id)"),
+        (8, "none-comparison", "(subscripted := record['spec_id']) is None"),
+        (10, "bool-call", "bool((walrus := item.spec_id))"),
     ]
 
 
@@ -326,8 +367,9 @@ def test_matcher_ignores_an_alias_of_something_other_than_the_field(check: Modul
         [
             "def probe(*, item):",
             "    hint = item.gap_id",
+            "    annotated: str | None = item.gap_id",
             "    first, second = item.spec_id, item.gap_id",
-            "    if hint:",
+            "    if hint or annotated:",
             "        return first",
             "    return second",
             "",

@@ -18,13 +18,22 @@ fails here.
 WHAT COUNTS AS A PRESENCE TEST. The scan is AST-based, so prose and comments
 are invisible. A finding is raised when a read of the field — an attribute
 `.spec_id` / `.spec_commitment_hint`, a `record["spec_id"]` subscript, a
-`record.get("spec_id")` call, a bare name spelled exactly like the field, or a
-local alias assigned from any of those — appears as:
+`record.get("spec_id")` call, a bare name spelled exactly like the field, a
+WALRUS whose value is any of those, or a local alias assigned from any of them
+by plain, ANNOTATED, or walrus assignment — appears as:
 
 - a `None` comparison (`is None`, `is not None`, `== None`, `!= None`);
 - a `bool(...)` argument;
 - a bare truthiness test (an `if` / `while` / ternary condition, an `assert`,
   a `not` operand, a boolean operand, or a comprehension filter).
+
+THE ANNOTATED AND WALRUS FORMS ARE NOT EXOTIC, which is why they are in that
+list. `hint: str | None = item.spec_id` is the idiomatic way to alias an
+optional field, and `if (hint := item.spec_id):` the idiomatic way to read one
+inline. A first cut of this scan tracked aliases only through a plain `Assign`
+and tested only the walrus TARGET, so both shapes reintroduced a bare presence
+test while the scan reported clean — the fifth consumer walking through the
+guard written to catch it.
 
 An EQUALITY COMPARISON AGAINST ANOTHER VALUE is deliberately NOT a finding:
 `list_work_items` filters `item.spec_commitment_hint == with_spec_commitment_hint`,
@@ -152,20 +161,33 @@ def _is_field_read(*, node: ast.AST, aliases: frozenset[str]) -> bool:
             return key in FIELD_NAMES
         case ast.Call(func=ast.Attribute(attr="get"), args=[ast.Constant(value=str() as key), *_]):
             return key in FIELD_NAMES
+        # A walrus IS the read it binds — `if (hint := item.spec_id):` tests
+        # the field, not the name. Recognizing it here rather than at each
+        # call site covers the truthiness, `None`-comparison and `bool(...)`
+        # positions with one rule.
+        case ast.NamedExpr(value=value):
+            return _is_field_read(node=value, aliases=aliases)
         case _:
             return False
 
 
 def _field_aliases(*, tree: ast.AST) -> frozenset[str]:
-    """Local names assigned directly from a read of the field."""
+    """Local names assigned directly from a read of the field.
+
+    `AnnAssign` is in the set because annotating the alias — the natural
+    thing to do for a `str | None` field — must not launder the read. Its
+    `value` is optional, and a bare annotation (`hint: str | None`) binds
+    nothing, so the guard rejects it before asking what it reads.
+    """
     aliases: set[str] = set()
     empty: frozenset[str] = frozenset()
     for node in ast.walk(tree):
         match node:
             case (
                 ast.Assign(targets=[ast.Name(id=name)], value=value)
+                | ast.AnnAssign(target=ast.Name(id=name), value=value)
                 | ast.NamedExpr(target=ast.Name(id=name), value=value)
-            ) if _is_field_read(node=value, aliases=empty):
+            ) if value is not None and _is_field_read(node=value, aliases=empty):
                 aliases.add(name)
             case _:
                 pass
