@@ -22,6 +22,16 @@ shapes coexist, and the manifest's location moved to the build root; a
 name-based match silently misses builds. Both locations are read here, and the
 identity is taken from the parsed manifest.
 
+THE PLUGIN BEING ADOPTED IS THIS ONE, WHEREVER THE LANE HAPPENS TO RUN. The
+install-registry lookup key is therefore a constant here and is NEVER read from
+`<project_root>/.claude-plugin/plugin.json`: that manifest names the GOVERNED
+PROJECT — `livespec-overseer`, `homelab`, `livespec-runtime` — so deriving the
+key from it asks the registry for a key that does not exist, and the lane goes
+silent in every repository except one that falsely names this plugin as its own.
+For a fact that reports an ABSENCE, finding no adopters is indistinguishable
+from finding every adopter current, which is the exact all-clear this lane
+exists to withhold.
+
 Path discovery is a language-level `Path` read of an explicitly named
 directory throughout. No shell listing is ever parsed into words — a listing
 that renders long-format on one host yields confident rows for directories
@@ -59,7 +69,6 @@ __all__: list[str] = [
     "read_build_version",
     "release_adoption_items",
     "release_tip_version",
-    "self_plugin_name",
 ]
 
 # The two places a build's manifest has lived. The build root is checked FIRST
@@ -69,7 +78,10 @@ _MANIFEST_LOCATIONS: tuple[tuple[str, ...], ...] = (
     ("plugin.json",),
     (".claude-plugin", "plugin.json"),
 )
-_SELF_MANIFEST: tuple[str, ...] = (".claude-plugin", "plugin.json")
+# The plugin whose adoption this lane reports — an identity, not an observation.
+# It is deliberately NOT read from the governed project's manifest; see the
+# module docstring for what that mis-aimed read costs.
+_PLUGIN_NAME = "livespec-orchestrator-beads-fabro"
 # The moving channel every adopter pins. A marketplace clone checked out at any
 # other ref is not the release tip and MUST NOT be read as one.
 _RELEASE_REF = "release"
@@ -101,11 +113,6 @@ class AdopterResolution:
     behind: bool
 
 
-def self_plugin_name(*, project_root: Path) -> str | None:
-    """This repository's own plugin name, read from its committed manifest."""
-    return _manifest_field(root=project_root, parts=_SELF_MANIFEST, field="name")
-
-
 def read_build_version(*, install_path: Path) -> str | None:
     """The version a materialized build declares, parsed from its `plugin.json`.
 
@@ -114,8 +121,8 @@ def read_build_version(*, install_path: Path) -> str | None:
     directory name.
     """
     for parts in _MANIFEST_LOCATIONS:
-        version = _manifest_field(root=install_path, parts=parts, field="version")
-        if version is not None:
+        version = _parsed_object(path=install_path.joinpath(*parts)).get("version")
+        if isinstance(version, str) and version != "":
             return version
     return None
 
@@ -177,14 +184,16 @@ def release_adoption_items(
     ones that are current at low urgency, named as current. That positive half
     is what makes a broken reading visible: a lane that can only ever report
     "behind" is indistinguishable from a lane that has stopped reading.
+
+    `project_root` names the repository this snapshot is FOR: it addresses the
+    handoff commands, and is never the source of the plugin identity looked up.
     """
-    plugin_name = self_plugin_name(project_root=project_root)
-    if plugin_name is None:
-        return []
     tip_version = release_tip_version(
-        marketplace_record=bases.marketplace_record, plugin_name=plugin_name
+        marketplace_record=bases.marketplace_record, plugin_name=_PLUGIN_NAME
     )
-    resolutions = adopter_resolutions(bases=bases, plugin_name=plugin_name, tip_version=tip_version)
+    resolutions = adopter_resolutions(
+        bases=bases, plugin_name=_PLUGIN_NAME, tip_version=tip_version
+    )
     if not resolutions:
         return []
     if tip_version is None:
@@ -303,12 +312,6 @@ def _unresolved_tip_command(*, project_root: Path) -> str:
         "newest cached build as the release tip."
     )
     return f"cd {shlex.quote(str(project_root))} && codex exec {shlex.quote(prompt)} < /dev/null"
-
-
-def _manifest_field(*, root: Path, parts: tuple[str, ...], field: str) -> str | None:
-    parsed = _parsed_object(path=root.joinpath(*parts))
-    value = parsed.get(field)
-    return value if isinstance(value, str) and value != "" else None
 
 
 def _parsed_object(*, path: Path) -> dict[str, Any]:

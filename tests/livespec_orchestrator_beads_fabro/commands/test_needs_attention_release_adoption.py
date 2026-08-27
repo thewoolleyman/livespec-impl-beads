@@ -20,7 +20,6 @@ from livespec_orchestrator_beads_fabro.commands._needs_attention_release_adoptio
     read_build_version,
     release_adoption_items,
     release_tip_version,
-    self_plugin_name,
 )
 from livespec_orchestrator_beads_fabro.commands._needs_attention_release_adoption import (
     __all__ as release_adoption_all,
@@ -29,6 +28,9 @@ from livespec_orchestrator_beads_fabro.commands.needs_attention import render_js
 from livespec_runtime.attention_item import AttentionItem, validate_attention_item_id
 
 _PLUGIN = "livespec-orchestrator-beads-fabro"
+# What a real governed repository's own manifest names: ITSELF, never this
+# plugin. Every fixture below runs the lane from such a repository on purpose.
+_GOVERNED_PROJECT_PLUGIN = "livespec-overseer"
 _TIP_VERSION = "0.84.2"
 _STALE_VERSION = "0.84.0"
 
@@ -51,8 +53,18 @@ def _flat_manifest(root: Path, *, version: str, name: str = _PLUGIN) -> Path:
 
 
 def _project_root(tmp_path: Path) -> Path:
-    """A governed repository whose committed manifest names this plugin."""
-    return _bundle_manifest(tmp_path / "project", version="0.84.2")
+    """A governed repository — whose OWN manifest names a DIFFERENT plugin.
+
+    That is deliberate, and every test in this file inherits it. The adoption
+    question is about THIS plugin's builds, so the name keyed into the install
+    registry must come from this plugin's own identity and never from whichever
+    repository the lane happens to be running inside. A fixture whose project
+    manifest named this plugin would mask the difference entirely: it makes a
+    project-root read and an identity constant indistinguishable, while no real
+    governed project — `livespec-overseer`, `homelab`, `livespec-runtime` —
+    carries this plugin's name in its own manifest.
+    """
+    return _bundle_manifest(tmp_path / "project", version="0.84.2", name=_GOVERNED_PROJECT_PLUGIN)
 
 
 def _marketplace(tmp_path: Path, *, version: str | None, ref: str = "release") -> Path:
@@ -128,9 +140,31 @@ def test_public_surface_names_are_non_private() -> None:
         "read_build_version",
         "release_adoption_items",
         "release_tip_version",
-        "self_plugin_name",
     ]
     assert all(not name.startswith("_") for name in release_adoption_all)
+
+
+def test_adopters_resolve_under_this_plugins_name_not_the_governed_projects(
+    tmp_path: Path,
+) -> None:
+    """The install-registry key is THIS plugin's name, wherever the lane runs.
+
+    A governed project's `.claude-plugin/plugin.json` names that project, so
+    deriving the lookup key from the project root queries a registry key that
+    does not exist. The lane then finds no adopters and emits nothing — an
+    all-clear manufactured out of a mis-aimed read, which is precisely the
+    silent failure this fact exists to make impossible.
+    """
+    elsewhere = _bundle_manifest(tmp_path / "elsewhere", version="9.9.9", name="some-other-plugin")
+
+    items = release_adoption_items(
+        project_root=elsewhere, repo="repo-under-test", bases=_positive_control_bases(tmp_path)
+    )
+
+    assert sorted(item.id for item in items) == [
+        "hygiene:release-adoption:adopter-behind",
+        "hygiene:release-adoption:adopter-current",
+    ]
 
 
 def test_positive_control_reports_a_current_adopter_as_current(tmp_path: Path) -> None:
@@ -334,25 +368,6 @@ def test_a_marketplace_record_with_a_malformed_source_yields_no_tip(tmp_path: Pa
     assert release_tip_version(marketplace_record=record, plugin_name=_PLUGIN) is None
 
 
-def test_no_item_is_composed_when_this_repository_declares_no_plugin_name(tmp_path: Path) -> None:
-    nameless = tmp_path / "nameless"
-    _write_json(nameless / ".claude-plugin" / "plugin.json", {"name": "", "version": "1.0.0"})
-
-    assert (
-        release_adoption_items(
-            project_root=nameless,
-            repo="repo-under-test",
-            bases=_positive_control_bases(tmp_path),
-        )
-        == []
-    )
-
-
-def test_self_plugin_name_reads_the_committed_manifest(tmp_path: Path) -> None:
-    assert self_plugin_name(project_root=_project_root(tmp_path)) == _PLUGIN
-    assert self_plugin_name(project_root=tmp_path / "absent") is None
-
-
 def test_read_build_version_prefers_the_build_root_manifest(tmp_path: Path) -> None:
     root = _bundle_manifest(tmp_path / "both", version=_STALE_VERSION)
     _ = _flat_manifest(root, version=_TIP_VERSION)
@@ -361,11 +376,17 @@ def test_read_build_version_prefers_the_build_root_manifest(tmp_path: Path) -> N
     assert read_build_version(install_path=tmp_path / "neither") is None
 
 
-def test_a_manifest_whose_version_is_not_a_string_is_unidentifiable(tmp_path: Path) -> None:
-    root = tmp_path / "typed-wrong"
-    _write_json(root / "plugin.json", {"name": _PLUGIN, "version": 84})
+def test_a_manifest_whose_version_is_not_a_usable_string_is_unidentifiable(
+    tmp_path: Path,
+) -> None:
+    """Neither a non-string version nor an empty one identifies a build."""
+    typed_wrong = tmp_path / "typed-wrong"
+    _write_json(typed_wrong / "plugin.json", {"name": _PLUGIN, "version": 84})
+    blank = tmp_path / "blank"
+    _write_json(blank / "plugin.json", {"name": _PLUGIN, "version": ""})
 
-    assert read_build_version(install_path=root) is None
+    assert read_build_version(install_path=typed_wrong) is None
+    assert read_build_version(install_path=blank) is None
 
 
 def test_records_for_other_plugins_and_malformed_entries_are_ignored(tmp_path: Path) -> None:

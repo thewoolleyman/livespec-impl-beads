@@ -1098,6 +1098,12 @@ def test_build_attention_composes_the_release_adoption_lane(
     WIRING plus the positive half — a snapshot that could only ever report
     adopters as behind would be indistinguishable from one that had stopped
     reading the install records at all.
+
+    The registries below are keyed on THIS plugin's real name while the project
+    under test declares a different one in its own manifest, which is the shape
+    every governed repository actually has. Keying the fixture on the project's
+    own name instead would let a lane that looked the plugin up from
+    `project_root` pass this test while emitting nothing in the entire fleet.
     """
     from livespec_orchestrator_beads_fabro.commands._needs_attention_release_adoption import (
         ReleaseAdoptionBases,
@@ -1113,20 +1119,22 @@ def test_build_attention_composes_the_release_adoption_lane(
         _ = path.write_text(json.dumps(payload), encoding="utf-8")
         return path
 
+    plugin = "livespec-orchestrator-beads-fabro"
     _ = _plant(
-        tmp_path / ".claude-plugin" / "plugin.json", {"name": "plugin-x", "version": "1.2.0"}
+        tmp_path / ".claude-plugin" / "plugin.json",
+        {"name": "the-governed-project", "version": "1.2.0"},
     )
-    _ = _plant(builds / "tip" / "plugin.json", {"name": "plugin-x", "version": "1.2.0"})
-    _ = _plant(builds / "stale" / "plugin.json", {"name": "plugin-x", "version": "1.1.0"})
+    _ = _plant(builds / "tip" / "plugin.json", {"name": plugin, "version": "1.2.0"})
+    _ = _plant(builds / "stale" / "plugin.json", {"name": plugin, "version": "1.1.0"})
     marketplace = _plant(
         registries / "known_marketplaces.json",
-        {"plugin-x": {"source": {"ref": "release"}, "installLocation": str(builds / "tip")}},
+        {plugin: {"source": {"ref": "release"}, "installLocation": str(builds / "tip")}},
     )
     installed = _plant(
         registries / "installed_plugins.json",
         {
             "plugins": {
-                "plugin-x@plugin-x": [
+                f"{plugin}@{plugin}": [
                     {
                         "projectPath": str(tmp_path / "p" / "on-tip"),
                         "installPath": str(builds / "tip"),
