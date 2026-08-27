@@ -41,6 +41,7 @@ from returns.io import IOFailure, IOResult, IOSuccess
 from returns.result import Failure, Result, Success
 
 from livespec_orchestrator_beads_fabro.commands import _jsonc
+from livespec_orchestrator_beads_fabro.commands._plan_anchor import is_spec_commitment
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -353,4 +354,8 @@ def _positive_int_label_value(*, value: str | None) -> int | None:
 
 
 def _is_spec_change_tier(*, item: WorkItem) -> bool:
-    return item.spec_commitment_hint is not None
+    # A plan ANCHOR MARKER shares `spec_commitment_hint` with a genuine
+    # commitment to ratified spec text, so presence is not the question: a
+    # plan-anchored item pinned to the manual admission floor here is a
+    # misrouting, not a gate.
+    return is_spec_commitment(spec_id=item.spec_commitment_hint)

@@ -6,10 +6,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from livespec_runtime.work_items.rank import key_between
-
 from livespec_orchestrator_beads_fabro._beads_client import make_beads_client
-from livespec_orchestrator_beads_fabro._ids import new_work_item_id
+from livespec_orchestrator_beads_fabro.commands._plan_anchor import plan_anchor_epic
 from livespec_orchestrator_beads_fabro.commands._plan_archive_review import (
     ArchiveCompletenessReviewRequest,
     CompletenessReviewLauncher,
@@ -43,7 +41,6 @@ from livespec_orchestrator_beads_fabro.commands._plan_timeline import (
     resume_directive,
 )
 from livespec_orchestrator_beads_fabro.store import append_work_item
-from livespec_orchestrator_beads_fabro.types import WorkItem
 
 if TYPE_CHECKING:
     from livespec_orchestrator_beads_fabro._beads_client import BeadsClient, BeadsRecord
@@ -108,25 +105,7 @@ def create_thread(  # noqa: PLR0913 — package primitive mirrors the plan-creat
     research_path = topic_dir / _RESEARCH_DIR / research_filename
     research_path.parent.mkdir(parents=True, exist_ok=False)
     _ = research_path.write_text(research_text, encoding="utf-8")
-    epic = WorkItem(
-        id=new_work_item_id(prefix=config.prefix),
-        type="epic",
-        status="backlog",
-        title=title,
-        description=f"Plan anchor for plan/{slug}.",
-        origin="freeform",
-        gap_id=None,
-        rank=key_between(a=None, b=None),
-        assignee=None,
-        depends_on=(),
-        captured_at=now,
-        resolution=None,
-        reason=None,
-        audit=None,
-        superseded_by=None,
-        spec_commitment_hint=f"plan:{slug}",
-        notes=f"plan_slug={slug}",
-    )
+    epic = plan_anchor_epic(prefix=config.prefix, slug=slug, title=title, now=now)
     append_work_item(path=config, item=epic)
     _tag_epic_anchor(config=config, epic_id=epic.id, slug=slug)
     return {

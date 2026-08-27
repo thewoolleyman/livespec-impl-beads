@@ -8,9 +8,12 @@ from typing import TypeVar
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings import (
     DEFAULT_ACCEPTANCE_REWORK_CAP,
+    DEFAULT_ADMISSION_POLICY,
     DEFAULT_MERGE_ON_REVIEW_CAP,
     DEFAULT_REVIEW_FIX_CAP,
+    _is_spec_change_tier,
     effective_acceptance_rework_cap,
+    effective_admission_policy,
     effective_merge_on_review_cap,
     effective_review_fix_cap,
     resolve_auto_approve_ready,
@@ -20,6 +23,12 @@ from returns.io import IOResult
 from returns.unsafe import unsafe_perform_io
 
 _NO_CONFIG_CWD = Path("tests/nonexistent-policy-cwd")
+
+# The two values that share `spec_commitment_hint`. The commitment fixture
+# is a bare obligation slug, the shape the Spec Reader parses out of
+# proposed-change front-matter; the anchor is what `create_thread` stamps.
+_SPEC_CLAUSE_COMMITMENT = "contracts-dispatcher-admission"
+_PLAN_ANCHOR_MARKER = "plan:codex-yolo-sandbox"
 
 _Value = TypeVar("_Value")
 
@@ -168,4 +177,22 @@ def test_invalid_raw_labels_with_config_fall_back_to_global_values(tmp_path: Pat
             )
         )
         == 7
+    )
+
+
+def test_spec_change_tier_is_the_commitment_not_the_plan_anchor() -> None:
+    """A plan anchor marker rides the same field; only a real commitment is that tier."""
+    assert _is_spec_change_tier(item=_item(spec_commitment_hint=_PLAN_ANCHOR_MARKER)) is False
+    assert _is_spec_change_tier(item=_item(spec_commitment_hint=_SPEC_CLAUSE_COMMITMENT)) is True
+
+
+def test_a_plan_anchored_item_keeps_its_own_admission_policy() -> None:
+    """The routing consequence: only a real commitment is pinned to the manual floor."""
+    anchored = _item(spec_commitment_hint=_PLAN_ANCHOR_MARKER, admission_policy="auto")
+    committed = _item(spec_commitment_hint=_SPEC_CLAUSE_COMMITMENT, admission_policy="auto")
+
+    assert _read(effective_admission_policy(item=anchored, cwd=_NO_CONFIG_CWD)) == "auto"
+    assert (
+        _read(effective_admission_policy(item=committed, cwd=_NO_CONFIG_CWD))
+        == DEFAULT_ADMISSION_POLICY
     )

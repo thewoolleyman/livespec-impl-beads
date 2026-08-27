@@ -9,6 +9,10 @@ from pathlib import Path
 
 from livespec_runtime.needs_attention import PlanThreadOutput
 
+from livespec_orchestrator_beads_fabro.commands._plan_anchor import (
+    PLAN_HINT_PREFIX,
+    is_plan_anchor,
+)
 from livespec_orchestrator_beads_fabro.commands.list_plans import list_plans
 from livespec_orchestrator_beads_fabro.commands.plan import handoff_timeline_findings, read_timeline
 from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
@@ -26,7 +30,6 @@ __all__: list[str] = [
 ]
 
 _PLUGIN_NAME = "livespec-orchestrator-beads-fabro"
-_PLAN_HINT_PREFIX = "plan:"
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -75,9 +78,9 @@ def _plan_topic(*, item: WorkItem) -> str | None:
     hint = item.spec_commitment_hint
     if item.type != "epic" or item.status == "done" or hint is None:
         return None
-    if not hint.startswith(_PLAN_HINT_PREFIX):
+    if not is_plan_anchor(spec_id=hint):
         return None
-    topic = hint.removeprefix(_PLAN_HINT_PREFIX)
+    topic = hint.removeprefix(PLAN_HINT_PREFIX)
     if topic == "":
         return None
     return topic
