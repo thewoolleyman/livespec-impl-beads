@@ -28,7 +28,7 @@ from __future__ import annotations
 import importlib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Protocol, cast
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
 from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_terminal import (
@@ -58,17 +58,44 @@ class _CommandResult:
     stderr: str
 
 
-def _escalation_module() -> Any:
+class _Escalation(Protocol):
+    """The escalation tells the reader returns, described structurally."""
+
+    next_node_id: str
+    loop_failure_signatures: tuple[str, ...]
+
+
+class _EscalationModule(Protocol):
+    """The lazily-imported reader module's public surface.
+
+    Declared structurally so the direct-reader assertions below stay under
+    Pyright's eye: a bare `ModuleType`/`Any` return would type-erase every
+    `module.<name>` access this file makes.
+    """
+
+    ESCALATION_NODE_ID: str
+
+    def fabro_escalation_from_payload(self, *, payload: object | None) -> _Escalation | None:
+        """Return the engine-escalation tells, or None when not escalated."""
+
+
+def _escalation_module() -> _EscalationModule:
     """Import the escalation reader lazily.
 
     A top-level import would make the Red commit a COLLECTION error rather than
     a failing assertion, which proves only that the module is missing.
     """
-    return importlib.import_module(_ESCALATION_MODULE_NAME)
+    return cast("_EscalationModule", importlib.import_module(_ESCALATION_MODULE_NAME))
 
 
-def _record(*, checkpoints: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """A `fabro inspect --json` payload: a single-element LIST, as fabro returns."""
+def _record(*, checkpoints: list[object]) -> list[dict[str, object]]:
+    """A `fabro inspect --json` payload: a single-element LIST, as fabro returns.
+
+    `checkpoints` is `list[object]` because these payloads MODEL UNTRUSTED
+    JSON: the reader's whole job is tolerating shapes fabro never promised, so
+    the malformed fixtures below are legitimate inputs, not type violations to
+    be waived one by one.
+    """
     return [
         {
             "run_id": _RUN_ID,
@@ -118,7 +145,7 @@ def _plan(*, tmp_path: Path) -> DispatchPlan:
     )
 
 
-def _detail(*, tmp_path: Path, payload: list[dict[str, Any]]) -> str:
+def _detail(*, tmp_path: Path, payload: object) -> str:
     outcome = fabro_run_terminal_outcome(
         outcome_type=DispatchOutcome,
         plan=_plan(tmp_path=tmp_path),
@@ -218,7 +245,7 @@ def test_escalation_reader_tolerates_every_malformed_checkpoint_shape() -> None:
     module = _escalation_module()
     unusable = [
         _record(checkpoints=[]),
-        _record(checkpoints=["not-a-mapping"]),  # pyright: ignore[reportArgumentType]
+        _record(checkpoints=["not-a-mapping"]),
         _record(checkpoints=[{"checkpoint": "not-a-mapping"}]),
         _record(checkpoints=[{"next_node_id": 17}]),
         _record(checkpoints=[{"next_node_id": "   "}]),
