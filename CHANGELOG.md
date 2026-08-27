@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.84.4](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.84.3...v0.84.4) (2026-08-27)
+
+
+### Bug Fixes
+
+* **dispatcher:** render an engine-escalated run as an escalation, not a gate ([7424e26](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/7424e26a0824ccef2ae4d2e5e28cbe188844b67a))
+
 ## [0.84.3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.84.2...v0.84.3) (2026-08-27)
 
 
