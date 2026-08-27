@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -103,10 +104,26 @@ _CODEX_POSTURE_CONFIG: dict[str, str] = {
     "sandbox_mode": "danger-full-access",
 }
 
-# The UN-PINNED BASE STRING for a write-capable node, spelled out literally so
-# a reader can reconstruct it from this module exactly as contracts.md spells
-# it out — the two are bound by a test rather than by trust. The read-only
-# variant is this string with `INITIAL_AGENT_MODE=read-only`.
+# The posture object's JSON bytes, spelled out literally so a reader can
+# reconstruct the base string below from this module exactly as contracts.md
+# spells it out — the two are bound by a test rather than by trust. This is the
+# same object `json.dumps(_CODEX_POSTURE_CONFIG, sort_keys=True, separators=...)`
+# renders for an un-pinned tier, restated so a renderer change has to be made
+# twice before the binding test stops failing.
+_CODEX_POSTURE_JSON = '{"approval_policy":"never","sandbox_mode":"danger-full-access"}'
+
+# The UN-PINNED BASE STRING for a write-capable node. The read-only variant is
+# this string with `INITIAL_AGENT_MODE=read-only`.
+#
+# WHY THE JSON GOES THROUGH `shlex.quote`. The rendered adapter string is
+# SHELL-TOKENIZED before it is executed — fabro splits `acp.command` with
+# `shlex::split` in `AcpProcessSpec::from_command_attr` — and POSIX tokenization
+# CONSUMES quote characters. An unquoted JSON object therefore reaches the
+# adapter as `{approval_policy:never,...}` and its own `JSON.parse` rejects it,
+# which is exactly how release 0.82.0 could not start a single Codex-backed node
+# (work-item bd-ib-qulf). The quoting is part of the byte-identity referent the
+# Codex-ACP-node-model-pins contract states, so an implementation rendering bare
+# JSON is NOT byte-identical to the base string.
 #
 # The non-rotatable refresh sentinel's load-but-cannot-refresh behavior
 # (project_codex_auth_snapshot; tracked by bd-ib-ss7rkr) is RE-VERIFIED on every
@@ -115,7 +132,7 @@ _CODEX_POSTURE_CONFIG: dict[str, str] = {
 # steps install the successor under the same dedicated prefix and read the
 # projected auth.json back from the sandbox `$CODEX_HOME`.
 CODEX_ADAPTER_BASE = (
-    'CODEX_CONFIG={"approval_policy":"never","sandbox_mode":"danger-full-access"} '
+    f"CODEX_CONFIG={shlex.quote(_CODEX_POSTURE_JSON)} "
     f"INITIAL_AGENT_MODE={CODEX_AGENT_MODE_WRITE} {CODEX_ADAPTER_COMMAND}"
 )
 
@@ -134,7 +151,11 @@ def codex_adapter(*, tier: CodexModelTier, agent_mode: str = CODEX_AGENT_MODE_WR
     not available here. The successor adapter reads its whole session
     configuration from `CODEX_CONFIG` — a JSON object merged into that
     configuration — rather than from the `-c key=value` arguments the retired
-    predecessor took.
+    predecessor took. That JSON object is emitted through `shlex.quote`: the
+    rendered string is POSIX-tokenized before execution, and the retired `-c`
+    form survived that tokenization only because its values carried no quote
+    characters of their own (see `CODEX_ADAPTER_BASE` for the failure the
+    unquoted successor produced).
 
     A PINNED tier is the un-pinned base string with `model` and
     `model_reasoning_effort` ADDED inside `CODEX_CONFIG`, the object's keys
@@ -154,7 +175,7 @@ def codex_adapter(*, tier: CodexModelTier, agent_mode: str = CODEX_AGENT_MODE_WR
     if tier.pinned:
         config["model"] = tier.model
         config["model_reasoning_effort"] = tier.reasoning_effort
-    rendered_config = json.dumps(config, sort_keys=True, separators=(",", ":"))
+    rendered_config = shlex.quote(json.dumps(config, sort_keys=True, separators=(",", ":")))
     compaction = (
         ""
         if tier.compaction_token_limit == 0

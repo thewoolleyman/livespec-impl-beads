@@ -17,6 +17,7 @@ against what a dispatch from here would really carry.
 from __future__ import annotations
 
 import json
+import shlex
 from pathlib import Path
 from typing import Any
 
@@ -51,12 +52,12 @@ _CLAUDE_OPUS_5_ADAPTER = (
     "npx -y @agentclientprotocol/claude-agent-acp"
 )
 _UNPINNED_BASE = (
-    'CODEX_CONFIG={"approval_policy":"never","sandbox_mode":"danger-full-access"} '
+    'CODEX_CONFIG=\'{"approval_policy":"never","sandbox_mode":"danger-full-access"}\' '
     "INITIAL_AGENT_MODE=agent-full-access /opt/livespec/codex-acp/bin/codex-acp"
 )
 _PUBLISH_ADAPTER = (
-    'CODEX_CONFIG={"approval_policy":"never","model":"gpt-5.4-mini",'
-    '"model_reasoning_effort":"high","sandbox_mode":"danger-full-access"} '
+    'CODEX_CONFIG=\'{"approval_policy":"never","model":"gpt-5.4-mini",'
+    '"model_reasoning_effort":"high","sandbox_mode":"danger-full-access"}\' '
     "INITIAL_AGENT_MODE=agent-full-access /opt/livespec/codex-acp/bin/codex-acp"
 )
 _TERRA_CODEX_CONFIG = (
@@ -120,6 +121,14 @@ def test_scenario90_a_default_dispatch_renders_both_adapters_in_their_ratified_f
     assert '"model_reasoning_effort":"high"' in adapters["pr"]
     assert " -c model=" not in adapters["pr"]
     assert " -c model_reasoning_effort=" not in adapters["pr"]
+
+    # The value must survive the POSIX tokenization fabro applies before it
+    # launches the process. The whole-string assertion above cannot stand in
+    # for this one: it is satisfied by whatever bytes the renderer emits, and
+    # the two characters that decide whether the adapter can start at all are
+    # exactly the ones a reader skims past.
+    tokenized = shlex.split(adapters["pr"])[0].removeprefix("CODEX_CONFIG=")
+    assert json.loads(tokenized)["model"] == "gpt-5.4-mini"
 
     assert adapters["implement"] == _CLAUDE_OPUS_5_ADAPTER
 

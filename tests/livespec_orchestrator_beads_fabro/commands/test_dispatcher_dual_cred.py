@@ -356,8 +356,8 @@ def test_fabro_port_run_routes_implementer_to_codex_adapter(
         "disposition_adapter=npx -y @agentclientprotocol/claude-agent-acp",
         f"fix_adapter={claude_opus_5}",
         f"implement_adapter={claude_opus_5}",
-        'pr_adapter=CODEX_CONFIG={"approval_policy":"never","model":"gpt-5.4-mini",'
-        '"model_reasoning_effort":"high","sandbox_mode":"danger-full-access"} '
+        'pr_adapter=CODEX_CONFIG=\'{"approval_policy":"never","model":"gpt-5.4-mini",'
+        '"model_reasoning_effort":"high","sandbox_mode":"danger-full-access"}\' '
         "INITIAL_AGENT_MODE=agent-full-access /opt/livespec/codex-acp/bin/codex-acp",
         "review_adapter=npx -y @agentclientprotocol/claude-agent-acp",
         f"review_fix_adapter={claude_opus_5}",
@@ -365,7 +365,7 @@ def test_fabro_port_run_routes_implementer_to_codex_adapter(
         "merge_on_review_cap_outcome=__merge_on_review_cap_disabled__",
     ]
     expected_base = (
-        'CODEX_CONFIG={"approval_policy":"never","sandbox_mode":"danger-full-access"} '
+        'CODEX_CONFIG=\'{"approval_policy":"never","sandbox_mode":"danger-full-access"}\' '
         "INITIAL_AGENT_MODE=agent-full-access /opt/livespec/codex-acp/bin/codex-acp"
     )
     assert expected_base == CODEX_ADAPTER_BASE
@@ -831,7 +831,7 @@ def test_codex_adapter_appends_model_overrides_for_a_pinned_tier() -> None:
     """
     rendered = codex_adapter(tier=CodexModelTier(model="gpt-5.4-mini", reasoning_effort="high"))
     assert rendered == (
-        'CODEX_CONFIG={"approval_policy":"never","model":"gpt-5.4-mini",'
-        '"model_reasoning_effort":"high","sandbox_mode":"danger-full-access"} '
+        'CODEX_CONFIG=\'{"approval_policy":"never","model":"gpt-5.4-mini",'
+        '"model_reasoning_effort":"high","sandbox_mode":"danger-full-access"}\' '
         "INITIAL_AGENT_MODE=agent-full-access /opt/livespec/codex-acp/bin/codex-acp"
     )

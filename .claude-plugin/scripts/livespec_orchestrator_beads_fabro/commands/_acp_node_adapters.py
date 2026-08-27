@@ -42,6 +42,7 @@ Anthropic model on a command that is not Anthropic's.
 from __future__ import annotations
 
 import re
+import shlex
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, cast
@@ -142,8 +143,15 @@ def parse_adapter_string(*, text: str) -> AcpAdapter:
     `render_adapter(parse_adapter_string(...))` return something other than
     what was written. Round-tripping matters because this is how a
     workflow's own declared default enters resolution.
+
+    The string is tokenized with POSIX rules, which is what makes this the
+    exact INVERSE of `render_adapter`'s quoting: a quoted value comes back
+    unquoted, so an already-rendered adapter that is parsed and rendered
+    again is byte-identical rather than quoted a second time. That path is
+    not hypothetical -- every `dispatcher.codex_models` expansion is
+    rendered, parsed into an overlay, and rendered again by the layer merge.
     """
-    tokens = text.split()
+    tokens = _shell_tokens(text=text)
     env: dict[str, str] = {}
     index = 0
     for token in tokens:
@@ -164,8 +172,22 @@ def render_adapter(*, adapter: AcpAdapter) -> str:
     dispatches that resolve the same adapter render byte-identical
     commands regardless of which layer contributed which key, so a
     journaled string can be compared across runs.
+
+    Each VALUE is SHELL-QUOTED, because the string this returns is
+    POSIX-tokenized before it is executed and that tokenization CONSUMES
+    quote characters: an unquoted JSON object arrives at its adapter with
+    every quote stripped and fails to parse its own configuration (the
+    Codex `CODEX_CONFIG` regression of release 0.82.0, work-item
+    bd-ib-qulf). The requirement the contract states is a ROUND TRIP --
+    tokenization must recover the value byte-for-byte -- rather than a
+    literal single-quote wrap, because these values are operator-supplied
+    and validated against no alphabet: a naive wrap is defeated by a value
+    containing an apostrophe, which closes the quote early and yields an
+    UNPARSEABLE command string rather than a wrong-but-parseable one.
+    `shlex.quote` is the standard-library answer to exactly that, and it
+    leaves a value needing no quoting untouched.
     """
-    pairs = [f"{key}={adapter.env[key]}" for key in sorted(adapter.env)]
+    pairs = [f"{key}={shlex.quote(adapter.env[key])}" for key in sorted(adapter.env)]
     return " ".join([*pairs, adapter.command, *adapter.args])
 
 
@@ -240,6 +262,27 @@ def resolve_node_inputs(*, declared: Mapping[str, str]) -> Mapping[str, str]:
         if declared_name is not None:
             resolved[node] = declared_name
     return resolved
+
+
+def _shell_tokens(*, text: str) -> list[str]:
+    """Tokenize an adapter string the way the runtime that runs it will.
+
+    Fabro applies POSIX tokenization to `acp.command` before it launches the
+    process, so reading the string any other way would decompose an adapter
+    differently from its own consumer -- and the difference is precisely the
+    quote characters `render_adapter` emits.
+
+    An UNBALANCED quote is not adjudicated here. POSIX tokenization refuses
+    it, but a refusal at this depth would surface as a crash inside layer
+    resolution rather than against the command an operator actually wrote;
+    the same tokenizer rejects the same bytes downstream, where the error
+    can name them. Falling back to the whitespace split keeps a malformed
+    configuration value behaving exactly as it did before the quoting.
+    """
+    try:
+        return shlex.split(text)
+    except ValueError:
+        return text.split()
 
 
 def _string_tuple(*, value: object) -> tuple[str, ...] | None:
