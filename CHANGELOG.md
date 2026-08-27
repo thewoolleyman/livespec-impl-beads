@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.84.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.84.0...v0.84.1) (2026-08-27)
+
+
+### Bug Fixes
+
+* **plan:** discriminate the plan anchor marker from a spec commitment ([35712fa](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/35712fabf35c31bb4039fb8c0fb1fecb3c180c27))
+
 ## [0.84.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.83.0...v0.84.0) (2026-08-26)
 
 
