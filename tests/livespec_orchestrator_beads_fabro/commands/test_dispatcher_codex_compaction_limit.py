@@ -48,8 +48,8 @@ def test_configured_compaction_limit_rides_the_adapter_c_channel(tmp_path: Path)
     tiers = _config.resolve_codex_model_tiers(cwd=tmp_path)
     assert tiers.implementer.compaction_token_limit == 300000
     assert codex_adapter(tier=tiers.implementer) == (
-        'CODEX_CONFIG={"approval_policy":"never","model":"gpt-5.5",'
-        '"model_reasoning_effort":"low","sandbox_mode":"danger-full-access"} '
+        'CODEX_CONFIG=\'{"approval_policy":"never","model":"gpt-5.5",'
+        '"model_reasoning_effort":"low","sandbox_mode":"danger-full-access"}\' '
         "INITIAL_AGENT_MODE=agent-full-access /opt/livespec/codex-acp/bin/codex-acp "
         "-c model_auto_compact_token_limit=300000"
     )

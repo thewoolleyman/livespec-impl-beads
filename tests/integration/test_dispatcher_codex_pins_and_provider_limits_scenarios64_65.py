@@ -113,13 +113,13 @@ def test_scenario64_dispatcher_renders_pinned_codex_adapters_and_true_opt_out(
         plan=_plan(repo=tmp_path, resolve=resolve_test_acp_nodes)
     )
     assert _input_value(inputs=override_inputs, name="implement_adapter") == (
-        'CODEX_CONFIG={"approval_policy":"never","model":"repo-implementer",'
-        '"model_reasoning_effort":"high","sandbox_mode":"danger-full-access"} '
+        'CODEX_CONFIG=\'{"approval_policy":"never","model":"repo-implementer",'
+        '"model_reasoning_effort":"high","sandbox_mode":"danger-full-access"}\' '
         f"INITIAL_AGENT_MODE=agent-full-access {CODEX_ADAPTER_COMMAND}"
     )
     assert _input_value(inputs=override_inputs, name="pr_adapter") == (
-        'CODEX_CONFIG={"approval_policy":"never","model":"repo-publish",'
-        '"model_reasoning_effort":"low","sandbox_mode":"danger-full-access"} '
+        'CODEX_CONFIG=\'{"approval_policy":"never","model":"repo-publish",'
+        '"model_reasoning_effort":"low","sandbox_mode":"danger-full-access"}\' '
         f"INITIAL_AGENT_MODE=agent-full-access {CODEX_ADAPTER_COMMAND}"
     )
 
