@@ -39,3 +39,18 @@ def carries_commitment(*, item: Any) -> bool:
 def raw_record_carries_commitment(*, record: dict[str, Any]) -> bool:
     # Truthiness on the raw column read straight out of a record mapping.
     return not record.get("spec_id")
+
+
+def annotated_alias_carries_commitment(*, item: Any) -> bool:
+    # ANNOTATING the alias is the natural thing to do for a `str | None`
+    # field, and it must not launder the read past the scan.
+    hint: str | None = item.spec_commitment_hint
+    return hint is not None
+
+
+def walrus_read_carries_commitment(*, item: Any) -> str:
+    # Reading the field INLINE with a walrus is a presence test on the field
+    # itself, not on the name it binds.
+    if inline := item.spec_id:
+        return inline
+    return ""
