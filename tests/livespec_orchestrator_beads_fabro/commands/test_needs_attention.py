@@ -1087,3 +1087,74 @@ def test_spec_next_does_not_run_cli_when_unresolvable(tmp_path) -> None:
 
     assert _spec_next(project_root=tmp_path, seam=seam) is None
     assert "run" not in calls
+
+
+def test_build_attention_composes_the_release_adoption_lane(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The adoption fact reaches the snapshot, and a current adopter is named.
+
+    The lane's own derivation is covered beside it; what this asserts is the
+    WIRING plus the positive half — a snapshot that could only ever report
+    adopters as behind would be indistinguishable from one that had stopped
+    reading the install records at all.
+    """
+    from livespec_orchestrator_beads_fabro.commands._needs_attention_release_adoption import (
+        ReleaseAdoptionBases,
+    )
+
+    _write_config(tmp_path)
+    _stub_spec_next(monkeypatch, output=None)
+    registries = tmp_path / "registries"
+    builds = tmp_path / "builds"
+
+    def _plant(path: Path, payload: object) -> Path:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        _ = path.write_text(json.dumps(payload), encoding="utf-8")
+        return path
+
+    _ = _plant(
+        tmp_path / ".claude-plugin" / "plugin.json", {"name": "plugin-x", "version": "1.2.0"}
+    )
+    _ = _plant(builds / "tip" / "plugin.json", {"name": "plugin-x", "version": "1.2.0"})
+    _ = _plant(builds / "stale" / "plugin.json", {"name": "plugin-x", "version": "1.1.0"})
+    marketplace = _plant(
+        registries / "known_marketplaces.json",
+        {"plugin-x": {"source": {"ref": "release"}, "installLocation": str(builds / "tip")}},
+    )
+    installed = _plant(
+        registries / "installed_plugins.json",
+        {
+            "plugins": {
+                "plugin-x@plugin-x": [
+                    {
+                        "projectPath": str(tmp_path / "p" / "on-tip"),
+                        "installPath": str(builds / "tip"),
+                    },
+                    {
+                        "projectPath": str(tmp_path / "p" / "lagging"),
+                        "installPath": str(builds / "stale"),
+                    },
+                ]
+            }
+        },
+    )
+    monkeypatch.setattr(
+        needs_attention,
+        "default_release_adoption_bases",
+        lambda: ReleaseAdoptionBases(install_record=installed, marketplace_record=marketplace),
+    )
+
+    attention = build_attention(project_root=tmp_path, repo_name="repo", include_hygiene=False)
+
+    adoption = {
+        item.id: item for item in attention if item.id.startswith("hygiene:release-adoption:")
+    }
+    assert sorted(adoption) == [
+        "hygiene:release-adoption:lagging",
+        "hygiene:release-adoption:on-tip",
+    ]
+    assert "BEHIND" in adoption["hygiene:release-adoption:lagging"].summary
+    assert adoption["hygiene:release-adoption:lagging"].urgency == "high"
+    assert "BEHIND" not in adoption["hygiene:release-adoption:on-tip"].summary
+    assert adoption["hygiene:release-adoption:on-tip"].urgency == "low"
