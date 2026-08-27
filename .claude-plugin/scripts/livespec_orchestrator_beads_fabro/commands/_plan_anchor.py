@@ -29,6 +29,23 @@ tenants are not hand-edited.
 The literal lives here ONCE, and both the minting side (`plan_anchor_epic`,
 the only place a marker is created) and every reading side import it from
 here, so the two halves cannot drift apart again.
+
+WHAT NARROWING THESE PREDICATES DOES NOT DO. Plan-prefixed values REMAIN in
+the spec id field: this module narrows predicates only — it relocates no
+data and migrates no tenant. Two components consume that `plan:<slug>` FORM
+and must keep working:
+
+- `_needs_attention_handoffs._plan_topic` (this repo) recovers a plan's
+  topic slug from the marker.
+- `_registry_epic.py` in the SEPARATE `livespec-overseer` repository reads
+  the same form to key its plan registry. It is named here so a future
+  contributor tidying this field finds the cross-repository dependent in
+  this repo's record rather than discovering it afterwards. Its read is a
+  disjunction whose second arm falls back to the metadata `plan_slug`, so
+  no epic there depends on the spec id arm today.
+
+Both are also CORRECT-PREDICATE PRECEDENT: each already discriminates on
+the prefix rather than on presence.
 """
 
 from __future__ import annotations
