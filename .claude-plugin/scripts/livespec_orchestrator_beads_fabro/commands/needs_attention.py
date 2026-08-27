@@ -41,6 +41,10 @@ from livespec_orchestrator_beads_fabro.commands._needs_attention_ready_aging imp
 from livespec_orchestrator_beads_fabro.commands._needs_attention_ready_aging import (
     utc_now_iso as _ready_aging_utc_now_iso,
 )
+from livespec_orchestrator_beads_fabro.commands._needs_attention_release_adoption import (
+    default_release_adoption_bases,
+    release_adoption_items,
+)
 from livespec_orchestrator_beads_fabro.commands._needs_attention_spec_next_adapt import (
     adapt_top_candidate,
 )
@@ -152,6 +156,14 @@ def build_attention(
             + host_only_items(project_root=project_root, repo=repo_name, items=materialized)
             + stranded_dispatch_items(project_root=project_root, repo=repo_name, items=materialized)
             + capacity_items(project_root=project_root, repo=repo_name, items=materialized)
+            # Adoption is a HOST fact, not a tenant fact: the pin is a moving
+            # branch, so the only per-repo evidence that a release actually
+            # arrived lives in this machine's install records.
+            + release_adoption_items(
+                project_root=project_root,
+                repo=repo_name,
+                bases=default_release_adoption_bases(),
+            )
             + ready_aging_items(
                 context=ReadyAgingContext(
                     project_root=project_root,

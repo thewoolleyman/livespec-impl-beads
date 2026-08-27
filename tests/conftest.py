@@ -111,6 +111,35 @@ def _hermetic_codex_home(
 
 
 @pytest.fixture(autouse=True)
+def _hermetic_release_adoption_bases(
+    monkeypatch: pytest.MonkeyPatch, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """Point the release-adoption lane at empty registries, not the real HOME.
+
+    The lane reads this machine's Claude plugin registries to answer which
+    adopters resolved the current release. That is an AMBIENT host dependency
+    of exactly the kind this file exists to replace: on a runner with no
+    installs it composes nothing, and on the maintainer's own machine it would
+    compose real adopter items into every `build_attention` assertion. The
+    lane's own tests inject their fixtures explicitly.
+    """
+    from livespec_orchestrator_beads_fabro.commands import needs_attention
+    from livespec_orchestrator_beads_fabro.commands._needs_attention_release_adoption import (
+        ReleaseAdoptionBases,
+    )
+
+    empty = tmp_path_factory.mktemp("claude-plugins")
+    monkeypatch.setattr(
+        needs_attention,
+        "default_release_adoption_bases",
+        lambda: ReleaseAdoptionBases(
+            install_record=empty / "installed_plugins.json",
+            marketplace_record=empty / "known_marketplaces.json",
+        ),
+    )
+
+
+@pytest.fixture(autouse=True)
 def _clear_dispatch_surface_bytecode(request: pytest.FixtureRequest) -> None:
     if request.node.path.name != "test_fleet_pat_dispatch_surface.py":
         return
