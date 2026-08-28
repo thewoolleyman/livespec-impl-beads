@@ -196,17 +196,43 @@
         "pr": { "model": "gpt-5.4-mini", "reasoning_effort": "high" }
       },
       // Per-node ACP adapters (contracts.md section "ACP node adapter
-      // configuration"), the PER-REPOSITORY layer. There is NO `acp_nodes`
-      // override as of 2026-08-28: the review node reverts to the workflow
-      // default, which is the Claude Opus 4.8 review adapter (contracts.md
-      // section "Codex ACP node model pins" -- `review` is NOT Codex-backed by
-      // default). The prior gpt-5.6-terra override (maintainer direction
-      // 2026-08-26) was removed after three consecutive review non-convergences
-      // at the Codex review gate: each exhausted review_fix_cap and escalated
-      // otherwise-correct work to a human. Maintainer direction 2026-08-28:
-      // move review back to Opus. The `pr` node stays on gpt-5.4-mini above (a
-      // mechanical git/gh node with no design judgement); only review reverts.
+      // configuration"). This is the PER-REPOSITORY layer: it overrides the
+      // workflow's own declared default per node and per field, and a
+      // `--acp-node <node>=<value>` argument on the dispatch overrides it in
+      // turn.
       //
+      // REVIEW -> the successor Codex adapter at gpt-5.6-terra, xhigh.
+      // Maintainer direction 2026-08-26 ("use terra xhigh instead of sol -- save
+      // some tokens and speed"). Reaching the gpt-5.6 line is the whole point of
+      // the codex-acp package succession: the retired predecessor's vendored
+      // Codex generation refused every 5.6 slug, and the successor at its baked
+      // path does not -- gpt-5.6-terra completed a turn at xhigh from a live
+      // sandbox against the projected credential on 2026-08-26 (the full
+      // measurement is recorded in commands/_codex_model_tiers.py).
+      //
+      // INITIAL_AGENT_MODE is read-only because a reviewer performs NO WRITES.
+      // The write-capable classes (implementer, pr) take agent-full-access.
+      //
+      // WHY THE ANTHROPIC KEYS STILL APPEAR IN THE RENDERED REVIEW ADAPTER, so
+      // the next reader does not file it as a defect: `env` MERGES with the
+      // more specific layer's keys winning (ratified; it is what lets a
+      // per-dispatch override move one variable without restating a base URL and
+      // auth token). This table replaces the workflow default's `command`, so
+      // the review node runs codex-acp, but the workflow default's
+      // ANTHROPIC_MODEL / CLAUDE_CODE_EFFORT_LEVEL survive the merge and ride
+      // along inert -- codex-acp reads neither. The dispatch record names the
+      // supplying layer per key, so the residue is legible rather than
+      // mysterious.
+      "acp_nodes": {
+        "review": {
+          "command": "/opt/livespec/codex-acp/bin/codex-acp",
+          "env": {
+            "CODEX_CONFIG": "{\"approval_policy\":\"never\",\"model\":\"gpt-5.6-terra\",\"model_reasoning_effort\":\"xhigh\",\"sandbox_mode\":\"danger-full-access\"}",
+            "INITIAL_AGENT_MODE": "read-only"
+          },
+          "args": []
+        }
+      },
       // Per-node ACP turn ceilings, restoring THIS repository's pre-v0.80.0
       // effective values through the surface contracts.md section "ACP node
       // timeouts" (v081) provides. The plugin's built-in default is 1800s for
