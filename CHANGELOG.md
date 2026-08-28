@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.88.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.88.0...v0.88.1) (2026-08-28)
+
+
+### Bug Fixes
+
+* **dispatcher:** route a failed AI acceptance pass to ready with a named recovery ([03da32d](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/03da32d354fd99da9424b40e3878f755badee7df))
+
 ## [0.88.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.87.0...v0.88.0) (2026-08-28)
 
 
