@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.92.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.91.0...v0.92.0) (2026-08-28)
+
+
+### Features
+
+* **dispatcher:** stamp and materialize the rework:pending marker ([74a97bf](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/74a97bf975d8bf50c9f2402150af6f87d90f3b3d))
+
 ## [0.91.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.90.0...v0.91.0) (2026-08-28)
 
 
