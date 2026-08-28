@@ -77,6 +77,10 @@ _ABBREVIATION_MINIMUM_LENGTH = 2
 # or filename such as `v0.88.0` or `_dispatcher_acceptance_criteria.py` is
 # ordinary prose, so the terminator that follows it ends its sentence.
 _INITIALISM = re.compile(r"(?:[A-Za-z]\.)*[A-Za-z]")
+# The initialisms that CANNOT close a sentence: each one introduces the clause
+# that follows it, so its terminator is never a boundary however the next word is
+# capitalized. Every other initialism is ambiguous and is resolved by that word.
+_CONNECTIVE_INITIALISMS = frozenset({"e.g", "i.e"})
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -212,9 +216,33 @@ def _abbreviates(*, text: str, terminator: int) -> bool:
     token as an abbreviation swallowed the sentence break after a version or a
     filename, and the two sentences then fused into one criterion — which passed
     on the first sentence's evidence while the second assertion went unjudged.
+
+    An initialism that genuinely ENDS a sentence fused the same pair the same
+    way: suppressing every initialism's terminator suppresses the real
+    boundaries along with the false ones, so `... released in the U.S. The
+    watchdog reaps ...` produced one criterion rather than two. Whether a
+    trailing initialism closes its sentence is not decidable from the
+    abbreviation alone, so the FOLLOWING token decides it — a capitalized word
+    opens a fresh assertion, a lowercase one continues the sentence the
+    initialism sits inside. That heuristic is confined to this ambiguity: the
+    general boundary above still reads a lowercase opener as a new sentence, and
+    neither a connective initialism nor a single-letter initial reaches it,
+    because neither closes a sentence whatever follows.
     """
     word = re.split(r"\s", text[:terminator])[-1].lstrip(_OPENING_DELIMITERS)
-    return len(word) < _ABBREVIATION_MINIMUM_LENGTH or _INITIALISM.fullmatch(word) is not None
+    if len(word) < _ABBREVIATION_MINIMUM_LENGTH:
+        return True
+    if _INITIALISM.fullmatch(word) is None:
+        return False
+    if word.lower() in _CONNECTIVE_INITIALISMS:
+        return True
+    return not _opens_an_assertion(text=text, terminator=terminator)
+
+
+def _opens_an_assertion(*, text: str, terminator: int) -> bool:
+    """Report whether the word after an ambiguous initialism opens a fresh assertion."""
+    following = text[terminator + 1 :].lstrip(_CLOSING_DELIMITERS).lstrip()
+    return following[:1].isupper()
 
 
 def _flush_criterion(*, lines: list[str], current: list[str]) -> None:

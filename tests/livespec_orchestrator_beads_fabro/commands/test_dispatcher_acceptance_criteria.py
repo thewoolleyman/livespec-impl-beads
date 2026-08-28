@@ -74,6 +74,19 @@ _DOTTED_TAIL_CRITERIA = "\n".join(_DOTTED_TAIL_ASSERTIONS) + "\n"
 _DOTTED_TAIL_DIFF = (
     "diff --git a/x b/x\n+release the ledger claim on the build shipped as v0.88.0\n"
 )
+# An INITIALISM that genuinely ENDS its sentence. Suppressing the boundary after
+# EVERY dotted initialism fused this pair into one criterion, where the second
+# assertion — a condition the merged diff does not carry — rode in on the first's
+# evidence instead of being judged.
+_INITIALISM_TAIL_ASSERTIONS = (
+    "The dispatcher journals every claim it releases in the U.S.",
+    "The watchdog reaps a run that reports no progress.",
+)
+_INITIALISM_TAIL_CRITERIA = "\n".join(_INITIALISM_TAIL_ASSERTIONS) + "\n"
+# A merged diff carrying the FIRST assertion's work and none of the second's.
+_INITIALISM_TAIL_DIFF = (
+    "diff --git a/x b/x\n+the dispatcher journals every claim it releases in the u.s.\n"
+)
 # Every width a criteria author might plausibly wrap at. `textwrap` is asked not
 # to break on hyphens or inside long words, because doing so edits the CONTENT
 # ("pre-admission" becomes "pre- admission") and this sweep varies the wrap
@@ -270,6 +283,55 @@ def test_criteria_lines_keeps_a_parenthesized_abbreviation_with_its_sentence() -
 
     assert criteria_lines(criteria_text=criteria) == (
         "The parser folds a wrapped tail (e.g. The one-word one) into its sentence.",
+    )
+
+
+def test_criteria_lines_starts_a_new_assertion_after_a_trailing_initialism() -> None:
+    assert criteria_lines(criteria_text=_INITIALISM_TAIL_CRITERIA) == _INITIALISM_TAIL_ASSERTIONS
+
+
+def test_an_assertion_after_a_trailing_initialism_is_judged_on_its_own_evidence() -> None:
+    # The discriminating control for the trailing initialism: fusing the two
+    # sentences produced ONE passing check, so a condition the merged diff does
+    # not carry was reported as met.
+    checks = criteria_checks(
+        criteria_text=_INITIALISM_TAIL_CRITERIA,
+        merged_diff=_INITIALISM_TAIL_DIFF,
+        telemetry_passed=False,
+    )
+
+    assert [check.text for check in checks] == list(_INITIALISM_TAIL_ASSERTIONS)
+    assert [check.passed for check in checks] == [True, False]
+    assert checks[1].reason == "no merged diff or telemetry evidence"
+
+
+def test_a_trailing_initialism_is_segmented_identically_at_every_wrap_width() -> None:
+    joined = " ".join(_INITIALISM_TAIL_ASSERTIONS)
+
+    segmentations = {
+        criteria_lines(criteria_text=_wrapped(text=joined, width=width)) for width in _WRAP_WIDTHS
+    }
+
+    assert segmentations == {_INITIALISM_TAIL_ASSERTIONS}
+
+
+def test_criteria_lines_keeps_a_mid_sentence_initialism_with_its_sentence() -> None:
+    # The discriminator for an ambiguous initialism is the FOLLOWING token's
+    # case: a lowercase continuation means the initialism closes nothing.
+    criteria = "The U.S. dispatcher releases its ledger claim on an aborted dispatch.\n"
+
+    assert criteria_lines(criteria_text=criteria) == (
+        "The U.S. dispatcher releases its ledger claim on an aborted dispatch.",
+    )
+
+
+def test_criteria_lines_keeps_a_single_letter_initial_with_its_sentence() -> None:
+    # A single-letter initial closes no sentence whatever follows it, so the
+    # capitalized surname after `C.` must not be read as a fresh assertion.
+    criteria = "The parser folds a tail attributed to C. Woolley into its sentence.\n"
+
+    assert criteria_lines(criteria_text=criteria) == (
+        "The parser folds a tail attributed to C. Woolley into its sentence.",
     )
 
 
