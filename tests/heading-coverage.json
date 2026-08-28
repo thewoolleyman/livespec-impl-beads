@@ -731,17 +731,17 @@
     "heading": "## Scenario 60 — An observed provider exhaustion refuses admission, and expires",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "reason": "Ratified by the factory-spend-containment revise pass (v067). Binds SPECIFICATION/contracts.md §\"Provider spend containment\" — the no-dispatch-into-an-observed-exhausted-window prohibition, its expiry rule, the observed-not-predicted rule, and the needs-human floor. Per the heading taxonomy's pyramid-tier requirement this scenario MUST be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test; the real node id lands with C4 (ledger bd-ib-jtja), the admission-gate implementation this scenario governs.",
-    "work_item": "bd-ib-jtja"
+    "test": "tests.integration.test_dispatcher_provider_spend_containment_scenarios60_61.test_scenario60_unexpired_exhaustion_refuses_admission_without_disposing_the_item",
+    "reason": "Ratified by the factory-spend-containment revise pass (v067). Binds SPECIFICATION/contracts.md §\"Provider spend containment\" — the no-dispatch-into-an-observed-exhausted-window prohibition, its expiry rule, the observed-not-predicted rule, and the needs-human floor. Bound at the consumer tier by bd-ib-aw58: the named case drives the real dispatcher.main CLI and asserts the refusal journals all four required fields while the item stays ready and undisposed; its four siblings in the same module cover the remaining sub-scenarios — expiry restoring admission, an uncovered provider admitting normally, admission decided without any read of the provider credential file, and a needs-human block surviving a containment pass and staying surfaced through needs-attention.",
+    "work_item": "bd-ib-aw58"
   },
   {
     "heading": "## Scenario 61 — A dead implementer does not spend the second vendor",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "reason": "Ratified by the factory-spend-containment revise pass (v067). Binds SPECIFICATION/contracts.md §\"Provider spend containment\" — the no-cross-vendor-burn prohibition and its per-disposition journaling obligation. Per the heading taxonomy's pyramid-tier requirement this scenario MUST be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test; the real node id lands with C5 (ledger bd-ib-vdpb), the dead-implementer circuit breaker this scenario governs.",
-    "work_item": "bd-ib-vdpb"
+    "test": "tests.integration.test_dispatcher_provider_spend_containment_scenarios60_61.test_scenario61_the_dispatched_workflow_truncates_an_unchanged_tree",
+    "reason": "Ratified by the factory-spend-containment revise pass (v067). Binds SPECIFICATION/contracts.md §\"Provider spend containment\" — the no-cross-vendor-burn prohibition and its per-disposition journaling obligation. Bound at the consumer tier by bd-ib-aw58: the named case dispatches the SHIPPED workflow through the real dispatcher.main CLI and asserts the graph actually materialized for the sandbox routes an unchanged tree to a terminal breaker no review, review-fix or disposition round can be reached from; its two siblings in the same module cover the changed-tree control and the Dispatcher-side journaling of the truncation against the work-item without disposing of it.",
+    "work_item": "bd-ib-aw58"
   },
   {
     "heading": "## Codex ACP node model pins",
