@@ -196,22 +196,25 @@ def test_scenario91_the_empty_model_opt_out_omits_the_keys_rather_than_emptying_
     assert implement == CODEX_ADAPTER_BASE
 
 
-def test_this_repository_reviews_on_terra_while_its_implementer_stays_on_claude_opus_5() -> None:
+def test_this_repository_reviews_on_opus_while_its_implementer_stays_on_claude_opus_5() -> None:
     """The negative control, graded on THIS repository's committed configuration.
 
     One dispatch, three node classes, three different answers: the review node
-    moves to the successor Codex adapter at gpt-5.6-terra, the publish node
-    keeps gpt-5.4-mini on that same adapter, and the implementer class does not
-    move at all. Asserting them together is the point — a change that
-    accidentally re-providered the implementer while routing the reviewer would
-    pass any one of these assertions taken alone.
+    reverts to the workflow-default Claude Opus 4.8 review adapter (the
+    dispatcher.acp_nodes.review gpt-5.6-terra override was removed 2026-08-28
+    after repeated review non-convergence at the Codex review gate; the
+    contracts material makes review NOT Codex-backed by default), the publish
+    node keeps gpt-5.4-mini on the Codex adapter, and the implementer class does
+    not move at all. Asserting them together is the point — a change that
+    accidentally re-providered the implementer or the reviewer would pass any
+    one of these assertions taken alone.
     """
     adapters = _rendered_adapters(repo=_REPO_ROOT)
 
-    assert "gpt-5.6-terra" in adapters["review"]
-    assert '"model_reasoning_effort":"xhigh"' in adapters["review"]
-    assert "INITIAL_AGENT_MODE=read-only" in adapters["review"]
-    assert adapters["review"].endswith(f" {_CODEX_ADAPTER_COMMAND}")
+    assert "claude-opus-4-8[1m]" in adapters["review"]
+    assert "gpt-5.6-terra" not in adapters["review"]
+    assert _CODEX_ADAPTER_COMMAND not in adapters["review"]
+    assert adapters["review"].endswith(" npx -y @agentclientprotocol/claude-agent-acp")
 
     assert adapters["implement"] == _CLAUDE_OPUS_5_ADAPTER
     assert "claude-opus-5" in adapters["implement"]
