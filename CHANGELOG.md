@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.91.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.90.0...v0.91.0) (2026-08-28)
+
+
+### Features
+
+* **dispatcher:** add the take-never-file loop probe subcommand ([5a01ce8](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/5a01ce8730c399f67bec6716fdb63964bec138c7))
+
 ## [0.90.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.89.0...v0.90.0) (2026-08-28)
 
 
