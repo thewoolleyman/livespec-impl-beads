@@ -20,6 +20,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_completion import (
     complete_and_accept,
     escalate_needs_human_block,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_dead_implementer import (
+    record_dead_implementer_truncation_if_observed,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
 from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import invoker_from_args
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile, utc_now_iso
@@ -198,6 +201,7 @@ def post_run_dispositions(  # noqa: PLR0913 — kw-only post-run stage; each fie
         journal=journal,
         now_iso=utc_now_iso(),
     )
+    record_dead_implementer_truncation_if_observed(outcome=outcome, journal=journal)
     journal.append(record={"stage": "outcome", "outcome": asdict(outcome)})
     preserved = attempt(
         action=lambda: preserve_checkpointed_work_reference(
