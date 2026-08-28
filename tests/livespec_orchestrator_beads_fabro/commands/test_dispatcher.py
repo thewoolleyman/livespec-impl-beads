@@ -4463,7 +4463,9 @@ def test_complete_and_accept_fail_reworks_and_persists_count_across_passes(
     assert first_record["metadata"]["acceptance_failed_ai_passes"] == 1
     assert second_record["metadata"]["acceptance_failed_ai_passes"] == 2
     stored = _stored()[item.id]
-    assert (stored.status, stored.blocked_reason) == ("active", None)
+    # The under-cap rework return is `ready`, the one status BOTH targeted
+    # dispatch and the `reconcile-merged` recovery valve admit.
+    assert (stored.status, stored.blocked_reason) == ("ready", None)
     records = [
         json.loads(line) for line in second_journal.path.read_text(encoding="utf-8").splitlines()
     ]

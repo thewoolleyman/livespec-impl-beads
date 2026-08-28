@@ -188,6 +188,7 @@ def test_ai_fail_auto_rework_path_journals_governing_settings(
         repo=tmp_path,
         item=_item(acceptance_policy="ai-then-human"),
         policy="ai-then-human",
+        merged=True,
         journal=JournalFile(path=journal_path),
     )
 
@@ -218,6 +219,7 @@ def test_acceptance_cap_exceeded_path_journals_governing_setting(
         repo=tmp_path,
         item=_item(acceptance_policy="ai-only"),
         policy="ai-only",
+        merged=True,
         journal=JournalFile(path=journal_path),
     )
 

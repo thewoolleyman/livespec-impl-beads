@@ -148,7 +148,17 @@ def complete_and_accept(
         journal.append(record=auto_disposition)
         return
     if acceptance_pass.verdict == "FAIL" and policy in AI_DISPOSITIVE_ACCEPTANCE_POLICIES:
-        rework_or_block_failed_acceptance(repo=repo, item=item, policy=policy, journal=journal)
+        # The merge sha is the dispatch's merge evidence: it is stamped only by
+        # the post-merge janitor path off a resolved merged pull request, so its
+        # presence is what tells the disposition whether re-implementing this
+        # item could publish anything at all.
+        rework_or_block_failed_acceptance(
+            repo=repo,
+            item=item,
+            policy=policy,
+            merged=outcome.merge_sha is not None,
+            journal=journal,
+        )
         return
     if decision.to_done and acceptance_pass.verdict == "PASS":
         close_dispatch_item(
