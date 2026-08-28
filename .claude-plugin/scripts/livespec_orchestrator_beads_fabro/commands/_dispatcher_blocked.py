@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from livespec_orchestrator_beads_fabro._store_mutations import update_work_item_blocked_state
+from livespec_orchestrator_beads_fabro._store_blocked_mutations import (
+    update_work_item_blocked_state,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import store_config
