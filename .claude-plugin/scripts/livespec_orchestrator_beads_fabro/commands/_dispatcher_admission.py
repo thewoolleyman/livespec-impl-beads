@@ -5,16 +5,29 @@ host-only candidates are refused through the completion disposition helper,
 manual or unresolvable-assignee candidates are held and surfaced, and
 admitted candidates are transitioned `ready -> active` with their resolved
 assignee before Fabro launch.
+
+It also SEQUENCES the two legs of one pass. The rework leg
+(`_dispatcher_rework_admission`) runs FIRST and consumes capacity before any
+new `ready` item is admitted, because the ratified rework-pending re-dispatch
+contract orders it that way: promised fix-forward work outranks work not yet
+started. Both legs pass through the SAME mechanical eligibility filter below,
+so a marked row is refused by a host-only route, a non-null `factory_safety`,
+an unreadable label read, or an unexpired provider-exhaustion record on
+exactly the terms a ready candidate is.
 """
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 
 from returns.unsafe import unsafe_perform_io
 
 from livespec_orchestrator_beads_fabro.commands import _dispatcher_self_update as selfup
+from livespec_orchestrator_beads_fabro.commands._dispatcher_capacity_deferred import (
+    CapacitySnapshot,
+    capacity_deferred_outcomes,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_claim_reclaim import (
     claimed_active_accounting,
 )
@@ -34,6 +47,11 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_outcomes import
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import store_config
 from livespec_orchestrator_beads_fabro.commands._dispatcher_provider_exhaustion import (
     provider_exhaustion_refusal,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_rework_admission import (
+    ReworkPass,
+    admit_rework,
+    rework_pending_candidates,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_valves import (
     DEFAULT_WIP_CAP,
@@ -58,26 +76,20 @@ class Admission:
     """The outcome of the admission valve over a candidate set.
 
     `admitted` carries the items transitioned `ready -> active` (assignee
-    set) that the Dispatcher then launches; `deferred` carries
-    capacity-deferred items that remain `ready`; `refused` carries the
-    non-launched terminal outcomes — host-only routing refusals plus
-    admission holds (manual / unresolvable assignee) — that ride in the
-    wave's outcome list so the verdict and the post-verdict alarm see them.
+    set) that the Dispatcher then launches; `rework` carries the already-
+    `active` marked rows this pass re-dispatches, which the caller launches
+    BEFORE `admitted` so the drain's observable order matches the contract's
+    selection order; `deferred` carries capacity-deferred items from either
+    leg; `refused` carries the non-launched terminal outcomes — host-only
+    routing refusals plus admission holds (manual / unresolvable assignee) —
+    that ride in the wave's outcome list so the verdict and the post-verdict
+    alarm see them.
     """
 
     admitted: list[WorkItem]
     deferred: list[DispatchOutcome]
     refused: list[DispatchOutcome]
-
-
-@dataclass(frozen=True, kw_only=True)
-class _CapacitySnapshot:
-    active_count: int
-    wip_cap: int
-    free_slots: int
-    live_lock_active_ids: tuple[str, ...]
-    journal_unreadable_active_ids: tuple[str, ...]
-    green_terminal_active_ids: tuple[str, ...]
+    rework: list[WorkItem] = field(default_factory=list)
 
 
 def admit_and_select(
@@ -87,6 +99,7 @@ def admit_and_select(
     candidates: list[WorkItem],
     journal: JournalFile,
     enforce_cap: bool,
+    rework: ReworkPass | None = None,
 ) -> Admission:
     """Run the admission valve over the rank-sorted candidate set.
 
@@ -106,22 +119,48 @@ def admit_and_select(
     + the held surfaces are journaled here; the launched items flow on to
     `_dispatch_one`.
 
+    `rework` carries the pass's rework narrowing and budget. Its leg runs
+    BEFORE the ready plan and its admissions occupy capacity first, which is
+    what makes "marked rows before any new `ready` item" a property of the
+    valve rather than of one caller's ordering.
     """
-    admittable, refused = _filter_host_only_candidates(
+    accounting = claimed_active_accounting(repo=repo, items=items, journal=journal)
+    rework_pass = rework if rework is not None else ReworkPass()
+    rework_admittable, refused = _filter_host_only_candidates(
+        repo=repo,
+        candidates=list(
+            rework_pending_candidates(items=items, accounting=accounting, rework=rework_pass)
+        ),
+        journal=journal,
+    )
+    admittable, ready_refused = _filter_host_only_candidates(
         repo=repo,
         candidates=candidates,
         journal=journal,
     )
-    accounting = claimed_active_accounting(repo=repo, items=items, journal=journal)
-    if enforce_cap:
+    refused.extend(ready_refused)
+    wip_cap = (
         # An unreadable `.livespec.jsonc` falls back to the documented cap,
         # visibly and here rather than inside the reader. `unsafe_perform_io`
         # is required: `IOResult.value_or` returns `IO[value]`, not the value.
-        wip_cap = unsafe_perform_io(resolve_wip_cap(cwd=repo).value_or(DEFAULT_WIP_CAP))
-        free_slots = max(0, wip_cap - accounting.active_count)
-    else:
-        wip_cap = None
-        free_slots = len(admittable)
+        unsafe_perform_io(resolve_wip_cap(cwd=repo).value_or(DEFAULT_WIP_CAP))
+        if enforce_cap
+        else None
+    )
+    reworked = admit_rework(
+        repo=repo,
+        candidates=tuple(rework_admittable),
+        journal=journal,
+        active_count=accounting.active_count,
+        wip_cap=wip_cap,
+    )
+    occupied = accounting.active_count + len(reworked.admitted)
+    free_slots = _ready_free_slots(
+        admittable=admittable,
+        occupied=occupied,
+        wip_cap=wip_cap,
+        budget_left=_budget_left(rework=rework_pass, taken=len(reworked.admitted)),
+    )
     plan = plan_admissions(
         ready_items=admittable,
         free_slots=free_slots,
@@ -159,12 +198,12 @@ def admit_and_select(
         _ = write_stderr(text=f"SURFACE: {admission_held_detail(item_id=item.id, reason=reason)}\n")
         refused.append(held)
     if wip_cap is not None:
-        deferred = _capacity_deferred_outcomes(
+        deferred = capacity_deferred_outcomes(
             admittable=admittable,
             admitted=admitted,
             held=plan.held,
-            capacity=_CapacitySnapshot(
-                active_count=accounting.active_count,
+            capacity=CapacitySnapshot(
+                active_count=occupied,
                 wip_cap=wip_cap,
                 free_slots=free_slots,
                 live_lock_active_ids=accounting.live_lock_active_ids,
@@ -173,7 +212,37 @@ def admit_and_select(
             ),
             journal=journal,
         )
-    return Admission(admitted=admitted, deferred=deferred, refused=refused)
+    return Admission(
+        admitted=admitted,
+        deferred=[*reworked.deferred, *deferred],
+        refused=refused,
+        rework=list(reworked.admitted),
+    )
+
+
+def _budget_left(*, rework: ReworkPass, taken: int) -> int | None:
+    """What is left of the pass's `--budget` after the rework leg took its share.
+
+    `None` means unbounded — the `dispatch --item` override carries no budget,
+    and the ready candidate list a `loop` hands in was already truncated to the
+    budget upstream, so this only ever REMOVES the slots rework already spent.
+    """
+    if rework.budget is None:
+        return None
+    return max(0, rework.budget - taken)
+
+
+def _ready_free_slots(
+    *,
+    admittable: list[WorkItem],
+    occupied: int,
+    wip_cap: int | None,
+    budget_left: int | None,
+) -> int:
+    slots = len(admittable) if wip_cap is None else max(0, wip_cap - occupied)
+    if budget_left is None:
+        return slots
+    return min(slots, budget_left)
 
 
 def _filter_host_only_candidates(
@@ -241,76 +310,3 @@ def admission_held_outcome(*, item: WorkItem, reason: str) -> DispatchOutcome:
         merge_sha=None,
         detail=admission_held_detail(item_id=item.id, reason=reason),
     )
-
-
-def _capacity_deferred_outcomes(
-    *,
-    admittable: list[WorkItem],
-    admitted: list[WorkItem],
-    held: tuple[tuple[WorkItem, str], ...],
-    capacity: _CapacitySnapshot,
-    journal: JournalFile,
-) -> list[DispatchOutcome]:
-    admitted_ids = {item.id for item in admitted}
-    held_ids = {item.id for item, _ in held}
-    outcomes = [
-        _capacity_deferred_outcome(
-            item=item,
-            capacity=capacity,
-        )
-        for item in admittable
-        if item.id not in admitted_ids and item.id not in held_ids
-    ]
-    for outcome in outcomes:
-        journal.append(record={"stage": "outcome", "outcome": asdict(outcome)})
-    return outcomes
-
-
-def _capacity_deferred_outcome(
-    *,
-    item: WorkItem,
-    capacity: _CapacitySnapshot,
-) -> DispatchOutcome:
-    return DispatchOutcome(
-        work_item_id=item.id,
-        status="capacity-deferred",
-        stage="capacity-deferred",
-        pr_number=None,
-        merge_sha=None,
-        detail=_capacity_deferred_detail(item=item, capacity=capacity),
-    )
-
-
-def _capacity_deferred_detail(*, item: WorkItem, capacity: _CapacitySnapshot) -> str:
-    parts = [
-        "capacity deferred:",
-        f"active_count={capacity.active_count}",
-        f"wip_cap={capacity.wip_cap}",
-        f"free_slots={capacity.free_slots}",
-    ]
-    if capacity.live_lock_active_ids:
-        parts.append(f"live_lock_active_ids={','.join(capacity.live_lock_active_ids)}")
-    if capacity.journal_unreadable_active_ids:
-        parts.append(
-            f"journal_unreadable_active_ids={','.join(capacity.journal_unreadable_active_ids)}"
-        )
-        live_lock_response = ((), ("wait_for_live_locks",))[
-            min(len(capacity.live_lock_active_ids), 1)
-        ]
-        operator_responses = (*live_lock_response, "inspect_unreadable_journals")
-        parts.append(f"operator_response={','.join(operator_responses)}")
-    if capacity.green_terminal_active_ids:
-        parts.append(f"green_terminal_active_ids={','.join(capacity.green_terminal_active_ids)}")
-        parts.append("green_terminal_active_status=already_reclaimed_no_slot")
-    parts.append(f"single_item_override=dispatcher.py dispatch --item {item.id}")
-    parts.append("single_item_override_enforces_cap=false")
-    parts.append(
-        "single_item_override_cost="
-        + "_".join(
-            [
-                "deliberately_exceeds_wip_cap_bound_for_same_repo",
-                "merge_rebase_contention_during_unattended_draining",
-            ]
-        )
-    )
-    return " ".join(parts)

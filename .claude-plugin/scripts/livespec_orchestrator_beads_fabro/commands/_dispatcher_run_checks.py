@@ -20,7 +20,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import (
     invoker_from_args,
     require_invoker_refusal,
 )
-from livespec_orchestrator_beads_fabro.commands._dispatcher_io import ShellCommandRunner
+from livespec_orchestrator_beads_fabro.commands._dispatcher_io import (
+    JournalFile,
+    ShellCommandRunner,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_checks import run_janitor_checks
 from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_checks import (
     LedgerFinding,
@@ -38,6 +41,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_otel_wiring import p
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import store_config
 from livespec_orchestrator_beads_fabro.commands._dispatcher_readiness_diagnostics import (
     not_ready_requested_items_error,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_rework_admission import (
+    rework_redispatch_eligible_ids,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_spec_checks import run_spec_checks
 from livespec_orchestrator_beads_fabro.commands._dispatcher_step_gate import (
@@ -294,13 +300,16 @@ def requested_items_preflight_error(
     requested_ids: set[str],
     items: list[WorkItem],
     repo: Path,
+    journal: JournalFile,
 ) -> str | None:
     """Return an operator-facing error string if a requested item fails preflight, else None.
 
     Validates in order: (1) items absent from the target-tenant entirely →
-    target-tenant mismatch error; (2) items present in the tenant but not yet
-    ready → not-in-ready-set error. Returns None when every requested id is
-    ready and no preflight error applies.
+    target-tenant mismatch error; (2) items present in the tenant but neither
+    `ready` nor rework-re-dispatch-eligible → not-in-ready-set error. A marked,
+    lock-less `active` row passes because `--item` narrows the selection rather
+    than bypassing it: the rework leg of the same drain is a route the named id
+    is eligible THROUGH. Returns None when every requested id is dispatchable.
     """
     all_ids = {item.id for item in items}
     missing_from_tenant = requested_ids - all_ids
@@ -310,8 +319,9 @@ def requested_items_preflight_error(
             f"ERROR: work-item(s) {missing_text} not found in the target-tenant "
             f"({repo.name}); --target-repo and --item must reference the same tenant\n"
         )
-    ready_ids = {item.id for item in ready_items(items=items, repo=repo)}
-    not_ready = requested_ids - ready_ids
+    eligible_ids = {item.id for item in ready_items(items=items, repo=repo)}
+    eligible_ids |= rework_redispatch_eligible_ids(repo=repo, items=items, journal=journal)
+    not_ready = requested_ids - eligible_ids
     if not_ready:
         return not_ready_requested_items_error(requested_ids=not_ready, items=items, repo=repo)
     return None
