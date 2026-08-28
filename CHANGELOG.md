@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.94.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.94.1...v0.94.2) (2026-08-28)
+
+
+### Bug Fixes
+
+* **dispatcher:** split criteria at a sentence-ending initialism ([dcf13d5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/dcf13d51cada6ce4dc46f6ef8986bdd489f594b5))
+
 ## [0.94.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.94.0...v0.94.1) (2026-08-28)
 
 
