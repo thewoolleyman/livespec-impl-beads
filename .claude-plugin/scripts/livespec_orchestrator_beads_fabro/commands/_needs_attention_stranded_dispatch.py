@@ -66,7 +66,13 @@ def stranded_dispatch_items(
     watchable_lookup = (
         watchable_run_lookup if watchable_run_lookup is not None else _no_watchable_run
     )
-    active_items = {item.id: item for item in items if item.status == "active"}
+    # `rework:pending` is a DISCRIMINATOR here, not an incidental filter: a
+    # marked item is `active` with no live lock by design, which is the exact
+    # shape this surface reads as stranded. The marker partitions the two
+    # populations cleanly, so a marked item is never reported as stranded.
+    active_items = {
+        item.id: item for item in items if item.status == "active" and not item.rework_pending
+    }
     stranded = _stranded_dispatches(project_root=project_root, active_item_ids=active_items.keys())
     attention: list[AttentionItem] = []
     for item_id, dispatch in stranded.items():

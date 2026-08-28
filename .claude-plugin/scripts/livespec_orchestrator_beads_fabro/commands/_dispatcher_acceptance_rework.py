@@ -18,6 +18,9 @@ from livespec_orchestrator_beads_fabro._store_acceptance_rework import (
     update_acceptance_failed_ai_passes,
 )
 from livespec_orchestrator_beads_fabro._store_mutations import update_work_item_blocked_state
+from livespec_orchestrator_beads_fabro._store_rework_mutations import (
+    update_work_item_rework_pending,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_decision_journal import (
     auto_disposition_journal_record,
 )
@@ -38,15 +41,17 @@ __all__: list[str] = [
 
 AI_DISPOSITIVE_ACCEPTANCE_POLICIES = frozenset(("ai-only", "ai-then-human"))
 _ACCEPTANCE_REWORK_CAP_LABEL = "acceptance-rework-cap:"
-# The under-cap rework return. `ready` is the ONE status that is both admitted
-# by targeted dispatch and accepted by the `reconcile-merged` recovery valve, so
-# a returned item is reachable whether or not its work already merged. The
-# earlier `active` return was reachable by NEITHER route.
-_REWORK_RETURN_STATUS = "ready"
-_MERGED_RECOVERY = "reconcile-merged"
+# The under-cap rework return, per the ratified rework-pending re-dispatch
+# contract: the item stays `active` and is STAMPED with `rework:pending`, which
+# is what makes it reachable — the marker is the drain's selection input, and
+# `dispatch --item` accepts a marked item. An earlier build returned the item to
+# `ready` because `active` was then reachable by no route at all; the marker is
+# that route, so the return status moves back to `active` with it.
+_REWORK_RETURN_STATUS = "active"
+_MERGED_RECOVERY = "rework-re-dispatch"
 _MERGED_RECOVERY_ORDERING = (
-    "Fix the acceptance-criteria defect that failed this pass BEFORE running "
-    "reconcile-merged: reconcile-merged deliberately reaches acceptance again, so "
+    "Fix the acceptance-criteria defect that failed this pass BEFORE the rework "
+    "re-dispatch runs: the rework dispatch deliberately reaches acceptance again, so "
     "an unfixed criteria fragment re-fails there and spends another "
     "acceptance_rework_cap attempt — on the last attempt converting a recoverable "
     "state into blocked / needs-human."
@@ -61,7 +66,9 @@ def rework_or_block_failed_acceptance(
     `merged` says whether the failed dispatch left merge evidence behind, and it
     changes the RECOVERY the disposition record advertises, never the status:
     already-merged work cannot be re-published by re-implementing it, so the
-    record names `reconcile-merged` and the ordering an operator must follow.
+    record names the fix-forward rework re-dispatch and the ordering an operator
+    must follow. It does NOT name `reconcile-merged`, which refuses a marked
+    item precisely because this disposition already ran.
     """
     config = store_config(repo=repo)
     failure_state = update_acceptance_failed_ai_passes(path=config, item_id=item.id)
@@ -110,6 +117,10 @@ def rework_or_block_failed_acceptance(
         )
         return
     update_work_item_status(path=config, item_id=item.id, status=_REWORK_RETURN_STATUS)
+    # The stamp rides the SAME disposition as the routing: this entry is one of
+    # exactly two the contract permits to stamp the marker, and an unstamped
+    # return would park the item where no drain pass can find it.
+    update_work_item_rework_pending(path=config, item_id=item.id, value=True)
     journal.append(
         record={
             "stage": "acceptance-auto-rework",
@@ -126,10 +137,11 @@ def rework_or_block_failed_acceptance(
 def _ai_fail_auto_rework_record(*, work_item_id: str, merged: bool) -> dict[str, object]:
     """Build the published rework disposition, naming the merged recovery route.
 
-    An unmerged failure needs no recovery clause: the item is back in `ready`
-    and the ordinary re-admission through the drain pass or `dispatch --item`
-    IS the whole route. A merged failure does, because re-implementing it
-    publishes nothing.
+    An unmerged failure needs no recovery clause: the marked item is picked up
+    by the next drain pass or by `dispatch --item`, and that IS the whole route.
+    A merged failure does, because the rework is FIX-FORWARD — it patches on top
+    of the already-merged change rather than re-publishing it — so the record
+    names the route plus the ordering an operator must follow.
     """
     record = auto_disposition_journal_record(
         work_item_id=work_item_id,

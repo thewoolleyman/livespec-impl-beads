@@ -6,6 +6,9 @@ from subprocess import run
 from typing import Any, Protocol, cast
 
 from livespec_orchestrator_beads_fabro import store
+from livespec_orchestrator_beads_fabro._store_rework_mutations import (
+    update_work_item_rework_pending,
+)
 from livespec_orchestrator_beads_fabro.commands._config import resolve_store_config
 from livespec_orchestrator_beads_fabro.commands._dispatcher_effective_criteria import (
     ungradeable_criteria_refusal,
@@ -231,6 +234,11 @@ def _reject_item(
         if refusal is not None:
             return refusal
     store.update_work_item_status(path=config, item_id=item.id, status=target_status)
+    if reject_kind == _REWORK_REJECT_KIND:
+        # The human rework entry stamps the SAME marker the AI-fail entry does:
+        # the two rework entries must not diverge in selectability, so the valve
+        # an operator is offered is not a dead end.
+        update_work_item_rework_pending(path=config, item_id=item.id, value=True)
     return valve_success(
         aid=aid,
         wid=item.id,

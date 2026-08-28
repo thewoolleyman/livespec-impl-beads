@@ -116,12 +116,27 @@ def _install_valve_store(
         assert path is config
         updates.append({"item_id": item_id, "status": status, "assignee": assignee})
 
+    def fake_update_work_item_rework_pending(
+        *,
+        path: StoreConfig,
+        item_id: str,
+        value: bool,
+    ) -> None:
+        assert path is config
+        updates.append({"item_id": item_id, "rework_pending": value})
+
     monkeypatch.setattr(
         drive_valves, "resolve_store_config", fake_resolve_store_config, raising=False
     )
     monkeypatch.setattr(drive_valves.store, "read_work_items", fake_read_work_items, raising=False)
     monkeypatch.setattr(
         drive_valves.store, "update_work_item_status", fake_update_work_item_status, raising=False
+    )
+    monkeypatch.setattr(
+        drive_valves,
+        "update_work_item_rework_pending",
+        fake_update_work_item_rework_pending,
+        raising=False,
     )
     return updates
 
@@ -361,7 +376,13 @@ def test_run_action_reject_routes_acceptance_item(
     result = run_action(repo=repo, action_id=action_id, runner=_Runner(results=[]))
 
     assert result["status"] == "green"
-    assert updates == [{"item_id": "bd-ib-123", "status": target_status, "assignee": None}]
+    # The human rework entry stamps the marker in the same disposition that
+    # routes the item, so the valve is not a dead end: a marked active item is
+    # what the rework re-dispatch selects on.
+    assert updates == [
+        {"item_id": "bd-ib-123", "status": target_status, "assignee": None},
+        {"item_id": "bd-ib-123", "rework_pending": True},
+    ]
     assert result["journal"] == {
         "actor": "operator",
         "stage": stage,

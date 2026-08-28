@@ -11,11 +11,12 @@ from livespec_orchestrator_beads_fabro.commands._needs_attention_stranded_dispat
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
 
-def _item(*, id_: str, status: str = "active") -> WorkItem:
+def _item(*, id_: str, status: str = "active", rework_pending: bool = False) -> WorkItem:
     return WorkItem(
         id=id_,
         type="task",
         status=status,  # type: ignore[arg-type]
+        rework_pending=rework_pending,
         title=f"{id_} title",
         description="d",
         origin="freeform",
@@ -67,6 +68,33 @@ def test_stranded_dispatch_items_render_reconcile_handoff(tmp_path: Path) -> Non
     assert [item.id for item in attention] == ["host-only:stranded-dispatch:bd-active"]
     assert attention[0].handoff.kind == "shell"
     assert "reconcile-merged" in attention[0].handoff.command
+
+
+def test_a_rework_pending_item_is_never_reported_as_stranded(tmp_path: Path) -> None:
+    """The marker partitions the two populations that share one shape.
+
+    A marked item is `active` with no live lock BY DESIGN — the very shape this
+    surface reads as stranded — so without the discriminator the sanctioned
+    rework park would be surfaced as a leak. The unmarked sibling carrying the
+    identical journal evidence is the control: it still surfaces, which is what
+    proves the marked item's absence is the marker's doing.
+    """
+    _write_journal_lines(
+        tmp_path,
+        records=[_outcome(), _outcome(work_item_id="bd-marked")],
+    )
+
+    attention = stranded_dispatch_items(
+        project_root=tmp_path,
+        repo="repo",
+        items=[
+            _item(id_="bd-active"),
+            _item(id_="bd-marked", rework_pending=True),
+        ],
+        live_lock_lookup=_no_live_lock,
+    )
+
+    assert [item.id for item in attention] == ["host-only:stranded-dispatch:bd-active"]
 
 
 def test_stranded_dispatch_items_render_release_handoff_for_pre_branch_death(

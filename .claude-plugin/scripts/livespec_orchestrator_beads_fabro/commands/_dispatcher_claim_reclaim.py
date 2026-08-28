@@ -39,10 +39,19 @@ class ActiveClaimHold:
 
 @dataclass(frozen=True, kw_only=True)
 class ActiveClaimAccounting:
+    """The accounting's own verdict over the `active` rows, class by class.
+
+    `rework_pending_active_ids` is EXPOSED rather than merely excluded from
+    `active_count`: a caller composing capacity truth must consume this
+    accounting's verdict, and re-deriving the rework class from the raw ledger
+    label would put a second authority on the same question.
+    """
+
     active_count: int
     live_lock_active_ids: tuple[str, ...]
     green_terminal_active_ids: tuple[str, ...]
     journal_unreadable_active_ids: tuple[str, ...]
+    rework_pending_active_ids: tuple[str, ...] = ()
     actionable_holds: tuple[ActiveClaimHold, ...] = field(default=(), compare=False)
 
 
@@ -90,12 +99,21 @@ def _claimed_active_accounting(
     live_lock_active_ids: list[str] = []
     green_terminal_active_ids: list[str] = []
     journal_unreadable_active_ids: list[str] = []
+    rework_pending_active_ids: list[str] = []
     actionable_holds: list[ActiveClaimHold] = []
     for item in items:
         if item.status != "active":
             continue
         if live_dispatch_lock(repo=repo, work_item_id=item.id) is not None:
             live_lock_active_ids.append(item.id)
+            continue
+        if item.rework_pending:
+            # A marked, lock-less `active` row is a SANCTIONED park awaiting its
+            # fix-forward re-dispatch, not a leak: excluded from the capacity
+            # count and never recorded as an abandoned claim. The classification
+            # sits after the live-lock check because the double-selection guard
+            # is the lock, never the marker.
+            rework_pending_active_ids.append(item.id)
             continue
         if histories is None:
             histories = _terminal_histories(journal=journal)
@@ -127,6 +145,7 @@ def _claimed_active_accounting(
         live_lock_active_ids=tuple(live_lock_active_ids),
         green_terminal_active_ids=tuple(green_terminal_active_ids),
         journal_unreadable_active_ids=tuple(journal_unreadable_active_ids),
+        rework_pending_active_ids=tuple(rework_pending_active_ids),
         actionable_holds=tuple(actionable_holds),
     )
 

@@ -66,6 +66,16 @@ __all__: list[str] = [
 ]
 
 _RECONCILE_MERGED_ALLOWED_STATUSES = frozenset({"active", "backlog", "ready", "blocked"})
+# The refusal for a rework-pending item, which NAMES the route that replaces
+# this valve. It is deliberately unconditional on `--force`: forcing past it
+# would re-run a post-run disposition that already ran and chose rework.
+_REWORK_PENDING_REFUSAL = (
+    "ERROR: reconcile-merged refused: work-item {item_id} carries rework:pending, so its "
+    "dispatch already COMPLETED its post-run disposition and that disposition's outcome "
+    "was rework. Drive the fix-forward rework re-dispatch instead — the next dispatcher "
+    "drain pass, or `dispatcher.py dispatch --repo {repo} --item {item_id}`. --force does "
+    "not bypass this refusal.\n"
+)
 
 
 def run_reconcile_merged_command(
@@ -127,12 +137,9 @@ def _reconcile_preflight(*, args: argparse.Namespace, repo: Path) -> _ReconcileP
     if item is None:
         _ = write_stderr(text=f"ERROR: work-item {args.item} not found\n")
         return EXIT_PRECONDITION_ERROR
-    if item.status not in _RECONCILE_MERGED_ALLOWED_STATUSES:
-        detail = (
-            f"ERROR: reconcile-merged expected active or parked item {item.id}; "
-            f"found {item.status}\n"
-        )
-        _ = write_stderr(text=detail)
+    item_refusal = _item_precondition_refusal(item=item, repo=repo)
+    if item_refusal is not None:
+        _ = write_stderr(text=item_refusal)
         return EXIT_PRECONDITION_ERROR
     janitor, janitor_ok = parse_janitor(raw=args.janitor)
     if not janitor_ok:
@@ -143,6 +150,24 @@ def _reconcile_preflight(*, args: argparse.Namespace, repo: Path) -> _ReconcileP
             _ = write_stderr(text=live_detail)
             return EXIT_PRECONDITION_ERROR
     return _ReconcilePreflight(item=item, janitor=janitor)
+
+
+def _item_precondition_refusal(*, item: WorkItem, repo: Path) -> str | None:
+    """The two refusals decided by the item's own ledger state, in order.
+
+    Rework-pending is checked FIRST because it binds WHATEVER the item's
+    status is, so a marked `acceptance` item is refused here rather than
+    reaching the status gate; and it sits ahead of the `--force`-gated live
+    lock check in the caller so `--force` cannot reach past it.
+    """
+    if item.rework_pending:
+        return _REWORK_PENDING_REFUSAL.format(item_id=item.id, repo=repo)
+    if item.status not in _RECONCILE_MERGED_ALLOWED_STATUSES:
+        return (
+            f"ERROR: reconcile-merged expected active or parked item {item.id}; "
+            f"found {item.status}\n"
+        )
+    return None
 
 
 def _live_dispatch_refusal(*, args: argparse.Namespace, repo: Path, item: WorkItem) -> str | None:

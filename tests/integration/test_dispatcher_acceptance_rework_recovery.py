@@ -6,20 +6,19 @@ store/client seam against the in-memory `FakeBeadsClient` (the hermetic CI
 backend). Only the acceptance pass is stood in, so the routing decision, the
 journal records, and the ledger writes are the production code paths.
 
-The defect this binds: the under-cap FAIL returned every item to `active`,
-which targeted dispatch does not admit, and its `ai-fail-auto-rework`
-disposition record named no recovery at all. An already-merged item whose
-acceptance failed on an acceptance-criteria defect was therefore parked where
-neither `dispatch --item` nor the record itself could route it forward, and the
-natural operator move — move it to `ready` and re-dispatch — produced no new
-pull request because the work was already merged.
+What this binds, per the ratified rework-pending re-dispatch contract: the
+under-cap FAIL parks the item `active` and STAMPS `rework:pending` in the same
+disposition. The marker is what makes the park reachable — it is the drain's
+selection input, and `dispatch --item` accepts a marked item — which is exactly
+what an earlier `active` return lacked when it was reachable by no route at all.
 
-- A merged failed item lands in a status that is BOTH recoverable through
-  `reconcile-merged` and admissible to targeted dispatch, and its disposition
-  record names `reconcile-merged` plus the ordering that the criteria defect is
-  fixed BEFORE `reconcile-merged` runs.
-- An unmerged failed item is still routed to `ready`, so targeted dispatch
-  re-admits it by the ordinary route and no recovery valve is advertised.
+- A merged failed item is parked `active` carrying the marker, and its
+  disposition record names the fix-forward rework re-dispatch plus the ordering
+  that the criteria defect is fixed BEFORE that re-dispatch runs. It does NOT
+  name `reconcile-merged`, which refuses a marked item precisely because this
+  disposition already ran.
+- An unmerged failed item is parked the same way and advertises no recovery
+  clause: the ordinary rework re-dispatch IS the whole route.
 """
 
 from __future__ import annotations
@@ -33,7 +32,6 @@ from livespec_orchestrator_beads_fabro._beads_client import reset_fake_singleton
 from livespec_orchestrator_beads_fabro.commands import _dispatcher_completion
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
-from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_selection import ready_items
 from livespec_orchestrator_beads_fabro.store import (
     append_work_item,
     materialize_work_items,
@@ -130,12 +128,6 @@ def _stored() -> dict[str, WorkItem]:
     return materialize_work_items(records=read_work_items(path=_config()))
 
 
-def _targeted_dispatch_admits(*, repo: Path, item_id: str) -> bool:
-    """Ask the SAME selection authority `dispatch --item` narrows against."""
-    candidates = ready_items(items=list(_stored().values()), repo=repo)
-    return item_id in {candidate.id for candidate in candidates}
-
-
 def _rework_disposition(*, journal: JournalFile) -> dict[str, object]:
     records = [json.loads(line) for line in journal.path.read_text(encoding="utf-8").splitlines()]
     return next(
@@ -169,7 +161,7 @@ def _fail_acceptance(
     )
 
 
-def test_merged_failed_acceptance_lands_a_recoverable_dispatchable_status(
+def test_merged_failed_acceptance_parks_marked_and_names_the_rework_route(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -187,23 +179,22 @@ def test_merged_failed_acceptance_lands_a_recoverable_dispatchable_status(
     )
 
     stored = _stored()[item.id]
-    # `ready` is BOTH a status `reconcile-merged` accepts and the status
-    # targeted dispatch admits, so the merged item is left recoverable instead
-    # of stranded in `active`, which neither route reaches.
-    assert (stored.status, stored.blocked_reason) == ("ready", None)
-    assert _targeted_dispatch_admits(repo=repo, item_id=item.id)
+    # Parked `active` and MARKED: the marker is the selection input the rework
+    # re-dispatch reads, so the park is visible and brief rather than stranded.
+    assert (stored.status, stored.blocked_reason) == ("active", None)
+    assert stored.rework_pending is True
     disposition = _rework_disposition(journal=journal)
-    assert disposition["recovery"] == "reconcile-merged"
+    assert disposition["recovery"] == "rework-re-dispatch"
     ordering = disposition["recovery_ordering"]
     assert isinstance(ordering, str)
-    # The record carries the ORDERING, not merely the route name: running
-    # `reconcile-merged` first re-fails on the same criteria fragment.
+    # The record carries the ORDERING, not merely the route name: re-dispatching
+    # first re-fails on the same criteria fragment.
     assert "acceptance-criteria defect" in ordering
-    assert "BEFORE running reconcile-merged" in ordering
+    assert "BEFORE the rework " in ordering
     assert "acceptance_rework_cap" in ordering
 
 
-def test_unmerged_failed_acceptance_is_routed_to_ready_for_re_admission(
+def test_unmerged_failed_acceptance_parks_marked_without_a_recovery_clause(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -221,10 +212,10 @@ def test_unmerged_failed_acceptance_is_routed_to_ready_for_re_admission(
     )
 
     stored = _stored()[item.id]
-    assert (stored.status, stored.blocked_reason) == ("ready", None)
-    assert _targeted_dispatch_admits(repo=repo, item_id=item.id)
+    assert (stored.status, stored.blocked_reason) == ("active", None)
+    assert stored.rework_pending is True
     disposition = _rework_disposition(journal=journal)
-    # Nothing has merged, so no reconciliation route is advertised: the ordinary
-    # re-admission through `dispatch --item` IS the whole recovery.
+    # Nothing has merged, so no fix-forward ordering is advertised: the ordinary
+    # rework re-dispatch IS the whole recovery.
     assert "recovery" not in disposition
     assert "recovery_ordering" not in disposition

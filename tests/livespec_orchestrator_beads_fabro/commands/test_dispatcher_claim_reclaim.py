@@ -246,11 +246,59 @@ def test_claimed_active_projection_counts_unreadable_journal_without_writing(
     assert tmp_path.is_dir()
 
 
-def _item(*, item_id: str, status: str) -> WorkItem:
+def test_rework_pending_active_row_is_exposed_not_counted_and_not_abandoned(
+    tmp_path: Path,
+) -> None:
+    """The sanctioned park is its own readable class, not a silent exclusion.
+
+    A caller composing capacity truth must consume THIS verdict; exposing the
+    class is what keeps it from re-deriving the rework class from the raw
+    ledger label and becoming a second authority on the same question.
+    """
+    marked = _item(item_id="bd-rework-park", status="active", rework_pending=True)
+    failed = _item(item_id="bd-failed-claim", status="active")
+    journal = JournalFile(path=tmp_path / "journal.jsonl")
+    journal.append(record={"stage": "ledger-admit", "work_item_id": failed.id})
+    journal.append(
+        record={
+            "stage": "outcome",
+            "outcome": {"work_item_id": failed.id, "status": "failed", "stage": "fabro-run"},
+        }
+    )
+
+    accounting = claimed_active_accounting(repo=tmp_path, items=[marked, failed], journal=journal)
+
+    assert accounting.rework_pending_active_ids == (marked.id,)
+    assert accounting.active_count == 0
+    abandoned = [
+        record
+        for record in _records(path=journal.path)
+        if record["stage"] == "dispatch-claim-abandoned"
+    ]
+    # The unmarked failed sibling IS recorded abandoned, which is what proves
+    # the marked row's absence here is the marker's doing and not a no-op.
+    assert [record["work_item_id"] for record in abandoned] == [failed.id]
+
+
+def test_rework_pending_marker_never_pre_empts_a_live_dispatch_lock(tmp_path: Path) -> None:
+    """The double-selection guard is the lock, never the marker."""
+    marked = _item(item_id="bd-rework-locked", status="active", rework_pending=True)
+    journal = JournalFile(path=tmp_path / "journal.jsonl")
+    _ = write_dispatch_lock(repo=tmp_path, work_item_id=marked.id, dispatch_id="live-rework")
+
+    accounting = claimed_active_accounting(repo=tmp_path, items=[marked], journal=journal)
+
+    assert accounting.live_lock_active_ids == (marked.id,)
+    assert accounting.rework_pending_active_ids == ()
+    assert accounting.active_count == 1
+
+
+def _item(*, item_id: str, status: str, rework_pending: bool = False) -> WorkItem:
     return WorkItem(
         id=item_id,
         type="task",
         status=status,
+        rework_pending=rework_pending,
         title="Claim",
         description="Dispatch claim fixture.",
         origin="freeform",
