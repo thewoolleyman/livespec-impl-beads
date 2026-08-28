@@ -10,9 +10,8 @@ from pathlib import Path
 from typing import Protocol, cast
 
 import pytest
-from livespec_orchestrator_beads_fabro.commands import _dispatcher_run_checks
+from livespec_orchestrator_beads_fabro.commands import _dispatcher_run_checks, _dispatcher_step_gate
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import CommandResult
-from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import invoker_from_args
 
 _MODULE_PATH = (
     Path(".claude-plugin/scripts/livespec_orchestrator_beads_fabro/commands")
@@ -41,6 +40,13 @@ _REPO_VIEW = (
     "--jq",
     ".defaultBranchRef.name",
 )
+# The source-checkout preflight's own git seam. It shares this runner because it
+# shares the pre-dispatch gate: it runs FIRST and is fail-closed, so a runner
+# answering only `gh` would refuse before the master-CI lookup under test ran.
+_IS_WORKTREE = ("git", "rev-parse", "--is-inside-work-tree")
+_ORIGIN_REFS = ("git", "for-each-ref", "--format=%(refname:short)", "refs/remotes/origin")
+_HEAD_SHORT = ("git", "rev-parse", "--short", "HEAD")
+_HEAD_ANCESTOR = ("git", "merge-base", "--is-ancestor", "HEAD", f"origin/{_DEFAULT_BRANCH}")
 
 
 class _MasterCiRefusal(Protocol):
@@ -134,6 +140,10 @@ def _results(
     workflow: str = "CI",
 ) -> dict[tuple[str, ...], CommandResult]:
     return {
+        _IS_WORKTREE: _result(stdout="true\n"),
+        _ORIGIN_REFS: _result(stdout=f"origin/{_DEFAULT_BRANCH}\n"),
+        _HEAD_SHORT: _result(stdout="abc1234\n"),
+        _HEAD_ANCESTOR: _result(),
         _ORIGIN_HEAD: (
             origin_head
             if origin_head is not None
@@ -532,20 +542,6 @@ def test_lever_env_cannot_make_a_red_default_branch_pass(
     assert _outcome(repo=tmp_path, runner=runner).refusal is not None
 
 
-def test_the_journal_helper_writes_the_outcome_record(tmp_path: Path) -> None:
-    module = importlib.import_module(_MODULE_NAME)
-    journal = tmp_path / "journal.jsonl"
-    outcome = _outcome(repo=tmp_path, runner=_Runner(results=_results()))
-
-    module.journal_master_ci_outcome(
-        journal_path=journal,
-        identity=invoker_from_args(args=argparse.Namespace(invoker=None)),
-        outcome=outcome,
-    )
-
-    assert json.loads(journal.read_text(encoding="utf-8"))["status"] == "passed"
-
-
 def test_dispatch_preamble_refuses_before_receiver_or_admission(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -555,22 +551,19 @@ def test_dispatch_preamble_refuses_before_receiver_or_admission(
     runner = _Runner(results=_results(jobs=_result(stdout=_jobs_payload(job_conclusion="failure"))))
     _ = (tmp_path / "fabro").write_text("#!/bin/sh\n", encoding="utf-8")
     (tmp_path / "fabro").chmod(0o755)
-    monkeypatch.setattr(_dispatcher_run_checks, "ShellCommandRunner", lambda: runner)
-
-    def source_preflight_passes(*, repo: Path, runner: _Runner) -> None:
-        _ = (repo, runner)
-
-    monkeypatch.setattr(
-        _dispatcher_run_checks,
-        "source_checkout_preflight_refusal",
-        source_preflight_passes,
-    )
+    monkeypatch.setattr(_dispatcher_step_gate, "ShellCommandRunner", lambda: runner)
 
     assert _dispatcher_run_checks.dispatch_preamble(args=args, repo=tmp_path) == (
         None,
         _EXIT_PRECONDITION_ERROR,
     )
-    assert json.loads(journal.read_text(encoding="utf-8"))["stage"] == "master-ci-preflight"
+    records = [
+        json.loads(line) for line in journal.read_text(encoding="utf-8").splitlines() if line
+    ]
+    # Both pre-dispatch steps journal, in gate order: the source checkout passes
+    # and says so, then the master-CI step refuses.
+    assert [record["step"] for record in records] == ["source-checkout", "master-ci"]
+    assert records[-1]["stage"] == "master-ci-preflight"
 
 
 def test_existing_in_sandbox_master_ci_gate_and_janitor_aggregate_are_unchanged() -> None:

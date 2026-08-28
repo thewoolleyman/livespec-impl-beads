@@ -233,6 +233,16 @@ class DispatchOutcome:
     `status` is one of `green` / `failed` / `blocked` (blocked = the run
     parked at the in-loop human gate; surfaced to the operator, never
     treated as a failure, never auto-resumed).
+
+    `step` / `missing_integration_point` / `remedy` are the STRUCTURED half
+    of a degraded post-merge outcome: the stable step identifier from the
+    closed vocabulary, the required integration point the governed
+    repository did not provide, and how to provide it. They are fields
+    rather than prose inside `detail` because the NEXT dispatch's
+    pre-dispatch gate has to match on them -- free prose describing the
+    same failure cannot be matched against a waiver entry, nor against the
+    re-verification that clears the refusal. They are None on every outcome
+    that is not a degraded step outcome.
     """
 
     work_item_id: str
@@ -241,6 +251,9 @@ class DispatchOutcome:
     pr_number: int | None
     merge_sha: str | None
     detail: str
+    step: str | None = None
+    missing_integration_point: str | None = None
+    remedy: str | None = None
     fabro_run_id: str | None = None
     fabro_failure_cause: str | None = None
     fabro_failure_category: str | None = None

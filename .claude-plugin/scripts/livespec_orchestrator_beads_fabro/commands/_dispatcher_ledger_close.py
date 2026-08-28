@@ -188,13 +188,23 @@ def emit_outcomes(*, outcomes: list[DispatchOutcome], as_json: bool) -> None:
         _ = write_stdout(text=f"{line}  {outcome.detail}\n")
 
 
+# Optional outcome fields that are DROPPED from the emitted payload when unset,
+# so an ordinary outcome does not carry a column of nulls for the two shapes
+# that populate them: a fabro failure, and a degraded step outcome.
+_OPTIONAL_OUTCOME_FIELDS: tuple[str, ...] = (
+    "fabro_failure_cause",
+    "fabro_failure_category",
+    "fabro_failure_signature",
+    "missing_integration_point",
+    "remedy",
+    "step",
+)
+
+
 def _outcome_payload(*, outcome: DispatchOutcome) -> dict[str, object]:
     payload = asdict(outcome)
-    if outcome.fabro_failure_cause is None:
-        _ = payload.pop("fabro_failure_cause")
-    if outcome.fabro_failure_category is None:
-        _ = payload.pop("fabro_failure_category")
-    if outcome.fabro_failure_signature is None:
-        _ = payload.pop("fabro_failure_signature")
+    for name in _OPTIONAL_OUTCOME_FIELDS:
+        if payload.get(name) is None:
+            _ = payload.pop(name)
     _ = payload.pop("provider_usage_limit", None)
     return payload

@@ -22,6 +22,8 @@ call site from the repository's own pipeline passing.
 WHAT is looked up comes from `_dispatcher_master_ci_pipeline`; the git and forge
 reads come from `_dispatcher_master_ci_lookups`; HOW an outcome reads comes from
 `_dispatcher_master_ci_refusals`. This module is the classifier between them.
+WHERE an outcome is journaled is none of the four: the pre-dispatch step gate
+owns one journal handle and appends every step's record through it.
 """
 
 from __future__ import annotations
@@ -33,8 +35,6 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandResult,
     CommandRunner,
 )
-from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import InvokerIdentity
-from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
 from livespec_orchestrator_beads_fabro.commands._dispatcher_master_ci_lookups import (
     UNKNOWN_RUN,
     CiJob,
@@ -65,7 +65,6 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_master_ci_refusals i
 )
 
 __all__: list[str] = [
-    "journal_master_ci_outcome",
     "master_ci_preflight",
 ]
 
@@ -111,18 +110,6 @@ def master_ci_preflight(*, repo: Path, runner: CommandRunner) -> MasterCiOutcome
             remedy=BRANCH_REMEDY,
         )
     return _classify_branch(repo=repo, runner=runner, pipeline=pipeline, branch=branch)
-
-
-def journal_master_ci_outcome(
-    *, journal_path: Path, identity: InvokerIdentity, outcome: MasterCiOutcome
-) -> None:
-    """Persist the step's outcome -- pass or refusal -- in the dispatch journal.
-
-    The invoking dispatch's own resolved identity is threaded in rather than
-    re-derived, so a dispatch that asserted `--invoker` is not downgraded to the
-    environment or the fallback mark on the one record that says it refused.
-    """
-    JournalFile(path=journal_path, identity=identity).append(record=outcome.record)
 
 
 def _classify_branch(
