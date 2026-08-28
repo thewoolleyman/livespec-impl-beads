@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import textwrap
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -245,6 +246,147 @@ def test_acceptance_pass_keeps_unmarked_one_assertion_per_line_separate(
             reason="matched merged diff evidence",
         ),
     )
+
+
+_MET_ASSERTION = (
+    "The dispatcher releases the ledger claim when a dispatch fails before a fabro "
+    "run identifier is recorded."
+)
+_UNMET_ASSERTION = (
+    "The changelog gains an entry describing the escalation ladder an operator "
+    "follows once a slice parks."
+)
+_WRAPPED_EVIDENCE_DIFF = (
+    "diff --git a/dispatch.py b/dispatch.py\n"
+    "+release the ledger claim when a dispatch fails before a fabro run identifier\n"
+    "+is recorded, so a subsequent dispatch of the same slice is admitted normally\n"
+)
+
+
+def _reflowed(*, assertions: tuple[str, ...], width: int) -> str:
+    return "\n\n".join(textwrap.fill(assertion, width=width) for assertion in assertions)
+
+
+def _one_paragraph(*, assertions: tuple[str, ...], width: int) -> str:
+    # Every assertion in ONE hard-wrapped paragraph, so the wrap decides where
+    # each sentence boundary falls relative to a line break.
+    return textwrap.fill(
+        " ".join(assertions), width=width, break_on_hyphens=False, break_long_words=False
+    )
+
+
+def test_acceptance_pass_verdict_is_independent_of_criteria_wrap_width(
+    tmp_path: Path,
+) -> None:
+    # The SAME criteria content, hard-wrapped at two authoring widths. Segmenting
+    # by line makes the wrap width decide the verdict; folding continuations makes
+    # the two indistinguishable.
+    assertions = (
+        _MET_ASSERTION,
+        "A subsequent dispatch of the same slice is admitted normally rather than "
+        "refused as unripe.",
+    )
+    runner = _Runner(result=CommandResult(exit_code=0, stdout=_WRAPPED_EVIDENCE_DIFF, stderr=""))
+
+    narrow = run_acceptance_pass(
+        repo=tmp_path,
+        item=_item(criteria=_reflowed(assertions=assertions, width=44)),
+        outcome=_outcome(),
+        runner=runner,
+    )
+    wide = run_acceptance_pass(
+        repo=tmp_path,
+        item=_item(criteria=_reflowed(assertions=assertions, width=88)),
+        outcome=_outcome(),
+        runner=runner,
+    )
+
+    assert narrow.verdict == wide.verdict == "PASS"
+    assert narrow.criteria == wide.criteria
+    assert tuple(check.text for check in narrow.criteria) == assertions
+
+
+def test_acceptance_pass_still_fails_a_genuinely_unmet_wrapped_assertion(
+    tmp_path: Path,
+) -> None:
+    # The discriminating control for the fold: an assertion the merged diff does
+    # not carry must still block, whole rather than in fragments.
+    runner = _Runner(result=CommandResult(exit_code=0, stdout=_WRAPPED_EVIDENCE_DIFF, stderr=""))
+
+    result = run_acceptance_pass(
+        repo=tmp_path,
+        item=_item(criteria=_reflowed(assertions=(_MET_ASSERTION, _UNMET_ASSERTION), width=44)),
+        outcome=_outcome(),
+        runner=runner,
+    )
+
+    assert result.verdict == "FAIL"
+    assert result.criteria == (
+        CriterionCheck(
+            text=_MET_ASSERTION,
+            passed=True,
+            reason="matched merged diff evidence",
+        ),
+        CriterionCheck(
+            text=_UNMET_ASSERTION,
+            passed=False,
+            reason="insufficient merged diff evidence",
+        ),
+    )
+
+
+_MULTI_SENTENCE_ASSERTIONS = (
+    _MET_ASSERTION,
+    "A subsequent dispatch of the same slice is admitted normally rather than refused as unripe.",
+)
+# Widths that place the paragraph's internal sentence boundary in every position
+# a line break can occupy relative to it.
+_PARAGRAPH_WIDTHS = tuple(range(56, 160))
+
+
+def test_acceptance_pass_verdict_is_independent_of_where_a_wrap_falls_inside_a_paragraph(
+    tmp_path: Path,
+) -> None:
+    # The two assertions share ONE paragraph, so at some widths a line ends
+    # exactly on the boundary between them and at others it does not. Segmenting
+    # by line made that difference decide the verdict.
+    runner = _Runner(result=CommandResult(exit_code=0, stdout=_WRAPPED_EVIDENCE_DIFF, stderr=""))
+
+    results = {
+        run_acceptance_pass(
+            repo=tmp_path,
+            item=_item(criteria=_one_paragraph(assertions=_MULTI_SENTENCE_ASSERTIONS, width=width)),
+            outcome=_outcome(),
+            runner=runner,
+        ).criteria
+        for width in _PARAGRAPH_WIDTHS
+    }
+
+    assert len(results) == 1
+    assert tuple(check.text for check in results.pop()) == _MULTI_SENTENCE_ASSERTIONS
+
+
+def test_acceptance_pass_still_fails_an_unmet_sentence_of_a_wrapped_paragraph(
+    tmp_path: Path,
+) -> None:
+    # The discriminating control for the paragraph case: an assertion the merged
+    # diff does not carry must still block at every wrap width, rather than
+    # riding in on the evidence of the sentence it shares a paragraph with.
+    runner = _Runner(result=CommandResult(exit_code=0, stdout=_WRAPPED_EVIDENCE_DIFF, stderr=""))
+
+    verdicts = {
+        run_acceptance_pass(
+            repo=tmp_path,
+            item=_item(
+                criteria=_one_paragraph(assertions=(_MET_ASSERTION, _UNMET_ASSERTION), width=width)
+            ),
+            outcome=_outcome(),
+            runner=runner,
+        ).verdict
+        for width in _PARAGRAPH_WIDTHS
+    }
+
+    assert verdicts == {"FAIL"}
 
 
 def test_acceptance_pass_fails_when_only_one_term_matches_unrelated_diff(

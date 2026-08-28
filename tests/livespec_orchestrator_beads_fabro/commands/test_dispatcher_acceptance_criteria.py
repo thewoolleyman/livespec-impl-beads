@@ -1,0 +1,281 @@
+"""Tests for acceptance-criteria segmentation and deterministic evidence checks."""
+
+from __future__ import annotations
+
+import textwrap
+
+from livespec_orchestrator_beads_fabro.commands._dispatcher_acceptance_criteria import (
+    criteria_checks,
+    criteria_lines,
+)
+
+# The bd-ib-t02s fixture: TWO sentences hard-wrapped flush-left at authoring
+# width. Every line but the first is a continuation carrying no indent and no
+# list marker, which is what wrapped prose looks like. The pair also carries the
+# two shapes that used to make segmentation a function of the wrap: a colon in
+# the middle of the first sentence, and a sentence boundary in the middle of the
+# third line.
+_T02S_CRITERIA = (
+    "A dispatch that fails AFTER the ledger claim is taken but BEFORE a fabro run id is\n"
+    "recorded leaves the work-item dispatchable again: status back to its pre-admission\n"
+    "value and the assignee cleared. A subsequent dispatch of the same item is admitted\n"
+    "normally rather than refused as not in the ready set.\n"
+)
+_T02S_ASSERTIONS = (
+    "A dispatch that fails AFTER the ledger claim is taken but BEFORE a fabro run id is "
+    "recorded leaves the work-item dispatchable again: status back to its pre-admission "
+    "value and the assignee cleared.",
+    "A subsequent dispatch of the same item is admitted normally rather than refused as "
+    "not in the ready set.",
+)
+# A merged diff that carries the work the fixture describes. It deliberately
+# carries exactly ONE term of the fixture's tail fragment ("ready"), which is
+# what made that fragment fail with "insufficient merged diff evidence" while
+# its three siblings passed.
+_T02S_DIFF = (
+    "diff --git a/x b/x\n"
+    "+release the ledger claim when a dispatch fails before a fabro run id is recorded\n"
+    "+restore the pre-admission status and clear the assignee\n"
+    "+a subsequent dispatch is admitted for the same work-item\n"
+    "+refuse a dispatch whose item is not ready\n"
+)
+# The same diff with the SECOND assertion's work removed, so that assertion is
+# genuinely unmet while its wrapped sibling is met.
+_T02S_PARTIAL_DIFF = (
+    "diff --git a/x b/x\n"
+    "+release the ledger claim when a dispatch fails before a fabro run id is recorded\n"
+    "+restore the pre-admission status and clear the assignee\n"
+)
+# This work-item's own final criterion — `just check is green with nothing
+# skipped.` — opens with a LOWERCASE token. A sentence split that required the
+# following word to be capitalized merged such a criterion into its predecessor,
+# where it rode in on that predecessor's evidence instead of being judged.
+_LOWERCASE_OPENER_ASSERTIONS = (
+    "A dispatch that fails before a fabro run id is recorded releases its ledger claim.",
+    "just check is green with nothing skipped.",
+)
+_LOWERCASE_OPENER_CRITERIA = "\n".join(_LOWERCASE_OPENER_ASSERTIONS) + "\n"
+# A merged diff carrying the FIRST assertion's work and none of the second's, so
+# the second is genuinely unmet and must not ride in on the first's evidence.
+_LOWERCASE_OPENER_DIFF = (
+    "diff --git a/x b/x\n"
+    "+release the ledger claim when a dispatch fails before a fabro run id is recorded\n"
+)
+# A dotted VERSION that genuinely ENDS its sentence. Treating every token that
+# merely contains a dot as an abbreviation fused this pair into one criterion,
+# where the second assertion — a condition the merged diff does not carry — rode
+# in on the first's evidence instead of being judged.
+_DOTTED_TAIL_ASSERTIONS = (
+    "The dispatcher releases its ledger claim on the build shipped as v0.88.0.",
+    "just check is green with nothing skipped.",
+)
+_DOTTED_TAIL_CRITERIA = "\n".join(_DOTTED_TAIL_ASSERTIONS) + "\n"
+# A merged diff carrying the FIRST assertion's work and none of the second's.
+_DOTTED_TAIL_DIFF = (
+    "diff --git a/x b/x\n+release the ledger claim on the build shipped as v0.88.0\n"
+)
+# Every width a criteria author might plausibly wrap at. `textwrap` is asked not
+# to break on hyphens or inside long words, because doing so edits the CONTENT
+# ("pre-admission" becomes "pre- admission") and this sweep varies the wrap
+# alone.
+_WRAP_WIDTHS = tuple(range(60, 200))
+
+
+def _wrapped(*, text: str, width: int) -> str:
+    return textwrap.fill(text, width=width, break_on_hyphens=False, break_long_words=False)
+
+
+def test_criteria_lines_folds_a_flush_left_wrapped_continuation() -> None:
+    assert criteria_lines(criteria_text=_T02S_CRITERIA) == _T02S_ASSERTIONS
+
+
+def test_t02s_fixture_produces_no_fragment_only_failure() -> None:
+    checks = criteria_checks(
+        criteria_text=_T02S_CRITERIA, merged_diff=_T02S_DIFF, telemetry_passed=False
+    )
+
+    assert [check.text for check in checks] == list(_T02S_ASSERTIONS)
+    assert [check.passed for check in checks] == [True, True]
+    assert {check.reason for check in checks} == {"matched merged diff evidence"}
+
+
+def test_criteria_lines_drops_a_short_all_caps_header_after_a_completed_criterion() -> None:
+    criteria = (
+        "The dispatcher releases the ledger claim on an aborted dispatch.\n"
+        "SCOPE\n"
+        "The dispatcher journals the released claim.\n"
+    )
+
+    assert criteria_lines(criteria_text=criteria) == (
+        "The dispatcher releases the ledger claim on an aborted dispatch.",
+        "The dispatcher journals the released claim.",
+    )
+
+
+def test_criteria_lines_drops_a_dangling_colon_header_and_keeps_its_list() -> None:
+    criteria = "The claim is released.\nDONE looks like:\n- the work-item is dispatchable again\n"
+
+    assert criteria_lines(criteria_text=criteria) == (
+        "The claim is released.",
+        "the work-item is dispatchable again",
+    )
+
+
+def test_criteria_lines_keeps_a_one_word_wrapped_tail_with_its_sentence() -> None:
+    # The livespec-overseer instance: the wrap left the single word "verdict."
+    # on its own line, which no implementation could ever find evidence for.
+    criteria = "The intake record carries the filed item id and the intake\nverdict.\n"
+
+    assert criteria_lines(criteria_text=criteria) == (
+        "The intake record carries the filed item id and the intake verdict.",
+    )
+
+
+def test_criteria_lines_segmentation_is_identical_at_every_wrap_width() -> None:
+    joined = " ".join(_T02S_ASSERTIONS)
+
+    segmentations = {
+        criteria_lines(criteria_text=_wrapped(text=joined, width=width)) for width in _WRAP_WIDTHS
+    }
+
+    assert segmentations == {_T02S_ASSERTIONS}
+
+
+def test_criteria_checks_verdict_is_identical_at_every_wrap_width() -> None:
+    joined = " ".join(_T02S_ASSERTIONS)
+
+    verdicts = {
+        criteria_checks(
+            criteria_text=_wrapped(text=joined, width=width),
+            merged_diff=_T02S_DIFF,
+            telemetry_passed=False,
+        )
+        for width in _WRAP_WIDTHS
+    }
+
+    assert len(verdicts) == 1
+    assert all(check.passed for check in verdicts.pop())
+
+
+def test_a_genuinely_unmet_wrapped_assertion_fails_at_every_wrap_width() -> None:
+    # The discriminating control, run across the same sweep: folding a wrapped
+    # continuation must not let an assertion the merged diff does not carry ride
+    # in on its sibling's evidence.
+    joined = " ".join(_T02S_ASSERTIONS)
+
+    verdicts = {
+        criteria_checks(
+            criteria_text=_wrapped(text=joined, width=width),
+            merged_diff=_T02S_PARTIAL_DIFF,
+            telemetry_passed=False,
+        )
+        for width in _WRAP_WIDTHS
+    }
+
+    assert len(verdicts) == 1
+    checks = verdicts.pop()
+    assert [check.passed for check in checks] == [True, False]
+    assert checks[1].text == _T02S_ASSERTIONS[1]
+    assert checks[1].reason == "insufficient merged diff evidence"
+
+
+def test_criteria_lines_starts_a_new_assertion_at_a_lowercase_sentence() -> None:
+    assert criteria_lines(criteria_text=_LOWERCASE_OPENER_CRITERIA) == _LOWERCASE_OPENER_ASSERTIONS
+
+
+def test_a_lowercase_assertion_is_judged_on_its_own_evidence() -> None:
+    # The discriminating control for the lowercase opener: merging it into its
+    # predecessor produced ONE passing check, so a condition the merged diff
+    # does not carry was reported as met.
+    checks = criteria_checks(
+        criteria_text=_LOWERCASE_OPENER_CRITERIA,
+        merged_diff=_LOWERCASE_OPENER_DIFF,
+        telemetry_passed=False,
+    )
+
+    assert [check.text for check in checks] == list(_LOWERCASE_OPENER_ASSERTIONS)
+    assert [check.passed for check in checks] == [True, False]
+    assert checks[1].reason == "no merged diff or telemetry evidence"
+
+
+def test_a_lowercase_assertion_is_segmented_identically_at_every_wrap_width() -> None:
+    joined = " ".join(_LOWERCASE_OPENER_ASSERTIONS)
+
+    segmentations = {
+        criteria_lines(criteria_text=_wrapped(text=joined, width=width)) for width in _WRAP_WIDTHS
+    }
+
+    assert segmentations == {_LOWERCASE_OPENER_ASSERTIONS}
+
+
+def test_criteria_lines_does_not_split_a_sentence_at_an_abbreviation() -> None:
+    # A dot that closes an abbreviation or a dotted identifier does not end a
+    # sentence, even when a capitalized word follows it.
+    criteria = (
+        "The parser leaves a dotted token alone, e.g. The file\n"
+        "_dispatcher_acceptance_criteria.py folds a wrapped continuation.\n"
+    )
+
+    assert criteria_lines(criteria_text=criteria) == (
+        "The parser leaves a dotted token alone, e.g. The file "
+        "_dispatcher_acceptance_criteria.py folds a wrapped continuation.",
+    )
+
+
+def test_criteria_lines_starts_a_new_assertion_after_a_dotted_version() -> None:
+    assert criteria_lines(criteria_text=_DOTTED_TAIL_CRITERIA) == _DOTTED_TAIL_ASSERTIONS
+
+
+def test_criteria_lines_starts_a_new_assertion_after_a_dotted_filename() -> None:
+    criteria = (
+        "The fold lands in _dispatcher_acceptance_criteria.py.\n"
+        "just check is green with nothing skipped.\n"
+    )
+
+    assert criteria_lines(criteria_text=criteria) == (
+        "The fold lands in _dispatcher_acceptance_criteria.py.",
+        "just check is green with nothing skipped.",
+    )
+
+
+def test_an_assertion_after_a_dotted_version_is_judged_on_its_own_evidence() -> None:
+    # The discriminating control for the dotted tail: fusing the two sentences
+    # produced ONE passing check, so a condition the merged diff does not carry
+    # was reported as met.
+    checks = criteria_checks(
+        criteria_text=_DOTTED_TAIL_CRITERIA,
+        merged_diff=_DOTTED_TAIL_DIFF,
+        telemetry_passed=False,
+    )
+
+    assert [check.text for check in checks] == list(_DOTTED_TAIL_ASSERTIONS)
+    assert [check.passed for check in checks] == [True, False]
+    assert checks[1].reason == "no merged diff or telemetry evidence"
+
+
+def test_a_dotted_tail_is_segmented_identically_at_every_wrap_width() -> None:
+    joined = " ".join(_DOTTED_TAIL_ASSERTIONS)
+
+    segmentations = {
+        criteria_lines(criteria_text=_wrapped(text=joined, width=width)) for width in _WRAP_WIDTHS
+    }
+
+    assert segmentations == {_DOTTED_TAIL_ASSERTIONS}
+
+
+def test_criteria_lines_keeps_a_parenthesized_abbreviation_with_its_sentence() -> None:
+    # The abbreviation control, in the shape that a leading delimiter would hide:
+    # `(e.g` must still read as an initialism rather than as a sentence end.
+    criteria = "The parser folds a wrapped tail (e.g. The one-word one) into its sentence.\n"
+
+    assert criteria_lines(criteria_text=criteria) == (
+        "The parser folds a wrapped tail (e.g. The one-word one) into its sentence.",
+    )
+
+
+def test_criteria_lines_ignores_a_marker_that_carries_no_text() -> None:
+    criteria = "-\n- The dispatcher journals the released claim.\n"
+
+    assert criteria_lines(criteria_text=criteria) == (
+        "The dispatcher journals the released claim.",
+    )
