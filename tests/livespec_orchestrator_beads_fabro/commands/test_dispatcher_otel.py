@@ -188,18 +188,32 @@ class _Recorder:
         self.calls.append(repo)
 
 
+def _arming_args(*, tmp_path: Path) -> argparse.Namespace:
+    """An existing repo whose workflow config is absent: it fails AFTER the arming."""
+    return argparse.Namespace(
+        repo=str(tmp_path),
+        janitor=None,
+        journal=None,
+        fabro_bin=None,
+        workflow=str(tmp_path / "absent-workflow.toml"),
+    )
+
+
 def test_dispatch_command_arms_otel_egress_at_entry(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The `dispatch` command arms the OTel egress plane at entry (before preconditions)."""
     recorder = _Recorder()
     monkeypatch.setattr(_DISPATCH_ARM_TARGET, recorder)
-    missing = tmp_path / "does-not-exist"
-    args = argparse.Namespace(repo=str(missing), janitor=None, journal=None, fabro_bin=None)
-    # A missing repo short-circuits AFTER the arming line; the arming still ran.
+    args = _arming_args(tmp_path=tmp_path)
+    # A missing WORKFLOW CONFIG short-circuits AFTER the arming line; the arming
+    # still ran. The repo itself must EXIST: the master-CI preflight runs in the
+    # preamble, ahead of the arming, and it cannot resolve a default branch for a
+    # directory that is not there — an unprovable refusal that would return before
+    # the line under test rather than after it.
     rc = run_dispatch_command(args=args)
     assert rc == _EXIT_PRECONDITION_ERROR
-    assert recorder.calls == [missing]
+    assert recorder.calls == [tmp_path]
 
 
 def test_loop_command_arms_otel_egress_at_entry(
@@ -208,11 +222,10 @@ def test_loop_command_arms_otel_egress_at_entry(
     """The `loop` command arms the OTel egress plane at entry (before preconditions)."""
     recorder = _Recorder()
     monkeypatch.setattr(_LOOP_ARM_TARGET, recorder)
-    missing = tmp_path / "does-not-exist"
-    args = argparse.Namespace(repo=str(missing), janitor=None, journal=None, fabro_bin=None)
+    args = _arming_args(tmp_path=tmp_path)
     rc = run_loop_command(args=args)
     assert rc == _EXIT_PRECONDITION_ERROR
-    assert recorder.calls == [missing]
+    assert recorder.calls == [tmp_path]
 
 
 def test_arm_otel_egress_arms_both_planes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

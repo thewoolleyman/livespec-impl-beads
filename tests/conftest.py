@@ -171,6 +171,18 @@ GH_STUB_EXIT_ENV = "LIVESPEC_TEST_GH_EXIT"
 GH_STUB_STDOUT_ENV = "LIVESPEC_TEST_GH_STDOUT"
 GH_STUB_LOG_ENV = "LIVESPEC_TEST_GH_LOG"
 
+# The default-convention pipeline the master-CI preflight resolves for a repo
+# that declares no `dispatcher.master_ci` — which is every throwaway repo the
+# dispatch tests build. The preflight is FAIL-CLOSED: it refuses a host it
+# cannot prove green, so a hermetic dispatch test needs a provably-green answer
+# for the same reason it needs a `fabro` binary and a Codex credential. Scripting
+# a specific `gh` outcome still wins; these answers only fill the unscripted
+# default, and the branch answer is deliberately NOT the repo's own primary
+# branch name, so a test passes only if the lookup used the RESOLVED branch.
+_GH_STUB_DEFAULT_BRANCH = "main"
+_GH_STUB_RUN_LIST = '[{"status":"completed","conclusion":"success","databaseId":900001}]'
+_GH_STUB_JOBS = '{"jobs":[{"name":"ci-green","conclusion":"success","status":"completed"}]}'
+
 # A real, executable `gh` stand-in. It never touches the network: it records
 # its argv when asked, replays a scripted stdout, and exits a scripted code
 # (default 1 — the "no observable PR" answer the real `gh` gives in the
@@ -178,6 +190,14 @@ GH_STUB_LOG_ENV = "LIVESPEC_TEST_GH_LOG"
 _GH_STUB_SOURCE = f"""#!/bin/sh
 if [ -n "${{{GH_STUB_LOG_ENV}:-}}" ]; then
   printf '%s\\n' "$*" >> "${GH_STUB_LOG_ENV}"
+fi
+if [ -z "${{{GH_STUB_STDOUT_ENV}:-}}" ] && [ -z "${{{GH_STUB_EXIT_ENV}:-}}" ]; then
+  case "$*" in
+    'auth token') printf 'hermetic-gh-token\\n'; exit 0 ;;
+    *defaultBranchRef*) printf '{_GH_STUB_DEFAULT_BRANCH}\\n'; exit 0 ;;
+    'run list --branch'*) printf '%s' '{_GH_STUB_RUN_LIST}'; exit 0 ;;
+    'run view'*'--json jobs') printf '%s' '{_GH_STUB_JOBS}'; exit 0 ;;
+  esac
 fi
 if [ -n "${{{GH_STUB_STDOUT_ENV}:-}}" ]; then
   printf '%s' "${GH_STUB_STDOUT_ENV}"

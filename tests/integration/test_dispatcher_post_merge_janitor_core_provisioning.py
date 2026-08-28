@@ -337,15 +337,35 @@ def _tool_bin(*, tmp_path: Path) -> Path:
     _write_executable(
         path=tool_bin / "gh",
         text=(
+            # The merge-poll answer is this stand-in's whole original job. The
+            # master-CI preflight now reads the forge too, and it is FAIL-CLOSED,
+            # so an argv it cannot answer refuses the dispatch before any of the
+            # post-merge behaviour under test happens. Each preflight call gets
+            # the answer this fixture's own repo genuinely has: it is created on
+            # `master` with a green convention pipeline.
             "#!/usr/bin/env python3\n"
-            "import json, os\n"
-            "print(json.dumps({\n"
-            "    'number': 104,\n"
-            "    'state': 'MERGED',\n"
-            "    'autoMergeRequest': None,\n"
-            "    'mergeStateStatus': 'CLEAN',\n"
-            "    'mergeCommit': {'oid': os.environ['TEST_MERGE_SHA']},\n"
-            "}))\n"
+            "import json, os, sys\n"
+            "argv = sys.argv[1:]\n"
+            "if argv[:2] == ['auth', 'token']:\n"
+            "    print('hermetic-token')\n"
+            "elif 'defaultBranchRef' in argv:\n"
+            "    print('master')\n"
+            "elif argv[:2] == ['run', 'list']:\n"
+            "    print(json.dumps([\n"
+            "        {'status': 'completed', 'conclusion': 'success', 'databaseId': 4242},\n"
+            "    ]))\n"
+            "elif argv[:2] == ['run', 'view']:\n"
+            "    print(json.dumps({'jobs': [\n"
+            "        {'name': 'ci-green', 'conclusion': 'success', 'status': 'completed'},\n"
+            "    ]}))\n"
+            "else:\n"
+            "    print(json.dumps({\n"
+            "        'number': 104,\n"
+            "        'state': 'MERGED',\n"
+            "        'autoMergeRequest': None,\n"
+            "        'mergeStateStatus': 'CLEAN',\n"
+            "        'mergeCommit': {'oid': os.environ['TEST_MERGE_SHA']},\n"
+            "    }))\n"
         ),
     )
     _write_executable(

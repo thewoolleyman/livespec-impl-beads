@@ -1,11 +1,27 @@
-"""Host-side master-CI preflight for Fabro dispatch admission safety."""
+"""Host-side master-CI preflight for Fabro dispatch admission safety.
+
+ABSENCE OF PROOF REFUSES. The three fail-open cases this preflight used to
+document -- no `gh` binary, no stored `gh` credential, no runs yet -- are
+RETIRED: each is now an unprovable refusal naming its remedy and the committed
+step-waiver escape, and a still-pending latest run refuses too rather than
+proceeding on a run nobody has read yet. A host that cannot check is a host that
+cannot prove the default branch green, and proceeding on that was the whole
+defect (`SPECIFICATION/contracts.md`, the master-CI pipeline resolution clause).
+
+THE BRANCH IS NEVER HARD-CODED. It is resolved per the ratified
+default-branch-resolution rule, because under the retired branch literal an
+adopter whose primary branch is `main` had a branch they do not have looked up
+on their behalf -- and got a clean, plausible, empty answer for it.
+
+WHAT is looked up comes from `_dispatcher_master_ci_pipeline`; the git and forge
+reads come from `_dispatcher_master_ci_lookups`; HOW an outcome reads comes from
+`_dispatcher_master_ci_refusals`. This module is the classifier between them.
+"""
 
 from __future__ import annotations
 
-import json
-from dataclasses import dataclass
 from pathlib import Path
-from typing import TypedDict, cast
+from typing import cast
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandResult,
@@ -13,18 +29,42 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import InvokerIdentity
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
+from livespec_orchestrator_beads_fabro.commands._dispatcher_master_ci_lookups import (
+    UNKNOWN_RUN,
+    CiJob,
+    CiRun,
+    find_job,
+    has_stored_credential,
+    job_records,
+    list_runs,
+    resolve_default_branch,
+    run_id_of,
+    run_records,
+    view_run_jobs,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_master_ci_pipeline import (
+    MasterCiPipeline,
+    resolve_master_ci_pipeline,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_master_ci_refusals import (
+    BRANCH_REMEDY,
+    CREDENTIAL_REMEDY,
+    NO_RUNS_REMEDY,
+    PENDING_REMEDY,
+    PIPELINE_REMEDY,
+    MasterCiOutcome,
+    pass_outcome,
+    red_outcome,
+    unprovable_outcome,
+)
 
 __all__: list[str] = [
-    "MasterCiRefusal",
-    "journal_master_ci_refusal",
-    "master_ci_preflight_refusal",
+    "journal_master_ci_outcome",
+    "master_ci_preflight",
 ]
 
-_GH_PREFLIGHT_TIMEOUT_SECONDS = 30.0
-_STAGE = "master-ci-preflight"
-_REASON_RED = "master-ci-red"
-_REASON_UNPROVABLE = "master-ci-unprovable"
-_CI_GREEN_JOB = "ci-green"
+_UNRESOLVED_BRANCH = "<unresolved>"
+_STDERR_EXCERPT = 200
 _GREEN_CONCLUSIONS: frozenset[str] = frozenset({"success"})
 _PENDING_STATUSES: frozenset[str] = frozenset(
     {"queued", "in_progress", "waiting", "pending", "requested"},
@@ -34,244 +74,201 @@ _RED_CONCLUSIONS: frozenset[str] = frozenset(
 )
 
 
-class _CiRun(TypedDict, total=False):
-    status: str | None
-    conclusion: str | None
-    databaseId: int | str | None
+def master_ci_preflight(*, repo: Path, runner: CommandRunner) -> MasterCiOutcome:
+    """Prove the resolved default branch green at the resolved aggregate job.
 
-
-class _CiJob(TypedDict, total=False):
-    name: str | None
-    conclusion: str | None
-    status: str | None
-
-
-@dataclass(frozen=True, kw_only=True)
-class MasterCiRefusal:
-    """Terminal master-CI preflight refusal, ready to emit and journal."""
-
-    detail: str
-    record: dict[str, object]
-
-
-def master_ci_preflight_refusal(*, repo: Path, runner: CommandRunner) -> MasterCiRefusal | None:
-    """Refuse dispatch when the latest master CI run's `ci-green` job is red.
-
-    Hosts that cannot check at all fail open: no `gh` binary, no stored `gh`
-    credential, or no master CI runs yet. A credentialed GitHub call that fails
-    is different: the caller could have checked and got no proof of green, so
-    dispatch refuses before admission and before any sandbox work is spent.
+    Returns the step's journaled outcome either way: a pass when the latest run
+    of the resolved workflow on the resolved branch concluded green at the
+    resolved aggregate job, and a refusal for every other reading -- red, still
+    pending, or unprovable.
     """
-    latest = _latest_master_ci_run(repo=repo, runner=runner)
-    refusal: MasterCiRefusal | None = None
-    if isinstance(latest, CommandResult):
-        refusal = _credentialed_call_failure_refusal(result=latest)
-    elif latest is not None:
-        refusal = _classify_latest_run(repo=repo, runner=runner, run=latest)
-    return refusal
+    pipeline = resolve_master_ci_pipeline(cwd=repo)
+    branch = resolve_default_branch(repo=repo, runner=runner)
+    if branch is None:
+        return unprovable_outcome(
+            pipeline=pipeline,
+            branch=_UNRESOLVED_BRANCH,
+            run_id=UNKNOWN_RUN,
+            cause="the target's default branch could not be resolved",
+            remedy=BRANCH_REMEDY,
+        )
+    return _classify_branch(repo=repo, runner=runner, pipeline=pipeline, branch=branch)
 
 
-def journal_master_ci_refusal(
-    *, journal_path: Path, identity: InvokerIdentity, refusal: MasterCiRefusal
+def journal_master_ci_outcome(
+    *, journal_path: Path, identity: InvokerIdentity, outcome: MasterCiOutcome
 ) -> None:
-    """Persist the distinct terminal preflight outcome in the dispatch journal.
+    """Persist the step's outcome -- pass or refusal -- in the dispatch journal.
 
-    The refusing invocation's own resolved identity is threaded in rather than
+    The invoking dispatch's own resolved identity is threaded in rather than
     re-derived, so a dispatch that asserted `--invoker` is not downgraded to the
     environment or the fallback mark on the one record that says it refused.
     """
-    JournalFile(path=journal_path, identity=identity).append(record=refusal.record)
+    JournalFile(path=journal_path, identity=identity).append(record=outcome.record)
 
 
-def _classify_latest_run(
-    *, repo: Path, runner: CommandRunner, run: _CiRun
-) -> MasterCiRefusal | None:
+def _classify_branch(
+    *, repo: Path, runner: CommandRunner, pipeline: MasterCiPipeline, branch: str
+) -> MasterCiOutcome:
+    result = list_runs(repo=repo, runner=runner, workflow=pipeline.workflow, branch=branch)
+    if result.exit_code != 0:
+        return _lookup_failure(
+            repo=repo, runner=runner, pipeline=pipeline, branch=branch, result=result
+        )
+    runs = run_records(result=result)
+    if runs is None:
+        return _unprovable(
+            pipeline=pipeline,
+            branch=branch,
+            cause="unexpected `gh run list` payload shape",
+            remedy=PIPELINE_REMEDY,
+        )
+    if not runs:
+        return _unprovable(
+            pipeline=pipeline,
+            branch=branch,
+            cause="the resolved pipeline has no runs yet on the resolved default branch",
+            remedy=NO_RUNS_REMEDY,
+        )
+    return _classify_run(repo=repo, runner=runner, pipeline=pipeline, branch=branch, first=runs[0])
+
+
+def _lookup_failure(
+    *,
+    repo: Path,
+    runner: CommandRunner,
+    pipeline: MasterCiPipeline,
+    branch: str,
+    result: CommandResult,
+) -> MasterCiOutcome:
+    """A failed run lookup: no usable credential, or a pipeline that will not resolve.
+
+    An absent `gh` binary and an unauthenticated one land on the same arm on
+    purpose: both make `gh auth token` fail, and both leave the operator with
+    the same remedy.
+    """
+    excerpt = result.stderr.strip()[:_STDERR_EXCERPT] or "<empty stderr>"
+    if not has_stored_credential(repo=repo, runner=runner):
+        return _unprovable(
+            pipeline=pipeline,
+            branch=branch,
+            cause=f"no usable `gh` credential on this host; `gh` exited {result.exit_code}",
+            remedy=CREDENTIAL_REMEDY,
+        )
+    return _unprovable(
+        pipeline=pipeline,
+        branch=branch,
+        cause=(
+            f"the resolved pipeline could not be found; credentialed `gh` exited "
+            f"{result.exit_code}: {excerpt}"
+        ),
+        remedy=PIPELINE_REMEDY,
+    )
+
+
+def _classify_run(
+    *,
+    repo: Path,
+    runner: CommandRunner,
+    pipeline: MasterCiPipeline,
+    branch: str,
+    first: object,
+) -> MasterCiOutcome:
+    if not isinstance(first, dict):
+        return _unprovable(
+            pipeline=pipeline,
+            branch=branch,
+            cause="unexpected `gh run list` record shape",
+            remedy=PIPELINE_REMEDY,
+        )
+    run = cast("CiRun", first)
+    run_id = run_id_of(run=run)
     status = run.get("status")
     if isinstance(status, str) and status in _PENDING_STATUSES:
-        return None
-    run_id = _run_id(run=run)
-    ci_green = _ci_green_job(repo=repo, runner=runner, run_id=run_id)
-    return _classify_ci_green(run_id=run_id, ci_green=ci_green)
-
-
-def _classify_ci_green(
-    *, run_id: str, ci_green: _CiJob | CommandResult | None
-) -> MasterCiRefusal | None:
-    refusal: MasterCiRefusal | None = None
-    if isinstance(ci_green, CommandResult):
-        refusal = _unprovable_refusal(run_id=run_id, detail_reason="ci-green job lookup failed")
-    elif ci_green is None:
-        refusal = _unprovable_refusal(run_id=run_id, detail_reason="ci-green job missing")
-    else:
-        refusal = _classify_ci_green_job(run_id=run_id, ci_green=ci_green)
-    return refusal
-
-
-def _classify_ci_green_job(*, run_id: str, ci_green: _CiJob) -> MasterCiRefusal | None:
-    conclusion = ci_green.get("conclusion")
-    job_status = ci_green.get("status")
-    refusal: MasterCiRefusal | None = None
-    if isinstance(job_status, str) and job_status in _PENDING_STATUSES:
-        refusal = _unprovable_refusal(run_id=run_id, detail_reason="ci-green job still pending")
-    elif conclusion in _RED_CONCLUSIONS:
-        refusal = _red_refusal(run_id=run_id, conclusion=conclusion)
-    elif conclusion not in _GREEN_CONCLUSIONS:
-        refusal = _unprovable_refusal(
+        return _unprovable(
+            pipeline=pipeline,
+            branch=branch,
             run_id=run_id,
-            detail_reason="ci-green conclusion unrecognized",
+            cause=f"the latest run {run_id} is still {status}",
+            remedy=PENDING_REMEDY,
         )
-    return refusal
+    return _classify_job(repo=repo, runner=runner, pipeline=pipeline, branch=branch, run_id=run_id)
 
 
-def _latest_master_ci_run(*, repo: Path, runner: CommandRunner) -> _CiRun | CommandResult | None:
-    result = _gh(
-        repo=repo,
-        runner=runner,
-        argv=[
-            "run",
-            "list",
-            "--branch",
-            "master",
-            "--limit",
-            "1",
-            "--workflow",
-            "CI",
-            "--json",
-            "status,conclusion,databaseId",
-        ],
-    )
+def _classify_job(
+    *,
+    repo: Path,
+    runner: CommandRunner,
+    pipeline: MasterCiPipeline,
+    branch: str,
+    run_id: str,
+) -> MasterCiOutcome:
+    result = view_run_jobs(repo=repo, runner=runner, run_id=run_id)
     if result.exit_code != 0:
-        if not _gh_has_stored_credential(repo=repo, runner=runner):
-            return None
-        return result
-    parsed: object = json.loads(result.stdout)
-    if not isinstance(parsed, list) or not parsed:
-        return None
-    payload = cast("list[object]", parsed)
-    first = payload[0]
-    if not isinstance(first, dict):
-        return _malformed_payload(result=result, detail="unexpected gh run list shape")
-    return cast("_CiRun", first)
+        return _unprovable(
+            pipeline=pipeline,
+            branch=branch,
+            run_id=run_id,
+            cause=f"the aggregate-job lookup failed: {result.stderr.strip() or '<empty stderr>'}",
+            remedy=PIPELINE_REMEDY,
+        )
+    jobs = job_records(result=result)
+    if jobs is None:
+        return _unprovable(
+            pipeline=pipeline,
+            branch=branch,
+            run_id=run_id,
+            cause="unexpected `gh run view` payload shape",
+            remedy=PIPELINE_REMEDY,
+        )
+    job = find_job(jobs=jobs, name=pipeline.job)
+    if job is None:
+        return _unprovable(
+            pipeline=pipeline,
+            branch=branch,
+            run_id=run_id,
+            cause=f"aggregate job `{pipeline.job}` is missing from run {run_id}",
+            remedy=PIPELINE_REMEDY,
+        )
+    return _classify_conclusion(pipeline=pipeline, branch=branch, run_id=run_id, job=job)
 
 
-def _gh_has_stored_credential(*, repo: Path, runner: CommandRunner) -> bool:
-    result = _gh(repo=repo, runner=runner, argv=["auth", "token"])
-    return result.exit_code == 0
+def _classify_conclusion(
+    *, pipeline: MasterCiPipeline, branch: str, run_id: str, job: CiJob
+) -> MasterCiOutcome:
+    job_status = job.get("status")
+    conclusion = job.get("conclusion")
+    if isinstance(job_status, str) and job_status in _PENDING_STATUSES:
+        return _unprovable(
+            pipeline=pipeline,
+            branch=branch,
+            run_id=run_id,
+            cause=f"aggregate job `{pipeline.job}` is still {job_status}",
+            remedy=PENDING_REMEDY,
+        )
+    if conclusion in _RED_CONCLUSIONS:
+        return red_outcome(
+            pipeline=pipeline, branch=branch, run_id=run_id, conclusion=str(conclusion)
+        )
+    if conclusion not in _GREEN_CONCLUSIONS:
+        return _unprovable(
+            pipeline=pipeline,
+            branch=branch,
+            run_id=run_id,
+            cause=f"aggregate job conclusion `{conclusion}` is neither green nor red",
+            remedy=PENDING_REMEDY,
+        )
+    return pass_outcome(pipeline=pipeline, branch=branch, run_id=run_id)
 
 
-def _ci_green_job(
-    *, repo: Path, runner: CommandRunner, run_id: str
-) -> _CiJob | CommandResult | None:
-    result = _gh(repo=repo, runner=runner, argv=["run", "view", run_id, "--json", "jobs"])
-    if result.exit_code != 0:
-        return result
-    parsed: object = json.loads(result.stdout)
-    if not isinstance(parsed, dict):
-        return _malformed_payload(result=result, detail="unexpected gh run view shape")
-    payload = cast("dict[str, object]", parsed)
-    jobs_raw = payload.get("jobs")
-    if not isinstance(jobs_raw, list):
-        return _malformed_payload(result=result, detail="unexpected gh jobs shape")
-    jobs = cast("list[object]", jobs_raw)
-    return _find_ci_green_job(jobs=jobs)
-
-
-def _find_ci_green_job(*, jobs: list[object]) -> _CiJob | None:
-    found: _CiJob | None = None
-    for raw_job in jobs:
-        if isinstance(raw_job, dict):
-            job_payload = cast("dict[str, object]", raw_job)
-            if job_payload.get("name") == _CI_GREEN_JOB:
-                found = cast("_CiJob", raw_job)
-    return found
-
-
-def _malformed_payload(*, result: CommandResult, detail: str) -> CommandResult:
-    return CommandResult(exit_code=1, stdout=result.stdout, stderr=detail)
-
-
-def _gh(*, repo: Path, runner: CommandRunner, argv: list[str]) -> CommandResult:
-    return runner.run(
-        argv=["gh", *argv],
-        cwd=repo,
-        timeout_seconds=_GH_PREFLIGHT_TIMEOUT_SECONDS,
+def _unprovable(
+    *,
+    pipeline: MasterCiPipeline,
+    branch: str,
+    cause: str,
+    remedy: str,
+    run_id: str = UNKNOWN_RUN,
+) -> MasterCiOutcome:
+    return unprovable_outcome(
+        pipeline=pipeline, branch=branch, run_id=run_id, cause=cause, remedy=remedy
     )
-
-
-def _run_id(*, run: _CiRun) -> str:
-    raw = run.get("databaseId")
-    return str(raw) if raw is not None else "<unknown>"
-
-
-def _red_refusal(*, run_id: str, conclusion: str) -> MasterCiRefusal:
-    return MasterCiRefusal(
-        detail=_refusal_detail(run_id=run_id, reason=f"ci-green concluded {conclusion}"),
-        record=_refusal_record(run_id=run_id, reason=_REASON_RED, detail=conclusion),
-    )
-
-
-def _credentialed_call_failure_refusal(*, result: CommandResult) -> MasterCiRefusal:
-    stderr = result.stderr.strip()[:200]
-    return MasterCiRefusal(
-        detail=(
-            "ERROR: latest master CI could not be read by credentialed gh; "
-            "refusing dispatch before sandbox work. GitHub API state is unprovable. "
-            f"stderr: {stderr or '<empty stderr>'}\n"
-        ),
-        record={
-            "stage": _STAGE,
-            "terminal": True,
-            "status": "failed",
-            "reason": _REASON_UNPROVABLE,
-            "detail": "credentialed gh call failed",
-            "gh_exit_code": result.exit_code,
-            "gh_stderr": result.stderr,
-        },
-    )
-
-
-def _unprovable_refusal(*, run_id: str, detail_reason: str) -> MasterCiRefusal:
-    return MasterCiRefusal(
-        detail=_refusal_detail(run_id=run_id, reason=detail_reason),
-        record=_refusal_record(run_id=run_id, reason=_REASON_UNPROVABLE, detail=detail_reason),
-    )
-
-
-def _refusal_detail(*, run_id: str, reason: str) -> str:
-    return (
-        "ERROR: latest master CI is not proven green at required check `ci-green`; "
-        "refusing dispatch before sandbox work.\n"
-        f"Run databaseId: {run_id}\n"
-        f"Reason: {reason}\n"
-        "Recovery: if this is a master-health-restoration item parked behind red "
-        "master, drive it in-session through worktree -> PR -> merge; PR CI is "
-        "independent of master. See AGENTS.md and .claude-plugin/prose/implement.md "
-        "Step 0. For repeat-flakes, rerun attempts are diagnostic only and may not "
-        "produce a green master.\n"
-    )
-
-
-def _refusal_record(*, run_id: str, reason: str, detail: str) -> dict[str, object]:
-    return {
-        "stage": _STAGE,
-        "terminal": True,
-        "status": "failed",
-        "reason": reason,
-        "run_database_id": run_id,
-        "required_job": _CI_GREEN_JOB,
-        "detail": detail,
-        "recovery": [
-            " ".join(
-                (
-                    "For a master-health-restoration item parked behind red master, drive it",
-                    "in-session through worktree -> PR -> merge; PR CI is independent of master.",
-                )
-            ),
-            " ".join(
-                (
-                    "See AGENTS.md and .claude-plugin/prose/implement.md Step 0 for the",
-                    "documented escape hatch and the repeat-flake caveat.",
-                )
-            ),
-        ],
-    }
