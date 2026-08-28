@@ -148,8 +148,12 @@ closes nothing and frees the slot: the operator answers via `fabro attach
 Exit codes: 0 success / all dispatched green; 1 non-skipped findings
 present or any terminal failed dispatch; 2 usage error; 3 precondition
 error (missing repo / workflow / item not ready); 4 dispatch completed at a
-live human-gate blocked state with no terminal failures. `skipped`-severity
-findings (unmet preconditions) are reported but never flip the exit code.
+live human-gate blocked state with no terminal failures; 5
+ungradeable-acceptance-criteria refusal (the effective-acceptance-criteria
+clause of contracts.md — an AI-dispositive item whose effective criteria parse
+to zero gradeable assertions, refused before any run is created).
+`skipped`-severity findings (unmet preconditions) are reported but never
+flip the exit code.
 
 Cost-observability seam (work-item livespec-impl-beads-5v9, the
 prerequisite to y0m's fail-closed spend cap): the 5v9 investigation found

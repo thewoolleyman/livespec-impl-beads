@@ -27,6 +27,10 @@ from livespec_runtime.work_items.rank import key_between
 from livespec_orchestrator_beads_fabro import regroom
 from livespec_orchestrator_beads_fabro._beads_client import make_beads_client
 from livespec_orchestrator_beads_fabro._ids import new_work_item_id
+from livespec_orchestrator_beads_fabro.commands._dispatcher_effective_criteria import (
+    EffectiveCriteria,
+    effective_criteria,
+)
 from livespec_orchestrator_beads_fabro.errors import GroomDraftError
 from livespec_orchestrator_beads_fabro.intake_dor import (
     DefinitionOfReadyChecklist,
@@ -44,6 +48,7 @@ __all__: list[str] = [
     "CrossRepoSlice",
     "GroomContext",
     "GroomResult",
+    "SliceCriteriaParse",
     "file_approved_slices",
     "load_groom_context",
 ]
@@ -106,12 +111,29 @@ class CrossRepoSlice:
 
 
 @dataclass(frozen=True, kw_only=True)
+class SliceCriteriaParse:
+    """One filed slice's effective-criteria parse, for the front-end to display.
+
+    Carried as a RESULT rather than enforced as a gate: the
+    effective-acceptance-criteria clause of contracts.md requires groom to
+    display the parse and forbids it refusing on an empty one, because a
+    groomed slice's criteria may legitimately arrive at approve time.
+    """
+
+    slice_id: str
+    criteria: EffectiveCriteria
+
+
+@dataclass(frozen=True, kw_only=True)
 class GroomResult:
     """The outcome of an approved groom: what was filed, routed, and exited.
 
     - `filed_slice_ids` — the local factory slices filed and then routed by
       the intake Definition-of-Ready primitive (in draft order), with their
       dependency edges linked.
+    - `criteria_parses` — each filed local slice's effective-criteria parse
+      (the gradeable-assertion count and the resolved source), for the
+      front-end to display.
     - `spec_change_slices` — the approved spec-change slices NOT filed
       here; the SKILL.md prose routes each to `/livespec:propose-change`.
     - `cross_repo_slices` — factory slices whose `repo_target` differs from
@@ -122,6 +144,7 @@ class GroomResult:
     """
 
     filed_slice_ids: tuple[str, ...] = ()
+    criteria_parses: tuple[SliceCriteriaParse, ...] = ()
     spec_change_slices: tuple[CandidateSlice, ...] = ()
     cross_repo_slices: tuple[CrossRepoSlice, ...] = ()
     regroomed_out: bool = False
@@ -174,6 +197,7 @@ def file_approved_slices(
     Raises `WorkItemNotFoundError` if `regroom_item_id` is absent.
     """
     filed_ids: list[str] = []
+    parses: list[SliceCriteriaParse] = []
     spec_change: list[CandidateSlice] = []
     cross_repo: list[CrossRepoSlice] = []
     # Each filed local slice gets a `rank` appended below the previous one
@@ -208,18 +232,19 @@ def file_approved_slices(
         )
         rank = key_between(a=prev_rank, b=None)
         prev_rank = rank
-        append_work_item(
-            path=path,
-            item=_work_item_for(
-                candidate=candidate, slice_id=slice_id, dep_entries=dep_entries, rank=rank
-            ),
+        item = _work_item_for(
+            candidate=candidate, slice_id=slice_id, dep_entries=dep_entries, rank=rank
         )
+        append_work_item(path=path, item=item)
         _route_approved_slice_intake(path=path, item_id=slice_id)
         filed_ids.append(slice_id)
+        # Advisory only: an empty parse is REPORTED, never a refusal.
+        parses.append(SliceCriteriaParse(slice_id=slice_id, criteria=effective_criteria(item=item)))
         id_by_title[candidate.title] = slice_id
     regroom.close_regroomed_out(path=path, item_id=regroom_item_id, replacement_slice_ids=filed_ids)
     return GroomResult(
         filed_slice_ids=tuple(filed_ids),
+        criteria_parses=tuple(parses),
         spec_change_slices=tuple(spec_change),
         cross_repo_slices=tuple(cross_repo),
         regroomed_out=True,

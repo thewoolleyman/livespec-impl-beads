@@ -16,6 +16,7 @@ __all__: list[str] = [
     "EXIT_BLOCKED",
     "EXIT_FAILURE",
     "EXIT_PRECONDITION_ERROR",
+    "EXIT_UNGRADEABLE_CRITERIA",
     "alarm_on_terminal_failure",
     "dispatch_exit_code",
 ]
@@ -23,6 +24,11 @@ __all__: list[str] = [
 EXIT_FAILURE = 1
 EXIT_PRECONDITION_ERROR = 3
 EXIT_BLOCKED = 4
+# The pre-dispatch wall's dedicated code, deliberately DISTINCT from the
+# precondition exit 3: an ungradeable item is not a misconfigured invocation,
+# and an operator triaging the difference reads it off the exit code alone
+# (the dispatcher-exit-code clause of contracts.md).
+EXIT_UNGRADEABLE_CRITERIA = 5
 
 
 def dispatch_exit_code(*, outcomes: list[DispatchOutcome]) -> int:

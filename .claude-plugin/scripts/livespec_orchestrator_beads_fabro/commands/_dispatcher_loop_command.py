@@ -13,11 +13,15 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_admission import (
 from livespec_orchestrator_beads_fabro.commands._dispatcher_command_common import (
     EXIT_FAILURE,
     EXIT_PRECONDITION_ERROR,
+    EXIT_UNGRADEABLE_CRITERIA,
     alarm_on_terminal_failure,
     dispatch_exit_code,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_cost_gate import (
     cost_gate_after_verdict,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_effective_criteria import (
+    pre_dispatch_criteria_refusal,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
 from livespec_orchestrator_beads_fabro.commands._dispatcher_factory_ledger import (
@@ -97,6 +101,13 @@ def run_loop_command(*, args: argparse.Namespace) -> int:
         )
         emit_outcomes(outcomes=picked, as_json=args.as_json)
         return 0
+    # The pre-dispatch wall guards the DRAIN too, and it sits after the dry-run
+    # return deliberately: `--dry-run` creates no run, so it stays a reporting
+    # surface that shows the operator exactly which candidate needs criteria.
+    ungradeable = pre_dispatch_criteria_refusal(items=selected_candidates, cwd=repo)
+    if ungradeable is not None:
+        _ = write_stderr(text=ungradeable)
+        return EXIT_UNGRADEABLE_CRITERIA
     outcomes = _dispatch_loop_wave(
         args=args,
         repo=repo,

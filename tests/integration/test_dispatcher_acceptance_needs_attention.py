@@ -195,12 +195,24 @@ def _green_recording(*, pr_number: int | None) -> Callable[..., DispatchOutcome]
     return _run_dispatch
 
 
-def _acceptance_pass_over(*, stdout: str) -> Callable[..., AcceptancePassResult]:
-    """The REAL acceptance pass, with only its command seam stood in."""
+def _acceptance_pass_over(
+    *, stdout: str, criteria_removed_after_dispatch: bool = False
+) -> Callable[..., AcceptancePassResult]:
+    """The REAL acceptance pass, with only its command seam stood in.
+
+    `criteria_removed_after_dispatch` models the one production shape that can
+    still reach the acceptance pass with zero gradeable assertions now that the
+    pre-dispatch wall exists: an item that carried gradeable criteria when it
+    was dispatched and had them edited away before the post-merge pass read the
+    ledger row back.
+    """
     runner = _StubRunner(stdout=stdout)
 
     def _call(*, repo: Path, item: WorkItem, outcome: DispatchOutcome) -> AcceptancePassResult:
-        return run_acceptance_pass(repo=repo, item=item, outcome=outcome, runner=runner)
+        judged = (
+            replace(item, acceptance_criteria=None) if criteria_removed_after_dispatch else item
+        )
+        return run_acceptance_pass(repo=repo, item=judged, outcome=outcome, runner=runner)
 
     return _call
 
@@ -281,15 +293,24 @@ def test_zero_gradeable_assertions_is_neither_auto_accepted_nor_reworked(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repo, workflow = _repo_with_workflow(tmp_path=tmp_path)
-    # No acceptance_criteria field and no `Exit criteria` description section:
-    # the effective criteria parse to zero gradeable assertions.
-    item = _item(id="bd-ib-nocrit", acceptance_criteria=None)
+    # The item is DISPATCHABLE — the pre-dispatch wall (the
+    # effective-acceptance-criteria clause of contracts.md) refuses an
+    # AI-dispositive item whose criteria parse to zero gradeable assertions, so
+    # this case can no longer be built by
+    # filing one without criteria at all. Its criteria are removed between
+    # dispatch and the post-merge pass instead, which is the shape that still
+    # reaches the pass vacuously: no acceptance_criteria field and no `Exit
+    # criteria` description section by the time the pass reads it.
+    item = _item(
+        id="bd-ib-nocrit",
+        acceptance_criteria="The parking record names the absent evidence leg.",
+    )
     append_work_item(path=_config(), item=item)
     monkeypatch.setattr(_dispatcher_loop, "run_dispatch", _green_recording(pr_number=11))
     monkeypatch.setattr(
         _dispatcher_completion,
         "run_acceptance_pass",
-        _acceptance_pass_over(stdout=_READABLE_DIFF),
+        _acceptance_pass_over(stdout=_READABLE_DIFF, criteria_removed_after_dispatch=True),
         raising=False,
     )
 

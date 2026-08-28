@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from pathlib import Path
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_acceptance_criteria import (
     CriterionCheck,
     criteria_checks,
-    criteria_lines,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_acceptance_diff import (
     DiffResult,
     read_merged_diff,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_effective_criteria import (
+    effective_criteria,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandRunner,
@@ -110,7 +111,7 @@ def run_acceptance_pass(
     diff_result = read_merged_diff(repo=repo, outcome=outcome, runner=active_runner)
     telemetry = _telemetry_evidence(outcome=outcome)
     checks = criteria_checks(
-        criteria_text=_effective_criteria_text(item=item),
+        criteria_text=effective_criteria(item=item).text,
         merged_diff=diff_result.merged_diff,
         telemetry_passed=telemetry.passed,
     )
@@ -155,36 +156,6 @@ def _telemetry_evidence(*, outcome: DispatchOutcome) -> _TelemetryEvidence:
     return _TelemetryEvidence(
         observed=True, passed=True, reason="green merged dispatch with PR and merge sha"
     )
-
-
-def _effective_criteria_text(*, item: WorkItem) -> str | None:
-    if criteria_lines(criteria_text=item.acceptance_criteria):
-        return item.acceptance_criteria
-    return _description_exit_criteria(description=item.description)
-
-
-def _description_exit_criteria(*, description: str) -> str | None:
-    lines = description.splitlines()
-    section_lines: list[str] = []
-    in_section = False
-    section_level = 0
-    for raw in lines:
-        heading = re.match(r"^(#{1,6})\s+(.+?)\s*$", raw)
-        if heading is not None:
-            level = len(heading.group(1))
-            title = heading.group(2).strip().casefold()
-            if in_section and level <= section_level:
-                break
-            if title == "exit criteria":
-                in_section = True
-                section_level = level
-                continue
-        if in_section:
-            section_lines.append(raw)
-    text = "\n".join(section_lines).strip()
-    if not text:
-        return None
-    return text
 
 
 def _absent_evidence(

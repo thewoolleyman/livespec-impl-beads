@@ -113,9 +113,22 @@ result = file_approved_slices(
     ],
 )
 # result.filed_slice_ids        — factory slices filed through intake routing, deps linked.
+# result.criteria_parses        — each filed slice's effective-criteria parse (display it).
 # result.spec_change_slices     — the human-gated slices to route (Step 4).
 # result.regroomed_out is True  — the original backlog item was closed explicitly.
+
+criteria_advice = [
+    f"{parse.slice_id}: {parse.criteria.parse_display()}"
+    for parse in result.criteria_parses
+]
 ```
+
+Show the user every line of `criteria_advice`. This is ADVICE, never a
+refusal: an empty parse at groom time is legitimate — criteria may arrive at
+approve time — but the maintainer must SEE it, because an AI-dispositive slice
+whose effective acceptance criteria parse to zero gradeable assertions is later
+refused entry to `ready` and refused at dispatch
+(`SPECIFICATION/contracts.md` §"Effective acceptance criteria").
 
 `file_approved_slices` files each factory slice via the same
 `append_work_item` machinery the `capture-work-item` operation uses, then
