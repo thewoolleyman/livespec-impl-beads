@@ -2467,7 +2467,11 @@ following holds:
 
 1. it holds a dispatch lock whose recorded process identifier — that of the
    LOCAL dispatching process — belongs to a live process; or
-2. its dispatch journal could not be READ.
+2. it does NOT hold such a lock, is NOT classified rework-pending (a
+   lock-less row carrying `rework:pending` is a sanctioned park, EXCLUDED
+   unconditionally per §"Rework-pending re-dispatch" and Scenario 66's
+   third sub-scenario — even when its journal is unreadable), and its
+   dispatch journal could not be READ.
 
 A row at status `active` that satisfies neither MUST NOT be counted. In
 particular, a row whose dispatch reached a green terminal outcome is
@@ -2501,7 +2505,7 @@ on the bound, stated deliberately ahead of the implementation: the shipped
 predicate at the time of this revision computes claims from paths under the
 invoking `--repo` checkout only, so DISTINCT checkouts of one tenant can
 currently admit independently and their combined admissions MAY exceed
-`wip_cap`. That divergence is KNOWN, tracked as a defect, and MUST NOT be
+`wip_cap`. That divergence is KNOWN, tracked as `bd-ib-snyquw.6`, and MUST NOT be
 read as a second sanctioned bound alongside this one — tenant-scoping is
 what this section requires, and per-checkout counting is a gap in meeting
 it, not an alternative reading of it.
