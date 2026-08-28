@@ -243,6 +243,12 @@ class DispatchOutcome:
     same failure cannot be matched against a waiver entry, nor against the
     re-verification that clears the refusal. They are None on every outcome
     that is not a degraded step outcome.
+
+    `dead_implementer_condition` is the governing condition of a
+    dead-implementer truncation, carried as a typed field rather than left for
+    each consumer to re-match against `detail` prose — the same seam rationale
+    as `provider_usage_limit`. It is None on every run whose implementer
+    changed the worktree, which is every ordinary run.
     """
 
     work_item_id: str
@@ -259,6 +265,7 @@ class DispatchOutcome:
     fabro_failure_category: str | None = None
     fabro_failure_signature: str | None = None
     provider_usage_limit: bool = False
+    dead_implementer_condition: str | None = None
 
 
 def run_dispatch(

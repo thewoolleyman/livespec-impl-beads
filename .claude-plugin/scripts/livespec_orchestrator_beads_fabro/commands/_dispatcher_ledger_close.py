@@ -189,9 +189,11 @@ def emit_outcomes(*, outcomes: list[DispatchOutcome], as_json: bool) -> None:
 
 
 # Optional outcome fields that are DROPPED from the emitted payload when unset,
-# so an ordinary outcome does not carry a column of nulls for the two shapes
-# that populate them: a fabro failure, and a degraded step outcome.
+# so an ordinary outcome does not carry a column of nulls for the three shapes
+# that populate them: a fabro failure, a degraded step outcome, and a
+# dead-implementer truncation.
 _OPTIONAL_OUTCOME_FIELDS: tuple[str, ...] = (
+    "dead_implementer_condition",
     "fabro_failure_cause",
     "fabro_failure_category",
     "fabro_failure_signature",

@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
+from livespec_orchestrator_beads_fabro.commands._dispatcher_dead_implementer import (
+    dead_implementer_condition_from_text,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_journal import (
     journal_stage,
     tail,
@@ -81,18 +84,25 @@ def fabro_run_terminal_outcome(
     if exit_code == 0:
         return None
     failure = None if inspect is None else inspect.failure
+    detail = fabro_failure_outcome_detail(failure=failure, fallback=tail(text=stderr))
     return outcome_type(
         work_item_id=plan.work_item_id,
         status="failed",
         stage="fabro-run",
         pr_number=None,
         merge_sha=None,
-        detail=fabro_failure_outcome_detail(failure=failure, fallback=tail(text=stderr)),
+        detail=detail,
         fabro_run_id=run_id,
         fabro_failure_cause=None if failure is None else failure.cause,
         fabro_failure_category=None if failure is None else failure.category,
         fabro_failure_signature=None if failure is None else failure.signature,
         provider_usage_limit=False if failure is None else failure.provider_usage_limit,
+        # The breaker's sentinel can arrive on EITHER channel and neither is
+        # guaranteed: the raw `fabro run` stderr is tail-truncated, and the
+        # structured cause chain need not carry a node's own output at all. Both
+        # are read, because a probe aimed at one channel would report a clean
+        # "no truncation" for a truncation carried on the other.
+        dead_implementer_condition=dead_implementer_condition_from_text(text=f"{stderr}\n{detail}"),
     )
 
 
