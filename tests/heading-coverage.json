@@ -790,82 +790,72 @@
   {
     "heading": "## Scenario 66 — A parked rework item is re-dispatched before new ready work",
     "spec_root": "SPECIFICATION",
-    "work_item": "bd-ib-w3if5j",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "reason": "Ratified by the acceptance-rework-state-machine revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
+    "test": "tests.integration.test_dispatcher_rework_redispatch::test_drain_drives_marked_rows_in_rank_order_before_new_admissions",
+    "reason": "The drain drives a marked, lock-less `active` row before admitting new `ready` work, journals the rework admission, and leaves the marker until the terminal disposition. Integration-tier (`tests.integration`) through the real dispatcher CLI and store seam."
   },
   {
     "heading": "## Scenario 67 — The human rework reject parks the same selectable state",
     "spec_root": "SPECIFICATION",
-    "work_item": "bd-ib-w3if5j",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "reason": "Ratified by the acceptance-rework-state-machine revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
+    "test": "tests.integration.test_rework_reject_selectability::test_the_human_reject_parks_a_state_dispatch_takes_immediately",
+    "reason": "The human `reject:rework` valve parks the item and `dispatch --item` takes it immediately, with a bare `active` row refused as the control. Integration-tier (`tests.integration`) through the real drive valve and dispatcher CLI."
   },
   {
     "heading": "## Scenario 68 — reconcile-merged refuses a rework-pending item",
     "spec_root": "SPECIFICATION",
-    "work_item": "bd-ib-w3if5j",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "reason": "Ratified by the acceptance-rework-state-machine revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
+    "test": "tests.integration.test_reconcile_merged_rework_pending::test_marked_item_is_refused_and_force_does_not_bypass_it",
+    "reason": "reconcile-merged refuses a rework-pending item, names the rework re-dispatch route, and `--force` does not bypass it. Integration-tier (`tests.integration`) through the real reconcile-merged supervisor and store seam."
   },
   {
     "heading": "## Scenario 69 — Zero-criteria AI-dispositive work is walled before any spend",
     "spec_root": "SPECIFICATION",
-    "work_item": "bd-ib-w3if5j",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "reason": "Ratified by the needs-attention-verdict revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
+    "test": "tests.integration.test_effective_criteria_walls::test_the_pre_dispatch_wall_refuses_a_targeted_dispatch_with_exit_five",
+    "reason": "The pre-dispatch wall refuses an AI-dispositive item with zero gradeable assertions with exit 5 (distinct from the precondition exit 3) before any factory run is created. Integration-tier (`tests.integration`) through the real dispatcher CLI, with sibling cases for the drain path, the approve valve, and the description-fallback resolution."
   },
   {
     "heading": "## Scenario 70 — Absent evidence parks; it never manufactures a verdict",
     "spec_root": "SPECIFICATION",
-    "work_item": "bd-ib-w3if5j",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "reason": "Ratified by the needs-attention-verdict revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
+    "test": "tests.integration.test_dispatcher_acceptance_needs_attention::test_unobservable_telemetry_with_readable_diff_parks_needs_attention",
+    "reason": "An unobservable evidence leg parks the item in `acceptance` with the NEEDS_ATTENTION verdict under an AI-dispositive policy, consuming no rework cap, and both human valves still reach it. Integration-tier (`tests.integration`) through the real dispatcher CLI and acceptance pass."
   },
   {
     "heading": "## Scenario 71 — One effective-criteria authority for every gate",
     "spec_root": "SPECIFICATION",
-    "work_item": "bd-ib-w3if5j",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "reason": "Ratified by the needs-attention-verdict revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
+    "test": "tests.integration.test_effective_criteria_walls::test_all_four_gates_resolve_the_identical_effective_criteria_text",
+    "reason": "One criteria text living only in a description `Exit criteria` section resolves identically at the capture front-end parse, the entry-to-`ready` wall, the pre-dispatch wall, and the post-merge acceptance pass. Integration-tier (`tests.integration`) through groom, the drive approve valve, and the dispatcher CLI."
   },
   {
     "heading": "## Scenario 72 — Every journal record carries a resolved invoker",
     "spec_root": "SPECIFICATION",
-    "work_item": "bd-ib-w3if5j",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "reason": "Ratified by the journal-invoker-attribution revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
+    "test": "tests.integration.test_journal_invoker_attribution::test_the_flag_identity_reaches_every_journal_record",
+    "reason": "Every journaled record of a state-changing invocation carries the asserted identity and its `invoker_source`, with the flag winning over the environment. Integration-tier (`tests.integration`) through the real dispatcher CLI and journal writer."
   },
   {
     "heading": "## Scenario 73 — The tightened posture refuses before it mutates",
     "spec_root": "SPECIFICATION",
-    "work_item": "bd-ib-w3if5j",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "reason": "Ratified by the journal-invoker-attribution revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
+    "test": "tests.integration.test_journal_invoker_attribution::test_require_invoker_refuses_a_fallback_only_invocation_before_any_write",
+    "reason": "A committed `require_invoker` posture refuses an unattributed invocation with the precondition exit code before any journal write, store mutation, or run creation. Integration-tier (`tests.integration`) through the real dispatcher CLI."
   },
   {
     "heading": "## Scenario 76 — A missing required integration point stops the next dispatch, not silently every dispatch",
     "spec_root": "SPECIFICATION",
-    "work_item": "bd-ib-w3if5j",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "reason": "Ratified by the dispatch-preflight-persistence revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
+    "test": "tests.integration.test_step_discipline_persistence::test_a_standing_degraded_outcome_refuses_the_next_dispatch_with_exit_three",
+    "reason": "A standing degraded janitor outcome naming a missing required integration point refuses the next dispatch at the pre-dispatch gate with the precondition exit code and no run created; sibling cases cover the clearing re-verification and the committed waiver. Integration-tier (`tests.integration`) through the real dispatcher CLI."
   },
   {
     "heading": "## Scenario 77 — The master-CI preflight resolves the pipeline the repository declares",
     "spec_root": "SPECIFICATION",
-    "work_item": "bd-ib-w3if5j",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "reason": "Ratified by the dispatch-preflight-persistence revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
+    "test": "tests.integration.test_master_ci_declared_resolution::test_a_declared_green_pipeline_proceeds_with_the_pass_journaled",
+    "reason": "A repository whose committed `dispatcher.master_ci` names its workflow and aggregate job proves master health and the dispatch proceeds with the pass journaled; sibling cases cover the red refusal, the resolved default branch, the undeclared convention, and the unresolvable refusal. Integration-tier (`tests.integration`) through the real dispatcher CLI."
   },
   {
     "heading": "## Scenario 78 — A temporary throttle carries its own restore work-item",
@@ -873,79 +863,70 @@
     "work_item": "bd-ib-w3if5j",
     "spec_file": "scenarios.md",
     "test": "TODO",
-    "reason": "Ratified by the temporary-setting-restore revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). Operator-process scenario: per repo precedent (Scenario 56) no in-repo test can decide a review obligation mechanically; the binding stays TODO with this stated reason and is owned by bd-ib-w3if5j for the decidable negative leg (schema offers no temporary variant), an integration/consumer-tier concern, never unit-tier."
+    "reason": "Ratified by the temporary-setting-restore revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). TERMINAL non-test binding, per the Scenario-56 precedent: both clauses of this scenario are review obligations discharged when a settings change is reviewed for merge, and no in-repo test can mechanically decide whether a reviewer named a missing restore work-item. The negative half — that no configuration schema offers a temporary variant or restore-condition field to reach for — is an absence in the schema rather than a behavior a test can exercise. Owned by bd-ib-w3if5j, which closes with this entry deliberately left as a reasoned TODO rather than bound; any future binding would be integration/consumer-tier, never unit-tier."
   },
   {
     "heading": "## Scenario 74 — The probe demonstrates the loop on a taken item and leaves only explained state",
     "spec_root": "SPECIFICATION",
-    "work_item": "bd-ib-w3if5j",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "reason": "Ratified by the loop-probe revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
+    "test": "tests.integration.test_loop_probe_cycle::test_a_full_probe_cycle_passes_every_stage_and_journals_an_attributed_run",
+    "reason": "A full probe cycle passes every stage assertion, journals its run identifier under a non-fallback invoker, and reports the unrelated delta without asserting it; sibling cases cover the pre-merge confinement refusal and the merged-escape revert obligation. Integration-tier (`tests.integration`) through the real `probe` CLI and store seam."
   },
   {
     "heading": "## Scenario 75 — The probe takes; it never files, and absence of evidence never passes it",
     "spec_root": "SPECIFICATION",
-    "work_item": "bd-ib-w3if5j",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "reason": "Ratified by the loop-probe revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
+    "test": "tests.integration.test_loop_probe_cycle::test_the_probe_refuses_without_a_designated_item_and_files_nothing",
+    "reason": "The probe refuses without a designated item and leaves the tenant empty; sibling cases cover the non-`ai-only` refusal and the unreadable-source failure that never reports anything cleared. Integration-tier (`tests.integration`) through the real `probe` CLI and store seam."
   },
   {
     "heading": "## Scenario 79 — One malformed item never blinds the inbox, and never vanishes silently",
     "spec_root": "SPECIFICATION",
-    "work_item": "bd-ib-w3if5j",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "reason": "Ratified by the needs-attention-envelope revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
+    "test": "tests.integration.test_needs_attention_envelope_conformance::test_consumer_skips_one_malformed_item_and_consumes_the_rest",
+    "reason": "A conforming consumer skips one malformed item, surfaces it as skipped, and consumes the rest of the envelope; sibling cases cover the unknown-kind item and the producer's visible validation failure. Integration-tier (`tests.integration`) over the wire envelope this repository really emits."
   },
   {
     "heading": "## Scenario 80 — Every advertised handoff is executable as advertised",
     "spec_root": "SPECIFICATION",
-    "work_item": "bd-ib-w3if5j",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "reason": "Ratified by the needs-attention-envelope revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
+    "test": "tests.integration.test_needs_attention_wait_enumeration::test_every_advertised_drive_handoff_is_accepted_by_drive",
+    "reason": "Every drive-kind handoff the composed envelope advertises is submitted to the real drive enforcer and accepted, and a state drive refuses by construction is never advertised. Integration-tier (`tests.integration`) through the real needs-attention composition and `drive.run_action`."
   },
   {
     "heading": "## Scenario 81 — Only a complete successful pass advances the coverage point",
     "spec_root": "SPECIFICATION",
-    "work_item": "bd-ib-w3if5j",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "reason": "Ratified by the detector-coverage-records revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
+    "test": "tests.integration.test_detection_coverage_records::test_a_complete_pass_writes_both_records_and_clears_the_gap_staleness_fact",
+    "reason": "A complete detection pass appends both the attempt and the completed-coverage record and clears the derived staleness fact; sibling cases cover the aborted/partial pass leaving the prior point standing and the self-bookkeeping exception. Integration-tier (`tests.integration`) through the real anchor writes and snapshot composition."
   },
   {
     "heading": "## Scenario 82 — Staleness facts surface owned triggers, never headless runs",
     "spec_root": "SPECIFICATION",
-    "work_item": "bd-ib-w3if5j",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "reason": "Ratified by the detector-coverage-records revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
+    "test": "tests.integration.test_detection_coverage_records::test_the_gap_staleness_fact_hands_off_to_capture_impl_gaps",
+    "reason": "The gap-capture staleness fact names `capture-impl-gaps` and the stale range, with a sibling case for the drift fact naming `capture-spec-drift`, and composition invokes no detector. Integration-tier (`tests.integration`) through the real snapshot composition."
   },
   {
     "heading": "## Scenario 83 — Capacity truth is composed from the accounting, never re-derived",
     "spec_root": "SPECIFICATION",
-    "work_item": "bd-ib-w3if5j",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "reason": "Ratified by the needs-attention-completeness revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
+    "test": "tests.integration.test_needs_attention_capacity_composition::test_a_reached_cap_with_an_unreadable_hold_composes_the_capacity_residue_fact",
+    "reason": "A reached cap with an unreadable-journal hold composes the capacity fact and its own hold item, the live-lock holder is not reported stale, the rework-pending park is not reported abandoned, no capacity item advertises a status move, and composing appends nothing to the journal. Integration-tier (`tests.integration`) through the real snapshot composition."
   },
   {
     "heading": "## Scenario 84 — Aged ready work with nothing in flight surfaces an unblock",
     "spec_root": "SPECIFICATION",
-    "work_item": "bd-ib-w3if5j",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "reason": "Ratified by the needs-attention-completeness revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
+    "test": "tests.integration.test_needs_attention_ready_aging::test_the_aging_fact_names_the_count_the_oldest_age_and_an_unblock_handoff",
+    "reason": "The aging fact names the aged count, the oldest age, and an unblock handoff; sibling cases cover the fact clearing while a dispatch is in flight, the age-unknown item being reported rather than omitted, and a recently-ready item captured long ago not counting as aged. Integration-tier (`tests.integration`) through the real snapshot composition."
   },
   {
     "heading": "## Scenario 85 — Every enumerated orchestrator-owned wait composes with its unblock",
     "spec_root": "SPECIFICATION",
-    "work_item": "bd-ib-w3if5j",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "reason": "Ratified by the needs-attention-completeness revise (plan homelab-loop-hardening-orchestrator, epic bd-ib-ujihbw). This scenario heading will be bound to an integration/consumer-tier (e2e-cli) test exercising user-observable behavior, never a unit-tier test, per the heading taxonomy's pyramid-tier requirement; the test lands with the implementation children this ratification cuts (owner bd-ib-w3if5j)."
+    "test": "tests.integration.test_needs_attention_wait_enumeration::test_all_six_enumerated_waits_compose_and_the_admitted_item_does_not",
+    "reason": "All six enumerated orchestrator-owned waits compose in one snapshot, each carrying an unblock, while the healthy admitted item produces no wait item; a sibling case pins the parked acceptance to one item naming both reject dispositions. Integration-tier (`tests.integration`) through the real snapshot composition."
   },
   {
     "heading": "## Scenario 86 — The implementer defaults to Claude Opus 5 and an explicit Codex pin still routes to Codex",
