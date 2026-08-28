@@ -683,13 +683,14 @@ def test_dispatch_gate_auto_normalizes_beads_native_open(
     records = [json.loads(line) for line in journal.read_text(encoding="utf-8").splitlines()]
     # The normalization note now routes through the append layer, so it carries
     # the stamped envelope (`at` + the resolved invoker) alongside its payload.
-    # The master-CI preflight's own journaled pass precedes it: the preamble runs
-    # ahead of the ledger gate, and its pass is a sanctioned journaled outcome.
-    assert [record["stage"] for record in records[:2]] == [
+    # BOTH pre-dispatch steps journal their pass ahead of it: the preamble runs
+    # ahead of the ledger gate, and a pass is a sanctioned journaled outcome.
+    assert [record["stage"] for record in records[:3]] == [
+        "source-checkout-origin-reachability",
         "master-ci-preflight",
         "status-normalization",
     ]
-    assert records[1]["normalized"] == [
+    assert records[2]["normalized"] == [
         {
             "from": "open",
             "item_id": "native-open",
@@ -697,11 +698,11 @@ def test_dispatch_gate_auto_normalizes_beads_native_open(
             "to": "backlog",
         }
     ]
-    assert records[1]["at"]
-    assert records[1]["invoker"]
-    assert records[1]["invoker_source"] in {"flag", "env", "fallback"}
-    assert records[2]["stage"] == "ledger-check"
-    assert records[2]["findings"] == [
+    assert records[2]["at"]
+    assert records[2]["invoker"]
+    assert records[2]["invoker_source"] in {"flag", "env", "fallback"}
+    assert records[3]["stage"] == "ledger-check"
+    assert records[3]["findings"] == [
         {
             "check": "status-conformance",
             "item_id": "bad-hooked",
@@ -2834,6 +2835,13 @@ def test_engine_degrades_when_janitor_bootstrap_fails(tmp_path: Path) -> None:
     assert bootstrap_argv == ["mise", "exec", "--", "just", "install-commit-refuse-hooks"]
     assert bootstrap_cwd == tmp_path  # runs in plan.repo, not janitor_checkout
     assert [record["stage"] for record in journal.records][-1] == "janitor-checkout-bootstrap"
+    # The STRUCTURED half of the degraded outcome: the next dispatch's
+    # pre-dispatch gate matches on these, never on the prose in `detail`.
+    assert outcome.step == "janitor-bootstrap"
+    assert outcome.missing_integration_point is not None
+    assert "install-commit-refuse-hooks" in outcome.missing_integration_point
+    assert outcome.remedy is not None
+    assert "dispatcher.step_waivers" in outcome.remedy
 
 
 def test_engine_degrades_when_janitor_core_provisioning_fails(tmp_path: Path) -> None:
@@ -2855,6 +2863,10 @@ def test_engine_degrades_when_janitor_core_provisioning_fails(tmp_path: Path) ->
     assert (outcome.pr_number, outcome.merge_sha) == (7, "cafec0")
     assert "provisioning livespec core" in outcome.detail
     assert "core clone failed" in outcome.detail
+    # NOT a step of the closed vocabulary: a host-environment failure with no
+    # integration point for an adopter to provide carries no structured id, so
+    # it cannot persist into a refusal the adopter has no way to clear.
+    assert (outcome.step, outcome.missing_integration_point, outcome.remedy) == (None, None, None)
     assert len(runner.calls) == 9
     assert [record["stage"] for record in journal.records][-1] == "janitor-core-provision"
 
@@ -3915,6 +3927,7 @@ def test_dispatch_green_closes_item_and_journals(
     # signal for reflection to scan, then the mechanical reflection stage at
     # the default `observe` lever (work-item 29f.2).
     assert stages == [
+        "source-checkout-origin-reachability",
         "master-ci-preflight",
         "ledger-admit",
         "node-timeouts",

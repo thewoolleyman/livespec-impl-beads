@@ -34,23 +34,15 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_close import 
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_gate import run_ledger_gate
 from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_selection import ready_items
-from livespec_orchestrator_beads_fabro.commands._dispatcher_master_ci_preflight import (
-    journal_master_ci_outcome,
-    master_ci_preflight,
-)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_otel_wiring import parse_janitor
-from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
-    journal_path,
-    store_config,
-)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import store_config
 from livespec_orchestrator_beads_fabro.commands._dispatcher_readiness_diagnostics import (
     not_ready_requested_items_error,
 )
-from livespec_orchestrator_beads_fabro.commands._dispatcher_source_preflight import (
-    journal_source_checkout_refusal,
-    source_checkout_preflight_refusal,
-)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_spec_checks import run_spec_checks
+from livespec_orchestrator_beads_fabro.commands._dispatcher_step_gate import (
+    step_discipline_refusal,
+)
 from livespec_orchestrator_beads_fabro.io import write_stderr, write_stdout
 from livespec_orchestrator_beads_fabro.store import WorkItemComment, read_work_item_comments
 from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
@@ -267,6 +259,13 @@ def dispatch_preamble(
     refused before ANY store mutation, journal write, or run creation, so that
     the refusal cannot itself leave a half-performed act or an unattributed
     record behind (the journal invoker attribution contract in contracts.md).
+
+    The closed step set's whole pre-dispatch discipline -- both preflights,
+    their committed waivers, and the cross-dispatch persistence of a degraded
+    post-merge outcome -- runs LAST, as one call into `_dispatcher_step_gate`.
+    It is one call rather than a step-per-branch ladder here because the set is
+    extensible by ratification: a fourth step should change the gate's own
+    sequence, not this function.
     """
     invoker_refusal = require_invoker_refusal(args=args, repo=repo)
     if invoker_refusal is not None:
@@ -281,23 +280,11 @@ def dispatch_preamble(
     if fabro_error is not None:
         _ = write_stderr(text=fabro_error)
         return None, _EXIT_PRECONDITION_ERROR
-    source_refusal = source_checkout_preflight_refusal(repo=repo, runner=ShellCommandRunner())
-    if source_refusal is not None:
-        journal_source_checkout_refusal(
-            journal_path=journal_path(args=args, repo=repo),
-            identity=invoker_from_args(args=args),
-            refusal=source_refusal,
-        )
-        _ = write_stderr(text=source_refusal.detail)
-        return None, _EXIT_PRECONDITION_ERROR
-    master_ci = master_ci_preflight(repo=repo, runner=ShellCommandRunner())
-    journal_master_ci_outcome(
-        journal_path=journal_path(args=args, repo=repo),
-        identity=invoker_from_args(args=args),
-        outcome=master_ci,
+    step_refusal = step_discipline_refusal(
+        args=args, repo=repo, identity=invoker_from_args(args=args)
     )
-    if master_ci.refusal is not None:
-        _ = write_stderr(text=master_ci.refusal.detail)
+    if step_refusal is not None:
+        _ = write_stderr(text=step_refusal)
         return None, _EXIT_PRECONDITION_ERROR
     return janitor, None
 

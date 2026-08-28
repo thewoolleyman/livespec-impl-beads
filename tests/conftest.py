@@ -35,6 +35,7 @@ import base64
 import json
 import os
 import shutil
+import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -301,6 +302,56 @@ def _hermetic_fabro_bin(monkeypatch: pytest.MonkeyPatch, _fabro_stub_bin: str) -
     paths override it explicitly (an explicit `--fabro-bin`, or `delenv`).
     """
     monkeypatch.setenv("LIVESPEC_FABRO_BIN", _fabro_stub_bin)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _hermetic_source_checkout(tmp_path_factory: pytest.TempPathFactory) -> None:
+    """Make pytest's temp root a real, origin-reachable git worktree.
+
+    The source-checkout preflight is FAIL-CLOSED on both arms: it refuses a
+    checkout whose HEAD no `origin/*` ref contains, and it refuses a path that
+    is not a git worktree at all, because neither can prove the base Fabro
+    would stage is origin-reachable. Every dispatch test builds its throwaway
+    `--repo` under this root, so without a hermetic answer they would all
+    refuse — the same ambient-host problem the `gh` and `fabro` stubs above
+    solve, one layer down.
+
+    The honest fix is to make those throwaway targets what a dispatch target
+    genuinely is: a git checkout. One `git init` at the temp ROOT covers every
+    per-test directory beneath it, an empty commit gives it a HEAD, and
+    pointing `refs/remotes/origin/master` at that same commit makes HEAD
+    origin-reachable — so the preflight's real logic runs and PASSES rather
+    than being stubbed out of the path. A test asserting a refusal arm injects
+    its own runner, and a test that creates its own nested repo shadows this
+    one exactly as git itself would.
+
+    No already-initialised guard: every step of the sequence is idempotent, and
+    a guard whose other arm a fresh session-scoped basetemp can never reach
+    would be a branch no test could cover honestly.
+    """
+    _git_init_origin_reachable(root=tmp_path_factory.getbasetemp())
+
+
+def _git_init_origin_reachable(*, root: Path) -> None:
+    env = {**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null"}
+    author = {
+        "GIT_AUTHOR_NAME": "livespec tests",
+        "GIT_AUTHOR_EMAIL": "tests@example.invalid",
+        "GIT_COMMITTER_NAME": "livespec tests",
+        "GIT_COMMITTER_EMAIL": "tests@example.invalid",
+    }
+    for argv in (
+        ["git", "init", "-b", "master", "."],
+        ["git", "commit", "--allow-empty", "-m", "hermetic temp-root base"],
+        ["git", "update-ref", "refs/remotes/origin/master", "HEAD"],
+    ):
+        _ = subprocess.run(  # fixed argv, no shell, hermetic temp root
+            argv,
+            cwd=str(root),
+            check=True,
+            capture_output=True,
+            env={**env, **author},
+        )
 
 
 # ---------------------------------------------------------------------------

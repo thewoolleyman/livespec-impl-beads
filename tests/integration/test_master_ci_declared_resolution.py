@@ -25,12 +25,13 @@ from __future__ import annotations
 
 import json
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import pytest
 from livespec_orchestrator_beads_fabro._beads_client import reset_fake_singleton
-from livespec_orchestrator_beads_fabro.commands import _dispatcher_loop, _dispatcher_run_checks
+from livespec_orchestrator_beads_fabro.commands import _dispatcher_loop, _dispatcher_step_gate
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandResult,
     DispatchOutcome,
@@ -92,7 +93,13 @@ def _hermetic_dispatch_env(
 
 @dataclass(kw_only=True)
 class _PreflightRunner:
-    """The preflight's whole command seam: git origin-HEAD plus the `gh` calls."""
+    """The preamble's whole command seam: the source-checkout git reads and `gh`.
+
+    The two pre-dispatch preflights share one injected runner because they share
+    one gate: the source-checkout step runs first and is fail-closed, so a
+    runner that answered only the `gh` calls would refuse every case here before
+    the master-CI lookup it exists to exercise ever ran.
+    """
 
     workflow: str
     job: str
@@ -118,15 +125,21 @@ class _PreflightRunner:
         return [call for call in self.calls if call[: len(prefix)] == prefix]
 
     def _answer(self, *, argv: list[str]) -> CommandResult:
-        if argv[:2] == ["git", "symbolic-ref"]:
-            return CommandResult(exit_code=0, stdout=f"origin/{_RESOLVED_BRANCH}\n", stderr="")
-        if argv[:3] == ["gh", "run", "list"]:
-            return self._run_list()
-        if argv[:3] == ["gh", "run", "view"]:
-            return CommandResult(exit_code=0, stdout=self._jobs(), stderr="")
-        if argv[:3] == ["gh", "auth", "token"]:
-            return CommandResult(exit_code=0, stdout="secret\n", stderr="")
-        return CommandResult(exit_code=1, stdout="", stderr="unscripted")
+        """First matching argv prefix wins; an unscripted argv answers a failure."""
+        answers: tuple[tuple[tuple[str, ...], Callable[[], CommandResult]], ...] = (
+            (("git", "symbolic-ref"), lambda: _ok(stdout=f"origin/{_RESOLVED_BRANCH}\n")),
+            (("git", "rev-parse", "--is-inside-work-tree"), lambda: _ok(stdout="true\n")),
+            (("git", "for-each-ref"), lambda: _ok(stdout=f"origin/{_RESOLVED_BRANCH}\n")),
+            (("git", "rev-parse"), lambda: _ok(stdout="abc1234\n")),
+            (("git", "merge-base"), _ok),
+            (("gh", "run", "list"), self._run_list),
+            (("gh", "run", "view"), lambda: _ok(stdout=self._jobs())),
+            (("gh", "auth", "token"), lambda: _ok(stdout="secret\n")),
+            # The empty prefix matches any argv: the catch-all for an
+            # unscripted command, kept last so nothing else is shadowed.
+            ((), lambda: CommandResult(exit_code=1, stdout="", stderr="unscripted")),
+        )
+        return next(answer() for prefix, answer in answers if tuple(argv[: len(prefix)]) == prefix)
 
     def _run_list(self) -> CommandResult:
         if self.run_list_exit != 0:
@@ -144,6 +157,10 @@ class _PreflightRunner:
         return json.dumps(
             {"jobs": [{"name": self.job, "conclusion": self.job_conclusion, "status": "completed"}]}
         )
+
+
+def _ok(*, stdout: str = "") -> CommandResult:
+    return CommandResult(exit_code=0, stdout=stdout, stderr="")
 
 
 @dataclass(kw_only=True)
@@ -242,7 +259,7 @@ def _dispatch(
     append_work_item(path=_config(), item=item)
     recording = _RecordingRunDispatch()
     monkeypatch.setattr(_dispatcher_loop, "run_dispatch", recording)
-    monkeypatch.setattr(_dispatcher_run_checks, "ShellCommandRunner", lambda: runner)
+    monkeypatch.setattr(_dispatcher_step_gate, "ShellCommandRunner", lambda: runner)
     exit_code = main(
         argv=[
             "dispatch",

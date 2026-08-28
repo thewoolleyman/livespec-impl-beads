@@ -9,6 +9,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_journal impor
     run_stage,
     tail,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_degraded import (
+    DegradedStep,
+    merged_degraded_outcome,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_lock import (
     claim_janitor_lock,
     janitor_lock_path,
@@ -25,6 +29,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     janitor_worktree_remove_argv,
     pull_primary_argv,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_step_ids import JANITOR_BOOTSTRAP
 
 if TYPE_CHECKING:
     from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
@@ -51,12 +56,11 @@ def post_merge(
     lock_path = janitor_lock_path(plan=plan)
     lock_detail = claim_janitor_lock(path=lock_path, owner=plan.work_item_id)
     if lock_detail is not None:
-        return _merged_degraded_detail(
-            work_item_id=plan.work_item_id,
+        return merged_degraded_outcome(
             outcome_type=outcome_type,
+            work_item_id=plan.work_item_id,
             merged=merged,
-            step="claiming the janitor checkout lock",
-            reason=lock_detail,
+            step=DegradedStep(description="claiming the janitor checkout lock", reason=lock_detail),
         )
     with ExitStack() as stack:
         _ = stack.callback(release_janitor_lock, path=lock_path)
@@ -176,27 +180,31 @@ def _provision_janitor_checkout(
             janitor_worktree_add_argv(plan=plan, ref=ref),
             plan.repo,
             f"provisioning the fresh janitor checkout at {plan.janitor_checkout} (ref {ref})",
+            None,
         ),
         (
             "janitor-checkout-trust",
             janitor_trust_argv(),
             plan.janitor_checkout,
             f"`mise trust` inside the janitor checkout {plan.janitor_checkout}",
+            None,
         ),
         (
             "janitor-checkout-bootstrap",
             janitor_bootstrap_argv(),
             plan.repo,
             f"installing canonical hooks via `just install-commit-refuse-hooks` in {plan.repo}",
+            JANITOR_BOOTSTRAP,
         ),
         (
             "janitor-core-provision",
             janitor_core_clone_argv(plan=plan),
             plan.janitor_checkout,
             core_step,
+            None,
         ),
     )
-    for stage, argv, cwd, step in steps:
+    for stage, argv, cwd, step, step_id in steps:
         result = run_stage(
             runner=runner,
             journal=journal,
@@ -211,6 +219,7 @@ def _provision_janitor_checkout(
                 merged=merged,
                 step=step,
                 result=result,
+                step_id=step_id,
             )
     return None
 
@@ -222,43 +231,14 @@ def _merged_degraded(
     merged: PrView,
     step: str,
     result: CommandResult,
+    step_id: str | None = None,
 ) -> DispatchOutcome:
-    return _merged_degraded_detail(
-        work_item_id=plan.work_item_id,
+    return merged_degraded_outcome(
         outcome_type=outcome_type,
+        work_item_id=plan.work_item_id,
         merged=merged,
-        step=step,
-        reason=tail(text=result.stderr, limit=500),
-        janitor_argv=plan.janitor,
-    )
-
-
-def _merged_degraded_detail(
-    *,
-    work_item_id: str,
-    outcome_type: type[DispatchOutcome],
-    merged: PrView,
-    step: str,
-    reason: str,
-    janitor_argv: tuple[str, ...] | None = None,
-) -> DispatchOutcome:
-    remediation = (
-        (
-            f" Remediate the host, then run `{' '.join(janitor_argv)}` in a clean "
-            "checkout of merged master to close the gate by hand."
-        )
-        if janitor_argv is not None
-        else ""
-    )
-    return outcome_type(
-        work_item_id=work_item_id,
-        status="green",
-        stage="janitor-env-degraded",
-        pr_number=merged.number,
-        merge_sha=merged.merge_sha,
-        detail=(
-            f"merged, but the post-merge janitor DID NOT RUN: {step} failed "
-            f"({reason}). This is a host-environment problem, not a work-item "
-            f"failure — the merge is confirmed on the remote.{remediation}"
+        step=DegradedStep(
+            description=step, reason=tail(text=result.stderr, limit=500), step_id=step_id
         ),
+        janitor_argv=plan.janitor,
     )
