@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.88.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.87.0...v0.88.0) (2026-08-28)
+
+
+### Features
+
+* **dispatcher:** resolve the declared master-CI pipeline and retire the fail-open cases ([f391378](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/f3913780e2be6056724b962f84a1534694300dd7))
+
+
+### Bug Fixes
+
+* **dispatcher:** refuse a present-but-unusable master-CI declaration ([1da118c](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/1da118cff6d4eb408a2ee543deb937a4b96b61d1))
+
 ## [0.87.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.86.0...v0.87.0) (2026-08-28)
 
 
