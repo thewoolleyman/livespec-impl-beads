@@ -5,7 +5,9 @@ edits that deliberately change no status live in the sibling modules
 `_store_label_mutations` (policy + scope-override), `_store_cap_mutations`
 (per-item cap overrides), and `_store_rework_mutations` (the `rework:pending`
 marker), which this module consults for the marker removals every transition
-out of `active` must carry.
+out of `active` must carry. `_store_blocked_mutations` is the same arrangement
+for the `blocked-reason:` vocabulary: it owns the removals every transition out
+of `blocked` must carry.
 """
 
 from __future__ import annotations
@@ -17,6 +19,10 @@ from livespec_orchestrator_beads_fabro._beads_client import (
     EDGE_SUPERSEDES,
     IssueDraft,
     make_beads_client,
+)
+from livespec_orchestrator_beads_fabro._store_blocked_mutations import (
+    LABEL_BLOCKED_REASON_PREFIX,
+    blocked_reason_label_removals,
 )
 from livespec_orchestrator_beads_fabro._store_metadata import (
     work_item_metadata,
@@ -32,6 +38,7 @@ from livespec_orchestrator_beads_fabro._store_ready_dwell import (
 from livespec_orchestrator_beads_fabro._store_rework_mutations import (
     rework_pending_label_removals,
 )
+from livespec_orchestrator_beads_fabro._store_statuses import beads_status_for
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
 if TYPE_CHECKING:
@@ -43,7 +50,6 @@ __all__: list[str] = [
     "create_work_item",
     "read_ready_dwell_instants",
     "register_custom_statuses",
-    "update_work_item_blocked_state",
     "update_work_item_rank",
     "update_work_item_status",
 ]
@@ -53,16 +59,10 @@ _LABEL_GAP_ID = "gap-id:"
 _LABEL_RESOLUTION = "resolution:"
 _LABEL_ADMISSION = "admission:"
 _LABEL_ACCEPTANCE = "acceptance:"
-_LABEL_BLOCKED_REASON = "blocked-reason:"
 _LABEL_FACTORY_SAFETY = "factory-safety:"
 _LABEL_AWAITS_SCOPE_OVERRIDE = "awaits-scope-override"
 
 _LIVESPEC_DONE = "done"
-_BEADS_CLOSED = "closed"
-
-
-def _beads_status_for(*, status: str) -> str:
-    return _BEADS_CLOSED if status == _LIVESPEC_DONE else status
 
 
 def append_work_item(*, path: StoreConfig, item: WorkItem) -> None:
@@ -140,7 +140,10 @@ def update_work_item_status(
     A transition to any status other than `active` also clears the
     `rework:pending` marker in the SAME mutation, which is what makes the
     "an item leaving `active` has the label cleared" invariant structural
-    rather than something each disposition has to remember.
+    rather than something each disposition has to remember. A transition to
+    any status other than `blocked` clears the `blocked-reason:` label the
+    same way, so an operator valve move out of `blocked` cannot leave the
+    item advertising a human gate it no longer has.
     """
     client = make_beads_client(config=path)
     metadata = None
@@ -151,46 +154,16 @@ def update_work_item_status(
         )
     client.update_issue(
         issue_id=item_id,
-        status=_beads_status_for(status=status),
+        status=beads_status_for(status=status),
         assignee=assignee,
         clear_assignee=clear_assignee,
         metadata=metadata,
-        remove_labels=rework_pending_label_removals(status=status) or None,
+        remove_labels=(
+            rework_pending_label_removals(status=status)
+            + blocked_reason_label_removals(status=status)
+        )
+        or None,
     )
-
-
-def update_work_item_blocked_state(
-    *,
-    path: StoreConfig,
-    item_id: str,
-    status: str,
-    blocked_reason: str | None,
-    admission_policy: str | None = None,
-) -> None:
-    """Transition an item and replace its dispatcher blocked-reason label.
-
-    This is the dispatch-time escalation seam for Fabro human gates: the
-    Dispatcher writes `status=blocked` plus `blocked-reason:needs-human` in one
-    in-place ledger mutation. The same seam is used by the human valve to clear
-    that label when an operator moves the item out of `blocked`.
-    """
-    remove_labels = [
-        f"{_LABEL_BLOCKED_REASON}{value}" for value in ("needs-human", "infra-external")
-    ] + rework_pending_label_removals(status=status)
-    add_labels: list[str] = []
-    if blocked_reason is not None:
-        add_labels.append(f"{_LABEL_BLOCKED_REASON}{blocked_reason}")
-    if admission_policy is not None:
-        remove_labels.extend(f"{_LABEL_ADMISSION}{value}" for value in ("auto", "manual"))
-        add_labels.append(f"{_LABEL_ADMISSION}{admission_policy}")
-    client = make_beads_client(config=path)
-    client.update_issue(
-        issue_id=item_id,
-        status=_beads_status_for(status=status),
-        remove_labels=remove_labels,
-    )
-    if add_labels:
-        client.update_issue(issue_id=item_id, add_labels=add_labels)
 
 
 def register_custom_statuses(*, path: StoreConfig) -> None:
@@ -243,7 +216,7 @@ def create_work_item(*, client: BeadsClient, item: WorkItem) -> None:
     if item.status == _LIVESPEC_DONE:
         _close_in_place(client=client, item=item)
     else:
-        client.update_issue(issue_id=item.id, status=_beads_status_for(status=item.status))
+        client.update_issue(issue_id=item.id, status=beads_status_for(status=item.status))
 
 
 def _add_dependency_edges(*, client: BeadsClient, item: WorkItem) -> None:
@@ -271,7 +244,9 @@ def _close_in_place(*, client: BeadsClient, item: WorkItem) -> None:
     """Close an existing issue: bd close + resolution label + audit metadata.
 
     The terminal close is a transition OUT of `active`, so it carries the same
-    `rework:pending` removal the other lifecycle write seams do.
+    `rework:pending` removal the other lifecycle write seams do — and, since a
+    closed item is not `blocked`, the same `blocked-reason:` removal, so an
+    item closed straight out of `blocked` stops advertising a human gate.
     """
     existing_metadata = _existing_metadata(client=client, issue_id=item.id)
     client.close_issue(issue_id=item.id, reason=item.reason)
@@ -285,7 +260,11 @@ def _close_in_place(*, client: BeadsClient, item: WorkItem) -> None:
     client.update_issue(
         issue_id=item.id,
         add_labels=add_labels if add_labels else None,
-        remove_labels=rework_pending_label_removals(status=item.status) or None,
+        remove_labels=(
+            rework_pending_label_removals(status=item.status)
+            + blocked_reason_label_removals(status=item.status)
+        )
+        or None,
         metadata=metadata,
     )
 
@@ -309,7 +288,7 @@ def _work_item_labels(*, item: WorkItem) -> list[str]:
     if item.acceptance_policy is not None:
         labels.append(f"{_LABEL_ACCEPTANCE}{item.acceptance_policy}")
     if item.blocked_reason is not None:
-        labels.append(f"{_LABEL_BLOCKED_REASON}{item.blocked_reason}")
+        labels.append(f"{LABEL_BLOCKED_REASON_PREFIX}{item.blocked_reason}")
     if item.factory_safety is not None:
         labels.append(f"{_LABEL_FACTORY_SAFETY}{item.factory_safety}")
     if item.awaits_scope_override:

@@ -17,7 +17,9 @@ from returns.unsafe import unsafe_perform_io
 from livespec_orchestrator_beads_fabro._store_acceptance_rework import (
     update_acceptance_failed_ai_passes,
 )
-from livespec_orchestrator_beads_fabro._store_mutations import update_work_item_blocked_state
+from livespec_orchestrator_beads_fabro._store_blocked_mutations import (
+    update_work_item_blocked_state,
+)
 from livespec_orchestrator_beads_fabro._store_rework_mutations import (
     update_work_item_rework_pending,
 )

@@ -9,10 +9,12 @@ from livespec_orchestrator_beads_fabro._beads_client import (
     FakeBeadsClient,
     make_beads_client,
 )
+from livespec_orchestrator_beads_fabro._store_blocked_mutations import (
+    update_work_item_blocked_state,
+)
 from livespec_orchestrator_beads_fabro._store_mutations import (
     append_work_item,
     register_custom_statuses,
-    update_work_item_blocked_state,
     update_work_item_rank,
     update_work_item_status,
 )

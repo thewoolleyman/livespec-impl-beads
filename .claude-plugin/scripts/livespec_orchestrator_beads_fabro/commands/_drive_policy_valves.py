@@ -5,8 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from livespec_orchestrator_beads_fabro import store
+from livespec_orchestrator_beads_fabro._store_blocked_mutations import (
+    update_work_item_blocked_state,
+)
 from livespec_orchestrator_beads_fabro._store_cap_mutations import update_work_item_cap
-from livespec_orchestrator_beads_fabro._store_mutations import update_work_item_blocked_state
 from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings import (
     ACCEPTANCE_REWORK_CAP_LABEL,
     MERGE_ON_REVIEW_CAP_LABEL,
