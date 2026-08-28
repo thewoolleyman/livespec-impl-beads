@@ -34,6 +34,9 @@ Ask the user (one question at a time):
 3. **Type** — one of `bug`, `feature`, `task`, `chore`, `epic`.
 Optional follow-ups (skip-confirmable):
 
+- **Acceptance criteria** — the gradeable assertions the item is judged
+  against; string or null (default null). Author them to the rules in
+  "Writing acceptance criteria" below BEFORE filing.
 - **Assignee** — string or null (default null).
 - **Depends-on** — comma-separated work-item ids (the tenant's
   configured `<prefix>-XXXXXX` form); empty list permitted.
@@ -53,6 +56,32 @@ Optional follow-ups (skip-confirmable):
   `unresolved-spec-commitment` doctor invariant queries via
   `list-work-items --json` to verify each declared spec→impl
   commitment maps to a filed work-item.
+
+#### Writing acceptance criteria
+
+The acceptance pass grades the criteria field LINE BY LINE, one line at
+a time, as standalone claims. Filers MUST therefore write **one
+unwrapped assertion per line**:
+
+- **One assertion per line.** Each line states exactly one checkable
+  claim about the change this item lands.
+- **Never wrap a sentence across lines.** Let a line run long instead.
+  The parser starts a NEW criterion at every non-indented line, so a
+  sentence reflowed at a column boundary is graded as several standalone
+  fragments, and each fragment is judged for evidence it cannot carry —
+  a correct, fully-implemented item fails on its own formatting. Only an
+  INDENTED continuation line is joined onto the criterion above it, so
+  indentation is the sole safe wrap.
+- **Keep rationale, provenance and explanation out of the field.** They
+  belong in the description or a ledger comment; in the criteria field
+  they become fragments that are graded as assertions.
+
+Apply this AT FILING TIME. Acceptance grades the criteria SNAPSHOT taken
+at dispatch time, not the live ledger row, so a post-dispatch reflow of
+the criteria is inert against the run already in flight: rewriting the
+field after dispatch cannot rescue that dispatch, and the failure only
+surfaces after the work has merged. Filing conforming criteria here is
+the whole mitigation.
 
 ### Step 2 — Confirm and file
 
@@ -90,6 +119,8 @@ item = WorkItem(
     audit=None,
     superseded_by=None,
     spec_commitment_hint=spec_commitment_hint,  # str | None; None for freeform.
+    # One unwrapped assertion per line, per "Writing acceptance criteria".
+    acceptance_criteria=acceptance_criteria,  # str | None; None when unsupplied.
 )
 append_work_item(path=config, item=item)
 if plan_parent_id is not None:
