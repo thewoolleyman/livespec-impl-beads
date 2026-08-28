@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.93.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.92.0...v0.93.0) (2026-08-28)
+
+
+### Features
+
+* **dispatcher:** execute the rework-pending re-dispatch ([7ccf6f6](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/7ccf6f64d6bc8d54f4486c30e3c4c506fcd227eb))
+
 ## [0.92.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.91.0...v0.92.0) (2026-08-28)
 
 
