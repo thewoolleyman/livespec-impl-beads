@@ -13,6 +13,12 @@ default-branch-resolution rule, because under the retired branch literal an
 adopter whose primary branch is `main` had a branch they do not have looked up
 on their behalf -- and got a clean, plausible, empty answer for it.
 
+A PRESENT-BUT-UNUSABLE DECLARATION REFUSES TOO, and refuses first, before any
+git or forge read. It is the fail-open wearing a declaration's clothes: a typo
+in a declared workflow name that slid onto the convention would admit the
+dispatch on an unrelated pipeline's green, which is indistinguishable at the
+call site from the repository's own pipeline passing.
+
 WHAT is looked up comes from `_dispatcher_master_ci_pipeline`; the git and forge
 reads come from `_dispatcher_master_ci_lookups`; HOW an outcome reads comes from
 `_dispatcher_master_ci_refusals`. This module is the classifier between them.
@@ -83,6 +89,18 @@ def master_ci_preflight(*, repo: Path, runner: CommandRunner) -> MasterCiOutcome
     pending, or unprovable.
     """
     pipeline = resolve_master_ci_pipeline(cwd=repo)
+    if pipeline.defect is not None:
+        # Refused BEFORE the branch and forge reads: there is nothing to look
+        # up. Resolving a branch first would only decorate the refusal, and
+        # completing the declaration from the convention would prove a pipeline
+        # the repository has already said is not its own.
+        return unprovable_outcome(
+            pipeline=pipeline,
+            branch=_UNRESOLVED_BRANCH,
+            run_id=UNKNOWN_RUN,
+            cause=f"the declared master-CI pipeline is unusable: {pipeline.defect}",
+            remedy=PIPELINE_REMEDY,
+        )
     branch = resolve_default_branch(repo=repo, runner=runner)
     if branch is None:
         return unprovable_outcome(

@@ -16,6 +16,18 @@ unresolvable-pipeline refusal names which of the two resolutions was attempted
 and names the key that declares it, so an adopter can tell "your pipeline is
 red" apart from "I looked for a workflow you do not have".
 
+ONLY AN ABSENT KEY FALLS BACK. A key that is PRESENT but unusable -- not a
+mapping, or naming only half the pipeline, or carrying a non-string or empty
+name -- is a DEFECT, never a silent slide onto the convention. The two readings
+are not interchangeable: an absent key says "this repository uses the
+convention", while a present one says "this repository's pipeline is NOT the
+convention" and then fails to say which. Falling back on the second reading
+takes the adopter's own statement that `CI`/`ci-green` is the wrong target and
+proves that target green anyway -- so a typo in a declared workflow name admits
+a dispatch on an UNRELATED pipeline's evidence, which is the fail-open this
+clause exists to retire wearing a declaration's clothes. A defective
+declaration therefore resolves no names at all and refuses as unprovable.
+
 Declaration changes WHAT is looked up, never WHETHER absence of proof refuses
 (`SPECIFICATION/contracts.md`, the master-CI pipeline resolution clause).
 """
@@ -34,6 +46,7 @@ __all__: list[str] = [
     "DEFAULT_RESOLUTION",
     "DEFAULT_WORKFLOW",
     "MASTER_CI_KEY",
+    "UNRESOLVED_NAME",
     "MasterCiPipeline",
     "master_ci_pipeline_from_block",
     "pipeline_resolution_sentence",
@@ -50,6 +63,12 @@ DEFAULT_JOB = "ci-green"
 DECLARED_RESOLUTION = "declared"
 DEFAULT_RESOLUTION = "default"
 
+# What a defective declaration resolves its names to. It is a sentinel rather
+# than the convention's names precisely because the convention is the wrong
+# answer here: a journal record reading `CI` would tell the operator the lookup
+# targeted a pipeline they never declared.
+UNRESOLVED_NAME = "<unresolved>"
+
 _MASTER_CI_BLOCK = "master_ci"
 _WORKFLOW_KEY = "workflow"
 _JOB_KEY = "job"
@@ -64,11 +83,18 @@ class MasterCiPipeline:
     because the refusal text and the journal record both have to say which
     resolution was attempted, and a second derivation could disagree with the
     first.
+
+    `defect` names what is wrong with a PRESENT declaration, and is `None` on
+    every usable pipeline. A defective pipeline still reports `declared` as its
+    attempted resolution -- the adopter did declare, the declaration is just not
+    readable -- so the refusal names the key the operator has to go and fix
+    rather than blaming the convention it never chose.
     """
 
     workflow: str
     job: str
     resolution: str
+    defect: str | None = None
 
 
 def resolve_master_ci_pipeline(*, cwd: Path) -> MasterCiPipeline:
@@ -82,24 +108,45 @@ def resolve_master_ci_pipeline(*, cwd: Path) -> MasterCiPipeline:
 
 
 def master_ci_pipeline_from_block(*, block: dict[str, Any]) -> MasterCiPipeline:
-    """Resolve the pipeline from a `dispatcher` block; absent key -> the convention."""
-    raw = block.get(_MASTER_CI_BLOCK)
-    if not isinstance(raw, dict):
+    """Resolve the pipeline from a `dispatcher` block; ABSENT key -> the convention.
+
+    Presence is tested with `in` rather than a `get` sentinel because a key
+    written as JSON `null` is a present declaration that names nothing, and
+    reading it as absent is exactly the fallback this refuses.
+    """
+    if _MASTER_CI_BLOCK not in block:
         return MasterCiPipeline(
             workflow=DEFAULT_WORKFLOW,
             job=DEFAULT_JOB,
             resolution=DEFAULT_RESOLUTION,
         )
+    raw = block[_MASTER_CI_BLOCK]
+    if not isinstance(raw, dict):
+        return _defective(
+            defect=(
+                f"`{MASTER_CI_KEY}` is present but is not a mapping naming "
+                f"`{_WORKFLOW_KEY}` and `{_JOB_KEY}`"
+            )
+        )
     declared = cast("dict[str, Any]", raw)
-    return MasterCiPipeline(
-        workflow=_declared_name(block=declared, key=_WORKFLOW_KEY, default=DEFAULT_WORKFLOW),
-        job=_declared_name(block=declared, key=_JOB_KEY, default=DEFAULT_JOB),
-        resolution=DECLARED_RESOLUTION,
-    )
+    workflow = declared.get(_WORKFLOW_KEY)
+    if not isinstance(workflow, str) or workflow == "":
+        return _defective(defect=_name_defect(declared=declared, key=_WORKFLOW_KEY))
+    job = declared.get(_JOB_KEY)
+    if not isinstance(job, str) or job == "":
+        return _defective(defect=_name_defect(declared=declared, key=_JOB_KEY))
+    return MasterCiPipeline(workflow=workflow, job=job, resolution=DECLARED_RESOLUTION)
 
 
 def pipeline_resolution_sentence(*, pipeline: MasterCiPipeline) -> str:
     """One line naming the attempted resolution and the key that declares it."""
+    if pipeline.defect is not None:
+        return (
+            f"Resolution attempted: declared, from the committed `{MASTER_CI_KEY}` key, "
+            f"which is present but unusable: {pipeline.defect}. A present declaration "
+            "is never completed from the default convention, because that would prove "
+            "a pipeline this repository has said is not its own."
+        )
     if pipeline.resolution == DECLARED_RESOLUTION:
         return (
             f"Resolution attempted: declared, from the committed `{MASTER_CI_KEY}` key "
@@ -112,8 +159,23 @@ def pipeline_resolution_sentence(*, pipeline: MasterCiPipeline) -> str:
     )
 
 
-def _declared_name(*, block: dict[str, Any], key: str, default: str) -> str:
-    value = block.get(key)
-    if isinstance(value, str) and value != "":
-        return value
-    return default
+def _defective(*, defect: str) -> MasterCiPipeline:
+    """A present-but-unusable declaration: no names resolved, and the reason carried."""
+    return MasterCiPipeline(
+        workflow=UNRESOLVED_NAME,
+        job=UNRESOLVED_NAME,
+        resolution=DECLARED_RESOLUTION,
+        defect=defect,
+    )
+
+
+def _name_defect(*, declared: dict[str, Any], key: str) -> str:
+    """Why one declared name is unusable, distinguishing absent from malformed."""
+    qualified = f"`{MASTER_CI_KEY}.{key}`"
+    if key not in declared:
+        return (
+            f"{qualified} is absent; a declared pipeline names BOTH `{_WORKFLOW_KEY}` "
+            f"and `{_JOB_KEY}`, since defaulting the missing half would prove part of "
+            "a pipeline the repository never named"
+        )
+    return f"{qualified} is present but is not a non-empty string"

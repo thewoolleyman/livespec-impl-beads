@@ -22,6 +22,7 @@ class _Pipeline(Protocol):
     workflow: str
     job: str
     resolution: str
+    defect: str | None
 
 
 class _PipelineModule(Protocol):
@@ -30,6 +31,7 @@ class _PipelineModule(Protocol):
     DEFAULT_JOB: str
     DECLARED_RESOLUTION: str
     DEFAULT_RESOLUTION: str
+    UNRESOLVED_NAME: str
 
     def master_ci_pipeline_from_block(self, *, block: dict[str, Any]) -> _Pipeline:
         """Resolve the pipeline from a dispatcher block."""
@@ -51,16 +53,37 @@ def test_an_absent_key_resolves_the_default_convention() -> None:
     assert pipeline.workflow == "CI"
     assert pipeline.job == "ci-green"
     assert pipeline.resolution == module.DEFAULT_RESOLUTION
+    assert pipeline.defect is None
 
 
-def test_a_non_mapping_key_resolves_the_default_convention() -> None:
-    """A malformed declaration is not a declaration — it falls to the convention."""
+def test_a_non_mapping_key_is_a_defect_and_never_the_convention() -> None:
+    """ONLY an absent key falls back; a present one that names nothing is a defect.
+
+    The discriminating assertion is on the resolved NAMES, not on the defect
+    alone: the retired behaviour returned the convention's `CI`/`ci-green` here,
+    so a pipeline still carrying those names would prove an unrelated workflow
+    green on the strength of a typo.
+    """
     module = _module()
 
     pipeline = module.master_ci_pipeline_from_block(block={"master_ci": "CI"})
 
-    assert (pipeline.workflow, pipeline.job) == ("CI", "ci-green")
-    assert pipeline.resolution == module.DEFAULT_RESOLUTION
+    assert pipeline.defect is not None
+    assert (pipeline.workflow, pipeline.job) == (
+        module.UNRESOLVED_NAME,
+        module.UNRESOLVED_NAME,
+    )
+    assert pipeline.resolution == module.DECLARED_RESOLUTION
+
+
+def test_a_null_declaration_is_a_defect_rather_than_an_absent_key() -> None:
+    """JSON `null` is a PRESENT declaration naming nothing, not an absent key."""
+    module = _module()
+
+    pipeline = module.master_ci_pipeline_from_block(block={"master_ci": None})
+
+    assert pipeline.defect is not None
+    assert pipeline.workflow == module.UNRESOLVED_NAME
 
 
 def test_a_declared_key_resolves_both_declared_names() -> None:
@@ -73,18 +96,67 @@ def test_a_declared_key_resolves_both_declared_names() -> None:
     assert pipeline.workflow == "build.yml"
     assert pipeline.job == "all-green"
     assert pipeline.resolution == module.DECLARED_RESOLUTION
+    assert pipeline.defect is None
 
 
-def test_a_partial_declaration_defaults_the_missing_half_but_stays_declared() -> None:
+def test_an_empty_declared_workflow_is_a_defect_not_a_defaulted_half() -> None:
     module = _module()
 
     pipeline = module.master_ci_pipeline_from_block(
         block={"master_ci": {"workflow": "", "job": "all-green"}}
     )
 
-    assert pipeline.workflow == module.DEFAULT_WORKFLOW
-    assert pipeline.job == "all-green"
-    assert pipeline.resolution == module.DECLARED_RESOLUTION
+    assert pipeline.defect is not None
+    assert "workflow" in pipeline.defect
+    assert "not a non-empty string" in pipeline.defect
+    assert (pipeline.workflow, pipeline.job) == (
+        module.UNRESOLVED_NAME,
+        module.UNRESOLVED_NAME,
+    )
+
+
+def test_an_absent_declared_workflow_is_a_defect_naming_the_missing_half() -> None:
+    module = _module()
+
+    pipeline = module.master_ci_pipeline_from_block(block={"master_ci": {"job": "all-green"}})
+
+    assert pipeline.defect is not None
+    assert "workflow` is absent" in pipeline.defect
+    assert pipeline.job == module.UNRESOLVED_NAME
+
+
+def test_a_non_string_declared_job_is_a_defect() -> None:
+    module = _module()
+
+    pipeline = module.master_ci_pipeline_from_block(
+        block={"master_ci": {"workflow": "build.yml", "job": 7}}
+    )
+
+    assert pipeline.defect is not None
+    assert "job` is present but is not a non-empty string" in pipeline.defect
+    assert pipeline.workflow == module.UNRESOLVED_NAME
+
+
+def test_an_absent_declared_job_is_a_defect_naming_the_missing_half() -> None:
+    module = _module()
+
+    pipeline = module.master_ci_pipeline_from_block(block={"master_ci": {"workflow": "build.yml"}})
+
+    assert pipeline.defect is not None
+    assert "job` is absent" in pipeline.defect
+
+
+def test_the_defective_sentence_names_the_declared_resolution_the_key_and_the_defect() -> None:
+    module = _module()
+    pipeline = module.master_ci_pipeline_from_block(block={"master_ci": {"job": "all-green"}})
+
+    sentence = module.pipeline_resolution_sentence(pipeline=pipeline)
+
+    assert "Resolution attempted: declared" in sentence
+    assert module.MASTER_CI_KEY in sentence
+    assert "unusable" in sentence
+    assert module.DEFAULT_WORKFLOW not in sentence
+    assert module.DEFAULT_JOB not in sentence
 
 
 def test_the_declared_sentence_names_the_resolution_and_the_key() -> None:

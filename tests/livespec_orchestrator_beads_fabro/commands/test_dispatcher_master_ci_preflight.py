@@ -342,6 +342,48 @@ def test_an_unresolvable_pipeline_names_the_resolution_the_key_and_the_escape(
     assert _WAIVER_TOKEN in detail
 
 
+@pytest.mark.parametrize(
+    "declaration",
+    [
+        "CI",
+        {"job": "all-green"},
+        {"workflow": "build.yml"},
+        {"workflow": "", "job": "all-green"},
+    ],
+)
+def test_a_present_but_unusable_declaration_refuses_before_any_lookup(
+    tmp_path: Path, declaration: object
+) -> None:
+    """A typo'd declaration must not slide onto the convention and prove IT green.
+
+    The load-bearing assertion is `runner.calls == []`: the runner here is
+    scripted to answer a fully GREEN default-convention pipeline, so under the
+    retired fallback every case below would pass the preflight on evidence from
+    a workflow the repository has said is not its own. An empty call list proves
+    no lookup was attempted at all, which no green answer can fake.
+    """
+    _ = (tmp_path / ".livespec.jsonc").write_text(
+        json.dumps(
+            {"livespec-orchestrator-beads-fabro": {"dispatcher": {"master_ci": declaration}}}
+        ),
+        encoding="utf-8",
+    )
+    runner = _Runner(results=_results())
+
+    outcome = _outcome(repo=tmp_path, runner=runner)
+
+    assert outcome.refusal is not None
+    assert runner.calls == []
+    assert outcome.record["reason"] == "master-ci-unprovable"
+    assert outcome.record["workflow"] == "<unresolved>"
+    assert outcome.record["aggregate_job"] == "<unresolved>"
+    assert outcome.record["pipeline_resolution"] == "declared"
+    detail = outcome.refusal.detail
+    assert "unusable" in detail
+    assert "dispatcher.master_ci" in detail
+    assert _WAIVER_TOKEN in detail
+
+
 def test_an_undeclared_unresolvable_pipeline_names_the_default_resolution(tmp_path: Path) -> None:
     runner = _Runner(
         results=_results(run_list=_result(exit_code=1, stderr="no workflow named CI\n"))
