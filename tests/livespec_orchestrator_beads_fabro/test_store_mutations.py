@@ -12,10 +12,12 @@ from livespec_orchestrator_beads_fabro._beads_client import (
 from livespec_orchestrator_beads_fabro._store_mutations import (
     append_work_item,
     register_custom_statuses,
-    update_work_item_awaits_scope_override,
-    update_work_item_policy,
+    update_work_item_blocked_state,
     update_work_item_rank,
     update_work_item_status,
+)
+from livespec_orchestrator_beads_fabro._store_rework_mutations import (
+    update_work_item_rework_pending,
 )
 from livespec_orchestrator_beads_fabro.store import read_work_items
 from livespec_orchestrator_beads_fabro.types import (
@@ -127,6 +129,52 @@ def test_update_work_item_status_transitions_and_sets_assignee_in_place() -> Non
     assert (read_back.status, read_back.assignee) == ("acceptance", "fabro")
 
 
+def test_transitions_out_of_active_clear_the_rework_pending_marker() -> None:
+    """The clear rides the write SEAMS, so no disposition can forget it.
+
+    Three seams carry a transition out of `active` — the ordinary status write,
+    the blocked-state escalation, and the terminal close — and each is checked
+    here, because the standing invariant is that an item whose status is not
+    `active` never carries the marker.
+    """
+    for item_id in ("li-mark-status", "li-mark-blocked", "li-mark-closed"):
+        append_work_item(path=_config(), item=_minimal_work_item(id_=item_id, status="ready"))
+        update_work_item_status(path=_config(), item_id=item_id, status="active")
+        update_work_item_rework_pending(path=_config(), item_id=item_id, value=True)
+
+    update_work_item_status(path=_config(), item_id="li-mark-status", status="acceptance")
+    update_work_item_blocked_state(
+        path=_config(),
+        item_id="li-mark-blocked",
+        status="blocked",
+        blocked_reason="needs-human",
+    )
+    append_work_item(
+        path=_config(),
+        item=_minimal_work_item(id_="li-mark-closed", status="done", resolution="completed"),
+    )
+
+    read_back = {item.id: item for item in read_work_items(path=_config())}
+    assert [read_back[item_id].rework_pending for item_id in sorted(read_back)] == [
+        False,
+        False,
+        False,
+    ]
+
+
+def test_a_transition_into_active_leaves_the_rework_pending_marker_in_place() -> None:
+    """The control for the clear above: a rework re-dispatch must not lose it."""
+    append_work_item(path=_config(), item=_minimal_work_item(id_="li-mark-kept", status="active"))
+    update_work_item_rework_pending(path=_config(), item_id="li-mark-kept", value=True)
+
+    update_work_item_status(
+        path=_config(), item_id="li-mark-kept", status="active", assignee="fabro"
+    )
+
+    [read_back] = list(read_work_items(path=_config()))
+    assert (read_back.status, read_back.rework_pending) == ("active", True)
+
+
 def test_update_work_item_status_can_explicitly_clear_assignee() -> None:
     append_work_item(
         path=_config(),
@@ -205,59 +253,6 @@ def test_ready_dwell_projection_reports_missing_instant_as_unknown() -> None:
         "li-known": _fake().show_issue(issue_id="li-known")["metadata"]["ready_since"],
         "li-legacy": None,
     }
-
-
-def test_update_work_item_policy_replaces_requested_labels_only() -> None:
-    append_work_item(
-        path=_config(),
-        item=_minimal_work_item(
-            id_="li-pol",
-            admission_policy="manual",
-            acceptance_policy="ai-only",
-        ),
-    )
-    update_work_item_policy(
-        path=_config(),
-        item_id="li-pol",
-        admission_policy="auto",
-        acceptance_policy="human-only",
-    )
-    record = _fake().show_issue(issue_id="li-pol")
-    assert "admission:auto" in record["labels"]
-    assert "acceptance:human-only" in record["labels"]
-    assert "admission:manual" not in record["labels"]
-    assert "acceptance:ai-only" not in record["labels"]
-
-
-def test_update_work_item_policy_noop_leaves_item_unchanged() -> None:
-    append_work_item(
-        path=_config(),
-        item=_minimal_work_item(
-            id_="li-pol-noop",
-            admission_policy="manual",
-            acceptance_policy="ai-then-human",
-        ),
-    )
-    update_work_item_policy(path=_config(), item_id="li-pol-noop")
-    [read_back] = list(read_work_items(path=_config()))
-    assert (read_back.admission_policy, read_back.acceptance_policy) == (
-        "manual",
-        "ai-then-human",
-    )
-
-
-def test_update_work_item_awaits_scope_override_sets_and_clears_label() -> None:
-    append_work_item(path=_config(), item=_minimal_work_item(id_="li-awaits"))
-    update_work_item_awaits_scope_override(path=_config(), item_id="li-awaits", value=True)
-    [with_signal] = list(read_work_items(path=_config()))
-    assert with_signal.awaits_scope_override is True
-    assert "awaits-scope-override" in _fake().show_issue(issue_id="li-awaits")["labels"]
-
-    update_work_item_awaits_scope_override(path=_config(), item_id="li-awaits", value=False)
-
-    [without_signal] = list(read_work_items(path=_config()))
-    assert without_signal.awaits_scope_override is False
-    assert "awaits-scope-override" not in _fake().show_issue(issue_id="li-awaits")["labels"]
 
 
 def test_append_lands_custom_status_via_two_step() -> None:

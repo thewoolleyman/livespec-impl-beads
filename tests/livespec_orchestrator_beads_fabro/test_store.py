@@ -262,6 +262,16 @@ def test_awaits_scope_override_round_trips_via_label() -> None:
     assert read_back.awaits_scope_override is True
 
 
+def test_rework_pending_materializes_from_the_ledger_label() -> None:
+    """The marker is a materialized FIELD, so no consumer re-reads raw labels."""
+    append_work_item(path=_config(), item=_minimal_work_item(id_="li-rework", status="active"))
+    _fake().update_issue(issue_id="li-rework", add_labels=["rework:pending"])
+
+    [read_back] = list(read_work_items(path=_config()))
+
+    assert read_back.rework_pending is True
+
+
 def test_absent_policy_labels_read_back_none() -> None:
     """A WorkItem with no policy fields writes no policy labels and reads None."""
     append_work_item(path=_config(), item=_minimal_work_item(id_="li-nopol"))
@@ -276,6 +286,7 @@ def test_absent_policy_labels_read_back_none() -> None:
     assert read_back.blocked_reason is None
     assert read_back.factory_safety is None
     assert read_back.awaits_scope_override is False
+    assert read_back.rework_pending is False
 
 
 def test_prose_marker_without_factory_safety_label_reads_factory_safe(

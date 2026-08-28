@@ -48,6 +48,7 @@ def _item(
     spec_commitment_hint: str | None = None,
     blocked_reason: str | None = None,
     awaits_scope_override: bool = False,
+    rework_pending: bool = False,
 ) -> WorkItem:
     return WorkItem(
         id=id_,
@@ -76,6 +77,7 @@ def _item(
         spec_commitment_hint=spec_commitment_hint,
         blocked_reason=blocked_reason,  # type: ignore[arg-type]
         awaits_scope_override=awaits_scope_override,
+        rework_pending=rework_pending,
     )
 
 
@@ -418,6 +420,19 @@ def test_main_json_output_includes_awaits_scope_override_boolean(
     assert rc == 0
     payload = json.loads(captured.out)
     assert payload[0]["awaits_scope_override"] is True
+
+
+def test_main_json_output_includes_rework_pending_boolean(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Pending rework is visible on the listing surface, per the field map."""
+    _seed(_item(id_="li-rework", status="active"))
+    fake_singleton().update_issue(issue_id="li-rework", add_labels=["rework:pending"])
+    rc = main(argv=["--json"])
+    captured = capsys.readouterr()
+    assert rc == 0
+    payload = json.loads(captured.out)
+    assert payload[0]["rework_pending"] is True
 
 
 # -- spec_commitment_hint surface (livespec PC #4 sub-proposal 3) --------

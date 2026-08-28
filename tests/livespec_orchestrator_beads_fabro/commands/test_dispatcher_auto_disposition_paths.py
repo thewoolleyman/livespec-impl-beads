@@ -179,6 +179,9 @@ def test_ai_fail_auto_rework_path_journals_governing_settings(
     monkeypatch.setattr(_dispatcher_acceptance_rework, "store_config", lambda **_: tmp_path)
     monkeypatch.setattr(_dispatcher_acceptance_rework, "update_work_item_status", lambda **_: None)
     monkeypatch.setattr(
+        _dispatcher_acceptance_rework, "update_work_item_rework_pending", lambda **_: None
+    )
+    monkeypatch.setattr(
         _dispatcher_acceptance_rework,
         "update_acceptance_failed_ai_passes",
         lambda **_: AcceptanceFailureState(failed_ai_passes=1, raw_labels=()),

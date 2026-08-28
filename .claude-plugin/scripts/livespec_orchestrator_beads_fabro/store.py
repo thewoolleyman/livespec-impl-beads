@@ -33,20 +33,23 @@ from livespec_orchestrator_beads_fabro._store_intake_triage import (
     IntakeTriageRecord,
     read_intake_triage_records,
 )
+from livespec_orchestrator_beads_fabro._store_label_mutations import (
+    update_work_item_awaits_scope_override,
+    update_work_item_policy,
+    update_work_item_workflow_scope_override,
+)
 from livespec_orchestrator_beads_fabro._store_mutations import (
     append_work_item,
     read_ready_dwell_instants,
     register_custom_statuses,
-    update_work_item_awaits_scope_override,
-    update_work_item_policy,
     update_work_item_rank,
     update_work_item_status,
-    update_work_item_workflow_scope_override,
 )
 from livespec_orchestrator_beads_fabro._store_native_priorities import (
     read_work_item_native_priorities,
 )
 from livespec_orchestrator_beads_fabro._store_rank import rank_from_metadata
+from livespec_orchestrator_beads_fabro._store_rework_mutations import LABEL_REWORK_PENDING
 from livespec_orchestrator_beads_fabro._store_statuses import (
     ALLOWED_BEADS_STATUSES,
     livespec_status_for,
@@ -190,6 +193,10 @@ def _record_to_work_item(*, record: BeadsRecord) -> WorkItem:
         blocked_reason=cast("Any", _label_value(labels=labels, prefix=_LABEL_BLOCKED_REASON)),
         factory_safety=cast("Any", factory_safety),
         awaits_scope_override=_LABEL_AWAITS_SCOPE_OVERRIDE in labels,
+        # The rework marker is a presence flag, materialized here so the
+        # selection, accounting, and stranded-state clauses that key on it read
+        # a first-class field rather than each re-deriving it from raw labels.
+        rework_pending=LABEL_REWORK_PENDING in labels,
     )
 
 
