@@ -72,6 +72,7 @@ def _green_outcome(*, item_id: str) -> DispatchOutcome:
 @dataclass(frozen=True, kw_only=True)
 class _FailingAcceptancePass:
     verdict: str = "FAIL"
+    absent_evidence: tuple[str, ...] = ()
 
     def journal_record(self, *, work_item_id: str, policy: str) -> dict[str, object]:
         return {

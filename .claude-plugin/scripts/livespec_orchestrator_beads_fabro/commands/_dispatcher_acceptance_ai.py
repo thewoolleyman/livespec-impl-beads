@@ -33,6 +33,28 @@ __all__: list[str] = [
 NEEDS_ATTENTION_VERDICT = "NEEDS_ATTENTION"
 NO_CHANGE_NEEDED_VERDICT = "NO_CHANGE_NEEDED"
 
+_GREEN_STATUS = "green"
+_OBSERVED_FAILING_STATUS = "failed"
+_TELEMETRY_LEG = "telemetry"
+_MERGED_DIFF_LEG = "merged diff"
+_EFFECTIVE_CRITERIA_LEG = "effective criteria"
+
+
+@dataclass(frozen=True, kw_only=True)
+class _TelemetryEvidence:
+    """The run/telemetry leg as a tri-state, not a bare pass/fail boolean.
+
+    `observed` separates "the pass READ the run outcome" from "the outcome the
+    pass read was failing". Collapsing the two is what let an unobservable
+    telemetry leg manufacture a FAIL out of absent evidence, which the
+    post-merge acceptance evidence rule in `SPECIFICATION/contracts.md`
+    forbids: absence of evidence is never failure evidence.
+    """
+
+    observed: bool
+    passed: bool
+    reason: str
+
 
 @dataclass(frozen=True, kw_only=True)
 class AcceptancePassResult:
@@ -41,9 +63,11 @@ class AcceptancePassResult:
     verdict: str
     merged_diff: str | None
     diff_reason: str
+    telemetry_observed: bool
     telemetry_passed: bool
     telemetry_reason: str
     criteria: tuple[CriterionCheck, ...]
+    absent_evidence: tuple[str, ...]
 
     def journal_record(self, *, work_item_id: str, policy: str) -> dict[str, object]:
         return {
@@ -51,6 +75,7 @@ class AcceptancePassResult:
             "work_item_id": work_item_id,
             "verdict": self.verdict,
             "acceptance_policy": policy,
+            "absent_evidence": list(self.absent_evidence),
             "diff": {
                 "observed": self.merged_diff is not None,
                 "bytes": 0 if self.merged_diff is None else len(self.merged_diff.encode()),
@@ -61,7 +86,7 @@ class AcceptancePassResult:
                 "checks": [check.as_record() for check in self.criteria],
             },
             "telemetry": {
-                "observed": True,
+                "observed": self.telemetry_observed,
                 "passed": self.telemetry_passed,
                 "reason": self.telemetry_reason,
             },
@@ -75,34 +100,61 @@ def run_acceptance_pass(
     outcome: DispatchOutcome,
     runner: CommandRunner | None = None,
 ) -> AcceptancePassResult:
-    """Read the merged diff, judge criteria, watch telemetry, and return PASS/FAIL."""
+    """Read the merged diff, judge criteria, watch telemetry, and return a verdict.
+
+    The verdict obeys the ratified evidence rule: PASS needs every leg observed
+    and passing, FAIL needs OBSERVED failing evidence, and anything the pass
+    cannot observe yields NEEDS_ATTENTION rather than a manufactured judgment.
+    """
     active_runner = ShellCommandRunner() if runner is None else runner
     diff_result = read_merged_diff(repo=repo, outcome=outcome, runner=active_runner)
-    telemetry_passed, telemetry_reason = _telemetry_verdict(outcome=outcome)
+    telemetry = _telemetry_evidence(outcome=outcome)
     checks = criteria_checks(
         criteria_text=_effective_criteria_text(item=item),
         merged_diff=diff_result.merged_diff,
-        telemetry_passed=telemetry_passed,
+        telemetry_passed=telemetry.passed,
     )
-    verdict = _verdict(diff=diff_result, telemetry=telemetry_passed, checks=checks)
+    absent = _absent_evidence(diff=diff_result, telemetry=telemetry, checks=checks)
     return AcceptancePassResult(
-        verdict=verdict,
+        verdict=_verdict(telemetry=telemetry, checks=checks, absent=absent),
         merged_diff=diff_result.merged_diff,
         diff_reason=diff_result.reason,
-        telemetry_passed=telemetry_passed,
-        telemetry_reason=telemetry_reason,
+        telemetry_observed=telemetry.observed,
+        telemetry_passed=telemetry.passed,
+        telemetry_reason=telemetry.reason,
         criteria=checks,
+        absent_evidence=absent,
     )
 
 
-def _telemetry_verdict(*, outcome: DispatchOutcome) -> tuple[bool, str]:
-    if outcome.status != "green":
-        return False, f"dispatch outcome status was {outcome.status!r}"
+def _telemetry_evidence(*, outcome: DispatchOutcome) -> _TelemetryEvidence:
+    if outcome.status == _OBSERVED_FAILING_STATUS:
+        return _TelemetryEvidence(
+            observed=True,
+            passed=False,
+            reason=f"dispatch outcome status was {outcome.status!r}",
+        )
+    if outcome.status != _GREEN_STATUS:
+        # `blocked` (and any future non-terminal status) is a run that parked
+        # rather than reported: the leg was never read, so it is unobservable.
+        return _TelemetryEvidence(
+            observed=False,
+            passed=False,
+            reason=f"dispatch outcome status was {outcome.status!r}",
+        )
     if outcome.pr_number is None:
-        return False, "merged PR number unavailable"
+        return _TelemetryEvidence(
+            observed=False, passed=False, reason="merged PR number unavailable"
+        )
     if outcome.merge_sha is None:
-        return True, "green merged dispatch with PR; merge sha unavailable"
-    return True, "green merged dispatch with PR and merge sha"
+        return _TelemetryEvidence(
+            observed=True,
+            passed=True,
+            reason="green merged dispatch with PR; merge sha unavailable",
+        )
+    return _TelemetryEvidence(
+        observed=True, passed=True, reason="green merged dispatch with PR and merge sha"
+    )
 
 
 def _effective_criteria_text(*, item: WorkItem) -> str | None:
@@ -135,17 +187,35 @@ def _description_exit_criteria(*, description: str) -> str | None:
     return text
 
 
-def _passes(*, diff: DiffResult, telemetry: bool, checks: tuple[CriterionCheck, ...]) -> bool:
-    if not telemetry:
-        return False
-    if diff.merged_diff is None:
-        return False
-    return bool(checks) and all(check.passed for check in checks)
+def _absent_evidence(
+    *,
+    diff: DiffResult,
+    telemetry: _TelemetryEvidence,
+    checks: tuple[CriterionCheck, ...],
+) -> tuple[str, ...]:
+    """Name every evidence leg the pass could not observe, in judging order."""
+    legs: list[str] = []
+    if not telemetry.observed:
+        legs.append(_TELEMETRY_LEG)
+    if not diff.gradeable or diff.merged_diff is None:
+        legs.append(_MERGED_DIFF_LEG)
+    if not checks:
+        legs.append(_EFFECTIVE_CRITERIA_LEG)
+    return tuple(legs)
 
 
-def _verdict(*, diff: DiffResult, telemetry: bool, checks: tuple[CriterionCheck, ...]) -> str:
-    if telemetry and not diff.gradeable:
+def _verdict(
+    *,
+    telemetry: _TelemetryEvidence,
+    checks: tuple[CriterionCheck, ...],
+    absent: tuple[str, ...],
+) -> str:
+    # An OBSERVED failing outcome is dispositive failing evidence and outranks
+    # any leg the pass could not read; every other absent leg parks instead.
+    if telemetry.observed and not telemetry.passed:
+        return "FAIL"
+    if absent:
         return NEEDS_ATTENTION_VERDICT
-    if _passes(diff=diff, telemetry=telemetry, checks=checks):
+    if all(check.passed for check in checks):
         return "PASS"
     return "FAIL"

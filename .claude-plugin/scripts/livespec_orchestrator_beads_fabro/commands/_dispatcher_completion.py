@@ -1,14 +1,18 @@
-"""Completion, acceptance, refusal, and bounce dispositions for the Dispatcher."""
+"""Completion, acceptance, and bounce dispositions for the Dispatcher.
+
+The pre-launch host-only refusal that used to sit alongside these lives in
+`_dispatcher_host_only_refusal.py`; it is re-exported here because the
+Dispatcher's admission layer selects it from this module.
+"""
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from dataclasses import asdict
 from pathlib import Path
 
 from returns.unsafe import unsafe_perform_io
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_acceptance_ai import (
+    NEEDS_ATTENTION_VERDICT,
     NO_CHANGE_NEEDED_VERDICT,
     run_acceptance_pass,
 )
@@ -27,12 +31,12 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_decision_journal imp
     auto_disposition_journal_record,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
+from livespec_orchestrator_beads_fabro.commands._dispatcher_host_only_refusal import (
+    host_only_refusal,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import store_config
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
-    declares_workflow_scope_refusal,
-    host_only_refusal_detail,
-    is_host_only_item,
     is_non_convergence_outcome,
     item_sizing_warnings,
 )
@@ -50,10 +54,7 @@ from livespec_orchestrator_beads_fabro.errors import (
     WorkItemNotFoundError,
 )
 from livespec_orchestrator_beads_fabro.io import write_stderr
-from livespec_orchestrator_beads_fabro.store import (
-    update_work_item_awaits_scope_override,
-    update_work_item_status,
-)
+from livespec_orchestrator_beads_fabro.store import update_work_item_status
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
 __all__: list[str] = [
@@ -72,59 +73,6 @@ _LEDGER_WRITE_ERRORS = (
     BeadsTenantMissingError,
 )
 _NO_CHANGE_NEEDED_RESOLUTION = "no-longer-applicable"
-
-
-def host_only_refusal(
-    *, repo: Path, item: WorkItem, journal: JournalFile, raw_labels: Sequence[str] = ()
-) -> DispatchOutcome | None:
-    """Refuse to sandbox a host-only self-machinery item (uvd hang-guard).
-
-    Returns the `host-only-refused` outcome (routed BEFORE any fabro
-    launch, so the in-sandbox/in-hook git commit can never deadlock — the
-    7us.6 hang class) when the item carries the explicit host-only
-    marker, or None to let the dispatch proceed. The refusal is a
-    `failed` outcome so the dispatch exit code flips to 1 and the
-    orchestrator host-routes the item; the detail carries the actionable
-    host-route instruction. Nothing is closed — the item stays open.
-    """
-    workflow_scope_refusal = declares_workflow_scope_refusal(item=item, raw_labels=raw_labels)
-    if not is_host_only_item(item=item, raw_labels=raw_labels):
-        if item.awaits_scope_override:
-            _set_awaits_scope_override(repo=repo, item_id=item.id, value=False)
-        return None
-    if workflow_scope_refusal:
-        _set_awaits_scope_override(repo=repo, item_id=item.id, value=True)
-    elif item.awaits_scope_override:
-        _set_awaits_scope_override(repo=repo, item_id=item.id, value=False)
-    outcome = DispatchOutcome(
-        work_item_id=item.id,
-        status="failed",
-        stage="host-only-refused",
-        pr_number=None,
-        merge_sha=None,
-        detail=host_only_refusal_detail(item_id=item.id),
-    )
-    journal.append(record={"stage": "outcome", "outcome": asdict(outcome)})
-    _ = write_stderr(text=f"SURFACE: {outcome.detail}\n")
-    return outcome
-
-
-def _set_awaits_scope_override(*, repo: Path, item_id: str, value: bool) -> None:
-    result = attempt(
-        action=lambda: update_work_item_awaits_scope_override(
-            path=store_config(repo=repo),
-            item_id=item_id,
-            value=value,
-        ),
-        exceptions=_LEDGER_WRITE_ERRORS,
-    )
-    if isinstance(result, AttemptFailure):
-        _ = write_stderr(
-            text=(
-                f"WARN: failed to update awaits_scope_override for {item_id} "
-                f"({type(result.error).__name__}: {result.error})\n"
-            )
-        )
 
 
 def complete_and_accept(
@@ -147,6 +95,10 @@ def complete_and_accept(
     to give final acceptance from the console. Nothing parks silently — the
     park is journaled and surfaced.
 
+    A NEEDS_ATTENTION verdict short-circuits every disposition branch and parks
+    under EVERY `acceptance_policy`, `ai-only` included: the pass could not
+    observe what a judgment needs, and absence of evidence disposes of nothing.
+
     """
     config = store_config(repo=repo)
     update_work_item_status(path=config, item_id=item.id, status="acceptance")
@@ -161,6 +113,22 @@ def complete_and_accept(
     acceptance_pass = run_acceptance_pass(repo=repo, item=item, outcome=outcome)
     journal.append(record=acceptance_pass.journal_record(work_item_id=item.id, policy=policy))
     decision = acceptance_decision(policy=policy)
+    if acceptance_pass.verdict == NEEDS_ATTENTION_VERDICT:
+        # A cannot-judge verdict NEVER disposes, under EVERY acceptance_policy
+        # including `ai-only`: the delegation `ai-only` grants is the authority
+        # to act ON evidence, not the authority to act without it. So this
+        # returns before the close / rework branches below — the item is not
+        # accepted, not routed to rework, not stamped `rework:pending`, and
+        # `acceptance_rework_cap` is not consumed. It parks for the human
+        # `accept` / `reject` valves instead.
+        _park_in_acceptance(
+            item_id=item.id,
+            policy=decision.policy,
+            verdict=acceptance_pass.verdict,
+            absent_evidence=acceptance_pass.absent_evidence,
+            journal=journal,
+        )
+        return
     if acceptance_pass.verdict == NO_CHANGE_NEEDED_VERDICT and decision.to_done:
         close_dispatch_item(
             repo=repo,
@@ -199,20 +167,45 @@ def complete_and_accept(
             )
         )
         return
+    _park_in_acceptance(
+        item_id=item.id,
+        policy=decision.policy,
+        verdict=acceptance_pass.verdict,
+        absent_evidence=acceptance_pass.absent_evidence,
+        journal=journal,
+    )
+
+
+def _park_in_acceptance(
+    *,
+    item_id: str,
+    policy: str,
+    verdict: str,
+    absent_evidence: tuple[str, ...],
+    journal: JournalFile,
+) -> None:
+    """Park a merged item in `acceptance` for a human — journaled + surfaced.
+
+    `absent_evidence` names the leg(s) the AI pass could not observe, which is
+    empty for an advisory PASS/FAIL park and non-empty for a NEEDS_ATTENTION
+    park; the record carries it so the parked item's attention surface can say
+    WHY it cannot be judged rather than only that it is waiting.
+    """
     journal.append(
         record={
             "stage": "acceptance-parked",
-            "work_item_id": item.id,
-            "policy": decision.policy,
-            "advisory": decision.policy == "human-only",
-            "acceptance_verdict": acceptance_pass.verdict,
+            "work_item_id": item_id,
+            "policy": policy,
+            "advisory": policy == "human-only",
+            "acceptance_verdict": verdict,
+            "absent_evidence": list(absent_evidence),
         }
     )
     surface_line = (
-        f"SURFACE: work-item {item.id} merged + live; parked in acceptance under "
-        f"acceptance_policy {decision.policy} — awaits a human's final acceptance "
+        f"SURFACE: work-item {item_id} merged + live; parked in acceptance under "
+        f"acceptance_policy {policy} — awaits a human's final acceptance "
         f"before done (no release with zero verification; the AI pass verdict was "
-        f"{acceptance_pass.verdict}).\n"
+        f"{verdict}).\n"
     )
     _ = write_stderr(text=surface_line)
 

@@ -32,7 +32,10 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import pytest
-from livespec_orchestrator_beads_fabro.commands import _dispatcher_completion, _dispatcher_loop
+from livespec_orchestrator_beads_fabro.commands import (
+    _dispatcher_host_only_refusal,
+    _dispatcher_loop,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_completion import host_only_refusal
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
@@ -292,7 +295,7 @@ def test_host_only_refusal_warns_when_signal_write_fails(
         raise BeadsMappingError(record_id="bd-missing", detail="missing")
 
     monkeypatch.setattr(
-        _dispatcher_completion,
+        _dispatcher_host_only_refusal,
         "update_work_item_awaits_scope_override",
         _raise,
     )

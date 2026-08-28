@@ -40,6 +40,7 @@ class _MemoryJournal:
 @dataclass(frozen=True, kw_only=True)
 class _AcceptancePass:
     verdict: str
+    absent_evidence: tuple[str, ...] = ()
 
     def journal_record(self, *, work_item_id: str, policy: str) -> dict[str, object]:
         return {

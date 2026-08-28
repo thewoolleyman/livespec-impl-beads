@@ -47,6 +47,7 @@ def _isolated_worktree_root(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
 @dataclass(frozen=True, kw_only=True)
 class _AcceptancePass:
     verdict: str
+    absent_evidence: tuple[str, ...] = ()
 
     def journal_record(self, *, work_item_id: str, policy: str) -> dict[str, object]:
         return {
