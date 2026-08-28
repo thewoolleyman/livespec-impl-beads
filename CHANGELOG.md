@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.94.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.93.0...v0.94.0) (2026-08-28)
+
+
+### Features
+
+* **detection:** record detection coverage and surface staleness ([a1a69b1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/a1a69b1f3e6cbfb947b022b9a3c8594d09b0e604))
+
 ## [0.93.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.92.0...v0.93.0) (2026-08-28)
 
 
