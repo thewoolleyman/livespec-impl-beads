@@ -12,6 +12,7 @@ from typing import Protocol, cast
 import pytest
 from livespec_orchestrator_beads_fabro.commands import _dispatcher_run_checks
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import CommandResult
+from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import invoker_from_args
 
 _MODULE_PATH = (
     Path(".claude-plugin/scripts/livespec_orchestrator_beads_fabro/commands")
@@ -28,6 +29,18 @@ _RED_CONCLUSIONS = (
     "startup_failure",
 )
 _PENDING_STATUSES = ("queued", "in_progress", "waiting", "pending", "requested")
+_WAIVER_TOKEN = "dispatcher.step_waivers"
+_DEFAULT_BRANCH = "trunk"
+_ORIGIN_HEAD = ("git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD")
+_REPO_VIEW = (
+    "gh",
+    "repo",
+    "view",
+    "--json",
+    "defaultBranchRef",
+    "--jq",
+    ".defaultBranchRef.name",
+)
 
 
 class _MasterCiRefusal(Protocol):
@@ -35,15 +48,20 @@ class _MasterCiRefusal(Protocol):
     record: dict[str, object]
 
 
+class _MasterCiOutcome(Protocol):
+    refusal: _MasterCiRefusal | None
+    record: dict[str, object]
+
+
 class _PreflightModule(Protocol):
-    def master_ci_preflight_refusal(
-        self, *, repo: Path, runner: _Runner
-    ) -> _MasterCiRefusal | None:
-        """Return the master-CI refusal or None."""
+    def master_ci_preflight(self, *, repo: Path, runner: _Runner) -> _MasterCiOutcome:
+        """Return the master-CI preflight outcome."""
 
 
 @dataclass(kw_only=True)
 class _Runner:
+    """Argv-keyed command stand-in; an unscripted argv answers a plain failure."""
+
     results: dict[tuple[str, ...], CommandResult]
     calls: list[tuple[str, ...]] = field(default_factory=list)
 
@@ -59,7 +77,7 @@ class _Runner:
         _ = (cwd, timeout_seconds, env, stdin)
         key = tuple(argv)
         self.calls.append(key)
-        return self.results[key]
+        return self.results.get(key, CommandResult(exit_code=1, stdout="", stderr="unscripted"))
 
 
 def _module() -> _PreflightModule:
@@ -74,30 +92,35 @@ def _result(*, exit_code: int = 0, stdout: str = "", stderr: str = "") -> Comman
 def _run_list_payload(
     *, status: str = "completed", conclusion: str | None = "success", database_id: int = 303
 ) -> str:
-    return json.dumps(
-        [
-            {
-                "status": status,
-                "conclusion": conclusion,
-                "databaseId": database_id,
-            }
-        ]
-    )
+    return json.dumps([{"status": status, "conclusion": conclusion, "databaseId": database_id}])
 
 
 def _jobs_payload(
-    *, ci_green_conclusion: str | None = "success", ci_green_status: str = "completed"
+    *,
+    job_conclusion: str | None = "success",
+    job_status: str = "completed",
+    job_name: str = "ci-green",
 ) -> str:
     jobs: list[dict[str, str | None]] = [{"name": "export-telemetry", "conclusion": "failure"}]
-    if ci_green_conclusion is not None:
-        jobs.append(
-            {
-                "name": "ci-green",
-                "conclusion": ci_green_conclusion,
-                "status": ci_green_status,
-            }
-        )
+    if job_conclusion is not None:
+        jobs.append({"name": job_name, "conclusion": job_conclusion, "status": job_status})
     return json.dumps({"jobs": jobs})
+
+
+def _run_list_argv(*, branch: str = _DEFAULT_BRANCH, workflow: str = "CI") -> tuple[str, ...]:
+    return (
+        "gh",
+        "run",
+        "list",
+        "--branch",
+        branch,
+        "--limit",
+        "1",
+        "--workflow",
+        workflow,
+        "--json",
+        "status,conclusion,databaseId",
+    )
 
 
 def _results(
@@ -105,154 +128,319 @@ def _results(
     run_list: CommandResult | None = None,
     jobs: CommandResult | None = None,
     auth: CommandResult | None = None,
+    origin_head: CommandResult | None = None,
+    repo_view: CommandResult | None = None,
     view_run_id: str = "303",
+    workflow: str = "CI",
 ) -> dict[tuple[str, ...], CommandResult]:
     return {
+        _ORIGIN_HEAD: (
+            origin_head
+            if origin_head is not None
+            else _result(stdout=f"origin/{_DEFAULT_BRANCH}\n")
+        ),
+        _REPO_VIEW: repo_view if repo_view is not None else _result(stdout="fallback-branch\n"),
         ("gh", "auth", "token"): auth if auth is not None else _result(stdout="secret\n"),
-        (
-            "gh",
-            "run",
-            "list",
-            "--branch",
-            "master",
-            "--limit",
-            "1",
-            "--workflow",
-            "CI",
-            "--json",
-            "status,conclusion,databaseId",
-        ): run_list if run_list is not None else _result(stdout=_run_list_payload()),
+        _run_list_argv(workflow=workflow): (
+            run_list if run_list is not None else _result(stdout=_run_list_payload())
+        ),
         ("gh", "run", "view", view_run_id, "--json", "jobs"): (
             jobs if jobs is not None else _result(stdout=_jobs_payload())
         ),
     }
 
 
-@pytest.mark.parametrize("conclusion", _RED_CONCLUSIONS)
-def test_red_ci_green_conclusions_refuse(tmp_path: Path, conclusion: str) -> None:
-    module = _module()
-    runner = _Runner(
-        results=_results(jobs=_result(stdout=_jobs_payload(ci_green_conclusion=conclusion)))
+def _outcome(*, repo: Path, runner: _Runner) -> _MasterCiOutcome:
+    return _module().master_ci_preflight(repo=repo, runner=runner)
+
+
+def _declare(*, repo: Path, workflow: str, job: str) -> None:
+    _ = (repo / ".livespec.jsonc").write_text(
+        json.dumps(
+            {
+                "livespec-orchestrator-beads-fabro": {
+                    "dispatcher": {"master_ci": {"workflow": workflow, "job": job}}
+                }
+            }
+        ),
+        encoding="utf-8",
     )
 
-    refusal = module.master_ci_preflight_refusal(repo=tmp_path, runner=runner)
 
-    assert refusal is not None
+def test_a_green_aggregate_job_passes_and_journals_the_pass(tmp_path: Path) -> None:
+    runner = _Runner(results=_results())
+
+    outcome = _outcome(repo=tmp_path, runner=runner)
+
+    assert outcome.refusal is None
+    assert outcome.record["status"] == "passed"
+    assert outcome.record["step"] == "master-ci"
+    assert outcome.record["branch"] == _DEFAULT_BRANCH
+    assert outcome.record["aggregate_job"] == "ci-green"
+    assert outcome.record["pipeline_resolution"] == "default"
+    assert outcome.record["declaring_key"] == "dispatcher.master_ci"
 
 
-def test_run_rollup_failure_proceeds_when_ci_green_succeeded(tmp_path: Path) -> None:
-    module = _module()
+def test_the_run_lookup_targets_the_resolved_default_branch(tmp_path: Path) -> None:
+    """The branch comes from `origin/HEAD`, never from a shipped literal."""
+    runner = _Runner(results=_results())
+
+    assert _outcome(repo=tmp_path, runner=runner).refusal is None
+    assert _run_list_argv() in runner.calls
+    assert not any(call[:5] == ("gh", "run", "list", "--branch", "master") for call in runner.calls)
+
+
+def test_the_preflight_source_carries_no_branch_literal() -> None:
+    """The discriminating token: a quoted bare branch name anywhere in the module.
+
+    A count of the word would be worthless — the ratified STEP identifier is
+    `master-ci` and the documented escape hatch is named
+    `master-health-restoration`, so both legitimately survive. What must not
+    survive is the branch name as a standalone string constant.
+    """
+    source = _MODULE_PATH.read_text(encoding="utf-8")
+
+    assert '"master"' not in source
+    assert "'master'" not in source
+
+
+def test_an_unresolvable_origin_head_falls_back_to_the_forge(tmp_path: Path) -> None:
+    empty = _Runner(
+        results={
+            **_results(origin_head=_result(stdout="\n")),
+            _run_list_argv(branch="fallback-branch"): _result(stdout=_run_list_payload()),
+        }
+    )
+    failed = _Runner(
+        results={
+            **_results(origin_head=_result(exit_code=128, stderr="no origin/HEAD")),
+            _run_list_argv(branch="fallback-branch"): _result(stdout=_run_list_payload()),
+        }
+    )
+
+    for runner in (empty, failed):
+        assert _outcome(repo=tmp_path, runner=runner).refusal is None
+        assert _run_list_argv(branch="fallback-branch") in runner.calls
+
+
+def test_a_wholly_unresolvable_branch_refuses_with_the_waiver_escape(tmp_path: Path) -> None:
+    blank = _Runner(
+        results=_results(origin_head=_result(stdout="\n"), repo_view=_result(stdout="\n"))
+    )
+    failed = _Runner(
+        results=_results(
+            origin_head=_result(exit_code=128), repo_view=_result(exit_code=1, stderr="no auth")
+        )
+    )
+
+    for runner in (blank, failed):
+        refusal = _outcome(repo=tmp_path, runner=runner).refusal
+        assert refusal is not None
+        assert "default branch could not be resolved" in refusal.detail
+        assert _WAIVER_TOKEN in refusal.detail
+
+
+def test_a_declared_pipeline_is_looked_up_and_passes(tmp_path: Path) -> None:
+    _declare(repo=tmp_path, workflow="build.yml", job="all-green")
+    runner = _Runner(
+        results=_results(
+            workflow="build.yml",
+            jobs=_result(stdout=_jobs_payload(job_name="all-green")),
+        )
+    )
+
+    outcome = _outcome(repo=tmp_path, runner=runner)
+
+    assert outcome.refusal is None
+    assert outcome.record["workflow"] == "build.yml"
+    assert outcome.record["aggregate_job"] == "all-green"
+    assert outcome.record["pipeline_resolution"] == "declared"
+    assert _run_list_argv(workflow="build.yml") in runner.calls
+
+
+def test_a_declared_pipeline_that_is_red_refuses_naming_the_run(tmp_path: Path) -> None:
+    _declare(repo=tmp_path, workflow="build.yml", job="all-green")
+    runner = _Runner(
+        results=_results(
+            workflow="build.yml",
+            run_list=_result(stdout=_run_list_payload(database_id=30316766663)),
+            jobs=_result(stdout=_jobs_payload(job_name="all-green", job_conclusion="failure")),
+            view_run_id="30316766663",
+        )
+    )
+
+    outcome = _outcome(repo=tmp_path, runner=runner)
+
+    assert outcome.refusal is not None
+    assert outcome.record["reason"] == "master-ci-red"
+    assert outcome.record["run_database_id"] == "30316766663"
+    assert "30316766663" in outcome.refusal.detail
+    assert "all-green" in outcome.refusal.detail
+
+
+@pytest.mark.parametrize("conclusion", _RED_CONCLUSIONS)
+def test_every_red_conclusion_refuses(tmp_path: Path, conclusion: str) -> None:
+    runner = _Runner(
+        results=_results(jobs=_result(stdout=_jobs_payload(job_conclusion=conclusion)))
+    )
+
+    outcome = _outcome(repo=tmp_path, runner=runner)
+
+    assert outcome.refusal is not None
+    assert outcome.record["reason"] == "master-ci-red"
+
+
+def test_a_red_run_rollup_with_a_green_aggregate_job_still_passes(tmp_path: Path) -> None:
+    """The AGGREGATE JOB is the required check, not the run's own rollup."""
     runner = _Runner(
         results=_results(run_list=_result(stdout=_run_list_payload(conclusion="failure")))
     )
 
-    assert module.master_ci_preflight_refusal(repo=tmp_path, runner=runner) is None
+    assert _outcome(repo=tmp_path, runner=runner).refusal is None
 
 
-def test_ci_green_failure_refuses_even_when_run_payload_matches(tmp_path: Path) -> None:
-    module = _module()
-    runner = _Runner(
-        results=_results(
-            run_list=_result(stdout=_run_list_payload(conclusion="failure")),
-            jobs=_result(stdout=_jobs_payload(ci_green_conclusion="failure")),
-        )
-    )
-
-    assert module.master_ci_preflight_refusal(repo=tmp_path, runner=runner) is not None
-
-
-def test_missing_ci_green_job_refuses_as_unprovable(tmp_path: Path) -> None:
-    module = _module()
-    runner = _Runner(results=_results(jobs=_result(stdout=_jobs_payload(ci_green_conclusion=None))))
-
-    assert module.master_ci_preflight_refusal(repo=tmp_path, runner=runner) is not None
-
-
-def test_ci_green_pending_or_unknown_refuses_as_unprovable(tmp_path: Path) -> None:
-    module = _module()
-    pending = _Runner(
-        results=_results(
-            jobs=_result(
-                stdout=_jobs_payload(ci_green_conclusion="success", ci_green_status="in_progress")
-            )
-        )
-    )
-    unknown = _Runner(
-        results=_results(jobs=_result(stdout=_jobs_payload(ci_green_conclusion="neutral")))
-    )
-
-    assert module.master_ci_preflight_refusal(repo=tmp_path, runner=pending) is not None
-    assert module.master_ci_preflight_refusal(repo=tmp_path, runner=unknown) is not None
-
-
-def test_success_pending_statuses_and_empty_run_list_do_not_refuse(tmp_path: Path) -> None:
-    module = _module()
-    assert (
-        module.master_ci_preflight_refusal(repo=tmp_path, runner=_Runner(results=_results()))
-        is None
-    )
-    empty = _Runner(results=_results(run_list=_result(stdout="[]")))
-    assert module.master_ci_preflight_refusal(repo=tmp_path, runner=empty) is None
-    for status in _PENDING_STATUSES:
-        runner = _Runner(
-            results=_results(
-                run_list=_result(stdout=_run_list_payload(status=status, conclusion="failure")),
-                jobs=_result(stdout=_jobs_payload(ci_green_conclusion="failure")),
-            )
-        )
-        assert module.master_ci_preflight_refusal(repo=tmp_path, runner=runner) is None
-
-
-def test_gh_absent_and_no_stored_credential_proceed(tmp_path: Path) -> None:
-    module = _module()
+def test_a_host_with_no_usable_credential_refuses_with_the_waiver_escape(tmp_path: Path) -> None:
     absent = _Runner(
         results=_results(
             auth=_result(exit_code=127, stderr="gh: command not found\n"),
             run_list=_result(exit_code=127, stderr="gh: command not found\n"),
         )
     )
-    no_credential = _Runner(
+    unauthenticated = _Runner(
         results=_results(
             auth=_result(exit_code=1, stderr="not logged in\n"),
             run_list=_result(exit_code=1, stderr="HTTP 401\n"),
         )
     )
 
-    assert module.master_ci_preflight_refusal(repo=tmp_path, runner=absent) is None
-    assert module.master_ci_preflight_refusal(repo=tmp_path, runner=no_credential) is None
+    for runner in (absent, unauthenticated):
+        outcome = _outcome(repo=tmp_path, runner=runner)
+        assert outcome.refusal is not None
+        assert outcome.record["reason"] == "master-ci-unprovable"
+        assert "no usable `gh` credential" in outcome.refusal.detail
+        assert "gh auth login" in outcome.refusal.detail
+        assert _WAIVER_TOKEN in outcome.refusal.detail
 
 
-def test_credentialed_gh_failure_refuses(tmp_path: Path) -> None:
-    module = _module()
+def test_an_unresolvable_pipeline_names_the_resolution_the_key_and_the_escape(
+    tmp_path: Path,
+) -> None:
+    _declare(repo=tmp_path, workflow="build.yml", job="all-green")
     runner = _Runner(
-        results=_results(run_list=_result(exit_code=1, stderr="GitHub API unavailable\n"))
+        results=_results(
+            workflow="build.yml",
+            run_list=_result(exit_code=1, stderr="could not find any workflows named build.yml\n"),
+        )
     )
 
-    refusal = module.master_ci_preflight_refusal(repo=tmp_path, runner=runner)
+    outcome = _outcome(repo=tmp_path, runner=runner)
 
-    assert refusal is not None
-
-
-def test_credentialed_gh_run_view_failure_refuses(tmp_path: Path) -> None:
-    module = _module()
-    runner = _Runner(results=_results(jobs=_result(exit_code=1, stderr="view failed\n")))
-
-    assert module.master_ci_preflight_refusal(repo=tmp_path, runner=runner) is not None
+    assert outcome.refusal is not None
+    detail = outcome.refusal.detail
+    assert "Resolution attempted: declared" in detail
+    assert "dispatcher.master_ci" in detail
+    assert _WAIVER_TOKEN in detail
 
 
-def test_malformed_credentialed_payloads_refuse_as_unprovable(tmp_path: Path) -> None:
-    module = _module()
-    malformed_run = _Runner(results=_results(run_list=_result(stdout=json.dumps(["bad"]))))
+def test_an_undeclared_unresolvable_pipeline_names_the_default_resolution(tmp_path: Path) -> None:
+    runner = _Runner(
+        results=_results(run_list=_result(exit_code=1, stderr="no workflow named CI\n"))
+    )
+
+    outcome = _outcome(repo=tmp_path, runner=runner)
+
+    assert outcome.refusal is not None
+    assert "Resolution attempted: default convention" in outcome.refusal.detail
+    assert "dispatcher.master_ci" in outcome.refusal.detail
+    assert _WAIVER_TOKEN in outcome.refusal.detail
+
+
+def test_a_repository_with_no_runs_yet_refuses_with_the_waiver_escape(tmp_path: Path) -> None:
+    runner = _Runner(results=_results(run_list=_result(stdout="[]")))
+
+    outcome = _outcome(repo=tmp_path, runner=runner)
+
+    assert outcome.refusal is not None
+    assert "no runs yet" in outcome.refusal.detail
+    assert _WAIVER_TOKEN in outcome.refusal.detail
+    assert outcome.record["run_database_id"] == "<none>"
+
+
+@pytest.mark.parametrize("status", _PENDING_STATUSES)
+def test_a_still_pending_latest_run_refuses_naming_the_retry(tmp_path: Path, status: str) -> None:
+    runner = _Runner(results=_results(run_list=_result(stdout=_run_list_payload(status=status))))
+
+    outcome = _outcome(repo=tmp_path, runner=runner)
+
+    assert outcome.refusal is not None
+    assert f"is still {status}" in outcome.refusal.detail
+    assert "retry the dispatch when the run concludes" in outcome.refusal.detail
+
+
+def test_a_still_pending_aggregate_job_refuses_naming_the_retry(tmp_path: Path) -> None:
+    runner = _Runner(results=_results(jobs=_result(stdout=_jobs_payload(job_status="in_progress"))))
+
+    outcome = _outcome(repo=tmp_path, runner=runner)
+
+    assert outcome.refusal is not None
+    assert "retry the dispatch when the run concludes" in outcome.refusal.detail
+
+
+def test_an_unrecognized_aggregate_conclusion_refuses(tmp_path: Path) -> None:
+    runner = _Runner(results=_results(jobs=_result(stdout=_jobs_payload(job_conclusion="neutral"))))
+
+    outcome = _outcome(repo=tmp_path, runner=runner)
+
+    assert outcome.refusal is not None
+    assert "neither green nor red" in outcome.refusal.detail
+
+
+def test_a_missing_aggregate_job_refuses_naming_the_resolved_job(tmp_path: Path) -> None:
+    runner = _Runner(results=_results(jobs=_result(stdout=_jobs_payload(job_conclusion=None))))
+
+    outcome = _outcome(repo=tmp_path, runner=runner)
+
+    assert outcome.refusal is not None
+    assert "aggregate job `ci-green` is missing" in outcome.refusal.detail
+
+
+def test_a_failed_aggregate_job_lookup_refuses(tmp_path: Path) -> None:
+    named = _Runner(results=_results(jobs=_result(exit_code=1, stderr="view failed\n")))
+    silent = _Runner(results=_results(jobs=_result(exit_code=1)))
+
+    for runner in (named, silent):
+        assert _outcome(repo=tmp_path, runner=runner).refusal is not None
+
+
+def test_malformed_payloads_refuse_as_unprovable(tmp_path: Path) -> None:
+    malformed_list = _Runner(results=_results(run_list=_result(stdout=json.dumps({"a": 1}))))
+    malformed_record = _Runner(results=_results(run_list=_result(stdout=json.dumps(["bad"]))))
     malformed_view = _Runner(results=_results(jobs=_result(stdout=json.dumps([]))))
     malformed_jobs = _Runner(results=_results(jobs=_result(stdout=json.dumps({"jobs": {}}))))
 
-    assert module.master_ci_preflight_refusal(repo=tmp_path, runner=malformed_run) is not None
-    assert module.master_ci_preflight_refusal(repo=tmp_path, runner=malformed_view) is not None
-    assert module.master_ci_preflight_refusal(repo=tmp_path, runner=malformed_jobs) is not None
+    for runner in (malformed_list, malformed_record, malformed_view, malformed_jobs):
+        assert _outcome(repo=tmp_path, runner=runner).refusal is not None
 
 
-def test_non_dict_jobs_are_ignored_while_finding_ci_green(tmp_path: Path) -> None:
-    module = _module()
+def test_a_run_without_a_database_id_is_named_as_unknown(tmp_path: Path) -> None:
+    runner = _Runner(
+        results={
+            **_results(
+                run_list=_result(
+                    stdout=json.dumps([{"status": "completed", "conclusion": "success"}])
+                )
+            ),
+            ("gh", "run", "view", "<none>", "--json", "jobs"): _result(stdout=_jobs_payload()),
+        }
+    )
+
+    outcome = _outcome(repo=tmp_path, runner=runner)
+
+    assert outcome.refusal is None
+    assert outcome.record["run_database_id"] == "<none>"
+
+
+def test_non_dict_jobs_are_ignored_while_finding_the_aggregate_job(tmp_path: Path) -> None:
     runner = _Runner(
         results=_results(
             jobs=_result(
@@ -261,49 +449,59 @@ def test_non_dict_jobs_are_ignored_while_finding_ci_green(tmp_path: Path) -> Non
         )
     )
 
-    assert module.master_ci_preflight_refusal(repo=tmp_path, runner=runner) is None
+    assert _outcome(repo=tmp_path, runner=runner).refusal is None
 
 
-def test_refusal_text_names_master_health_recovery(tmp_path: Path) -> None:
-    module = _module()
+def test_refusal_text_names_the_documented_master_health_recovery(tmp_path: Path) -> None:
     runner = _Runner(
         results=_results(
             run_list=_result(stdout=_run_list_payload(database_id=30316766663)),
-            jobs=_result(stdout=_jobs_payload(ci_green_conclusion="failure")),
+            jobs=_result(stdout=_jobs_payload(job_conclusion="failure")),
             view_run_id="30316766663",
         )
     )
 
-    refusal = module.master_ci_preflight_refusal(repo=tmp_path, runner=runner)
+    outcome = _outcome(repo=tmp_path, runner=runner)
 
-    assert refusal is not None
-    detail = refusal.detail
+    assert outcome.refusal is not None
+    detail = outcome.refusal.detail
     assert "30316766663" in detail
     assert "master-health-restoration" in detail
     assert "in-session" in detail
-    assert "PR CI is independent of master" in detail
+    assert "PR CI is independent of the default branch" in detail
     assert "repeat-flakes" in detail
     assert "AGENTS.md" in detail
     assert "gh run rerun 30316766663 --failed" not in detail
-    assert refusal.record["recovery"] == [
-        "For a master-health-restoration item parked behind red master, drive it "
-        "in-session through worktree -> PR -> merge; PR CI is independent of master.",
+    assert outcome.record["recovery"] == [
+        "For a master-health-restoration item parked behind a red default branch, drive it "
+        "in-session through worktree -> PR -> merge; PR CI is independent of the default branch.",
         "See AGENTS.md and .claude-plugin/prose/implement.md Step 0 for the documented "
         "escape hatch and the repeat-flake caveat.",
     ]
 
 
-def test_lever_env_cannot_make_red_master_pass(
+def test_lever_env_cannot_make_a_red_default_branch_pass(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    module = _module()
     monkeypatch.setenv("LIVESPEC_SKIP_MASTER_CI_PREFLIGHT", "1")
     monkeypatch.setenv("CHECK_MASTER_CI_GREEN_SEVERITY", "warning")
-    runner = _Runner(
-        results=_results(jobs=_result(stdout=_jobs_payload(ci_green_conclusion="failure")))
+    runner = _Runner(results=_results(jobs=_result(stdout=_jobs_payload(job_conclusion="failure"))))
+
+    assert _outcome(repo=tmp_path, runner=runner).refusal is not None
+
+
+def test_the_journal_helper_writes_the_outcome_record(tmp_path: Path) -> None:
+    module = importlib.import_module(_MODULE_NAME)
+    journal = tmp_path / "journal.jsonl"
+    outcome = _outcome(repo=tmp_path, runner=_Runner(results=_results()))
+
+    module.journal_master_ci_outcome(
+        journal_path=journal,
+        identity=invoker_from_args(args=argparse.Namespace(invoker=None)),
+        outcome=outcome,
     )
 
-    assert module.master_ci_preflight_refusal(repo=tmp_path, runner=runner) is not None
+    assert json.loads(journal.read_text(encoding="utf-8"))["status"] == "passed"
 
 
 def test_dispatch_preamble_refuses_before_receiver_or_admission(
@@ -312,9 +510,7 @@ def test_dispatch_preamble_refuses_before_receiver_or_admission(
     assert _MODULE_PATH.is_file()
     journal = tmp_path / "journal.jsonl"
     args = argparse.Namespace(fabro_bin=str(tmp_path / "fabro"), janitor=None, journal=str(journal))
-    runner = _Runner(
-        results=_results(jobs=_result(stdout=_jobs_payload(ci_green_conclusion="failure")))
-    )
+    runner = _Runner(results=_results(jobs=_result(stdout=_jobs_payload(job_conclusion="failure"))))
     _ = (tmp_path / "fabro").write_text("#!/bin/sh\n", encoding="utf-8")
     (tmp_path / "fabro").chmod(0o755)
     monkeypatch.setattr(_dispatcher_run_checks, "ShellCommandRunner", lambda: runner)

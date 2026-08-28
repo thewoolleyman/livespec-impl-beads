@@ -91,6 +91,7 @@ from livespec_orchestrator_beads_fabro.types import StoreConfig
 __all__: list[str] = [
     "ConfigUnreadable",
     "FactoryTarget",
+    "dispatcher_block",
     "has_fabro_factories",
     "has_fabro_factory",
     "resolve_acp_node_overlays",
@@ -225,7 +226,7 @@ def resolve_codex_model_tiers(*, cwd: Path) -> CodexModelTiers:
     measurement record behind their values -- lives in `_codex_model_tiers`;
     this is the config-reading seam that feeds it.
     """
-    return codex_model_tiers_from_block(block=_dispatcher_block_or_raise(cwd=cwd))
+    return codex_model_tiers_from_block(block=dispatcher_block(cwd=cwd))
 
 
 def resolve_acp_node_overlays(*, cwd: Path) -> Mapping[str, AcpNodeOverlay] | str:
@@ -237,7 +238,7 @@ def resolve_acp_node_overlays(*, cwd: Path) -> Mapping[str, AcpNodeOverlay] | st
     message so the caller can report it as a failed dispatch before any
     run exists.
     """
-    return repository_acp_overlays(block=_dispatcher_block_or_raise(cwd=cwd))
+    return repository_acp_overlays(block=dispatcher_block(cwd=cwd))
 
 
 def resolve_node_timeouts(*, cwd: Path) -> NodeTimeouts | str:
@@ -249,7 +250,7 @@ def resolve_node_timeouts(*, cwd: Path) -> NodeTimeouts | str:
     refusal comes back as its message so the caller can report it as a
     failed dispatch before any run exists.
     """
-    return node_timeouts_from_block(block=_dispatcher_block_or_raise(cwd=cwd))
+    return node_timeouts_from_block(block=dispatcher_block(cwd=cwd))
 
 
 # `has_explicit_codex_implementer_model` used to live here. It answered ONE
@@ -272,7 +273,7 @@ def resolve_fabro_factory(*, cwd: Path, factory: str | None = None) -> FactoryTa
     target. The implicit target has no server value so downstream callers
     preserve today's ambient Fabro CLI behavior.
     """
-    block = _dispatcher_block_or_raise(cwd=cwd)
+    block = dispatcher_block(cwd=cwd)
     if factory is not None and factory != "":
         return _factory_target_for(name=factory, block=block)
     env_value = os.environ.get(_ENV_FABRO_FACTORY)
@@ -286,7 +287,7 @@ def resolve_fabro_factory(*, cwd: Path, factory: str | None = None) -> FactoryTa
 
 def has_fabro_factory(*, cwd: Path, factory: str) -> bool:
     """Return whether the current dispatcher config defines a named factory."""
-    block = _dispatcher_block_or_raise(cwd=cwd)
+    block = dispatcher_block(cwd=cwd)
     factories_raw = block.get("factories")
     if not isinstance(factories_raw, dict):
         return False
@@ -295,7 +296,7 @@ def has_fabro_factory(*, cwd: Path, factory: str) -> bool:
 
 def has_fabro_factories(*, cwd: Path) -> bool:
     """Return whether dispatcher config constrains factory names."""
-    block = _dispatcher_block_or_raise(cwd=cwd)
+    block = dispatcher_block(cwd=cwd)
     factories_raw = block.get("factories")
     return isinstance(factories_raw, dict)
 
@@ -370,8 +371,15 @@ def _read_connection_block(*, cwd: Path) -> IOResult[dict[str, Any], ConfigUnrea
     return _read_plugin_sub_block(cwd=cwd, key=_CONNECTION_KEY)
 
 
-def _dispatcher_block_or_raise(*, cwd: Path) -> dict[str, Any]:
+def dispatcher_block(*, cwd: Path) -> dict[str, Any]:
     """The dispatcher block, RAISING when `.livespec.jsonc` cannot be read.
+
+    PUBLIC because a policy module that owns its own resolver reads the block
+    from OUTSIDE this module (`_dispatcher_master_ci_pipeline`), and importing a
+    `_`-prefixed name across a module boundary is exactly what pyright strict and
+    the `private_calls` check refuse. The alternative — a second per-key
+    `resolve_*` seam here for every policy module — is what pushed this file at
+    its ceiling, so the reader is the interface rather than each of its uses.
 
     ⛔ THE DEFECT THIS EXISTS TO STOP — and it REGREW in this module while the
     fix sat unlanded. Every caller below answers a question whose negative

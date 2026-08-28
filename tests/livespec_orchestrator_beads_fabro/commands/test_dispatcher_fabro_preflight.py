@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -147,7 +148,7 @@ def test_resolve_fabro_bin_for_explicit_flag_wins(tmp_path: Path) -> None:
     """A non-None --fabro-bin is an operator override, returned verbatim."""
     exe = tmp_path / "explicit-fabro"
     _make_executable(exe)
-    args = argparse.Namespace(fabro_bin=str(exe), janitor=None)
+    args = argparse.Namespace(fabro_bin=str(exe), janitor=None, journal=None)
     janitor, rc = dispatch_preamble(args=args, repo=tmp_path)
     assert (janitor, rc) == (None, None)
     assert args.fabro_bin == str(exe)
@@ -160,7 +161,7 @@ def test_resolve_fabro_bin_for_none_defers_to_resolution(
     exe = tmp_path / "resolved-fabro"
     _make_executable(exe)
     monkeypatch.setenv("LIVESPEC_FABRO_BIN", str(exe))
-    args = argparse.Namespace(fabro_bin=None, janitor=None)
+    args = argparse.Namespace(fabro_bin=None, janitor=None, journal=None)
     janitor, rc = dispatch_preamble(args=args, repo=tmp_path)
     assert (janitor, rc) == (None, None)
     assert args.fabro_bin == str(exe)
@@ -172,7 +173,7 @@ def test_resolve_fabro_bin_for_none_defers_to_resolution(
 def test_preflight_absolute_missing_is_error(tmp_path: Path) -> None:
     """A path-shaped value naming no existing file refuses, naming every knob."""
     missing = tmp_path / "nope" / "fabro"
-    args = argparse.Namespace(fabro_bin=str(missing), janitor=None)
+    args = argparse.Namespace(fabro_bin=str(missing), janitor=None, journal=None)
     janitor, rc = dispatch_preamble(args=args, repo=tmp_path)
     assert (janitor, rc) == (None, _EXIT_PRECONDITION_ERROR)
 
@@ -181,7 +182,7 @@ def test_preflight_absolute_executable_is_ok(tmp_path: Path) -> None:
     """A path-shaped value naming an existing executable file is resolvable."""
     exe = tmp_path / "fabro"
     _make_executable(exe)
-    args = argparse.Namespace(fabro_bin=str(exe), janitor=None)
+    args = argparse.Namespace(fabro_bin=str(exe), janitor=None, journal=None)
     assert dispatch_preamble(args=args, repo=tmp_path) == (None, None)
 
 
@@ -190,7 +191,7 @@ def test_preflight_absolute_non_executable_is_error(tmp_path: Path) -> None:
     plain = tmp_path / "fabro"
     _ = plain.write_text("not executable\n", encoding="utf-8")
     plain.chmod(0o644)
-    args = argparse.Namespace(fabro_bin=str(plain), janitor=None)
+    args = argparse.Namespace(fabro_bin=str(plain), janitor=None, journal=None)
     assert dispatch_preamble(args=args, repo=tmp_path) == (
         None,
         _EXIT_PRECONDITION_ERROR,
@@ -202,7 +203,9 @@ def test_preflight_absolute_non_executable_is_error(tmp_path: Path) -> None:
 
 def test_preflight_bare_name_not_on_path_is_error() -> None:
     """A bare name absent from PATH refuses (the original bare-`fabro` failure mode)."""
-    args = argparse.Namespace(fabro_bin="definitely-not-a-real-binary-xyz", janitor=None)
+    args = argparse.Namespace(
+        fabro_bin="definitely-not-a-real-binary-xyz", janitor=None, journal=None
+    )
     assert dispatch_preamble(args=args, repo=Path.cwd()) == (
         None,
         _EXIT_PRECONDITION_ERROR,
@@ -213,8 +216,12 @@ def test_preflight_bare_name_on_path_is_ok(tmp_path: Path, monkeypatch: pytest.M
     """A bare name found on PATH (shutil.which) is resolvable."""
     exe = tmp_path / "myfabro"
     _make_executable(exe)
-    monkeypatch.setenv("PATH", str(tmp_path))
-    args = argparse.Namespace(fabro_bin="myfabro", janitor=None)
+    # PREPEND rather than replace: the preamble's master-CI preflight resolves the
+    # default branch through the hermetic `gh` stub, which the suite puts on PATH.
+    # Replacing PATH outright hides that stub and turns this fabro-resolution test
+    # into an unprovable-pipeline refusal that says nothing about `fabro`.
+    monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ['PATH']}")
+    args = argparse.Namespace(fabro_bin="myfabro", janitor=None, journal=None)
     assert dispatch_preamble(args=args, repo=tmp_path) == (None, None)
 
 

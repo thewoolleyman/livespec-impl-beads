@@ -683,8 +683,13 @@ def test_dispatch_gate_auto_normalizes_beads_native_open(
     records = [json.loads(line) for line in journal.read_text(encoding="utf-8").splitlines()]
     # The normalization note now routes through the append layer, so it carries
     # the stamped envelope (`at` + the resolved invoker) alongside its payload.
-    assert records[0]["stage"] == "status-normalization"
-    assert records[0]["normalized"] == [
+    # The master-CI preflight's own journaled pass precedes it: the preamble runs
+    # ahead of the ledger gate, and its pass is a sanctioned journaled outcome.
+    assert [record["stage"] for record in records[:2]] == [
+        "master-ci-preflight",
+        "status-normalization",
+    ]
+    assert records[1]["normalized"] == [
         {
             "from": "open",
             "item_id": "native-open",
@@ -692,11 +697,11 @@ def test_dispatch_gate_auto_normalizes_beads_native_open(
             "to": "backlog",
         }
     ]
-    assert records[0]["at"]
-    assert records[0]["invoker"]
-    assert records[0]["invoker_source"] in {"flag", "env", "fallback"}
-    assert records[1]["stage"] == "ledger-check"
-    assert records[1]["findings"] == [
+    assert records[1]["at"]
+    assert records[1]["invoker"]
+    assert records[1]["invoker_source"] in {"flag", "env", "fallback"}
+    assert records[2]["stage"] == "ledger-check"
+    assert records[2]["findings"] == [
         {
             "check": "status-conformance",
             "item_id": "bad-hooked",
@@ -3882,7 +3887,10 @@ def test_dispatch_green_closes_item_and_journals(
     assert "A ready task" in goal_text
     journal_text = (repo / "tmp" / "fabro-dispatch-journal.jsonl").read_text(encoding="utf-8")
     stages = [json.loads(line)["stage"] for line in journal_text.splitlines()]
-    # The admission valve fires first (`ledger-admit`: ready -> active +
+    # The master-CI preflight records its PASS first, before anything is admitted:
+    # a pre-dispatch step has exactly three sanctioned outcomes and a pass is a
+    # journaled one, so the evidence the step ran precedes the first state write.
+    # Then the admission valve fires (`ledger-admit`: ready -> active +
     # assignee), then the per-dispatch workflow payload is materialized and
     # its resolved node timeouts journaled (`node-timeouts`, naming the layer
     # that supplied each one) and every ACP node's resolved adapter journaled
@@ -3907,6 +3915,7 @@ def test_dispatch_green_closes_item_and_journals(
     # signal for reflection to scan, then the mechanical reflection stage at
     # the default `observe` lever (work-item 29f.2).
     assert stages == [
+        "master-ci-preflight",
         "ledger-admit",
         "node-timeouts",
         "acp-nodes",
