@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.94.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.94.0...v0.94.1) (2026-08-28)
+
+
+### Bug Fixes
+
+* **store:** clear blocked_reason on every exit from blocked ([9fba720](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/9fba720264824b369219db82dbfe73fddccd5fbc))
+
 ## [0.94.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.93.0...v0.94.0) (2026-08-28)
 
 
