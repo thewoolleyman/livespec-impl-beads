@@ -1593,7 +1593,7 @@ Feature: The fix-forward rework contract is executable
 Scenario: The drain drives a rework-pending item before admitting new ready work
   Given an active item carrying the rework:pending label and holding no live dispatch lock
   And ready items exist in the queue
-  And the count of active items other than the marked item is below wip_cap
+  And the counted-claim total excluding the marked item's own row is below wip_cap
   When the Dispatcher drain runs
   Then a fix-forward rework dispatch starts for the marked item before any new ready item is admitted
   And starting the rework journals the rework admission and leaves the label in place until the rework dispatch's terminal disposition
@@ -2265,7 +2265,7 @@ Feature: Capacity surfaces distinguish the per-repo claim cap from the Fabro sch
 Scenario: A capacity-deferred dispatch identifies the per-repo claim cap and disclaims the host limit
   Given a per-repo wip_cap of 10 committed in `.livespec.jsonc`
   And the Fabro server's `server.scheduler.max_concurrent_runs` is also 10
-  And this repo holds 10 counted active claims
+  And this repo holds 10 counted claims
   When the Dispatcher refuses an admission-eligible ready item on capacity
   Then the refusal identifies the exceeded ceiling as this repo's per-repo claim cap
   And the refusal does not present the value as a host-wide or per-server limit
