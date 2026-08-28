@@ -25,6 +25,7 @@ orchestrator-PRIVATE tooling: core's contract sees only the three
   dispatcher.py stale-run-sweep [--repo <path>] [--factory <name>]
                                  [--fabro-bin <path>] [--json]
   dispatcher.py reconcile-merged --repo <path> --item <id> [--invoker <id>] [--json]
+  dispatcher.py probe --repo <path> --item <id> [common flags]
   dispatcher.py dispatch --repo <path> --item <id> [common flags]
   dispatcher.py loop --repo <path> --budget <n> [--parallel <k>]
                      [--dry-run] [--item <id>]... [common flags]
@@ -45,6 +46,19 @@ dispatch-safety trio.
 active item whose dispatch process died before post-run disposition: it
 resolves the merged PR from GitHub, re-runs only the post-merge janitor,
 and then enters the existing acceptance path without relaunching Fabro.
+`probe` is the loop probe of contracts.md: the take-never-file health command
+that drives ONE designated, ALREADY-FILED work-item through the whole cycle
+with an assertion at each stage. It refuses
+without `--item` and creates, files, or clones nothing; it refuses an item whose
+effective `acceptance_policy` is not `ai-only` (terminal `done` is otherwise not
+machine-reachable) and an invocation whose invoker resolves to the fallback
+mark; it confines the driven change to `.livespec-probe/`, verified BEFORE the
+merge with the post-merge diff check as the backstop; and its HARD residue
+assertions key only on the reserved identifier set
+(`probe:<item>:<utc-start>` plus the item id), with the unrelated before/after
+delta REPORTED and never asserted. An attention or ledger source that cannot be
+read fails the probe with a source-unavailable outcome rather than reading the
+unread surface as clear.
 `ledger-normalize` is the standalone self-heal surface: it reuses the
 dispatch-path status normalizer (`open` → `backlog`, `in_progress` →
 `active`; every other status is left for the status-conformance check)
@@ -238,6 +252,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_otel_wiring import (
 from livespec_orchestrator_beads_fabro.commands._dispatcher_post_verdict import (
     reflector_oob_after_verdict,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_probe import run_probe_command
 from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_merged import (
     run_reconcile_merged_command,
 )
@@ -291,6 +306,7 @@ __all__: list[str] = [
     "run_janitor_check",
     "run_ledger_check",
     "run_ledger_normalize",
+    "run_probe_command",
     "run_reconcile_merged_command",
     "run_spec_check",
     "run_stale_run_sweep_command",
@@ -306,6 +322,7 @@ _SUBCOMMAND_HANDLERS: dict[str, Callable[..., int]] = {
     "janitor-check": run_janitor_check,
     "ledger-check": run_ledger_check,
     "ledger-normalize": run_ledger_normalize,
+    "probe": run_probe_command,
     "reconcile-merged": run_reconcile_merged_command,
     "spec-check": run_spec_check,
     "stale-run-sweep": run_stale_run_sweep_command,
@@ -344,6 +361,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_janitor_check(parser=subparsers.add_parser("janitor-check"))
     _add_stale_run_sweep(parser=subparsers.add_parser("stale-run-sweep"))
     _add_reconcile_merged(parser=subparsers.add_parser("reconcile-merged"))
+    _add_probe(parser=subparsers.add_parser("probe"))
     dispatch = subparsers.add_parser("dispatch")
     _add_dispatch_common(parser=dispatch)
     _ = dispatch.add_argument("--item", dest="item", required=True)
@@ -393,6 +411,22 @@ def _add_reconcile_merged(*, parser: argparse.ArgumentParser) -> None:
         ),
     )
     _ = parser.add_argument("--json", dest="as_json", action="store_true")
+
+
+def _add_probe(*, parser: argparse.ArgumentParser) -> None:
+    # The probe drives the SAME published machinery an ordinary dispatch uses,
+    # so it carries the same flag surface: the namespace it builds is the one
+    # the dispatch and reconcile entry points are handed unchanged.
+    _add_dispatch_common(parser=parser)
+    # `--item` is deliberately NOT `required=True`. The loop-probe clause makes
+    # "refuse without a designated item, and create nothing" a BEHAVIOUR of the
+    # probe rather than a parser accident, so the flag is optional here and the
+    # handler owns the refusal, its wording, and its precondition exit code.
+    _ = parser.add_argument("--item", dest="item", default=None)
+    # The reconcile valve's live-dispatch bypass is never the probe's to take:
+    # the probe drives its own cycle, so there is no dead dispatcher process to
+    # reach around. Defaulted rather than exposed so no invocation can arm it.
+    parser.set_defaults(force=False)
 
 
 def _add_dispatch_common(*, parser: argparse.ArgumentParser) -> None:
