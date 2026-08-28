@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.87.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.86.0...v0.87.0) (2026-08-28)
+
+
+### Features
+
+* **dispatcher:** widen acceptance verdicts to the ratified evidence rule ([b68358b](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/b68358be0e97b97417dfaa47fcb689cc11734d9b))
+
 ## [0.86.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.85.0...v0.86.0) (2026-08-27)
 
 
