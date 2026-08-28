@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.90.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.89.0...v0.90.0) (2026-08-28)
+
+
+### Features
+
+* **dispatcher:** route every criteria gate through one primitive ([32b25ed](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/32b25ed5c3ffa109c434895792b20289fe1a10d3))
+
 ## [0.89.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.88.2...v0.89.0) (2026-08-28)
 
 
