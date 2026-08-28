@@ -72,6 +72,14 @@ CONFIG_KEYS: tuple[ConfigKey, ...] = (
         default=5,
         per_item_override=False,
     ),
+    # Detection recency is a repository property, so the drift trigger carries
+    # no per-item override (the detection coverage-record contract).
+    ConfigKey(
+        key="drift_capture_merge_threshold",
+        value_type="positive_integer",
+        default=1,
+        per_item_override=False,
+    ),
 )
 
 

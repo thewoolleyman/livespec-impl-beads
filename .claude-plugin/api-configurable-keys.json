@@ -47,6 +47,12 @@
       "type": "non_negative_integer",
       "default": 5,
       "per_item_override": false
+    },
+    {
+      "key": "drift_capture_merge_threshold",
+      "type": "positive_integer",
+      "default": 1,
+      "per_item_override": false
     }
   ]
 }

@@ -135,6 +135,43 @@ def test_resolve_ready_aging_threshold_hours_reads_explicit_value(tmp_path: Path
     assert _read(valves.resolve_ready_aging_threshold_hours(cwd=cwd)) == 36
 
 
+def test_resolve_drift_capture_merge_threshold_defaults_to_one(tmp_path: Path) -> None:
+    assert valves.DEFAULT_DRIFT_CAPTURE_MERGE_THRESHOLD == 1
+    assert _read(valves.resolve_drift_capture_merge_threshold(cwd=tmp_path)) == 1
+
+
+def test_resolve_drift_capture_merge_threshold_reads_explicit_value(tmp_path: Path) -> None:
+    cwd = _write_config(
+        tmp_path=tmp_path,
+        text=(
+            '{"livespec-orchestrator-beads-fabro": '
+            '{"dispatcher": {"drift_capture_merge_threshold": 7}}}'
+        ),
+    )
+
+    assert _read(valves.resolve_drift_capture_merge_threshold(cwd=cwd)) == 7
+
+
+@pytest.mark.parametrize("raw", ['"3"', "true", "0", "-1"])
+def test_resolve_drift_capture_merge_threshold_fails_when_value_invalid(
+    tmp_path: Path, raw: str
+) -> None:
+    cwd = _write_config(
+        tmp_path=tmp_path,
+        text=(
+            '{"livespec-orchestrator-beads-fabro": '
+            f'{{"dispatcher": {{"drift_capture_merge_threshold": {raw}}}}}}}'
+        ),
+    )
+
+    outcome = valves.resolve_drift_capture_merge_threshold(cwd=cwd)
+
+    assert isinstance(outcome, IOFailure)
+    failure = _failed(outcome)
+    assert failure.setting == "drift_capture_merge_threshold"
+    assert "an integer >= 1" in failure.detail
+
+
 @pytest.mark.parametrize("raw", ['"24"', "true", "0", "-1"])
 def test_resolve_ready_aging_threshold_hours_fails_when_value_invalid(
     tmp_path: Path, raw: str
