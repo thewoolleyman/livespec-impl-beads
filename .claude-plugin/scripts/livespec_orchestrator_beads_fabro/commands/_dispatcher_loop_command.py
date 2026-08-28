@@ -35,6 +35,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_close import 
     ledger_blocked_after_normalization,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_loop import dispatch_one
+from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_dry_run import dry_run_outcomes
 from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_selection import (
     candidates,
     prepare,
@@ -50,6 +51,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_post_verdict import 
     reflector_oob_after_verdict,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_reflection import reflect
+from livespec_orchestrator_beads_fabro.commands._dispatcher_rework_admission import ReworkPass
 from livespec_orchestrator_beads_fabro.commands._dispatcher_run_checks import (
     dispatch_preamble,
     requested_items_preflight_error,
@@ -86,8 +88,20 @@ def run_loop_command(*, args: argparse.Namespace) -> int:
     items = started.items
     journal = started.journal
     selected_candidates = candidates(args=args, items=items, repo=repo)[: args.budget]
+    # `--item` narrows BOTH legs to the named ids, and `--budget` bounds the
+    # pass as a whole rather than each leg separately.
+    rework = ReworkPass(
+        scope_ids=frozenset(args.items) if args.items else None,
+        budget=args.budget,
+    )
     if args.dry_run:
-        picked = _dry_run_outcomes(selected_candidates=selected_candidates)
+        picked = dry_run_outcomes(
+            repo=repo,
+            items=items,
+            journal=journal,
+            selected_candidates=selected_candidates,
+            rework=rework,
+        )
         # The journal record and the reported outcome list are projected from
         # the SAME `picked` value, so the audit record and the "what would this
         # drain do?" surface can never disagree.
@@ -115,6 +129,7 @@ def run_loop_command(*, args: argparse.Namespace) -> int:
         selected_candidates=selected_candidates,
         journal=journal,
         janitor=janitor,
+        rework=rework,
     )
     if not outcomes:
         emit_outcomes(outcomes=[], as_json=args.as_json)
@@ -160,30 +175,7 @@ def run_loop_command(*, args: argparse.Namespace) -> int:
     return exit_code
 
 
-def _dry_run_outcomes(*, selected_candidates: list[WorkItem]) -> list[DispatchOutcome]:
-    """Project the planned selection onto the reported outcome surface.
-
-    SPECIFICATION/contracts.md requires --dry-run to "compute and report
-    exactly the selection the same invocation would dispatch", and permits
-    journaling that selection only as an ADDITION — not as the discharge of
-    the reporting obligation. Nothing here launches a run, mutates the ledger,
-    or writes the work-item store: the candidates are re-labelled, never
-    dispatched.
-    """
-    return [
-        DispatchOutcome(
-            work_item_id=item.id,
-            status="dry-run",
-            stage="loop-pick",
-            pr_number=None,
-            merge_sha=None,
-            detail="planned selection; not dispatched",
-        )
-        for item in selected_candidates
-    ]
-
-
-def _dispatch_loop_wave(
+def _dispatch_loop_wave(  # noqa: PLR0913 — kw-only wave inputs; `rework` is the pass's own narrowing, not a variant of the candidate list.
     *,
     args: argparse.Namespace,
     repo: Path,
@@ -191,6 +183,7 @@ def _dispatch_loop_wave(
     selected_candidates: list[WorkItem],
     journal: JournalFile,
     janitor: tuple[str, ...] | None,
+    rework: ReworkPass,
 ) -> list[DispatchOutcome]:
     return _admit_and_dispatch_loop_wave(
         args=args,
@@ -199,10 +192,11 @@ def _dispatch_loop_wave(
         selected_candidates=selected_candidates,
         journal=journal,
         janitor=janitor,
+        rework=rework,
     )
 
 
-def _admit_and_dispatch_loop_wave(
+def _admit_and_dispatch_loop_wave(  # noqa: PLR0913 — see `_dispatch_loop_wave`; this is the same input set one call deeper.
     *,
     args: argparse.Namespace,
     repo: Path,
@@ -210,25 +204,32 @@ def _admit_and_dispatch_loop_wave(
     selected_candidates: list[WorkItem],
     journal: JournalFile,
     janitor: tuple[str, ...] | None,
+    rework: ReworkPass,
 ) -> list[DispatchOutcome]:
     # The admission valve drains the candidate set up to the per-repo WIP cap:
     # host-only items are routed away, manual / unresolvable items are held +
-    # surfaced, and the highest-rank admission-eligible items fill the free
-    # slots (ready -> active, assignee set). Capacity-deferred items simply
-    # wait for the next pass.
+    # surfaced, marked rework rows re-occupy the slots their own `active` rows
+    # already hold BEFORE any new admission, and the highest-rank
+    # admission-eligible items fill what free slots remain (ready -> active,
+    # assignee set). Capacity-deferred items simply wait for the next pass.
     admission = admit_and_select(
         repo=repo,
         items=items,
         candidates=selected_candidates,
         journal=journal,
         enforce_cap=True,
+        rework=rework,
     )
+    # Rework first in the launch order too, so the audit record and the wave's
+    # observable sequence report the same precedence the valve applied.
+    picked = [*admission.rework, *admission.admitted]
     journal.append(
         record={
             "stage": "loop-pick",
             "dry_run": False,
             "budget": args.budget,
-            "picked": [item.id for item in admission.admitted],
+            "picked": [item.id for item in picked],
+            "rework_picked": [item.id for item in admission.rework],
         }
     )
     with ThreadPoolExecutor(max_workers=max(1, args.parallel)) as pool:
@@ -241,7 +242,7 @@ def _admit_and_dispatch_loop_wave(
                 journal=journal,
                 janitor=janitor,
             )
-            for item in admission.admitted
+            for item in picked
         ]
         dispatched = [future.result() for future in futures]
     # Held / host-only-refused items ride in the outcomes so the verdict and
@@ -268,7 +269,7 @@ def _start_loop(*, args: argparse.Namespace, repo: Path) -> _LoopStart | int:
     requested_ids = set(args.items or [])
     if requested_ids:
         preflight_error = requested_items_preflight_error(
-            requested_ids=requested_ids, items=items, repo=repo
+            requested_ids=requested_ids, items=items, repo=repo, journal=journal
         )
         if preflight_error is not None:
             _ = write_stderr(text=preflight_error)

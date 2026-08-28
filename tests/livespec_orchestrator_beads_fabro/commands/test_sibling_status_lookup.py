@@ -16,6 +16,7 @@ from typing import Literal
 
 import pytest
 from livespec_orchestrator_beads_fabro.commands import _sibling_status_lookup as sut
+from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
 from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_selection import (
     is_dispatch_candidate,
 )
@@ -383,6 +384,7 @@ def test_requested_item_refusal_reports_sibling_lookup_diagnostic(
         requested_ids={"consumer"},
         items=[item],
         repo=project_root,
+        journal=JournalFile(path=project_root / "journal.jsonl"),
     )
 
     assert error is not None

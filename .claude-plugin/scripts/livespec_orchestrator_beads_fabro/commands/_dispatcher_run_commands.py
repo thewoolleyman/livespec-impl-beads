@@ -51,6 +51,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_readiness_diagnostic
     not_ready_requested_items_error,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_reflection import reflect
+from livespec_orchestrator_beads_fabro.commands._dispatcher_rework_admission import (
+    ReworkPass,
+    rework_redispatch_eligible_ids,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_run_checks import (
     dispatch_preamble,
 )
@@ -86,9 +90,10 @@ def run_dispatch_command(*, args: argparse.Namespace) -> int:
         journal=journal,
     ):
         return EXIT_FAILURE
-    target = _target_item(args=args, repo=repo, items=items)
-    if target is None:
+    selected = _target_item(args=args, repo=repo, items=items, journal=journal)
+    if selected is None:
         return EXIT_PRECONDITION_ERROR
+    target, marked = selected
     # The pre-dispatch wall runs after selection and BEFORE admission, so a
     # refused item is never claimed and no factory run exists to reap.
     ungradeable = pre_dispatch_criteria_refusal(items=[target], cwd=repo)
@@ -102,6 +107,7 @@ def run_dispatch_command(*, args: argparse.Namespace) -> int:
         target=target,
         journal=journal,
         janitor=janitor,
+        marked=marked,
     )
     emit_outcomes(outcomes=[outcome], as_json=args.as_json)
     # Verdict computed BEFORE the fail-open reflection + notification
@@ -143,11 +149,27 @@ def run_dispatch_command(*, args: argparse.Namespace) -> int:
     return exit_code
 
 
-def _target_item(*, args: argparse.Namespace, repo: Path, items: list[WorkItem]) -> WorkItem | None:
+def _target_item(
+    *, args: argparse.Namespace, repo: Path, items: list[WorkItem], journal: JournalFile
+) -> tuple[WorkItem, bool] | None:
+    """Resolve `--item` to its target plus whether it is a rework re-dispatch.
+
+    The named item is eligible when it is `ready`, OR when the claim accounting
+    classifies it as a marked, lock-less `active` row. The second arm is the
+    ratified operator override: `--item` NARROWS the selection to one id and
+    never bypasses it, so a marked row is reached THROUGH the same eligibility
+    the drain applies — including the double-selection guard, since a marked
+    row holding a live dispatch lock is not in that class and falls through to
+    the already-claimed refusal below. Every OTHER non-`ready` item is still a
+    precondition error.
+    """
     ready = ready_items(items=items, repo=repo)
     target = next((item for item in ready if item.id == args.item), None)
     if target is not None:
-        return target
+        return target, False
+    marked_ids = rework_redispatch_eligible_ids(repo=repo, items=items, journal=journal)
+    if args.item in marked_ids:
+        return next(item for item in items if item.id == args.item), True
     all_ids = {item.id for item in items}
     if args.item not in all_ids:
         msg = (
@@ -166,7 +188,7 @@ def _target_item(*, args: argparse.Namespace, repo: Path, items: list[WorkItem])
     return None
 
 
-def _admit_and_dispatch_target(
+def _admit_and_dispatch_target(  # noqa: PLR0913 — kw-only targeted dispatch; `marked` is the leg the target rides, decided at selection.
     *,
     args: argparse.Namespace,
     repo: Path,
@@ -174,18 +196,25 @@ def _admit_and_dispatch_target(
     target: WorkItem,
     journal: JournalFile,
     janitor: tuple[str, ...] | None,
+    marked: bool,
 ) -> DispatchOutcome:
     # The admission valve runs BEFORE the Fabro launch: a host-only item is
     # routed away, a manual / unresolvable-assignee item is held + surfaced,
     # and an admission-eligible item is admitted (ready -> active, assignee
     # set) and dispatched. A targeted dispatch is an operator override, so it
-    # does NOT enforce the per-repo WIP cap (the queue-draining `loop` does).
+    # does NOT enforce the per-repo WIP cap (the queue-draining `loop` does) —
+    # for a marked target on the same terms as a ready one, since the override
+    # narrows WHICH item runs rather than granting rework its own bypass. A
+    # marked target rides the rework leg alone: it is already `active`, so
+    # offering it to the ready plan as well would re-admit and re-launch the
+    # same row twice in one pass.
     admission = admit_and_select(
         repo=repo,
         items=items,
-        candidates=[target],
+        candidates=[] if marked else [target],
         journal=journal,
         enforce_cap=False,
+        rework=ReworkPass(scope_ids=frozenset({target.id})),
     )
     dispatched = [
         dispatch_one(
@@ -195,6 +224,6 @@ def _admit_and_dispatch_target(
             journal=journal,
             janitor=janitor,
         )
-        for item in admission.admitted
+        for item in (*admission.rework, *admission.admitted)
     ]
     return (admission.refused + dispatched)[0]
