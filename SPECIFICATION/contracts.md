@@ -2158,7 +2158,7 @@ governed CLI surface is:
 - **`--parallel <count>` (default `1`) bounds concurrency within the
   invocation.** It MUST NOT raise the per-repo WIP cap: the drain stays
   bounded by `wip_cap` (§"Per-repo WIP cap"), which remains the authority on
-  how many items may be `active` at once.
+  the counted-claim bound — NOT a count of items at status `active`.
 - **`--item <work-item-id>` (repeatable) scopes the run to hand-picked
   items.** One or more `--item` flags RESTRICT the selection to exactly the
   named work-items. `--item` NARROWS the ranked selection; it never bypasses
@@ -2329,8 +2329,9 @@ mechanical — capacity, dependencies, a resolvable assignee, and factory-safety
   Dispatcher MUST NOT hold an item at `ready` awaiting a human — an item
   awaiting a human's permission MUST NOT be in `ready`.
 - **Capacity:** a free WIP slot under the per-repo cap
-  (`count(active) < wip_cap`; a rework re-dispatch's capacity condition
-  excludes the item's own parked row — §"Rework-pending re-dispatch").
+  (`counted_claims < wip_cap`, §"Per-repo WIP cap"; a rework re-dispatch's
+  capacity condition excludes the item's own parked row — §"Rework-pending
+  re-dispatch").
 - **Assignee resolvable:** an item whose assignee cannot be resolved is
   not admitted.
 - **Factory-safe:** an item whose `factory_safety` is non-null names work
@@ -2405,13 +2406,13 @@ machinery may.
   `pending-approval`, MUST NOT require a fresh `approve`, and no
   `admission_policy` value plays any part in it.
 - **Capacity.** A rework re-dispatch re-occupies the WIP slot the item's
-  own `active` row already holds, so the capacity condition EXCLUDES
-  that row: the re-dispatch MUST NOT start unless the count of `active`
-  items other than the re-dispatched item is below `wip_cap`. The
-  sanctioned `wip_cap: 0` dispatch-off posture is preserved (no count is
-  below zero), and the `wip_cap: 1` self-deadlock — where the parked
-  item's own row saturates the count that must be under the cap —
-  cannot arise.
+  own `active` row already holds, so the capacity condition EXCLUDES that
+  row: the re-dispatch MUST NOT start unless the COUNTED-CLAIM total
+  (§"Per-repo WIP cap"), excluding any claim held by the re-dispatched
+  item's own row, is below `wip_cap`. The sanctioned `wip_cap: 0`
+  dispatch-off posture is preserved (no count is below zero), and the
+  `wip_cap: 1` self-deadlock — where the parked item's own row saturates
+  the count that must be under the cap — cannot arise.
 - **Operator override.** `dispatch --item` MUST accept an item carrying
   `rework:pending` — driving its rework immediately, subject to the SAME
   mechanical eligibility and capacity conditions as the drain path (per
@@ -2457,15 +2458,58 @@ The WIP cap is **per-repo**, sourced from this repo's `.livespec.jsonc`
 sum of the per-repo caps. The Orchestrator owns NO host-level ceiling on
 concurrently in-flight dispatches; that ceiling belongs to the Fabro
 server's own scheduler (§"Host concurrency belongs to the Fabro
-scheduler"). The Dispatcher MUST NOT drive more than `wip_cap` items into
-the `active` state at once (a rework re-dispatch of an already-`active`
-parked item drives no ADDITIONAL item into `active`; it is bounded by
-§"Rework-pending re-dispatch"'s capacity condition).
+scheduler").
+
+`wip_cap` bounds COUNTED CLAIMS ("counted claims" or `counted_claims`
+below), which is NOT the same set as rows at status `active`. A row at
+status `active` counts against `wip_cap` when, and only when, either of the
+following holds:
+
+1. it holds a dispatch lock whose recorded process identifier — that of the
+   LOCAL dispatching process — belongs to a live process; or
+2. its dispatch journal could not be READ.
+
+A row at status `active` that satisfies neither MUST NOT be counted. In
+particular, a row whose dispatch reached a green terminal outcome is
+reclaimed and MUST NOT be counted, so a repository MAY hold more rows at
+status `active` than `wip_cap` without any admission having exceeded the
+bound. Every surface that reports capacity MUST NOT present "rows at status
+`active`" as if it were the counted quantity.
+
+Term 2 is FAIL-CLOSED BY DESIGN and MUST remain so: an unreadable journal
+MUST cause the predicate to count MORE rows, never fewer, so that losing the
+journal cannot silently over-admit. A change making an unreadable journal
+reduce the count MUST NOT land without a propose-change explicitly retiring
+this clause.
+
+The bound governs the Dispatcher's AUTOMATIC admission path — the drain, and
+any targeted invocation that enforces the cap (a rework re-dispatch of an
+already-`active` parked item drives no ADDITIONAL item into `active` and is
+bounded by §"Rework-pending re-dispatch"'s capacity condition instead). It is
+NOT absolute. The hand-picked operator path (`dispatch --item`) is a
+sanctioned override that admits a single named work-item WITHOUT enforcing
+`wip_cap`; this is intended behavior, not a defect, per the 2026-07-30
+maintainer ruling. A consumer of this contract MUST NOT treat an over-cap
+admission arising from that override as a violation of this section, and any
+surface asserting cap conformance MUST scope its assertion to the enforcing
+paths.
+
+The counted-claim bound is TENANT-scoped: it MUST count claims across every
+checkout of this repository (worktrees, janitor checkouts, and fresh clones
+alike), not only the invoking process's own checkout. This is a REQUIREMENT
+on the bound, stated deliberately ahead of the implementation: the shipped
+predicate at the time of this revision computes claims from paths under the
+invoking `--repo` checkout only, so DISTINCT checkouts of one tenant can
+currently admit independently and their combined admissions MAY exceed
+`wip_cap`. That divergence is KNOWN, tracked as a defect, and MUST NOT be
+read as a second sanctioned bound alongside this one — tenant-scoping is
+what this section requires, and per-checkout counting is a gap in meeting
+it, not an alternative reading of it.
 
 `wip_cap`'s value domain is a **non-negative integer**: `0` is a valid
 committed value, and it is the sanctioned consumer-project DISPATCH-OFF
 posture value. Under a `wip_cap` of `0` the admission valve's capacity
-condition (`count(active) < wip_cap`, §"Admission valve (`ready →
+condition (`counted_claims < wip_cap`, §"Admission valve (`ready →
 active`)") holds for no item, so the Dispatcher admits nothing. Every
 surface that validates or reads `wip_cap` MUST accept `0`: a read of a
 committed `0` MUST resolve to `0` — it MUST NOT be treated as
@@ -2477,6 +2521,16 @@ has no per-item override and no `clear` sentinel, so no sentinel
 ambiguity arises. A schema or validation change that imposes a minimum
 above `0` on `wip_cap` MUST NOT land without a propose-change that
 explicitly retires this clause.
+
+Every operator-facing surface that reports `wip_cap`, or that refuses a
+dispatch on capacity grounds, MUST identify the value as this repo's
+PER-REPO CLAIM cap rather than by the unqualified word "cap". Such a
+surface MUST NOT present the value in a form readable as a host-wide or
+per-server ceiling. A capacity refusal MUST state that host-run concurrency
+is governed separately (§"Host concurrency belongs to the Fabro scheduler")
+and is NOT what the refusal reports. These requirements bind the refusal
+text and any status, doctor, or attention surface that echoes the cap; they
+do NOT change what is counted, which this section already governs.
 
 ### The loop probe (`probe --item`)
 
@@ -2677,12 +2731,37 @@ capacity frees. Queueing at the scheduler is the sanctioned behavior; a
 client-side refusal is not.
 
 `wip_cap` (§"Per-repo WIP cap") is therefore the ONLY concurrency control the
-Orchestrator owns. It bounds this repo's `active` work-items at the Ledger
-level and MUST NOT be read as, or extended into, a host-wide bound. A single
+Orchestrator owns. It bounds this repo's COUNTED CLAIMS (§"Per-repo WIP
+cap") at the Ledger level — NOT its rows at status `active` — and MUST NOT
+be read as, or extended into, a host-wide bound. A single
 repo consequently tops out at its own `wip_cap` even when the host scheduler
 would permit more; the remaining host capacity is reachable when another repo
 dispatches. This is intended, not a defect to be corrected by re-adding a
 host-level key.
+
+The Orchestrator MUST NOT report the Fabro scheduler's
+`server.scheduler.max_concurrent_runs` as its own bound, and MUST NOT derive
+available capacity from it on any surface. Reading that value to reason
+about this repo's admission is a category error: the two ceilings govern
+different objects and coincide in value only by accident. A surface that
+names host capacity at all MUST attribute it to the Fabro server and MUST
+NOT imply the Orchestrator enforces it.
+
+The counted-claim bound (§"Per-repo WIP cap") is TENANT-scoped and MUST be
+computed from this repository's own state ONLY — its ledger rows, its
+dispatch locks, and its dispatch journal, across every checkout of the
+tenant. It MUST NOT be read as licensing any observation of the Fabro host
+or of any OTHER repository's state. Tenant-scoped bookkeeping across this
+repository's own checkouts is NOT host observation and is NOT barred by this
+section; the two are independent, and a future change making the count
+genuinely tenant-wide does not require retiring this clause. Separately, the
+fact that a claim can stop being counted while its remote Fabro run
+continues to execute is a KNOWN and ACCEPTED consequence of counting
+dispatch-lock liveness rather than remote run status, not a defect to be
+corrected by teaching the counter about remote run liveness — correcting
+THAT would require host observation, which this section forbids; any such
+change MUST NOT land without a propose-change explicitly retiring this
+clause.
 
 ### Provider spend containment
 

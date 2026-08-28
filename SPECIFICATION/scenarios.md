@@ -2252,3 +2252,61 @@ Scenario: An empty model omits the key rather than emptying it
   And CODEX_CONFIG carries no model_reasoning_effort key
   And the rendered adapter is byte-identical to the un-pinned base string
 ```
+
+
+## Scenario 57 — A capacity refusal names which ceiling it means
+
+```gherkin
+Feature: Capacity surfaces distinguish the per-repo claim cap from the Fabro scheduler's host limit
+  As an operator reading a dispatch refusal
+  I want the refusal to say WHICH ceiling was reached
+  So that I do not reason from the host scheduler's unrelated limit
+
+Scenario: A capacity-deferred dispatch identifies the per-repo claim cap and disclaims the host limit
+  Given a per-repo wip_cap of 10 committed in `.livespec.jsonc`
+  And the Fabro server's `server.scheduler.max_concurrent_runs` is also 10
+  And this repo holds 10 counted active claims
+  When the Dispatcher refuses an admission-eligible ready item on capacity
+  Then the refusal identifies the exceeded ceiling as this repo's per-repo claim cap
+  And the refusal does not present the value as a host-wide or per-server limit
+  And the refusal states that host-run concurrency is governed separately by the Fabro scheduler
+```
+
+## Scenario 58 — Rows at status active are not the counted quantity
+
+```gherkin
+Feature: The per-repo WIP cap bounds counted claims, not rows at status active
+  As a Dispatcher
+  I want uncounted active rows to leave capacity available
+  So that finished-but-unadvanced bookkeeping cannot strand a repository
+
+Scenario: A repo holding more active rows than wip_cap still admits a ready item
+  Given a per-repo wip_cap of 2
+  And three work-items at status `active`
+  And exactly one of them holds a dispatch lock whose recorded pid is live
+  And the other two reached a green terminal outcome and were reclaimed
+  And every dispatch journal is readable
+  When the Dispatcher evaluates admission for an admission-eligible ready item
+  Then the counted claim total is 1
+  And the ready item is admitted
+  And no admission has exceeded the per-repo WIP cap
+```
+
+## Scenario 59 — The hand-picked operator override admits over the cap
+
+```gherkin
+Feature: The per-repo WIP cap binds the enforcing paths, not the operator override
+  As an operator
+  I want a hand-picked dispatch to proceed when I have named one work-item
+  So that a saturated cap cannot block a deliberate single dispatch
+
+Scenario: A targeted dispatch is admitted at the cap while an unattended drain admits nothing
+  Given a per-repo wip_cap that is already met by counted claims
+  And an admission-eligible ready work-item
+  When an unattended drain evaluates admission
+  Then no work-item is admitted
+  And the refusal reports a capacity deferral
+  When the operator instead dispatches that same work-item by name through the non-enforcing path
+  Then that work-item is admitted
+  And the admission is not reported as a violation of the per-repo WIP cap
+```

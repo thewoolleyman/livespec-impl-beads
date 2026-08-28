@@ -975,5 +975,29 @@
     "test": "tests.integration.test_codex_adapter_baked_path_scenarios90_91.test_scenario91_the_empty_model_opt_out_omits_the_keys_rather_than_emptying_them",
     "work_item": "bd-ib-nr3pon",
     "reason": "Bound by bd-ib-nr3pon leg (a), same module and same tier as Scenario 90: the opt-out's spelling — no model key inside CODEX_CONFIG rather than an empty value — is only observable through a rendered dispatch payload, so the byte-identity claim against the un-pinned base string is graded at the integration tier rather than by a unit-tier test."
+  },
+  {
+    "heading": "## Scenario 57 — A capacity refusal names which ceiling it means",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "reason": "Ratified with the wip-cap-naming-collision revision; capacity surfaces must name which ceiling they mean. Awaits a consumer-tier (integration) test per the scenario-tier requirement; real test ID to follow.",
+    "work_item": "bd-ib-snyquw.4"
+  },
+  {
+    "heading": "## Scenario 58 — Rows at status active are not the counted quantity",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "reason": "Ratified with the wip-cap-bound-honesty revision; wip_cap bounds counted claims, not rows at status active. Awaits a consumer-tier (integration) test per the scenario-tier requirement; real test ID to follow.",
+    "work_item": "bd-ib-snyquw.5"
+  },
+  {
+    "heading": "## Scenario 59 — The hand-picked operator override admits over the cap",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "reason": "Ratified with the wip-cap-bound-honesty revision; the hand-picked dispatch --item override is sanctioned and may exceed the cap. Awaits a consumer-tier (integration) test per the scenario-tier requirement; real test ID to follow.",
+    "work_item": "bd-ib-snyquw.5"
   }
 ]
