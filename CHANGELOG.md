@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.95.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.94.2...v0.95.0) (2026-08-28)
+
+
+### Features
+
+* **dispatcher:** journal a dead-implementer truncation with its governing condition ([61e39f3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/61e39f3f0906c65f22574522de0e84a3acdcb22e))
+
 ## [0.94.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.94.1...v0.94.2) (2026-08-28)
 
 
