@@ -67,6 +67,10 @@ _MINIMAL_GRAPH = (
 _FLEET_MANIFEST_TEXT = (
     '{"owner": "thewoolleyman", "members": [{"repo": "repo", "class": "impl-plugin"}]}'
 )
+_GRADEABLE_CRITERIA = (
+    "The dispatcher refuses an ungradeable item before any run is created.\n"
+    "The refusal names the work-item id and the resolved source.\n"
+)
 
 _EXIT_PRECONDITION_ERROR = 3
 _RESOLVED_BRANCH = "trunk"
@@ -205,6 +209,7 @@ def _item() -> WorkItem:
             superseded_by=None,
             admission_policy="auto",
             acceptance_policy="ai-only",
+            acceptance_criteria=_GRADEABLE_CRITERIA,
         )
     )
 
