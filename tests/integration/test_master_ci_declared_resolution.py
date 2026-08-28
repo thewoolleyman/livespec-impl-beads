@@ -13,6 +13,12 @@ naming the run; the run lookup targets the RESOLVED default branch rather than
 any shipped literal; an undeclared repository resolves the default convention
 unchanged; and a pipeline that cannot be resolved refuses naming the attempted
 resolution, the declaring key, and the remedy including the step-waiver escape.
+
+A sixth journey guards the seam between the fourth and the fifth, where the two
+readings are one keystroke apart: a repository whose declaration is PRESENT but
+unusable must reach the fifth outcome, never the fourth. It is at this tier
+because the thing being proved is that no fabro run is dispatched -- a claim
+only the whole CLI path can make.
 """
 
 from __future__ import annotations
@@ -333,6 +339,36 @@ def test_an_undeclared_repository_resolves_the_default_convention(
     assert record["workflow"] == "CI"
     assert record["aggregate_job"] == "ci-green"
     assert record["pipeline_resolution"] == "default"
+
+
+def test_a_present_but_unusable_declaration_refuses_the_dispatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A half-declaration is refused, not completed from the default convention.
+
+    The runner answers a green `CI`/`ci-green` pipeline, so the retired fallback
+    would have defaulted the missing `job`, proven THAT green, and launched the
+    run. `recording.calls == []` is what rules that out.
+    """
+    runner = _PreflightRunner(workflow="CI", job="ci-green")
+
+    exit_code, repo, recording = _dispatch(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        runner=runner,
+        declaration=', "dispatcher": {"master_ci": {"workflow": "build.yml"}}',
+    )
+
+    assert exit_code == _EXIT_PRECONDITION_ERROR
+    assert recording.calls == []
+    assert runner.argvs_for(prefix=("gh", "run", "list")) == []
+    stderr = capsys.readouterr().err
+    assert "dispatcher.master_ci.job" in stderr
+    assert _WAIVER_TOKEN in stderr
+    record = _master_ci_record(repo=repo)
+    assert record["reason"] == "master-ci-unprovable"
+    assert record["pipeline_resolution"] == "declared"
+    assert record["workflow"] == "<unresolved>"
 
 
 def test_an_unresolvable_pipeline_refuses_naming_resolution_key_and_waiver(
