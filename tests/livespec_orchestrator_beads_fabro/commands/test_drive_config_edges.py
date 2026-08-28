@@ -42,7 +42,13 @@ def test_config_read_defaults_when_config_file_is_absent(tmp_path: Path) -> None
     result = drive.run_action(repo=repo, action_id="config")
 
     assert result["status"] == "green"
-    assert result["settings"][-1] == {"key": "wip_cap", "value": 5, "source": "default"}
+    settings = {str(setting["key"]): setting for setting in result["settings"]}
+    assert settings["wip_cap"] == {"key": "wip_cap", "value": 5, "source": "default"}
+    assert settings["drift_capture_merge_threshold"] == {
+        "key": "drift_capture_merge_threshold",
+        "value": 1,
+        "source": "default",
+    }
 
 
 def test_config_write_creates_missing_file_and_nested_blocks(tmp_path: Path) -> None:

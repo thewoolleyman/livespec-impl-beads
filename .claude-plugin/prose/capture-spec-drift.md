@@ -132,6 +132,73 @@ When all candidates are processed, print a summary:
 - M classified as drift, of which K were filed as propose-changes
 - S skipped
 
+### Step 5 — Record the run on the detection-coverage anchor
+
+Per SPECIFICATION/contracts.md §"Detection coverage records and staleness
+facts", EVERY invocation of this operation — the whole-tree survey and the
+`--for-work-item` targeted mode alike, including one that aborts early or
+that the user interrupts — appends an attributed ATTEMPT record to the
+repository's designated detection-coverage anchor. Run this step LAST, on
+every exit path.
+
+The anchor is a ledger item the OPERATOR provisions once through
+`capture-work-item`, with its id committed as
+`dispatcher.detection_coverage_anchor` in `.livespec.jsonc`. This
+operation never creates it: when the key is unset,
+`record_detection_run` returns an `AnchorNotConfigured` failure, and the
+correct response is to tell the user the anchor is owed — not to file one
+on their behalf.
+
+```python
+from livespec_orchestrator_beads_fabro.commands._detection_coverage import (
+    DRIFT_CAPTURE_OPERATION,
+    DetectionRun,
+    detection_coverage_anchor,
+    record_detection_run,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import (
+    default_invoker_identity,
+)
+
+outcome = record_detection_run(
+    path=config,
+    anchor=detection_coverage_anchor(cwd=project_root),
+    run=DetectionRun(
+        operation=DRIFT_CAPTURE_OPERATION,
+        # The declared scope: the whole-tree survey, the `--since-version`
+        # value when one scoped the ledger-intent scan, or the targeted
+        # `--for-work-item <id>` mode.
+        scope=declared_scope,
+        invoker=default_invoker_identity().invoker,
+        # "succeeded" ONLY for a run that reached its own terminal summary.
+        outcome=run_outcome,
+        exit_code=run_exit_code,
+        # Every finding this pass surfaced, and the subset durably disposed
+        # — handed off to propose-change, or explicitly declined on the
+        # record. A deferred or skipped finding is NOT a disposition.
+        surfaced_candidates=tuple(surfaced_finding_keys),
+        disposed_candidates=tuple(disposed_finding_keys),
+        # True when the declared range was only partly walked.
+        partial_range=partial_range,
+        # The default-branch merge SHA this pass ran through.
+        coverage_point=default_branch_sha,
+    ),
+)
+```
+
+⛔ DO NOT PRE-JUDGE WHETHER A COMPLETED RECORD IS OWED, AND DO NOT SUPPRESS
+THE CALL TO AVOID WRITING ONE. `record_detection_run` decides that itself
+and is the only surface that may: it always appends the attempt record,
+and appends the all-or-nothing COMPLETED-coverage record only when the run
+qualifies. Report `withheld_reason` verbatim to the user when it is
+present — an aborted pass that says nothing about its coverage reads to
+the operator exactly like one that succeeded, and the coverage point
+silently did not move.
+
+These two appends are the ONLY ledger writes this operation performs; the
+ledger-intent scan of Step 2 stays strictly read-only, and this exception
+covers exclusively this run's own records.
+
 ## Important properties
 
 - **LLM-assisted, user-in-the-loop** — every drift finding requires

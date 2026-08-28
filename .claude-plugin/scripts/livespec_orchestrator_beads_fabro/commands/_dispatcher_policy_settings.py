@@ -54,6 +54,7 @@ __all__: list[str] = [
     "DEFAULT_ACCEPTANCE_REWORK_CAP",
     "DEFAULT_ADMISSION_POLICY",
     "DEFAULT_AUTO_APPROVE_READY",
+    "DEFAULT_DRIFT_CAPTURE_MERGE_THRESHOLD",
     "DEFAULT_MERGE_ON_REVIEW_CAP",
     "DEFAULT_READY_AGING_THRESHOLD_HOURS",
     "DEFAULT_REQUIRE_INVOKER",
@@ -70,6 +71,7 @@ __all__: list[str] = [
     "resolve_acceptance_mode",
     "resolve_acceptance_rework_cap",
     "resolve_auto_approve_ready",
+    "resolve_drift_capture_merge_threshold",
     "resolve_merge_on_review_cap",
     "resolve_ready_aging_threshold_hours",
     "resolve_require_invoker",
@@ -86,6 +88,7 @@ DEFAULT_REVIEW_FIX_CAP = 3
 DEFAULT_ACCEPTANCE_REWORK_CAP = 2
 DEFAULT_READY_AGING_THRESHOLD_HOURS = 24
 DEFAULT_REQUIRE_INVOKER = False
+DEFAULT_DRIFT_CAPTURE_MERGE_THRESHOLD = 1
 
 _AUTO_ADMISSION = "auto"
 _LIVESPEC_CONFIG = ".livespec.jsonc"
@@ -99,6 +102,7 @@ _REVIEW_FIX_CAP_KEY = "review_fix_cap"
 _ACCEPTANCE_REWORK_CAP_KEY = "acceptance_rework_cap"
 _READY_AGING_THRESHOLD_HOURS_KEY = "ready_aging_threshold_hours"
 _REQUIRE_INVOKER_KEY = "require_invoker"
+_DRIFT_CAPTURE_MERGE_THRESHOLD_KEY = "drift_capture_merge_threshold"
 MERGE_ON_REVIEW_CAP_LABEL = "merge-on-review-cap:"
 REVIEW_FIX_CAP_LABEL = "review-fix-cap:"
 ACCEPTANCE_REWORK_CAP_LABEL = "acceptance-rework-cap:"
@@ -165,6 +169,21 @@ def resolve_ready_aging_threshold_hours(*, cwd: Path) -> IOResult[int, PolicySet
         cwd=cwd,
         key=_READY_AGING_THRESHOLD_HOURS_KEY,
         default=DEFAULT_READY_AGING_THRESHOLD_HOURS,
+        minimum=1,
+    )
+
+
+def resolve_drift_capture_merge_threshold(*, cwd: Path) -> IOResult[int, PolicySettingUnreadable]:
+    """Read `dispatcher.drift_capture_merge_threshold`, defaulting to 1.
+
+    The merge-count trigger for the drift-staleness fact (the detection
+    coverage-record contract in contracts.md). Detection recency is a
+    REPOSITORY property, so this dial has no per-item override.
+    """
+    return _resolve_int_setting(
+        cwd=cwd,
+        key=_DRIFT_CAPTURE_MERGE_THRESHOLD_KEY,
+        default=DEFAULT_DRIFT_CAPTURE_MERGE_THRESHOLD,
         minimum=1,
     )
 

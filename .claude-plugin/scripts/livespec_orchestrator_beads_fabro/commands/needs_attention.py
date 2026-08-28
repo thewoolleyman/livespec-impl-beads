@@ -27,6 +27,9 @@ from livespec_orchestrator_beads_fabro.commands._needs_attention_core_roots impo
     default_core_root_bases,
     resolve_spec_next_command,
 )
+from livespec_orchestrator_beads_fabro.commands._needs_attention_detection_staleness import (
+    detection_staleness_items,
+)
 from livespec_orchestrator_beads_fabro.commands._needs_attention_envelope import (
     render_envelope_markdown,
 )
@@ -156,6 +159,10 @@ def build_attention(
             + host_only_items(project_root=project_root, repo=repo_name, items=materialized)
             + stranded_dispatch_items(project_root=project_root, repo=repo_name, items=materialized)
             + capacity_items(project_root=project_root, repo=repo_name, items=materialized)
+            # Detection recency is a REPOSITORY property computed from the
+            # completed coverage records on the committed anchor. Neither fact
+            # invokes a detector: both are surfaced triggers naming the skill.
+            + detection_staleness_items(project_root=project_root, repo=repo_name, config=config)
             # Adoption is a HOST fact, not a tenant fact: the pin is a moving
             # branch, so the only per-repo evidence that a release actually
             # arrived lives in this machine's install records.

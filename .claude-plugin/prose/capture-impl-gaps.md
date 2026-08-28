@@ -212,6 +212,72 @@ When all candidates are processed, print a summary:
 - M classified as gaps, of which K were newly filed and J were already-tracked
 - Skipped: S
 
+### Step 5 — Record the run on the detection-coverage anchor
+
+Per SPECIFICATION/contracts.md §"Detection coverage records and staleness
+facts", EVERY invocation of this operation — including one that aborts in
+Step 1, one the user interrupts mid-classification, and one that surfaces
+nothing at all — appends an attributed ATTEMPT record to the repository's
+designated detection-coverage anchor. Run this step LAST, on every exit
+path.
+
+The anchor is a ledger item the OPERATOR provisions once through
+`capture-work-item`, with its id committed as
+`dispatcher.detection_coverage_anchor` in `.livespec.jsonc`. This
+operation never creates it: when the key is unset,
+`record_detection_run` returns an `AnchorNotConfigured` failure, and the
+correct response is to tell the user the anchor is owed — not to file one
+on their behalf.
+
+```python
+from livespec_orchestrator_beads_fabro.commands._detection_coverage import (
+    GAP_CAPTURE_OPERATION,
+    DetectionRun,
+    detection_coverage_anchor,
+    record_detection_run,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import (
+    default_invoker_identity,
+)
+from livespec_orchestrator_beads_fabro.spec_reader import current_specification_version
+
+outcome = record_detection_run(
+    path=config,
+    anchor=detection_coverage_anchor(cwd=project_root),
+    run=DetectionRun(
+        operation=GAP_CAPTURE_OPERATION,
+        # The declared scope: the `--since-version` value when one was
+        # supplied, else the whole live spec tree.
+        scope=declared_scope,
+        invoker=default_invoker_identity().invoker,
+        # "succeeded" ONLY for a run that reached its own terminal summary.
+        outcome=run_outcome,
+        exit_code=run_exit_code,
+        # Every gap id Step 1 surfaced, and the subset Step 3 durably
+        # disposed — filed, handed off, or explicitly declined on the
+        # record. A `skip` in Step 2 is NOT a disposition.
+        surfaced_candidates=tuple(surfaced_gap_ids),
+        disposed_candidates=tuple(disposed_gap_ids),
+        # True when the declared range was only partly walked.
+        partial_range=partial_range,
+        # The ratified spec revision this pass ran against.
+        coverage_point=f"v{current_specification_version(spec_root=spec_root):03d}",
+    ),
+)
+```
+
+⛔ DO NOT PRE-JUDGE WHETHER A COMPLETED RECORD IS OWED, AND DO NOT SUPPRESS
+THE CALL TO AVOID WRITING ONE. `record_detection_run` decides that itself
+and is the only surface that may: it always appends the attempt record,
+and appends the all-or-nothing COMPLETED-coverage record only when the run
+qualifies. Report `withheld_reason` verbatim to the user when it is
+present — an aborted pass that says nothing about its coverage reads to
+the operator exactly like one that succeeded, and the coverage point
+silently did not move.
+
+These two appends are the ONLY ledger writes this operation performs
+outside its per-gap consent flow. No other record is created or edited.
+
 ## Important properties
 
 - **In-memory ephemeral detection state** — no persistent intermediate
