@@ -3227,6 +3227,7 @@ def _green_outcome(*, item_id: str, sha: str | None = "feed01") -> DispatchOutco
 @dataclass(frozen=True, kw_only=True)
 class _FakeAcceptancePass:
     verdict: str
+    absent_evidence: tuple[str, ...] = ()
 
     def journal_record(self, *, work_item_id: str, policy: str) -> dict[str, object]:
         return {
@@ -4562,6 +4563,47 @@ def test_complete_and_accept_human_only_fail_never_auto_reworks(
     assert "acceptance-auto-rework" not in {record["stage"] for record in records}
 
 
+@pytest.mark.parametrize("policy", ["ai-only", "ai-then-human", "human-only"])
+def test_complete_and_accept_needs_attention_parks_under_every_acceptance_policy(
+    policy: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, _workflow = _repo_with_workflow(tmp_path=tmp_path)
+    item = _item(acceptance_policy=policy)
+    append_work_item(path=_config(), item=item)
+    monkeypatch.setattr(
+        _dispatcher_completion,
+        "run_acceptance_pass",
+        lambda **_: _FakeAcceptancePass(verdict="NEEDS_ATTENTION", absent_evidence=("telemetry",)),
+        raising=False,
+    )
+    journal = JournalFile(path=repo / f"needs-attention-{policy}-journal.jsonl")
+
+    dispatcher.complete_and_accept(
+        repo=repo,
+        item=item,
+        outcome=_green_outcome(item_id=item.id),
+        journal=journal,
+    )
+
+    stored = _stored()[item.id]
+    # Parked, not disposed: not accepted to done, not routed to rework, and not
+    # escalated to blocked — under `ai-only` exactly as under `human-only`.
+    assert (stored.status, stored.resolution, stored.blocked_reason) == ("acceptance", None, None)
+    record = make_beads_client(config=_config()).show_issue(issue_id=item.id)
+    # The rework:pending marker is never stamped and acceptance_rework_cap is
+    # never consumed: the failed-pass counter the cap reads stays absent, which
+    # is the same ledger write the FAIL route uses to stamp and count.
+    assert "acceptance_failed_ai_passes" not in record["metadata"]
+    records = [json.loads(line) for line in journal.path.read_text(encoding="utf-8").splitlines()]
+    stages = {entry["stage"] for entry in records}
+    assert stages == {"ledger-complete", "acceptance-ai-pass", "acceptance-parked"}
+    parked = next(entry for entry in records if entry["stage"] == "acceptance-parked")
+    assert parked["acceptance_verdict"] == "NEEDS_ATTENTION"
+    assert parked["absent_evidence"] == ["telemetry"]
+
+
 def test_dispatch_finalize_invokes_cost_gate_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -4689,7 +4731,7 @@ def test_dispatch_overlay_provisions_sibling_clones_for_fleet(
     assert "github.com/thewoolleyman/repo" not in overlay_text
 
 
-def test_dispatch_green_without_sha_keeps_item_active_for_rework(
+def test_dispatch_green_without_sha_parks_needs_attention_instead_of_reworking(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -4703,7 +4745,13 @@ def test_dispatch_green_without_sha_keeps_item_active_for_rework(
         == 0
     )
     stored = _stored()[item.id]
-    assert (stored.status, stored.audit) == ("active", None)
+    # No merge sha means the merged diff was never read. Under the ratified
+    # evidence rule that is an ABSENT leg, not observed failing evidence, so it
+    # parks in acceptance rather than routing to rework (which was the pre-v072
+    # behavior this case used to pin).
+    assert (stored.status, stored.audit) == ("acceptance", None)
+    record = make_beads_client(config=_config()).show_issue(issue_id=item.id)
+    assert "acceptance_failed_ai_passes" not in record["metadata"]
 
 
 def test_dispatch_failed_outcome_leaves_item_open(

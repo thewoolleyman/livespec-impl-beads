@@ -17,6 +17,14 @@ a unit-tier test); its dotted node-id prefix `tests.integration` is in the
   slices), plus the refuse-don't-drop guarantee and the expected-error
   surface. Each case owns its backend isolation via a local
   `reset_fake_singleton()` fixture; there is no shared conftest at this tier.
+- `test_dispatcher_acceptance_needs_attention.py` — the ratified evidence rule
+  of `SPECIFICATION/contracts.md` §"Post-merge acceptance (`acceptance -> done`)"
+  and §"The NEEDS_ATTENTION verdict": an unobservable telemetry leg with a
+  readable merged diff, and effective criteria that parse to zero gradeable
+  assertions, each park the item in `acceptance` under the AI-dispositive
+  `ai-only` policy instead of disposing of it. Only `run_dispatch` and the
+  acceptance pass's `CommandRunner` are stood in; the verdict function, the
+  disposition, and the ledger writes are production code.
 
 Coverage rules: 100% line + branch on every covered module, as everywhere in
 this repo. Build state through the public store/client seam (or a small

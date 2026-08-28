@@ -115,6 +115,8 @@ def test_acceptance_pass_reads_diff_and_passes_when_criteria_have_evidence(
         "passed": True,
         "reason": "green merged dispatch with PR and merge sha",
     }
+    assert record["absent_evidence"] == []
+    assert result.absent_evidence == ()
 
 
 def test_acceptance_pass_fails_when_criteria_lack_diff_or_telemetry_evidence(
@@ -493,7 +495,7 @@ def test_acceptance_pass_needs_attention_when_pr_association_payload_is_malforme
     assert result.diff_reason == "pull request diff has no file changes"
 
 
-def test_acceptance_pass_fails_criteria_when_diff_is_unobservable(tmp_path: Path) -> None:
+def test_acceptance_pass_needs_attention_when_diff_is_unobservable(tmp_path: Path) -> None:
     runner = _Runner(result=CommandResult(exit_code=1, stdout="", stderr="fatal"))
 
     result = run_acceptance_pass(
@@ -503,12 +505,17 @@ def test_acceptance_pass_fails_criteria_when_diff_is_unobservable(tmp_path: Path
         runner=runner,
     )
 
-    assert result.verdict == "FAIL"
+    # A criterion judged against a diff that was never read is judged against
+    # absent evidence — that is not the observed failing evidence FAIL needs.
+    assert result.verdict == "NEEDS_ATTENTION"
+    assert result.absent_evidence == ("merged diff",)
     assert result.merged_diff is None
     assert result.diff_reason == "pull request diff failed; git show failed"
 
 
-def test_acceptance_pass_fails_empty_criteria_even_with_readable_diff(tmp_path: Path) -> None:
+def test_acceptance_pass_needs_attention_on_empty_criteria_with_readable_diff(
+    tmp_path: Path,
+) -> None:
     runner = _Runner(result=CommandResult(exit_code=0, stdout="diff --git a/x b/x\n", stderr=""))
 
     result = run_acceptance_pass(
@@ -518,12 +525,15 @@ def test_acceptance_pass_fails_empty_criteria_even_with_readable_diff(tmp_path: 
         runner=runner,
     )
 
-    assert result.verdict == "FAIL"
+    # Effective criteria that parse to zero gradeable assertions leave nothing
+    # to grade; a vacuous `all()` must never read as a PASS.
+    assert result.verdict == "NEEDS_ATTENTION"
+    assert result.absent_evidence == ("effective criteria",)
     assert result.criteria == ()
     assert result.diff_reason == "pull request diff read"
 
 
-def test_acceptance_pass_fails_empty_criteria_when_diff_is_unreadable(tmp_path: Path) -> None:
+def test_acceptance_pass_needs_attention_names_every_absent_leg(tmp_path: Path) -> None:
     runner = _Runner(result=CommandResult(exit_code=0, stdout="ignored", stderr=""))
 
     result = run_acceptance_pass(
@@ -533,10 +543,13 @@ def test_acceptance_pass_fails_empty_criteria_when_diff_is_unreadable(tmp_path: 
         runner=runner,
     )
 
-    assert result.verdict == "FAIL"
+    assert result.verdict == "NEEDS_ATTENTION"
+    assert result.absent_evidence == ("merged diff", "effective criteria")
     assert result.criteria == ()
     assert result.diff_reason == "merge sha unavailable"
     assert runner.calls == []
+    record = result.journal_record(work_item_id="bd-ib-test", policy="ai-only")
+    assert record["absent_evidence"] == ["merged diff", "effective criteria"]
 
 
 def test_acceptance_pass_uses_description_exit_criteria_when_field_is_empty(
@@ -588,11 +601,37 @@ def test_acceptance_pass_fails_when_dispatch_telemetry_is_not_green(tmp_path: Pa
         runner=runner,
     )
 
+    # An observed failing outcome IS failing evidence, so FAIL is still right.
     assert result.verdict == "FAIL"
+    assert result.telemetry_observed is True
+    assert result.absent_evidence == ()
     assert result.telemetry_reason == "dispatch outcome status was 'failed'"
 
 
-def test_acceptance_pass_fails_when_pr_telemetry_is_missing(tmp_path: Path) -> None:
+def test_acceptance_pass_needs_attention_when_run_parked_at_a_human_gate(
+    tmp_path: Path,
+) -> None:
+    runner = _Runner(
+        result=CommandResult(exit_code=0, stdout="diff --git a/x b/x\n+verdict\n", stderr="")
+    )
+
+    result = run_acceptance_pass(
+        repo=tmp_path,
+        item=_item(criteria="verdict is journaled"),
+        outcome=_outcome(status="blocked"),
+        runner=runner,
+    )
+
+    # `blocked` is a run that parked rather than reported: never a failure.
+    assert result.verdict == "NEEDS_ATTENTION"
+    assert result.telemetry_observed is False
+    assert result.absent_evidence == ("telemetry",)
+    assert result.telemetry_reason == "dispatch outcome status was 'blocked'"
+
+
+def test_acceptance_pass_needs_attention_when_telemetry_leg_is_unobservable(
+    tmp_path: Path,
+) -> None:
     runner = _Runner(
         result=CommandResult(exit_code=0, stdout="diff --git a/x b/x\n+verdict\n", stderr="")
     )
@@ -604,5 +643,17 @@ def test_acceptance_pass_fails_when_pr_telemetry_is_missing(tmp_path: Path) -> N
         runner=runner,
     )
 
-    assert result.verdict == "FAIL"
+    # The merged diff is readable; only the telemetry leg is missing, and an
+    # unobservable leg is neither passing nor failing evidence.
+    assert result.verdict == "NEEDS_ATTENTION"
+    assert result.merged_diff is not None
+    assert result.telemetry_observed is False
+    assert result.absent_evidence == ("telemetry",)
     assert result.telemetry_reason == "merged PR number unavailable"
+    record = result.journal_record(work_item_id="bd-ib-test", policy="ai-only")
+    assert record["telemetry"] == {
+        "observed": False,
+        "passed": False,
+        "reason": "merged PR number unavailable",
+    }
+    assert record["absent_evidence"] == ["telemetry"]
