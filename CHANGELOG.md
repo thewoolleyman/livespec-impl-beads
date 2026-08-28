@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.89.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.88.2...v0.89.0) (2026-08-28)
+
+
+### Features
+
+* **dispatcher:** close the preflight and post-merge step discipline ([83d26f3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/83d26f3cd6fa161eb77474e90d5353aaafe73fbd))
+
 ## [0.88.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.88.1...v0.88.2) (2026-08-28)
 
 
