@@ -362,6 +362,7 @@ def test_run_commands_cluster_importable_from_new_module_and_private_names_remov
         "EXIT_BLOCKED",
         "EXIT_FAILURE",
         "EXIT_PRECONDITION_ERROR",
+        "EXIT_UNGRADEABLE_CRITERIA",
         "alarm_on_terminal_failure",
         "dispatch_exit_code",
     }

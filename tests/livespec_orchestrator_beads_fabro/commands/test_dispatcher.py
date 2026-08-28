@@ -391,6 +391,11 @@ def _item(**overrides: object) -> WorkItem:
         # the human-confirm park override these.
         admission_policy="auto",
         acceptance_policy="ai-only",
+        # The pre-dispatch wall (the effective-acceptance-criteria clause of contracts.md)
+        # refuses an AI-dispositive item whose effective criteria parse to zero
+        # gradeable assertions, so a DISPATCHABLE fixture has to carry one.
+        # Cases that exercise the wall itself override this.
+        acceptance_criteria="The dispatched slice is verified green by the check suite.",
     )
     return replace(base, **overrides)
 
@@ -1373,7 +1378,7 @@ def test_render_goal_includes_acceptance_criteria_and_notes_when_present(tmp_pat
 
 
 def test_render_goal_omits_acceptance_criteria_and_notes_when_absent(tmp_path: Path) -> None:
-    goal = render_goal(item=_item(), repo=tmp_path, branch="feat/t")
+    goal = render_goal(item=_item(acceptance_criteria=None), repo=tmp_path, branch="feat/t")
     assert "Acceptance criteria:" not in goal
     assert "Notes:" not in goal
 

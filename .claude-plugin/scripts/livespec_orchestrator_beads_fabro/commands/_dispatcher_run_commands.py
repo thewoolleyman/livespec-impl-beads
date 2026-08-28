@@ -11,11 +11,15 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_admission import (
 from livespec_orchestrator_beads_fabro.commands._dispatcher_command_common import (
     EXIT_FAILURE,
     EXIT_PRECONDITION_ERROR,
+    EXIT_UNGRADEABLE_CRITERIA,
     alarm_on_terminal_failure,
     dispatch_exit_code,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_cost_gate import (
     cost_gate_after_verdict,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_effective_criteria import (
+    pre_dispatch_criteria_refusal,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
 from livespec_orchestrator_beads_fabro.commands._dispatcher_factory_ledger import (
@@ -85,6 +89,12 @@ def run_dispatch_command(*, args: argparse.Namespace) -> int:
     target = _target_item(args=args, repo=repo, items=items)
     if target is None:
         return EXIT_PRECONDITION_ERROR
+    # The pre-dispatch wall runs after selection and BEFORE admission, so a
+    # refused item is never claimed and no factory run exists to reap.
+    ungradeable = pre_dispatch_criteria_refusal(items=[target], cwd=repo)
+    if ungradeable is not None:
+        _ = write_stderr(text=ungradeable)
+        return EXIT_UNGRADEABLE_CRITERIA
     outcome = _admit_and_dispatch_target(
         args=args,
         repo=repo,

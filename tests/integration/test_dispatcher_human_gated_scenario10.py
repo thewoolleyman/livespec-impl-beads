@@ -135,6 +135,11 @@ def _item(**overrides: object) -> WorkItem:
         # admitted-item case overrides with admission_policy="auto".
         admission_policy=None,
         acceptance_policy="ai-only",
+        # A dispatchable fixture carries gradeable criteria: the entry-to-`ready`
+        # and pre-dispatch walls (the effective-acceptance-criteria clause of contracts.md)
+        # refuse an AI-dispositive item whose effective criteria parse to zero
+        # gradeable assertions.
+        acceptance_criteria="The dispatched slice is verified green by the check suite.",
     )
     return replace(base, **overrides)
 

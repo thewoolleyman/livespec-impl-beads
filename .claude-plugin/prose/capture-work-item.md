@@ -133,6 +133,31 @@ if plan_parent_id is not None:
 
 Print the assigned id back to the user.
 
+Then resolve and DISPLAY the item's effective-criteria parse, through the one
+public primitive every gate uses — never by re-reading the criteria field or
+the description by hand
+(`SPECIFICATION/contracts.md` §"Effective acceptance criteria"):
+
+```python
+from livespec_orchestrator_beads_fabro.commands._dispatcher_effective_criteria import (
+    effective_criteria,
+)
+
+criteria_advice = effective_criteria(item=item).parse_display()
+```
+
+Show the user `criteria_advice` — it names the gradeable-assertion count and
+the resolved source (`criteria-field` or `description-exit-criteria`). This is
+ADVICE, never a refusal: capture MUST NOT refuse on an empty parse, because
+filing stays consent-gated and criteria may legitimately arrive at groom time.
+Say plainly what an empty parse costs, though: an item whose effective
+`acceptance_policy` is `ai-only` or `ai-then-human` and whose effective
+criteria parse to zero gradeable assertions is refused entry to `ready` by the
+`approve` valve, and refused at dispatch with exit code `5` — the remedy is to
+author criteria (here, or later via groom or edit), or to set the item's
+`acceptance_policy` to `human-only` where machine grading is genuinely
+inapplicable.
+
 ### Step 3 — Run the intake Definition-of-Ready checklist
 
 Every capture front-end MUST run the intake Definition-of-Ready
