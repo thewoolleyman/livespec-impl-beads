@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.88.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.88.1...v0.88.2) (2026-08-28)
+
+
+### Bug Fixes
+
+* **dispatcher:** fold flush-left wrapped continuations in the acceptance criteria parser ([e4db2e5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/e4db2e5ddbc11732c4b34323a27ef88f2910cb46))
+
 ## [0.88.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.88.0...v0.88.1) (2026-08-28)
 
 
