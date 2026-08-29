@@ -17,18 +17,19 @@ cutover phase.
 | Child | P | State | Class | Blocker to closing |
 |---|---|---|---|---|
 | `bd-ib-1atn` | 1 | backlog | **dispatchable now** | Archive-gating O4 secret-scan fix. Factory-safe (one shell wrapper + beside-tests). Criteria made matcher-safe 2026-08-29 (see below); dispatch-ready on maintainer nod. |
-| `bd-ib-3kolea.3` | 0 | backlog | **dispatchable (large)** | Enemy Unit Test harness (a BeadsPort). Factory-safe; the house pattern it is told to follow is now merged/readable. Substantial; not required for criterion 3 (that is discharged) but a standalone deliverable. |
+| `bd-ib-3kolea.3` | 0 | backlog | **authoring-gated** | Enemy Unit Test harness (a BeadsPort). Factory-safe, but has NO acceptance criteria, so the shipped `pre_dispatch_criteria_refusal` guard (exit 5) would refuse it exactly as it would `bd-ib-ao3j`. Its multi-deliverable spec (tiered tests, parameterization, delta run) needs criteria authored first; substantial. Not required for criterion 3 (discharged) but a standalone deliverable. |
 | `bd-ib-3kolea.2` | 0 | backlog | **must run LAST** | FINAL PRE-CUTOVER GATE: sandbox-test the targeted release against the livespec API surface. Maintainer-directed to run after every other item is done; gates the cutover. |
 | `bd-ib-ao3j` | 2 | backlog | **authorization-gated** | Attended isolated migration-and-restore rehearsal. Host-mutating, ATTENDED. Has NO acceptance criteria, so the shipped pre-dispatch empty-criteria guard (`pre_dispatch_criteria_refusal`, exit 5) would refuse it: it needs criteria authored AND a foreground attended window. |
 | `bd-ib-092q` | 3 | backlog | **authorization-gated** | `dolt_remote` credential/network/partial-fetch probe against a REAL remote. Outward-facing (network egress); the foreman split it out precisely so it gets its own authorization on its own grounds. |
 
 ## What is dispatchable without a maintainer decision, and what is not
 
-- **Factory-safe, ready:** `bd-ib-1atn` (criteria now clean), `bd-ib-3kolea.3`
-  (large). Both are in-repo pure work. Under the standing "prefer factory
-  dispatch for factory-safe work" rule these are the drain candidates — but each
-  is a P0/P1 the maintainer has approved per-dispatch so far, so they wait on a
-  nod rather than autonomous dispatch.
+- **Factory-safe and dispatch-ready:** `bd-ib-1atn` ONLY — its criteria are
+  now matcher-safe. `bd-ib-3kolea.3` is ALSO factory-safe but is NOT
+  dispatch-ready: it carries no acceptance criteria, so the pre-dispatch guard
+  would refuse it (exit 5); it is authoring-gated, not drain-ready. `bd-ib-1atn`
+  is a P1 the maintainer has approved per-dispatch so far, so it waits on a nod
+  rather than autonomous dispatch.
 - **Authorization-gated (do NOT start unprompted):** `bd-ib-ao3j` (attended +
   host-mutating), `bd-ib-092q` (outward-facing network), and the cutover phase
   itself (install/pin/migrate every clone and the shared multi-tenant server,
@@ -54,8 +55,9 @@ item's ledger.
 
 ## Path to archive
 
-1. Close `bd-ib-1atn` (dispatch the fix) and `bd-ib-3kolea.3` (dispatch the
-   harness) — both factory-safe.
+1. Close `bd-ib-1atn` (dispatch the fix — dispatch-ready now). Author
+   `bd-ib-3kolea.3`'s acceptance criteria (it has none, so the guard would
+   refuse it), then dispatch the harness. Both are factory-safe.
 2. Obtain authorization for, then run, `bd-ib-ao3j` (attended rehearsal, after
    authoring its criteria so the empty-criteria guard admits it) and `bd-ib-092q`
    (outward-facing remote probe), OR transfer either to a follow-up plan if it is
