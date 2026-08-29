@@ -462,6 +462,14 @@ def _ok(stdout: str = "") -> CommandResult:
     return CommandResult(exit_code=0, stdout=stdout, stderr="")
 
 
+def _pr_association() -> CommandResult:
+    """The forge answering "which PRs contain this merge sha" with the
+    branch-resolved one — the healthy case, where the recorded number is
+    CONFIRMED rather than corrected. Every merged dispatch asks this once,
+    between the last `gh pr view` and pull-primary."""
+    return _ok(stdout=json.dumps([{"number": 7}]))
+
+
 def _post_merge_green_tail() -> list[CommandResult]:
     """The eight all-green post-merge results: pull-primary, then the
     janitor-checkout lifecycle (preclean, add, trust, bootstrap, core clone,
@@ -2366,6 +2374,7 @@ def test_engine_green_runs_janitor_in_fresh_checkout(tmp_path: Path) -> None:
             _ok(stdout="fabro done"),
             _ok(stdout=_pr_json(armed=True)),
             _ok(stdout=_pr_json(state="MERGED", sha="cafe01")),
+            _pr_association(),
             _ok(),  # pull-primary
             _ok(),  # janitor-checkout-preclean
             _ok(),  # janitor-checkout-add
@@ -2391,6 +2400,7 @@ def test_engine_green_runs_janitor_in_fresh_checkout(tmp_path: Path) -> None:
         "fabro-run",
         "pr-view",
         "pr-view",
+        "pr-merge-sha-recording",
         "pull-primary",
         "janitor-checkout-preclean",
         "janitor-checkout-add",
@@ -2401,7 +2411,7 @@ def test_engine_green_runs_janitor_in_fresh_checkout(tmp_path: Path) -> None:
         "janitor-checkout-remove",
     ]
     checkout = tmp_path / "janitor-co"
-    add_argv, add_cwd = runner.calls[5]
+    add_argv, add_cwd = runner.calls[6]
     assert add_argv == [
         "git",
         "-C",
@@ -2414,9 +2424,9 @@ def test_engine_green_runs_janitor_in_fresh_checkout(tmp_path: Path) -> None:
     ]
     assert add_cwd == tmp_path
     remove_argv = ["git", "-C", str(tmp_path), "worktree", "remove", "--force", str(checkout)]
-    assert runner.calls[4][0] == remove_argv
-    assert runner.calls[10][0] == remove_argv
-    assert runner.envs[9] == {
+    assert runner.calls[5][0] == remove_argv
+    assert runner.calls[11][0] == remove_argv
+    assert runner.envs[10] == {
         "LIVESPEC_CORE_PLUGIN_ROOT": str(checkout / ".livespec-core" / ".claude-plugin")
     }
 
@@ -2427,6 +2437,7 @@ def test_engine_fails_when_green_janitor_checkout_cleanup_fails(tmp_path: Path) 
             _ok(stdout="fabro done"),
             _ok(stdout=_pr_json(armed=True)),
             _ok(stdout=_pr_json(state="MERGED", sha="cafe01")),
+            _pr_association(),
             _ok(),  # pull-primary
             _ok(),  # janitor-checkout-preclean
             _ok(),  # janitor-checkout-add
@@ -2554,6 +2565,7 @@ def test_engine_succeeded_run_with_run_id_proceeds_to_pr_flow(tmp_path: Path) ->
             _ok(stdout=succeeded_inspect),
             _ok(stdout=_pr_json(armed=True)),
             _ok(stdout=_pr_json(state="MERGED", sha="cafe07")),
+            _pr_association(),
             *_post_merge_green_tail(),
         ]
     )
@@ -2578,6 +2590,7 @@ def test_engine_arms_auto_merge_as_fallback(tmp_path: Path) -> None:
             _ok(),
             _ok(stdout=_pr_json(armed=True)),
             _ok(stdout=_pr_json(state="MERGED", sha="cafe02")),
+            _pr_association(),
             *_post_merge_green_tail(),
         ]
     )
@@ -2593,6 +2606,7 @@ def test_engine_skips_arming_when_pr_already_merged(tmp_path: Path) -> None:
             _ok(),
             _ok(stdout=_pr_json(state="MERGED", armed=False, sha="cafe03")),
             _ok(stdout=_pr_json(state="MERGED", armed=False, sha="cafe03")),
+            _pr_association(),
             *_post_merge_green_tail(),
         ]
     )
@@ -2634,6 +2648,7 @@ def test_engine_updates_branch_when_behind_then_merges(tmp_path: Path) -> None:
             ),
             _ok(),
             _ok(stdout=_pr_json(state="MERGED", sha="cafe04")),
+            _pr_association(),
             *_post_merge_green_tail(),
         ]
     )
@@ -2731,6 +2746,7 @@ def test_engine_post_merge_failures_carry_merge_evidence(tmp_path: Path) -> None
                 _ok(),
                 _ok(stdout=_pr_json(armed=True)),
                 _ok(stdout=_pr_json(state="MERGED", sha="cafe05")),
+                _pr_association(),
                 *tail,
             ]
         )
@@ -2745,6 +2761,7 @@ def test_engine_primary_pull_failure_after_merge_is_degraded(tmp_path: Path) -> 
             _ok(),
             _ok(stdout=_pr_json(armed=True)),
             _ok(stdout=_pr_json(state="MERGED", sha="cafe05")),
+            _pr_association(),
             _err(stderr="error: would overwrite plan/foreman/handoff.md"),
         ]
     )
@@ -2763,6 +2780,7 @@ def test_engine_janitor_red_keeps_checkout_for_diagnosis(tmp_path: Path) -> None
             _ok(),
             _ok(stdout=_pr_json(armed=True)),
             _ok(stdout=_pr_json(state="MERGED", sha="cafe05")),
+            _pr_association(),
             _ok(),  # pull-primary
             _ok(),  # janitor-checkout-preclean
             _ok(),  # janitor-checkout-add
@@ -2781,7 +2799,7 @@ def test_engine_janitor_red_keeps_checkout_for_diagnosis(tmp_path: Path) -> None
     assert "2 failed, 1 passed" in outcome.detail
     # A red checkout is PRESERVED (no remove after the janitor ran):
     # the working tree is the diagnosis evidence.
-    assert len(runner.calls) == 10
+    assert len(runner.calls) == 11
     assert [record["stage"] for record in journal.records][-1] == "janitor-post-merge"
 
 
@@ -2791,6 +2809,7 @@ def test_engine_degrades_when_janitor_checkout_provisioning_fails(tmp_path: Path
             _ok(),
             _ok(stdout=_pr_json(armed=True)),
             _ok(stdout=_pr_json(state="MERGED", sha="cafe08")),
+            _pr_association(),
             _ok(),  # pull-primary
             _err(stderr="not a working tree"),  # preclean (deliberately ignored)
             _err(stderr="disk full"),  # janitor-checkout-add
@@ -2804,7 +2823,7 @@ def test_engine_degrades_when_janitor_checkout_provisioning_fails(tmp_path: Path
     assert "mise exec -- just check" in outcome.detail
     assert "not a work-item failure" in outcome.detail
     # The janitor itself never ran: the dispatch ends at the failed add.
-    assert len(runner.calls) == 6
+    assert len(runner.calls) == 7
     assert [record["stage"] for record in journal.records][-1] == "janitor-checkout-add"
 
 
@@ -2814,6 +2833,7 @@ def test_engine_degrades_when_mise_trust_fails(tmp_path: Path) -> None:
             _ok(),
             _ok(stdout=_pr_json(armed=True)),
             _ok(stdout=_pr_json(state="MERGED", sha="cafe09")),
+            _pr_association(),
             _ok(),  # pull-primary
             _ok(),  # janitor-checkout-preclean
             _ok(),  # janitor-checkout-add
@@ -2824,7 +2844,7 @@ def test_engine_degrades_when_mise_trust_fails(tmp_path: Path) -> None:
     assert (outcome.status, outcome.stage) == ("green", "janitor-env-degraded")
     assert "mise trust" in outcome.detail
     assert "config not trusted" in outcome.detail
-    trust_argv, trust_cwd = runner.calls[6]
+    trust_argv, trust_cwd = runner.calls[7]
     assert trust_argv == ["mise", "trust"]
     assert trust_cwd == tmp_path / "janitor-co"
 
@@ -2835,6 +2855,7 @@ def test_engine_degrades_when_janitor_bootstrap_fails(tmp_path: Path) -> None:
             _ok(),
             _ok(stdout=_pr_json(armed=True)),
             _ok(stdout=_pr_json(state="MERGED", sha="cafeab")),
+            _pr_association(),
             _ok(),  # pull-primary
             _ok(),  # janitor-checkout-preclean
             _ok(),  # janitor-checkout-add
@@ -2848,7 +2869,7 @@ def test_engine_degrades_when_janitor_bootstrap_fails(tmp_path: Path) -> None:
     assert "DID NOT RUN" in outcome.detail
     assert "no hook-install recipe" in outcome.detail
     assert "not a work-item failure" in outcome.detail
-    bootstrap_argv, bootstrap_cwd = runner.calls[7]
+    bootstrap_argv, bootstrap_cwd = runner.calls[8]
     assert bootstrap_argv == ["mise", "exec", "--", "just", "install-commit-refuse-hooks"]
     assert bootstrap_cwd == tmp_path  # runs in plan.repo, not janitor_checkout
     assert [record["stage"] for record in journal.records][-1] == "janitor-checkout-bootstrap"
@@ -2867,6 +2888,7 @@ def test_engine_degrades_when_janitor_core_provisioning_fails(tmp_path: Path) ->
             _ok(),
             _ok(stdout=_pr_json(armed=True)),
             _ok(stdout=_pr_json(state="MERGED", sha="cafec0")),
+            _pr_association(),
             _ok(),  # pull-primary
             _ok(),  # janitor-checkout-preclean
             _ok(),  # janitor-checkout-add
@@ -2884,7 +2906,7 @@ def test_engine_degrades_when_janitor_core_provisioning_fails(tmp_path: Path) ->
     # integration point for an adopter to provide carries no structured id, so
     # it cannot persist into a refusal the adopter has no way to clear.
     assert (outcome.step, outcome.missing_integration_point, outcome.remedy) == (None, None, None)
-    assert len(runner.calls) == 9
+    assert len(runner.calls) == 10
     assert [record["stage"] for record in journal.records][-1] == "janitor-core-provision"
 
 
@@ -2919,6 +2941,7 @@ def test_engine_runs_configured_janitor_in_fresh_checkout(tmp_path: Path) -> Non
             _ok(),
             _ok(stdout=_pr_json(armed=True)),
             _ok(stdout=_pr_json(state="MERGED", sha="cafe06")),
+            _pr_association(),
             _ok(),  # pull-primary
             _ok(),  # janitor-checkout-preclean
             _ok(),  # janitor-checkout-add
