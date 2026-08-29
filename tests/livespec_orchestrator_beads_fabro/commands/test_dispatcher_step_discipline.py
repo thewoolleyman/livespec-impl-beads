@@ -17,6 +17,12 @@ import pytest
 from livespec_orchestrator_beads_fabro.commands import _dispatcher_step_gate
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import CommandResult
 from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import invoker_from_args
+from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_recipe import (
+    JANITOR_BOOTSTRAP_KEY,
+    integration_point,
+    janitor_bootstrap_recipe_from_block,
+    remedy,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_step_gate import (
     step_discipline_refusal,
 )
@@ -27,8 +33,6 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_step_ids import (
     STEP_IDS,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_step_janitor_bootstrap import (
-    INTEGRATION_POINT,
-    REMEDY,
     hook_install_recipe_present,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_step_persistence import (
@@ -48,6 +52,11 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_step_waivers import 
 )
 
 _DEFAULT_BRANCH = "trunk"
+# The fleet convention, rendered from the resolver's own default so these
+# fixtures cannot drift from the recipe they stand for.
+_DEFAULT_RECIPE = janitor_bootstrap_recipe_from_block(block={})
+INTEGRATION_POINT = integration_point(recipe=_DEFAULT_RECIPE)
+REMEDY = remedy(recipe=_DEFAULT_RECIPE)
 
 
 @dataclass(kw_only=True)
@@ -270,7 +279,7 @@ def test_the_hook_install_recipe_is_observed_in_any_justfile_spelling(
         encoding="utf-8",
     )
 
-    assert hook_install_recipe_present(repo=tmp_path) is True
+    assert hook_install_recipe_present(repo=tmp_path, recipe=_DEFAULT_RECIPE) is True
 
 
 def test_a_recipe_mentioned_only_inside_a_body_is_not_a_declaration(tmp_path: Path) -> None:
@@ -279,13 +288,82 @@ def test_a_recipe_mentioned_only_inside_a_body_is_not_a_declaration(tmp_path: Pa
         "bootstrap:\n    just install-commit-refuse-hooks\n", encoding="utf-8"
     )
 
-    assert hook_install_recipe_present(repo=tmp_path) is False
+    assert hook_install_recipe_present(repo=tmp_path, recipe=_DEFAULT_RECIPE) is False
 
 
 def test_a_repository_with_no_justfile_at_all_does_not_provide_the_integration_point(
     tmp_path: Path,
 ) -> None:
-    assert hook_install_recipe_present(repo=tmp_path) is False
+    assert hook_install_recipe_present(repo=tmp_path, recipe=_DEFAULT_RECIPE) is False
+
+
+def test_a_declared_just_recipe_is_re_verified_against_the_name_it_declares(
+    tmp_path: Path,
+) -> None:
+    """Declaration changes WHAT is looked for: the fleet's own name is not looked for."""
+    recipe = janitor_bootstrap_recipe_from_block(
+        block={"janitor_bootstrap": {"recipe": "just hooks"}}
+    )
+    _ = (tmp_path / "justfile").write_text("hooks:\n    echo installed\n", encoding="utf-8")
+
+    assert hook_install_recipe_present(repo=tmp_path, recipe=recipe) is True
+    assert hook_install_recipe_present(repo=tmp_path, recipe=_DEFAULT_RECIPE) is False
+
+
+def test_a_flag_before_the_recipe_name_does_not_hide_the_declaration(tmp_path: Path) -> None:
+    """`just` takes options before its recipes; over-collecting candidates absorbs them."""
+    recipe = janitor_bootstrap_recipe_from_block(
+        block={"janitor_bootstrap": {"recipe": "just --justfile build.just hooks"}}
+    )
+    _ = (tmp_path / "justfile").write_text("hooks:\n    echo installed\n", encoding="utf-8")
+
+    assert hook_install_recipe_present(repo=tmp_path, recipe=recipe) is True
+
+
+def test_an_adopter_script_shipped_by_the_repository_is_invokable(tmp_path: Path) -> None:
+    """A non-`just` recipe has no declaration surface, so it is answered by invokability."""
+    recipe = janitor_bootstrap_recipe_from_block(
+        block={"janitor_bootstrap": {"recipe": "./install-hooks.sh --force"}}
+    )
+    script = tmp_path / "install-hooks.sh"
+    _ = script.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+
+    assert hook_install_recipe_present(repo=tmp_path, recipe=recipe) is False
+
+    script.chmod(0o755)
+    assert hook_install_recipe_present(repo=tmp_path, recipe=recipe) is True
+
+
+def test_a_recipe_whose_program_is_on_path_is_invokable(tmp_path: Path) -> None:
+    recipe = janitor_bootstrap_recipe_from_block(
+        block={"janitor_bootstrap": {"recipe": "sh -c 'install hooks'"}}
+    )
+
+    assert hook_install_recipe_present(repo=tmp_path, recipe=recipe) is True
+
+
+def test_a_recipe_naming_a_program_that_exists_nowhere_is_unresolvable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PATH", str(tmp_path / "empty-bin"))
+    recipe = janitor_bootstrap_recipe_from_block(
+        block={"janitor_bootstrap": {"recipe": "hook-installer-9000"}}
+    )
+
+    assert hook_install_recipe_present(repo=tmp_path, recipe=recipe) is False
+
+
+def test_a_defective_declaration_resolves_nothing_and_so_provides_nothing(
+    tmp_path: Path,
+) -> None:
+    """There is no command to look for, so no repository state could ever satisfy it."""
+    recipe = janitor_bootstrap_recipe_from_block(block={"janitor_bootstrap": "just hooks"})
+    _ = (tmp_path / "justfile").write_text(
+        "install-commit-refuse-hooks:\n    echo installed\n", encoding="utf-8"
+    )
+
+    assert recipe.defect is not None
+    assert hook_install_recipe_present(repo=tmp_path, recipe=recipe) is False
 
 
 # ---------------------------------------------------------------------------
@@ -579,3 +657,79 @@ def test_a_degraded_pre_dispatch_step_is_re_verified_by_its_own_preflight(
     assert refusal is None
     assert _records(journal=journal)[-1]["step"] == MASTER_CI
     assert _records(journal=journal)[-1]["stage"] == "step-clearing"
+    # A step that verifies itself carries no declared resolution to report, so
+    # the refusal record stays exactly as it was before v087 for those steps.
+    assert "resolution_attempted" not in _records(journal=journal)[-1]
+
+
+def test_the_janitor_bootstrap_refusal_names_the_resolution_and_the_declaring_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An undeclared key resolves against the convention, and SAYS that it did."""
+    repo = _repo(tmp_path=tmp_path)
+    journal = tmp_path / "journal.jsonl"
+    _ = journal.write_text(_degraded_line() + "\n", encoding="utf-8")
+
+    refusal = _run_gate(
+        repo=repo,
+        journal=journal,
+        runner=_Runner(results=_green_preflight_results()),
+        monkeypatch=monkeypatch,
+    )
+
+    assert refusal is not None
+    assert "Resolution attempted: default convention" in refusal
+    assert "just install-commit-refuse-hooks" in refusal
+    assert JANITOR_BOOTSTRAP_KEY in refusal
+    assert JANITOR_BOOTSTRAP_KEY in str(_records(journal=journal)[-1]["resolution_attempted"])
+
+
+def test_a_declared_recipe_the_repository_provides_clears_the_degradation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The adopter route: no fleet recipe anywhere, and the degradation still clears."""
+    repo = _repo(
+        tmp_path=tmp_path,
+        dispatcher=', "dispatcher": {"janitor_bootstrap": {"recipe": "./install-hooks.sh"}}',
+    )
+    script = repo / "install-hooks.sh"
+    _ = script.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    script.chmod(0o755)
+    journal = tmp_path / "journal.jsonl"
+    _ = journal.write_text(_degraded_line() + "\n", encoding="utf-8")
+
+    refusal = _run_gate(
+        repo=repo,
+        journal=journal,
+        runner=_Runner(results=_green_preflight_results()),
+        monkeypatch=monkeypatch,
+    )
+
+    assert refusal is None
+    assert _records(journal=journal)[-1]["stage"] == "step-clearing"
+
+
+def test_a_declared_recipe_the_repository_does_not_provide_refuses_naming_the_declaration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A present-but-unusable declaration never slides onto the convention."""
+    repo = _repo(
+        tmp_path=tmp_path,
+        dispatcher=', "dispatcher": {"janitor_bootstrap": {"owner": "dana"}}',
+    )
+    _ = (repo / "justfile").write_text(
+        "install-commit-refuse-hooks:\n    echo installed\n", encoding="utf-8"
+    )
+    journal = tmp_path / "journal.jsonl"
+    _ = journal.write_text(_degraded_line() + "\n", encoding="utf-8")
+
+    refusal = _run_gate(
+        repo=repo,
+        journal=journal,
+        runner=_Runner(results=_green_preflight_results()),
+        monkeypatch=monkeypatch,
+    )
+
+    assert refusal is not None
+    assert "Resolution attempted: declared" in refusal
+    assert f"`{JANITOR_BOOTSTRAP_KEY}.recipe` is absent" in refusal

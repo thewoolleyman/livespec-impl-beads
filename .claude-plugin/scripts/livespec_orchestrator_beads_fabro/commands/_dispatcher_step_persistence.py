@@ -111,9 +111,19 @@ def clearing_record(*, degraded: DegradedStepOutcome) -> dict[str, object]:
     }
 
 
-def persistence_refusal_record(*, degraded: DegradedStepOutcome) -> dict[str, object]:
-    """The journal record of the pre-dispatch gate refusing on a standing degradation."""
-    return {
+def persistence_refusal_record(
+    *, degraded: DegradedStepOutcome, resolution: str | None = None
+) -> dict[str, object]:
+    """The journal record of the pre-dispatch gate refusing on a standing degradation.
+
+    `resolution` is the re-verification's account of WHICH resolution it
+    attempted, carried by the steps whose integration point is declaration-
+    resolved and absent for the steps that verify themselves. It is journaled
+    beside the refusal, not only printed, so an operator reading the record
+    later can still tell "your recipe is missing" from "I looked for a recipe
+    you never declared".
+    """
+    record: dict[str, object] = {
         "stage": PERSISTENCE_STAGE,
         "step": degraded.step,
         "terminal": True,
@@ -123,15 +133,22 @@ def persistence_refusal_record(*, degraded: DegradedStepOutcome) -> dict[str, ob
         "originating_outcome_record": degraded.reference,
         "remedy": degraded.remedy,
     }
+    if resolution is not None:
+        record["resolution_attempted"] = resolution
+    return record
 
 
-def persistence_refusal_detail(*, degraded: DegradedStepOutcome) -> str:
+def persistence_refusal_detail(
+    *, degraded: DegradedStepOutcome, resolution: str | None = None
+) -> str:
     """The operator-facing refusal: what is missing, which record said so, the way out."""
+    attempted = "" if resolution is None else f"{resolution}\n"
     return (
         f"ERROR: a degraded `{degraded.step}` outcome for this repository is still "
         "outstanding; refusing dispatch before sandbox work.\n"
         f"Missing required integration point: {degraded.missing_integration_point}\n"
         f"Originating outcome record: {degraded.reference}\n"
+        f"{attempted}"
         f"Remedy: {degraded.remedy}\n"
     )
 

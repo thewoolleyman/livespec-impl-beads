@@ -91,6 +91,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_io import (
     _decode,  # pyright: ignore[reportPrivateUsage]
     utc_now_iso,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_recipe import (
+    janitor_bootstrap_recipe_from_block,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_checks import run_janitor_checks
 from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_checks import (
     LedgerFinding,
@@ -1492,13 +1495,21 @@ def test_argv_builders_encode_family_discipline(tmp_path: Path) -> None:
         str(tmp_path / "janitor-co"),
     ]
     assert janitor_trust_argv() == ["mise", "trust"]
-    assert janitor_bootstrap_argv() == [
+    # The bootstrap argv is the RESOLVED recipe's own command, so an undeclared
+    # key still produces this fleet's shipped invocation and a declared one
+    # produces the adopter's, verbatim.
+    assert janitor_bootstrap_argv(recipe=janitor_bootstrap_recipe_from_block(block={})) == [
         "mise",
         "exec",
         "--",
         "just",
         "install-commit-refuse-hooks",
     ]
+    assert janitor_bootstrap_argv(
+        recipe=janitor_bootstrap_recipe_from_block(
+            block={"janitor_bootstrap": {"recipe": "make install-hooks"}}
+        )
+    ) == ["make", "install-hooks"]
     assert janitor_core_clone_argv(plan=plan) == [
         "git",
         "clone",

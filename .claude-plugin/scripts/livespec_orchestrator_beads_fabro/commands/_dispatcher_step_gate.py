@@ -31,6 +31,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_io import (
     JournalFile,
     ShellCommandRunner,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_recipe import (
+    recipe_resolution_sentence,
+    resolve_janitor_bootstrap_recipe,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_master_ci_preflight import (
     master_ci_preflight,
 )
@@ -138,23 +142,37 @@ def _persistence_refusal(
     degraded = outstanding_degraded_step(journal_path=journal_path)
     if degraded is None:
         return None
-    if _reverified(repo=repo, degraded=degraded, verified=verified):
+    provided, resolution = _reverified(repo=repo, degraded=degraded, verified=verified)
+    if provided:
         journal.append(record=clearing_record(degraded=degraded))
         return None
-    refusal = persistence_refusal_record(degraded=degraded)
+    refusal = persistence_refusal_record(degraded=degraded, resolution=resolution)
     waiver = waiver_for(waivers=waivers, step=degraded.step)
     if waiver is not None:
         _journal_waived(journal=journal, waiver=waiver, waived=refusal)
         return None
     journal.append(record=refusal)
-    return persistence_refusal_detail(degraded=degraded)
+    return persistence_refusal_detail(degraded=degraded, resolution=resolution)
 
 
-def _reverified(*, repo: Path, degraded: DegradedStepOutcome, verified: frozenset[str]) -> bool:
-    """Whether this dispatch observes the degraded step's integration point provided."""
+def _reverified(
+    *, repo: Path, degraded: DegradedStepOutcome, verified: frozenset[str]
+) -> tuple[bool, str | None]:
+    """Whether this dispatch observes the degraded step's integration point provided.
+
+    The second element is the re-verification's account of WHICH resolution it
+    attempted, which only a declaration-resolved integration point has to give.
+    It rides back with the verdict rather than being re-derived by the refusal
+    because a second resolution could name a different recipe from the one
+    actually looked for.
+    """
     if degraded.step == JANITOR_BOOTSTRAP:
-        return hook_install_recipe_present(repo=repo)
-    return degraded.step in verified
+        recipe = resolve_janitor_bootstrap_recipe(cwd=repo)
+        return (
+            hook_install_recipe_present(repo=repo, recipe=recipe),
+            recipe_resolution_sentence(recipe=recipe),
+        )
+    return degraded.step in verified, None
 
 
 def _journal_waived(*, journal: JournalFile, waiver: StepWaiver, waived: dict[str, object]) -> None:
