@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.97.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.97.1...v0.97.2) (2026-08-29)
+
+
+### Bug Fixes
+
+* re-base dispatch-admission currency gate onto a deliberate release floor ([9db824f](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/9db824fd09f827df270f1664c6a8fd5c97de0aee))
+
 ## [0.97.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.97.0...v0.97.1) (2026-08-29)
 
 
