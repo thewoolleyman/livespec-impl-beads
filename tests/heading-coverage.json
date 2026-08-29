@@ -1007,5 +1007,13 @@
     "test": "TODO",
     "work_item": "bd-ib-nt3cjv",
     "reason": "Ratified with the dry-run-not-picked-reasons revision; --dry-run reports a machine-stable exclusion reason for every ready-but-unpicked candidate. Awaits a consumer-tier (integration) test per the scenario-tier requirement; real test ID to follow."
+  },
+  {
+    "heading": "## Scenario 93 — The janitor-bootstrap step resolves a declared hook-install recipe and falls back to a declared default",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "work_item": "bd-ib-hdjke3",
+    "reason": "Ratified with the adopter-neutral-janitor-bootstrap revision; the janitor-bootstrap step resolves the governed repository's DECLARED hook-install recipe (dispatcher.janitor_bootstrap.recipe) with a declared fleet default, refuses on an unresolvable recipe naming the attempted resolution, and honors the committed janitor-bootstrap step waiver. Awaits a dispatcher-tier test per the scenario-tier requirement; real test ID to follow."
   }
 ]
