@@ -1,4 +1,23 @@
-"""Comment-body builders for Fabro preserve-by-reference records."""
+"""Comment-body builders for Fabro preserve-by-reference records.
+
+A pointer body is READ by an operator and by
+`_dispatcher_preserve_reference_check`, so two of its conventions are
+load-bearing rather than cosmetic.
+
+First, a body that could not compute a digest says SO, and says why, on
+its own `sha256 unavailable because:` line. The branch where a pointer is
+most likely to be dangling — the export itself failed — is exactly the
+branch with no digest, so a bare placeholder there reads as "someone
+forgot" rather than as the honest "no artifact bytes ever reached this
+host". The reader keys off that line to report `unverifiable` instead of
+silently treating an undigested pointer as intact.
+
+Second, the retrieval command prints the RESOLVED `fabro` path the module
+itself invokes, not the bare binary name. The fleet credential wrapper
+sanitizes PATH, so a bare `fabro` is not on it: an operator following a
+bare printed command gets a not-installed error that names the wrong
+problem.
+"""
 
 from __future__ import annotations
 
@@ -11,7 +30,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_overlay import (
 )
 
 __all__: list[str] = [
+    "DIGEST_UNAVAILABLE_PREFIX",
     "FABRO_DIFF_ARTIFACT_GLOB",
+    "PRESERVE_POINTER_MARKER",
     "artifact_pointer_body",
     "dump_failed_body",
     "error_pointer_body",
@@ -19,6 +40,8 @@ __all__: list[str] = [
 ]
 
 FABRO_DIFF_ARTIFACT_GLOB = "stages/*/diff.patch"
+PRESERVE_POINTER_MARKER = "livespec-preserve-by-reference"
+DIGEST_UNAVAILABLE_PREFIX = "sha256 unavailable because: "
 _MAX_STDERR_CHARS = 1000
 
 
@@ -28,6 +51,7 @@ def artifact_pointer_body(
     server_url: str,
     artifacts: tuple[Path, ...],
     export_dir: Path,
+    fabro_bin: str,
 ) -> tuple[str, str]:
     artifact_lines: list[str] = []
     verification_lines: list[str] = []
@@ -44,14 +68,14 @@ def artifact_pointer_body(
     return (
         "\n".join(
             [
-                "livespec-preserve-by-reference",
+                PRESERVE_POINTER_MARKER,
                 "",
                 f"run id: {run_id}",
                 f"factory server url: {server_url}",
                 *artifact_lines,
                 "",
                 "retrieval command:",
-                f"fabro dump {run_id} --server {server_url} -o <export-dir>",
+                _retrieval_command(fabro_bin=fabro_bin, run_id=run_id, server_url=server_url),
                 "",
                 "After retrieval, verify:",
                 *verification_lines,
@@ -67,12 +91,12 @@ def artifact_pointer_body(
     )
 
 
-def missing_artifact_body(*, run_id: str, server_url: str) -> tuple[str, str]:
+def missing_artifact_body(*, run_id: str, server_url: str, fabro_bin: str) -> tuple[str, str]:
     digest = "(not recorded; artifact missing)"
     return (
         "\n".join(
             [
-                "livespec-preserve-by-reference",
+                PRESERVE_POINTER_MARKER,
                 "",
                 f"run id: {run_id}",
                 f"factory server url: {server_url}",
@@ -80,9 +104,13 @@ def missing_artifact_body(*, run_id: str, server_url: str) -> tuple[str, str]:
                 "artifact: run produced no checkpointed diff artifact",
                 "byte size: (not recorded; artifact missing)",
                 f"sha256: {digest}",
+                (
+                    f"{DIGEST_UNAVAILABLE_PREFIX}the export succeeded but matched no "
+                    f"{FABRO_DIFF_ARTIFACT_GLOB} artifact, so there were no bytes to digest"
+                ),
                 "",
                 "retrieval command:",
-                f"fabro dump {run_id} --server {server_url} -o <export-dir>",
+                _retrieval_command(fabro_bin=fabro_bin, run_id=run_id, server_url=server_url),
             ]
         ),
         digest,
@@ -94,12 +122,13 @@ def dump_failed_body(
     run_id: str,
     server_url: str,
     command: CommandResult,
+    fabro_bin: str,
 ) -> tuple[str, str]:
     digest = "(not recorded; dump failed)"
     return (
         "\n".join(
             [
-                "livespec-preserve-by-reference",
+                PRESERVE_POINTER_MARKER,
                 "",
                 f"run id: {run_id}",
                 f"factory server url: {server_url}",
@@ -109,12 +138,16 @@ def dump_failed_body(
                 "byte size: (not recorded; dump failed)",
                 f"sha256: {digest}",
                 (
+                    f"{DIGEST_UNAVAILABLE_PREFIX}the export failed (fabro dump exit "
+                    f"{command.exit_code}), so no artifact bytes reached this host to digest"
+                ),
+                (
                     "resolution: retry the command below; if the same run/path remains "
                     "unavailable while the factory is reachable, treat the reference as dangling."
                 ),
                 "",
                 "retrieval command:",
-                f"fabro dump {run_id} --server {server_url} -o <export-dir>",
+                _retrieval_command(fabro_bin=fabro_bin, run_id=run_id, server_url=server_url),
             ]
         ),
         digest,
@@ -131,7 +164,7 @@ def error_pointer_body(
     return (
         "\n".join(
             [
-                "livespec-preserve-by-reference",
+                PRESERVE_POINTER_MARKER,
                 "",
                 f"run id: {run_id}",
                 f"factory server url: {server_url}",
@@ -140,10 +173,18 @@ def error_pointer_body(
                 f"error: {comment_safe_external_text(text=str(error))}",
                 "byte size: (not recorded; preserve step failed)",
                 f"sha256: {digest}",
+                (
+                    f"{DIGEST_UNAVAILABLE_PREFIX}the preserve step failed with "
+                    f"{type(error).__name__} before any artifact could be read"
+                ),
             ]
         ),
         digest,
     )
+
+
+def _retrieval_command(*, fabro_bin: str, run_id: str, server_url: str) -> str:
+    return f"{fabro_bin} dump {run_id} --server {server_url} -o <export-dir>"
 
 
 def comment_safe_external_text(*, text: str) -> str:

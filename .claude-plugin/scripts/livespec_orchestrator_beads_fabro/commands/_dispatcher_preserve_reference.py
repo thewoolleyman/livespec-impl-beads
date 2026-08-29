@@ -129,11 +129,12 @@ def _pointer_body(
     server_url: str,
     command_runner: CommandRunner,
 ) -> PointerRecord:
+    fabro_bin = str(args.fabro_bin)
     with tempfile.TemporaryDirectory(prefix=f"fabro-preserve-{item_id}-") as raw_dir:
         output_dir = Path(raw_dir)
         dumped = command_runner.run(
             argv=[
-                str(args.fabro_bin),
+                fabro_bin,
                 "dump",
                 run_id,
                 "--server",
@@ -153,6 +154,7 @@ def _pointer_body(
                 run_id=run_id,
                 server_url=server_url,
                 command=dumped,
+                fabro_bin=fabro_bin,
             )
         elif artifacts:
             body, digest = artifact_pointer_body(
@@ -160,9 +162,12 @@ def _pointer_body(
                 server_url=server_url,
                 artifacts=artifacts,
                 export_dir=output_dir,
+                fabro_bin=fabro_bin,
             )
         else:
-            body, digest = missing_artifact_body(run_id=run_id, server_url=server_url)
+            body, digest = missing_artifact_body(
+                run_id=run_id, server_url=server_url, fabro_bin=fabro_bin
+            )
     return PointerRecord(
         body=body,
         digest=digest,
