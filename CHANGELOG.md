@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.95.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.95.1...v0.95.2) (2026-08-29)
+
+
+### Bug Fixes
+
+* **dispatcher:** count wip_cap claims across every checkout of the tenant ([fe10bf3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/fe10bf36ccb9f511739061505da50aece2ef8453))
+
 ## [0.95.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.95.0...v0.95.1) (2026-08-29)
 
 
