@@ -2519,15 +2519,21 @@ paths.
 
 The counted-claim bound is TENANT-scoped: it MUST count claims across every
 checkout of this repository (worktrees, janitor checkouts, and fresh clones
-alike), not only the invoking process's own checkout. This is a REQUIREMENT
-on the bound, stated deliberately ahead of the implementation: the shipped
-predicate at the time of this revision computes claims from paths under the
-invoking `--repo` checkout only, so DISTINCT checkouts of one tenant can
-currently admit independently and their combined admissions MAY exceed
-`wip_cap`. That divergence is KNOWN, tracked as `bd-ib-snyquw.6`, and MUST NOT be
-read as a second sanctioned bound alongside this one — tenant-scoping is
-what this section requires, and per-checkout counting is a gap in meeting
-it, not an alternative reading of it.
+alike), not only the invoking process's own checkout. A checkout holding a
+live dispatch lock (term 1 above) registers itself, keyed by the tenant its
+committed `.livespec.jsonc` declares, so a claim held live by ANY checkout of
+the tenant is visible from every checkout's own admission check — closing
+the specific divergence `bd-ib-snyquw.6` measured and tracked (two checkouts
+of one tenant reporting disjoint live-claim counts against the same ledger),
+where N checkouts could admit independently up to N × `wip_cap`. The
+journal-unreadable term (term 2) and the terminal-outcome classification it
+depends on (green-terminal reclamation, abandoned-claim detection) remain
+per-checkout by design — each checkout reads only its own dispatch journal —
+which does not reopen the over-admission divergence just closed: it biases
+toward counting MORE from a given checkout's own view, never fewer, matching
+term 2's existing fail-closed guarantee. Per-checkout counting REMAINS the
+implementation of terms 2 and its dependents; tenant-scoping applies fully to
+term 1 and MUST NOT be read as extended to those by this section.
 
 `wip_cap`'s value domain is a **non-negative integer**: `0` is a valid
 committed value, and it is the sanctioned consumer-project DISPATCH-OFF
