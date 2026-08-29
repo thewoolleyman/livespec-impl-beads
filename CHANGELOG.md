@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.97.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.96.1...v0.97.0) (2026-08-29)
+
+
+### Features
+
+* cover fabro preflight port contract ([031cef0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/031cef084853347dfa191b26592074b2126a08af))
+
+
+### Bug Fixes
+
+* align tier-1 EUTs with measured fabro 0.254 run semantics ([a50bdb7](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/a50bdb730b1c4457d448d524aa2d7207a313f8fc))
+* track per-node acp.command adapters in tier-0 EUT ([bd624cc](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/bd624ccbe2c16261135e8209cee4350ce83d9874))
+
 ## [0.96.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.96.0...v0.96.1) (2026-08-29)
 
 
