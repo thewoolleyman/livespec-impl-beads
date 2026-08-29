@@ -29,9 +29,9 @@ if TYPE_CHECKING:
     from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_recipe import (
         JanitorBootstrapRecipe,
     )
-    from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import PrView
+    from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import DispatchPlan, PrView
 
-__all__: list[str] = ["DegradedStep", "merged_degraded_outcome"]
+__all__: list[str] = ["DegradedStep", "merged_degraded_for_plan", "merged_degraded_outcome"]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -47,6 +47,32 @@ class DegradedStep:
     description: str
     reason: str
     step_id: str | None = None
+
+
+def merged_degraded_for_plan(
+    *,
+    outcome_type: type[DispatchOutcome],
+    plan: DispatchPlan,
+    merged: PrView,
+    step: DegradedStep,
+    recipe: JanitorBootstrapRecipe,
+) -> DispatchOutcome:
+    """The same outcome for a degradation the DISPATCH PLAN can speak for.
+
+    Every post-merge degradation past the lock claim knows its plan, and the
+    plan supplies the two things the outcome cannot invent: whose work-item
+    this is, and the janitor argv the operator would run by hand. Reading both
+    off the plan HERE, beside the shaping they feed, is what stops a caller
+    from remediating with a janitor command this dispatch never planned.
+    """
+    return merged_degraded_outcome(
+        outcome_type=outcome_type,
+        work_item_id=plan.work_item_id,
+        merged=merged,
+        step=step,
+        recipe=recipe,
+        janitor_argv=plan.janitor,
+    )
 
 
 def merged_degraded_outcome(
