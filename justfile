@@ -63,9 +63,11 @@ fabro-enemy-tier1:
     uv run pytest fabro-enemy-unit-tests/test_tier1_*.py -q
 
 # Compare the tier-0 Enemy Unit Tests across two independently configured Fabro
-# client/server pairs and write a Markdown delta artifact. Defaults compare the
-# pinned pair against itself, which proves the artifact shape without requiring
-# a candidate server:
+# client/server pairs and write a Markdown delta artifact. Exits 0 only when both
+# pytest legs exited 0 AND the rendered delta is empty, so this recipe may be
+# gated on directly; a skip on one target is a delta, counted separately from a
+# regression. Defaults compare the pinned pair against itself, which proves the
+# artifact shape without requiring a candidate server:
 #   just fabro-enemy-compare
 # Candidate override example:
 #   FABRO_EUT_CANDIDATE_BIN=/path/to/fabro \

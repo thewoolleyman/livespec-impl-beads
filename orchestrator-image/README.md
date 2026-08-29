@@ -351,8 +351,17 @@ just fabro-enemy-compare
 
 The artifact is written to `fabro-enemy-unit-tests/comparison.md` by default. It
 contains a per-assertion table for pinned and candidate results plus a `Delta`
-section that counts regressions, improvements, changed failures, and assertions
-present on only one side.
+section that counts regressions, improvements, skip deltas, assertions present
+on only one side, and the total of all four.
+
+**The exit code is the verdict, and it is a function of that delta.** The
+harness exits 0 only when both pytest legs exited 0 AND every delta count is
+zero, so `just fabro-enemy-compare` can be gated on directly to assert an empty
+delta. A skip counts as a delta — skipping is how the suite expresses a
+capability present on one target and absent on the other, which is the whole
+question this comparison answers — but it is reported as a `skip-delta` rather
+than folded into the regression count, so a genuine failure stays
+distinguishable from a capability gap.
 
 ### Start / restart
 
