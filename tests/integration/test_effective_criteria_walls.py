@@ -8,7 +8,8 @@ replaced by a recording stand-in so no fabro sandbox launches:
 - "Scenario 69 — Zero-criteria AI-dispositive work is walled before any spend":
   the pre-dispatch wall refuses with exit 5 on BOTH dispatch paths, the approve
   valve refuses and leaves the item where it stood, and criteria that reach the
-  primitive only through a description `Exit criteria` section clear both walls.
+  primitive only through a description `Exit criteria` section — or only
+  through the beads METADATA column — clear both walls.
 - "Scenario 71 — One effective-criteria authority for every gate": one criteria
   text is followed through all four gates — the capture front-end's parse, the
   entry-to-`ready` wall, the pre-dispatch wall, and the post-merge acceptance
@@ -29,14 +30,17 @@ import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
-from livespec_orchestrator_beads_fabro._beads_client import reset_fake_singleton
+from livespec_orchestrator_beads_fabro._beads_client import make_beads_client, reset_fake_singleton
 from livespec_orchestrator_beads_fabro.commands import _dispatcher_completion, _dispatcher_loop
 from livespec_orchestrator_beads_fabro.commands._dispatcher_acceptance_ai import (
     AcceptancePassResult,
     run_acceptance_pass,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_effective_criteria import (
+    pre_dispatch_criteria_refusal,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandResult,
@@ -233,6 +237,30 @@ def _real_acceptance_pass() -> Callable[..., AcceptancePassResult]:
     return _call
 
 
+def _hold_criteria_in_metadata_only(*, issue_id: str, criteria: str) -> None:
+    """Rewrite one issue the way an OLDER writer left it: criteria in metadata.
+
+    Records filed before the native `acceptance_criteria` column existed carry
+    their criteria in the metadata JSON column instead, and beads' serializer
+    is `omitempty` — such a record has NO native key at all rather than a blank
+    one. The assertion below pins exactly that shape, because a fixture that
+    accidentally left a native value present would prove nothing: the merged
+    read would be reading the native field, which is the case already covered.
+
+    The existing metadata is read back and merged rather than replaced, since
+    `bd update --metadata` replaces a nested object wholesale — dropping `rank`
+    here would take the item out of the ready ranking and the dispatch would
+    fail for an unrelated reason.
+    """
+    client = make_beads_client(config=_config())
+    record = client.show_issue(issue_id=issue_id)
+    assert "acceptance_criteria" not in record
+    raw_metadata = record.get("metadata")
+    assert isinstance(raw_metadata, dict)
+    merged = {**cast("dict[str, Any]", raw_metadata), "acceptance_criteria": criteria}
+    client.update_issue(issue_id=issue_id, metadata=merged)
+
+
 def _journal_records(*, repo: Path) -> list[dict[str, Any]]:
     text = (repo / "tmp" / "fabro-dispatch-journal.jsonl").read_text(encoding="utf-8")
     return [json.loads(line) for line in text.splitlines() if line]
@@ -333,6 +361,61 @@ def test_criteria_reaching_the_primitive_only_through_the_description_clear_the_
     )
 
     assert (exit_code, calls) == (0, [item.id])
+
+
+def test_criteria_held_only_in_the_metadata_column_clear_the_wall(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A metadata-held criteria field is not read as absent by the wall.
+
+    This is the FALSE-REFUSAL direction, and it is the one a census of this
+    tenant already got wrong: reading criteria from a record shape that carries
+    no `metadata` key called 16 conforming items empty, one of them holding 34
+    criteria lines. A wall reading criteria that way would refuse those items
+    on contact — cheap, immediate, and wrong.
+
+    The wall is therefore required to read through the SAME merged store path
+    the post-merge acceptance pass reads, so the two agree about what an item's
+    criteria are. Both legs are checked here on one record: the wall admits it
+    and the acceptance pass grades the identical assertion out of it.
+    """
+    repo, workflow = _repo_with_workflow(tmp_path=tmp_path)
+    # No criteria FIELD and no description `Exit criteria` section, so neither
+    # leg of the resolution order can rescue this item on its own.
+    item = _item(id="bd-ib-metacrit", acceptance_criteria=None)
+    append_work_item(path=_config(), item=item)
+
+    # NEGATIVE CONTROL, taken on this very record before the metadata is
+    # installed. Without it the positive reading below cannot tell "the merged
+    # read found the criteria" apart from "the wall never fires on this item".
+    assert pre_dispatch_criteria_refusal(items=[_stored()[item.id]], cwd=repo) is not None
+
+    _hold_criteria_in_metadata_only(issue_id=item.id, criteria=f"{_CRITERION}\n")
+
+    # The merged read materializes the metadata-held value onto the field the
+    # primitive resolves, and the same wall now admits the same record.
+    assert _stored()[item.id].acceptance_criteria == f"{_CRITERION}\n"
+    assert pre_dispatch_criteria_refusal(items=[_stored()[item.id]], cwd=repo) is None
+
+    calls: list[str] = []
+    monkeypatch.setattr(_dispatcher_loop, "run_dispatch", _recording(calls=calls))
+    monkeypatch.setattr(
+        _dispatcher_completion, "run_acceptance_pass", _real_acceptance_pass(), raising=False
+    )
+
+    exit_code = main(
+        argv=["dispatch", "--repo", str(repo), "--item", item.id, "--workflow", str(workflow)]
+    )
+
+    # Dispatched normally: a run WAS launched, and the exit is neither the
+    # ungradeable-criteria refusal nor any other non-zero code.
+    assert (exit_code, calls) == (0, [item.id])
+    assert exit_code != _EXIT_UNGRADEABLE_CRITERIA
+    ai_pass = next(
+        record for record in _journal_records(repo=repo) if record["stage"] == "acceptance-ai-pass"
+    )
+    assert tuple(check["text"] for check in ai_pass["criteria"]["checks"]) == (_CRITERION,)
 
 
 def test_all_four_gates_resolve_the_identical_effective_criteria_text(
