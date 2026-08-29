@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.96.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.95.3...v0.96.0) (2026-08-29)
+
+
+### Features
+
+* **dispatcher:** resolve the janitor-bootstrap recipe the repository declares ([08a5482](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/08a5482b6200aa935b4a29a514cded524f82e342))
+
+
+### Bug Fixes
+
+* degrade the post-merge janitor on a defective bootstrap recipe ([8c84ffb](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/8c84ffb783d924e59cd7e75deda99b4e2f4a2760))
+
 ## [0.95.3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.95.2...v0.95.3) (2026-08-29)
 
 
