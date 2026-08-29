@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.98.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.97.2...v0.98.0) (2026-08-29)
+
+
+### Features
+
+* surface dispatcher-currency staleness as a non-blocking fact ([32ece3f](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/32ece3f3fc18813e02b50e810615c2e6ee186e9c))
+
 ## [0.97.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.97.1...v0.97.2) (2026-08-29)
 
 
