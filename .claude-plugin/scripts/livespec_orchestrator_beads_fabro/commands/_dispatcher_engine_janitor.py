@@ -15,6 +15,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_re
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_degraded import (
     DegradedStep,
+    merged_degraded_for_plan,
     merged_degraded_outcome,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_lock import (
@@ -100,7 +101,7 @@ def _post_merge_locked(
         command=(pull_primary_argv(plan=plan), plan.repo, _GIT_TIMEOUT_SECONDS, None),
     )
     if pull.exit_code != 0:
-        return _merged_degraded(
+        return merged_degraded_for_plan(
             outcome_type=outcome_type,
             plan=plan,
             merged=merged,
@@ -179,6 +180,27 @@ def _provision_janitor_checkout(
     merged: PrView,
     recipe: JanitorBootstrapRecipe,
 ) -> DispatchOutcome | None:
+    if recipe.defect is not None:
+        # A present-but-unusable declaration resolves NO command, so the
+        # bootstrap stage would hand the runner an empty argv -- a crash, after
+        # the merge has already landed, where the design has a named degraded
+        # outcome. The pre-dispatch re-verification refuses on the same defect,
+        # but only once a degradation stands: on a FIRST dispatch this is the
+        # one place the defect is caught, so it is caught before anything is
+        # provisioned for a bootstrap that cannot run.
+        return merged_degraded_for_plan(
+            outcome_type=outcome_type,
+            plan=plan,
+            merged=merged,
+            step=DegradedStep(
+                description=(
+                    f"resolving the commit-refuse-hook install recipe to bootstrap in {plan.repo}"
+                ),
+                reason=recipe.defect,
+                step_id=JANITOR_BOOTSTRAP,
+            ),
+            recipe=recipe,
+        )
     _ = run_stage(
         runner=runner,
         journal=journal,
@@ -229,7 +251,7 @@ def _provision_janitor_checkout(
             command=(argv, cwd, _GIT_TIMEOUT_SECONDS, None),
         )
         if result.exit_code != 0:
-            return _merged_degraded(
+            return merged_degraded_for_plan(
                 outcome_type=outcome_type,
                 plan=plan,
                 merged=merged,
@@ -245,22 +267,4 @@ def _degraded_step(
     """One failed provisioning stage, named and reasoned, ready to be shaped."""
     return DegradedStep(
         description=description, reason=tail(text=result.stderr, limit=500), step_id=step_id
-    )
-
-
-def _merged_degraded(
-    *,
-    outcome_type: type[DispatchOutcome],
-    plan: DispatchPlan,
-    merged: PrView,
-    step: DegradedStep,
-    recipe: JanitorBootstrapRecipe,
-) -> DispatchOutcome:
-    return merged_degraded_outcome(
-        outcome_type=outcome_type,
-        work_item_id=plan.work_item_id,
-        merged=merged,
-        step=step,
-        recipe=recipe,
-        janitor_argv=plan.janitor,
     )

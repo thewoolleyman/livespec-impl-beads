@@ -11,6 +11,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_janitor import post_merge
 from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_recipe import (
+    JANITOR_BOOTSTRAP_KEY,
     JanitorBootstrapRecipe,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
@@ -18,6 +19,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     PrView,
     build_plan,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_step_ids import JANITOR_BOOTSTRAP
 
 
 def _plan(*, repo: Path) -> DispatchPlan:
@@ -121,6 +123,46 @@ def test_post_merge_degrades_when_primary_pull_fails_after_merge(tmp_path: Path)
     assert "refreshing the primary checkout" in outcome.detail
     assert "plan/foreman/handoff.md" in outcome.detail
     assert "not a work-item failure" in outcome.detail
+
+
+def test_post_merge_degrades_on_a_defective_recipe_instead_of_running_an_empty_argv(
+    tmp_path: Path,
+) -> None:
+    """A present-but-unusable declaration resolves NO argv, so nothing is provisioned.
+
+    The post-merge path is reached on a first dispatch, where no standing
+    degradation exists for the pre-dispatch re-verification to have refused on,
+    so this is the only place the defect is caught. Running the bootstrap stage
+    anyway would hand the runner an empty command AFTER the merge has landed --
+    a crash where the design has a named degraded outcome.
+    """
+    _ = (tmp_path / ".livespec.jsonc").write_text(
+        '{"livespec-orchestrator-beads-fabro": {"dispatcher": '
+        '{"janitor_bootstrap": {"owner": "dana"}}}}',
+        encoding="utf-8",
+    )
+    plan = _plan(repo=tmp_path)
+    runner = Runner(queue=[_ok() for _ in range(8)])
+    journal = Journal()
+
+    outcome = post_merge(
+        outcome_type=DispatchOutcome,
+        plan=plan,
+        runner=runner,
+        journal=journal,
+        merged=_merged(),
+    )
+
+    assert (outcome.status, outcome.stage) == ("green", "janitor-env-degraded")
+    # Named as the ratified step, so the degradation persists into the next
+    # dispatch's refusal exactly as a failed bootstrap does.
+    assert outcome.step == JANITOR_BOOTSTRAP
+    assert outcome.missing_integration_point is not None
+    assert outcome.remedy is not None
+    assert JANITOR_BOOTSTRAP_KEY in outcome.detail
+    # The primary checkout is still refreshed; nothing past it is provisioned.
+    assert [record["stage"] for record in journal.records] == ["pull-primary"]
+    assert not plan.janitor_checkout.exists()
 
 
 def test_post_merge_lock_contention_refuses_before_preclean(tmp_path: Path) -> None:
