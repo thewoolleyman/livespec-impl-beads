@@ -13,6 +13,9 @@ from livespec_orchestrator_beads_fabro.commands import _jsonc
 
 if TYPE_CHECKING:
     from livespec_orchestrator_beads_fabro.commands._codex_model_tiers import CodexModelTier
+    from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_recipe import (
+        JanitorBootstrapRecipe,
+    )
     from livespec_orchestrator_beads_fabro.commands._dispatcher_plan_build import DispatchPlan
 
 __all__: list[str] = [
@@ -409,14 +412,19 @@ def janitor_trust_argv() -> list[str]:
     return ["mise", "trust"]
 
 
-def janitor_bootstrap_argv() -> list[str]:
-    """Install canonical commit-refuse hooks in the primary checkout (run with cwd=plan.repo).
+def janitor_bootstrap_argv(*, recipe: JanitorBootstrapRecipe) -> list[str]:
+    """Install commit-refuse hooks in the primary checkout (run with cwd=plan.repo).
 
-    Runs the hooks-only bootstrap recipe in the primary checkout so
-    the canonical pre-commit and pre-push hooks are present at
+    Runs the governed repository's own RESOLVED hooks-only bootstrap recipe in
+    the primary checkout so its pre-commit and pre-push hooks are present at
     `.git/hooks/` before `just check` runs in the janitor worktree - the shared
     `check-primary-checkout-commit-refuse-hook-installed` gate reads
     the same hooks_dir and fails when the bootstrap step was never run.
     Idempotent: safe to run on every dispatch.
+
+    The recipe is DECLARED (`dispatcher.janitor_bootstrap.recipe`) with the
+    fleet convention as its default, so this builder no longer names one:
+    presuming our own `just` recipe of every adopter is the defect the
+    janitor-bootstrap recipe resolution clause retires.
     """
-    return ["mise", "exec", "--", "just", "install-commit-refuse-hooks"]
+    return list(recipe.command)

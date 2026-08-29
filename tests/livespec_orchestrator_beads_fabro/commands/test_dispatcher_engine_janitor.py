@@ -10,6 +10,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     DispatchOutcome,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_janitor import post_merge
+from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_recipe import (
+    JanitorBootstrapRecipe,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     DispatchPlan,
     PrView,
@@ -157,12 +160,14 @@ def test_post_merge_releases_lock_when_locked_body_raises(
         runner: Runner,
         journal: Journal,
         merged: PrView,
+        recipe: JanitorBootstrapRecipe,
     ) -> DispatchOutcome:
         _ = outcome_type
         _ = plan
         _ = runner
         _ = journal
         _ = merged
+        _ = recipe
         raise RuntimeError("janitor body exploded")
 
     monkeypatch.setattr(janitor_module, "_post_merge_locked", raise_from_locked_body)

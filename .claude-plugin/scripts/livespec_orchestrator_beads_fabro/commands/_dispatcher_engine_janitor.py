@@ -9,6 +9,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_journal impor
     run_stage,
     tail,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_recipe import (
+    JanitorBootstrapRecipe,
+    resolve_janitor_bootstrap_recipe,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_degraded import (
     DegradedStep,
     merged_degraded_outcome,
@@ -53,6 +57,10 @@ def post_merge(
     journal: JournalWriter,
     merged: PrView,
 ) -> DispatchOutcome:
+    # Resolved ONCE for the whole post-merge flow: the recipe the janitor
+    # invokes and the recipe a degradation names have to be the same recipe,
+    # and a second resolution is how they come to disagree.
+    recipe = resolve_janitor_bootstrap_recipe(cwd=plan.repo)
     lock_path = janitor_lock_path(plan=plan)
     lock_detail = claim_janitor_lock(path=lock_path, owner=plan.work_item_id)
     if lock_detail is not None:
@@ -61,6 +69,7 @@ def post_merge(
             work_item_id=plan.work_item_id,
             merged=merged,
             step=DegradedStep(description="claiming the janitor checkout lock", reason=lock_detail),
+            recipe=recipe,
         )
     with ExitStack() as stack:
         _ = stack.callback(release_janitor_lock, path=lock_path)
@@ -70,6 +79,7 @@ def post_merge(
             runner=runner,
             journal=journal,
             merged=merged,
+            recipe=recipe,
         )
 
 
@@ -80,6 +90,7 @@ def _post_merge_locked(
     runner: CommandRunner,
     journal: JournalWriter,
     merged: PrView,
+    recipe: JanitorBootstrapRecipe,
 ) -> DispatchOutcome:
     pull = run_stage(
         runner=runner,
@@ -93,8 +104,11 @@ def _post_merge_locked(
             outcome_type=outcome_type,
             plan=plan,
             merged=merged,
-            step=f"refreshing the primary checkout {plan.repo} via pull-primary",
-            result=pull,
+            step=_degraded_step(
+                description=f"refreshing the primary checkout {plan.repo} via pull-primary",
+                result=pull,
+            ),
+            recipe=recipe,
         )
     degraded = _provision_janitor_checkout(
         outcome_type=outcome_type,
@@ -102,6 +116,7 @@ def _post_merge_locked(
         runner=runner,
         journal=journal,
         merged=merged,
+        recipe=recipe,
     )
     if degraded is not None:
         return degraded
@@ -162,6 +177,7 @@ def _provision_janitor_checkout(
     runner: CommandRunner,
     journal: JournalWriter,
     merged: PrView,
+    recipe: JanitorBootstrapRecipe,
 ) -> DispatchOutcome | None:
     _ = run_stage(
         runner=runner,
@@ -191,9 +207,9 @@ def _provision_janitor_checkout(
         ),
         (
             "janitor-checkout-bootstrap",
-            janitor_bootstrap_argv(),
+            janitor_bootstrap_argv(recipe=recipe),
             plan.repo,
-            f"installing canonical hooks via `just install-commit-refuse-hooks` in {plan.repo}",
+            f"installing commit-refuse hooks via `{recipe.text}` in {plan.repo}",
             JANITOR_BOOTSTRAP,
         ),
         (
@@ -217,11 +233,19 @@ def _provision_janitor_checkout(
                 outcome_type=outcome_type,
                 plan=plan,
                 merged=merged,
-                step=step,
-                result=result,
-                step_id=step_id,
+                step=_degraded_step(description=step, result=result, step_id=step_id),
+                recipe=recipe,
             )
     return None
+
+
+def _degraded_step(
+    *, description: str, result: CommandResult, step_id: str | None = None
+) -> DegradedStep:
+    """One failed provisioning stage, named and reasoned, ready to be shaped."""
+    return DegradedStep(
+        description=description, reason=tail(text=result.stderr, limit=500), step_id=step_id
+    )
 
 
 def _merged_degraded(
@@ -229,16 +253,14 @@ def _merged_degraded(
     outcome_type: type[DispatchOutcome],
     plan: DispatchPlan,
     merged: PrView,
-    step: str,
-    result: CommandResult,
-    step_id: str | None = None,
+    step: DegradedStep,
+    recipe: JanitorBootstrapRecipe,
 ) -> DispatchOutcome:
     return merged_degraded_outcome(
         outcome_type=outcome_type,
         work_item_id=plan.work_item_id,
         merged=merged,
-        step=DegradedStep(
-            description=step, reason=tail(text=result.stderr, limit=500), step_id=step_id
-        ),
+        step=step,
+        recipe=recipe,
         janitor_argv=plan.janitor,
     )

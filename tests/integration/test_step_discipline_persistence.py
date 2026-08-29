@@ -1,4 +1,4 @@
-"""Integration-tier acceptance for cross-dispatch step discipline (v074).
+"""Integration-tier acceptance for cross-dispatch step discipline (v074, v087).
 
 Drives the REAL `dispatcher.main(argv=["dispatch", ...])` CLI through the REAL
 store/client seam against the in-memory `FakeBeadsClient`, with `run_dispatch`
@@ -9,12 +9,14 @@ from a PREVIOUS dispatch, the governed repository's committed `.livespec.jsonc`
 and justfile on disk, the exit code, whether a dispatch happened at all, and
 what the journal says afterwards.
 
-Three journeys, one per sanctioned exit from a degraded outcome:
+Four journeys: one per sanctioned exit from a degraded outcome, plus the
+declared-recipe resolution v087 added beside them.
 
 1. REFUSAL. The degradation stands and the repository still does not provide the
    integration point, so the next dispatch is refused at the pre-dispatch gate
    with exit 3, naming the missing integration point, the originating outcome
-   record, and the remedy -- and no fabro run is created.
+   record, the remedy, and WHICH resolution was attempted -- and no fabro run is
+   created.
 2. CLEARING RE-VERIFICATION. The repository now declares the hook-install
    recipe, so the pre-dispatch re-verification observes the integration point
    provided, journals a clearing record naming the step identifier and the
@@ -22,6 +24,11 @@ Three journeys, one per sanctioned exit from a degraded outcome:
 3. WAIVED PROCEED. The integration point is still absent, but a committed
    `dispatcher.step_waivers` entry names the step, so the dispatch proceeds and
    the journal records the proceed AS waived, with the waiver's owner.
+4. DECLARED RECIPE. An adopter that provides its own hook-install recipe under
+   `dispatcher.janitor_bootstrap.recipe` -- and no `just` recipe of ours at all
+   -- is re-verified against the recipe IT declared, clears, and dispatches. It
+   is the leg that proves the step is satisfiable by declaration rather than by
+   adopting the fleet toolchain.
 
 They are at this tier because the claim each makes is about whether a fabro run
 is dispatched -- something only the whole CLI path can answer.
@@ -41,11 +48,13 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandResult,
     DispatchOutcome,
 )
-from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import DispatchPlan
-from livespec_orchestrator_beads_fabro.commands._dispatcher_step_janitor_bootstrap import (
-    INTEGRATION_POINT,
-    REMEDY,
+from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_recipe import (
+    JANITOR_BOOTSTRAP_KEY,
+    integration_point,
+    janitor_bootstrap_recipe_from_block,
+    remedy,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import DispatchPlan
 from livespec_orchestrator_beads_fabro.commands.dispatcher import main
 from livespec_orchestrator_beads_fabro.store import append_work_item
 from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
@@ -73,6 +82,14 @@ _GRADEABLE_CRITERIA = (
 )
 
 _EXIT_PRECONDITION_ERROR = 3
+# The prose a degradation carries when the repository declared nothing: rendered
+# from the resolver's own default rather than restated, so this fixture cannot
+# drift from the convention it stands for.
+_DEFAULT_RECIPE = janitor_bootstrap_recipe_from_block(block={})
+_DEFAULT_INTEGRATION_POINT = integration_point(recipe=_DEFAULT_RECIPE)
+_DEFAULT_REMEDY = remedy(recipe=_DEFAULT_RECIPE)
+_ADOPTER_SCRIPT = "install-hooks.sh"
+_ADOPTER_RECIPE = f"./{_ADOPTER_SCRIPT} --force"
 _RESOLVED_BRANCH = "trunk"
 _RUN_ID = "551122"
 _DEGRADED_AT = "2026-08-27T09:00:00Z"
@@ -230,14 +247,20 @@ def _degraded_journal_line() -> str:
                 "merge_sha": "deadbee",
                 "detail": "merged, but the post-merge janitor DID NOT RUN",
                 "step": "janitor-bootstrap",
-                "missing_integration_point": INTEGRATION_POINT,
-                "remedy": REMEDY,
+                "missing_integration_point": _DEFAULT_INTEGRATION_POINT,
+                "remedy": _DEFAULT_REMEDY,
             },
         }
     )
 
 
-def _repo(*, tmp_path: Path, dispatcher: str = "", justfile: str | None = None) -> Path:
+def _repo(
+    *,
+    tmp_path: Path,
+    dispatcher: str = "",
+    justfile: str | None = None,
+    adopter_script: bool = False,
+) -> Path:
     repo = tmp_path / "repo"
     repo.mkdir()
     _ = (repo / ".livespec.jsonc").write_text(
@@ -247,6 +270,10 @@ def _repo(*, tmp_path: Path, dispatcher: str = "", justfile: str | None = None) 
     )
     if justfile is not None:
         _ = (repo / "justfile").write_text(justfile, encoding="utf-8")
+    if adopter_script:
+        script = repo / _ADOPTER_SCRIPT
+        _ = script.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        script.chmod(0o755)
     return repo
 
 
@@ -260,8 +287,14 @@ def _dispatch(
     monkeypatch: pytest.MonkeyPatch,
     dispatcher: str = "",
     justfile: str | None = None,
+    adopter_script: bool = False,
 ) -> tuple[int, Path, _RecordingRunDispatch]:
-    repo = _repo(tmp_path=tmp_path, dispatcher=dispatcher, justfile=justfile)
+    repo = _repo(
+        tmp_path=tmp_path,
+        dispatcher=dispatcher,
+        justfile=justfile,
+        adopter_script=adopter_script,
+    )
     workflow = tmp_path / "workflow.toml"
     _ = workflow.write_text(_COMMITTED_WORKFLOW_TOML, encoding="utf-8")
     _ = (workflow.parent / "graph.toml").write_text(_MINIMAL_GRAPH, encoding="utf-8")
@@ -299,15 +332,21 @@ def test_a_standing_degraded_outcome_refuses_the_next_dispatch_with_exit_three(
     assert exit_code == _EXIT_PRECONDITION_ERROR
     assert recording.calls == []
     stderr = capsys.readouterr().err
-    assert INTEGRATION_POINT in stderr
+    assert _DEFAULT_INTEGRATION_POINT in stderr
     assert _DEGRADED_REFERENCE in stderr
     assert "dispatcher.step_waivers" in stderr
+    # The refusal says WHICH resolution it attempted and names the declaring key,
+    # so "your recipe is missing" is distinguishable from "I looked for a recipe
+    # you never declared".
+    assert "Resolution attempted: default convention" in stderr
+    assert JANITOR_BOOTSTRAP_KEY in stderr
     record = _journal_records(journal=journal)[-1]
     assert record["stage"] == "step-persistence-preflight"
     assert record["step"] == "janitor-bootstrap"
-    assert record["missing_integration_point"] == INTEGRATION_POINT
+    assert record["missing_integration_point"] == _DEFAULT_INTEGRATION_POINT
     assert record["originating_outcome_record"] == _DEGRADED_REFERENCE
-    assert record["remedy"] == REMEDY
+    assert record["remedy"] == _DEFAULT_REMEDY
+    assert JANITOR_BOOTSTRAP_KEY in str(record["resolution_attempted"])
 
 
 def test_a_re_verification_that_observes_the_integration_point_clears_and_proceeds(
@@ -329,6 +368,54 @@ def test_a_re_verification_that_observes_the_integration_point_clears_and_procee
     assert clearing[0]["status"] == "cleared"
     assert clearing[0]["clears_outcome_record"] == _DEGRADED_REFERENCE
     assert clearing[0]["clears_outcome_at"] == _DEGRADED_AT
+
+
+def test_an_adopter_declaring_its_own_recipe_is_re_verified_against_that_recipe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Satisfiable by DECLARATION: no justfile, no fleet recipe, and it still clears.
+
+    The repository carries none of our toolchain -- there is no justfile at all,
+    so the fleet convention could not resolve here -- and the degradation clears
+    anyway, because the committed key redirected the re-verification onto the
+    hook-install script this adopter actually ships.
+    """
+    exit_code, journal, recording = _dispatch(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        dispatcher=(
+            ', "dispatcher": {"janitor_bootstrap": {"recipe": ' f'"{_ADOPTER_RECIPE}"' "}}"
+        ),
+        adopter_script=True,
+    )
+
+    assert exit_code == 0
+    assert recording.calls == ["livespec-impl-beads-s1"]
+    clearing = [
+        record for record in _journal_records(journal=journal) if record["stage"] == "step-clearing"
+    ]
+    assert len(clearing) == 1
+    assert clearing[0]["clears_outcome_record"] == _DEGRADED_REFERENCE
+
+
+def test_an_adopter_whose_declared_recipe_is_absent_is_refused_naming_the_declaration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Declaration changes WHAT is looked for, never WHETHER absence refuses."""
+    exit_code, _, recording = _dispatch(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        dispatcher=(
+            ', "dispatcher": {"janitor_bootstrap": {"recipe": ' f'"{_ADOPTER_RECIPE}"' "}}"
+        ),
+    )
+
+    assert exit_code == _EXIT_PRECONDITION_ERROR
+    assert recording.calls == []
+    stderr = capsys.readouterr().err
+    assert "Resolution attempted: declared" in stderr
+    assert _ADOPTER_RECIPE in stderr
+    assert JANITOR_BOOTSTRAP_KEY in stderr
 
 
 def test_a_committed_step_waiver_proceeds_and_journals_the_waiver_owner(

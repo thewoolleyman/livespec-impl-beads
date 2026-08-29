@@ -18,14 +18,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from livespec_orchestrator_beads_fabro.commands._dispatcher_step_ids import JANITOR_BOOTSTRAP
-from livespec_orchestrator_beads_fabro.commands._dispatcher_step_janitor_bootstrap import (
-    INTEGRATION_POINT,
-    REMEDY,
+from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_recipe import (
+    integration_point,
+    remedy,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_step_ids import JANITOR_BOOTSTRAP
 
 if TYPE_CHECKING:
     from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
+    from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_recipe import (
+        JanitorBootstrapRecipe,
+    )
     from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import PrView
 
 __all__: list[str] = ["DegradedStep", "merged_degraded_outcome"]
@@ -52,6 +55,7 @@ def merged_degraded_outcome(
     work_item_id: str,
     merged: PrView,
     step: DegradedStep,
+    recipe: JanitorBootstrapRecipe,
     janitor_argv: tuple[str, ...] | None = None,
 ) -> DispatchOutcome:
     """A merged-but-janitor-did-not-run outcome; STRUCTURED when it names a step.
@@ -59,6 +63,11 @@ def merged_degraded_outcome(
     The merge is confirmed on the remote either way, so this is a `green`
     outcome at a distinct stage rather than a work-item failure: the work
     landed, and what did not run is the host-side gate.
+
+    `recipe` is the RESOLVED hook-install recipe of this dispatch, required on
+    every arm rather than only the janitor-bootstrap one so the integration
+    point a degradation names can never be a different recipe from the one the
+    janitor actually tried to run.
     """
     remediation = (
         (
@@ -81,6 +90,6 @@ def merged_degraded_outcome(
             f"failure — the merge is confirmed on the remote.{remediation}"
         ),
         step=step.step_id,
-        missing_integration_point=INTEGRATION_POINT if degraded_step else None,
-        remedy=REMEDY if degraded_step else None,
+        missing_integration_point=integration_point(recipe=recipe) if degraded_step else None,
+        remedy=remedy(recipe=recipe) if degraded_step else None,
     )
