@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.95.3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.95.2...v0.95.3) (2026-08-29)
+
+
+### Bug Fixes
+
+* **dispatcher:** let a reader other than the writer check a preserved pointer for danglingness ([86816e6](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/86816e6ef9074de8ff3967104d4b43e8baa0fb03))
+* **dispatcher:** make a digest-less preserved pointer say why, and print a runnable retrieval command ([7fa5cd7](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/7fa5cd75174519b0519ac8c95256b40f3aeaa538))
+* **dispatcher:** record the PR that carries the item's merge sha ([27e5c28](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/27e5c28c296cab6ba4b4b998c68f959111d34e23))
+
 ## [0.95.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.95.1...v0.95.2) (2026-08-29)
 
 
