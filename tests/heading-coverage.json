@@ -1015,5 +1015,13 @@
     "test": "TODO",
     "work_item": "bd-ib-hdjke3",
     "reason": "Ratified with the adopter-neutral-janitor-bootstrap revision; the janitor-bootstrap step resolves the governed repository's DECLARED hook-install recipe (dispatcher.janitor_bootstrap.recipe) with a declared fleet default, refuses on an unresolvable recipe naming the attempted resolution, and honors the committed janitor-bootstrap step waiver. Awaits a dispatcher-tier test per the scenario-tier requirement; real test ID to follow."
+  },
+  {
+    "heading": "## Scenario 94 — A provider's availability claim does not extend an exhaustion record's expiry",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "work_item": "bd-ib-yhbsd4.1",
+    "reason": "Ratified with the factory-spend-expiry-clause revision; the exhaustion record expiry is a bounded default in every case regardless of provider/account/hosting arrangement, no assumption is made about whether or how a provider communicates availability timing, and a successful dispatch against the same provider retires an unexpired record early. Awaits a dispatcher-tier test per the scenario-tier requirement; real test ID to follow."
   }
 ]
