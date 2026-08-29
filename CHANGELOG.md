@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.95.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.95.0...v0.95.1) (2026-08-29)
+
+
+### Bug Fixes
+
+* **dispatcher:** derive the exhaustion record's provider from the observed failure ([4385cb8](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/4385cb8a1c423371d2dac02405fe084ef8c6879a))
+
 ## [0.95.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.94.2...v0.95.0) (2026-08-28)
 
 
