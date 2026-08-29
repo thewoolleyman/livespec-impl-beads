@@ -12,14 +12,30 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import Dispat
 from livespec_orchestrator_beads_fabro.effects import parse_iso_datetime
 
 __all__: list[str] = [
+    "DISPATCH_PROVIDERS",
     "ProviderExhaustionRecord",
     "active_provider_exhaustion",
+    "dispatch_provider_exhaustion",
     "provider_exhaustion_refusal",
     "record_provider_exhaustion_if_observed",
 ]
 
 _GOVERNING_CONDITION = "provider_usage_limit"
-_PROVIDER_CODEX = "codex"
+
+# The vendors a dispatch of this repository SPENDS, which is the set the
+# admission condition is evaluated over: a record covers this dispatch when its
+# provider is one of these. Both are listed because one run spends both — the
+# implementer nodes are Anthropic-backed and the publish node is Codex-backed by
+# this repository's own `dispatcher` configuration — so a ceiling on either
+# vendor is a ceiling this dispatch would run into.
+#
+# It is NOT the label a record carries: that is read off the observed failure
+# (`_fabro_port_records`), which is the whole point of this module's fix. Keying
+# the record on the vendor and this gate on the vendors actually spent is what
+# lets a record for a provider outside this set refuse nothing, instead of one
+# vendor's ceiling silently standing in for another's.
+DISPATCH_PROVIDERS: tuple[str, ...] = ("anthropic", "codex")
+
 _RECORD_STAGE = "provider-exhaustion-observed"
 _REFUSAL_STAGE = "provider-exhaustion-refusal"
 _HOLD_INTERVAL = timedelta(minutes=15)
@@ -38,8 +54,8 @@ class _Outcome(Protocol):
         ...
 
     @property
-    def provider_usage_limit(self) -> bool:
-        """Whether the completed Fabro run observed a provider limit."""
+    def provider_usage_limit_provider(self) -> str | None:
+        """The vendor whose ceiling the completed Fabro run observed, if any."""
         ...
 
 
@@ -57,8 +73,15 @@ def record_provider_exhaustion_if_observed(
     journal: _Journal,
     now_iso: str,
 ) -> None:
-    """Persist a short dispatcher-owned hold from a typed provider limit outcome."""
-    if not outcome.provider_usage_limit:
+    """Persist a short dispatcher-owned hold from a typed provider limit outcome.
+
+    The record is labelled with the vendor the RUN observed, never with a fixed
+    one. The outcome's provider field is the trigger as well as the label, so
+    there is no second condition that could disagree with it and no path on
+    which a record is written under a vendor nothing was measured against.
+    """
+    provider = outcome.provider_usage_limit_provider
+    if provider is None:
         return
     now = _parse_journal_iso(text=now_iso)
     expires_at = (now + _HOLD_INTERVAL).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -67,7 +90,7 @@ def record_provider_exhaustion_if_observed(
             "at": now_iso,
             "stage": _RECORD_STAGE,
             "work_item_id": outcome.work_item_id,
-            "provider": _PROVIDER_CODEX,
+            "provider": provider,
             "governing_condition": _GOVERNING_CONDITION,
             "record_expires_at": expires_at,
         }
@@ -80,6 +103,12 @@ def active_provider_exhaustion(
     journal_path: Path | None,
     now_iso: str,
 ) -> ProviderExhaustionRecord | None:
+    """The newest unexpired record for ONE named provider, if it holds one.
+
+    Selective by construction: a record naming another vendor is skipped, so a
+    provider this dispatch holds no record for is never refused on another
+    vendor's ceiling.
+    """
     now = _parse_journal_iso(text=now_iso)
     if journal_path is None or not journal_path.is_file():
         return None
@@ -93,6 +122,23 @@ def active_provider_exhaustion(
     return None
 
 
+def dispatch_provider_exhaustion(
+    *,
+    journal_path: Path | None,
+    now_iso: str,
+) -> ProviderExhaustionRecord | None:
+    """The unexpired record covering a provider this dispatch would spend."""
+    for provider in DISPATCH_PROVIDERS:
+        record = active_provider_exhaustion(
+            provider=provider,
+            journal_path=journal_path,
+            now_iso=now_iso,
+        )
+        if record is not None:
+            return record
+    return None
+
+
 def provider_exhaustion_refusal(
     *,
     work_item_id: str,
@@ -100,11 +146,14 @@ def provider_exhaustion_refusal(
     journal_path: Path | None,
     now_iso: str,
 ) -> DispatchOutcome | None:
-    record = active_provider_exhaustion(
-        provider=_PROVIDER_CODEX,
-        journal_path=journal_path,
-        now_iso=now_iso,
-    )
+    """Refuse this dispatch when a covered provider's ceiling is still held.
+
+    The refusal names the vendor from the RECORD — the one that actually
+    refused — so an operator reading the journal is told which allowance is
+    gone rather than a constant that may name a vendor nothing was observed
+    against.
+    """
+    record = dispatch_provider_exhaustion(journal_path=journal_path, now_iso=now_iso)
     if record is None:
         return None
     outcome = DispatchOutcome(

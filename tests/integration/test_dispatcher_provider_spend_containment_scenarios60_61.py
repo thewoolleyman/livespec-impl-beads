@@ -12,9 +12,9 @@ way a wired-up pass can.
 
 - Scenario 60 — an observed provider exhaustion refuses admission and expires:
   an unexpired record refuses without disposing the item, an expired one
-  refuses nothing, an uncovered provider is admitted, admission is decided
-  without reading credential material, and no refusal disposes of a
-  needs-human item.
+  refuses nothing, an uncovered provider is admitted, the record names the
+  vendor that actually refused, admission is decided without reading credential
+  material, and no refusal disposes of a needs-human item.
 - Scenario 61 — a dead implementer does not spend the second vendor: the
   workflow graph the Dispatcher actually materializes for the sandbox routes an
   unchanged tree to the terminal breaker before any review, review-fix or
@@ -35,9 +35,23 @@ from typing import Any
 import pytest
 from livespec_orchestrator_beads_fabro._beads_client import reset_fake_singleton
 from livespec_orchestrator_beads_fabro.commands import _dispatcher_loop, needs_attention
-from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
+from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
+    CommandResult,
+    DispatchOutcome,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_terminal import (
+    fabro_run_terminal_outcome,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_overlay import workflow_graph_path
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import DispatchPlan
+from livespec_orchestrator_beads_fabro.commands._dispatcher_provider_exhaustion import (
+    active_provider_exhaustion,
+)
+from livespec_orchestrator_beads_fabro.commands._fabro_port import FabroInspectResult
+from livespec_orchestrator_beads_fabro.commands._fabro_port_records import (
+    fabro_failure_detail_from_payload,
+    fabro_status_kind_from_payload,
+)
 from livespec_orchestrator_beads_fabro.commands.dispatcher import main
 from livespec_orchestrator_beads_fabro.commands.needs_attention import build_attention
 from livespec_orchestrator_beads_fabro.store import (
@@ -64,6 +78,17 @@ _DEAD_IMPLEMENTER_MARKER = "LIVESPEC_DEAD_IMPLEMENTER"
 
 _UNEXPIRED = "2099-01-01T00:00:00Z"
 _EXPIRED = "2000-01-01T00:00:00Z"
+
+# The two vendors' ceilings verbatim, reproduced from real `fabro inspect
+# --json` payloads on the hp factory (2026-08-22). They are the INPUT the
+# production classifier is fed here: nothing in this file writes a provider
+# NAME, because a hand-written one proves selectivity against a value no
+# production path can produce.
+_ACP_WRAPPER = "ACP protocol error"
+_ANTHROPIC_SPEND_LIMIT = (
+    "Internal error: You've hit your org's monthly spend limit "
+    "· ask your admin to raise it at claude.ai/settings/usage"
+)
 
 _FLEET_MANIFEST_TEXT = (
     "// .livespec-fleet-manifest.jsonc — canned test copy\n"
@@ -217,6 +242,45 @@ def _green_recording(calls: list[str]) -> Callable[..., DispatchOutcome]:
             merge_sha="feed01",
             detail="merged",
         )
+
+    return _run_dispatch
+
+
+def _ceiling_recording(*, cause: str) -> Callable[..., DispatchOutcome]:
+    """A `run_dispatch` stand-in whose terminal is built by PRODUCTION code.
+
+    Only the vendor's own sentence is supplied here. The classification, the
+    provider attribution and the terminal outcome all come from
+    `fabro_run_terminal_outcome` — the same function a live run's terminal goes
+    through — so the exhaustion record this drives is written from an input the
+    system genuinely produces rather than from a provider value hand-written
+    into a fixture.
+    """
+
+    def _run_dispatch(**kwargs: object) -> DispatchOutcome:
+        plan = kwargs["plan"]
+        assert isinstance(plan, DispatchPlan)
+        payload: list[object] = [
+            {
+                "status": {"kind": "failed"},
+                "failure": {"causes": [_ACP_WRAPPER, cause], "category": "transient_infra"},
+            }
+        ]
+        outcome = fabro_run_terminal_outcome(
+            outcome_type=DispatchOutcome,
+            plan=plan,
+            run_id="01CEILING",
+            inspect=FabroInspectResult(
+                command=CommandResult(exit_code=0, stdout="", stderr=""),
+                payload=payload,
+                status_kind=fabro_status_kind_from_payload(payload=payload),
+                failure=fabro_failure_detail_from_payload(payload=payload),
+            ),
+            exit_code=1,
+            stderr="",
+        )
+        assert outcome is not None
+        return outcome
 
     return _run_dispatch
 
@@ -385,14 +449,15 @@ def test_scenario60_a_provider_with_no_record_is_admitted_normally(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A record against another provider refuses nothing here."""
+    """Holding no unexpired record for a provider refuses nothing against it.
+
+    The Given of this scenario is an ABSENT record, so that is what is set up.
+    Its discriminator is the unexpired-record case above: a gate that refused
+    nothing at all would pass here and fail there.
+    """
     repo, workflow = _repo(tmp_path=tmp_path)
     item = _item(id="bd-ib-other-provider")
     append_work_item(path=_config(), item=item)
-    _seed_journal(
-        repo=repo,
-        records=[_exhaustion_record(provider="anthropic", expires_at=_UNEXPIRED)],
-    )
     calls: list[str] = []
     monkeypatch.setattr(_dispatcher_loop, "run_dispatch", _green_recording(calls))
 
@@ -401,6 +466,78 @@ def test_scenario60_a_provider_with_no_record_is_admitted_normally(
     assert exit_code == 0
     assert calls == [item.id]
     assert _stored()[item.id].status == "active"
+    journal = repo / _JOURNAL
+    for provider in ("anthropic", "codex"):
+        assert (
+            active_provider_exhaustion(
+                provider=provider,
+                journal_path=journal,
+                now_iso="2026-08-28T00:00:00Z",
+            )
+            is None
+        )
+
+
+def test_scenario60_the_record_names_the_vendor_that_actually_refused(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An observed Anthropic ceiling is recorded — and refuses — as Anthropic.
+
+    Detection is vendor-agnostic, so a fixed provider label recorded this
+    Anthropic ceiling under the Codex vendor: the next dispatch was then
+    refused citing a Codex exhaustion that never happened, while containment
+    held no record for the vendor that had actually refused.
+
+    Both halves are asserted from ONE production-written record: the vendor
+    that refused is covered, and the vendor that did not is not — the second is
+    what a fixed label cannot get right, whichever constant it picks.
+    """
+    repo, workflow = _repo(tmp_path=tmp_path)
+    observed = _item(id="bd-ib-anthropic-ceiling", rank="a1")
+    append_work_item(path=_config(), item=observed)
+    monkeypatch.setattr(
+        _dispatcher_loop,
+        "run_dispatch",
+        _ceiling_recording(cause=_ANTHROPIC_SPEND_LIMIT),
+    )
+
+    assert _loop(repo=repo, workflow=workflow) == 1
+
+    [record] = [
+        entry
+        for entry in _journal_records(repo=repo)
+        if entry.get("stage") == "provider-exhaustion-observed"
+    ]
+    assert record["provider"] == "anthropic"
+    assert record["governing_condition"] == _GOVERNING_CONDITION
+    journal = repo / _JOURNAL
+    now = record["at"]
+    assert active_provider_exhaustion(provider="codex", journal_path=journal, now_iso=now) is None
+    covered = active_provider_exhaustion(
+        provider="anthropic",
+        journal_path=journal,
+        now_iso=now,
+    )
+    assert covered is not None
+
+    # The next pass is refused, and the refusal names the vendor that refused.
+    held = _item(id="bd-ib-held-behind-anthropic", rank="a2")
+    append_work_item(path=_config(), item=held)
+    calls: list[str] = []
+    monkeypatch.setattr(_dispatcher_loop, "run_dispatch", _green_recording(calls))
+
+    assert _loop(repo=repo, workflow=workflow) == 1
+
+    assert calls == []
+    assert _stored()[held.id].status == "ready"
+    [refusal] = [
+        entry
+        for entry in _journal_records(repo=repo)
+        if entry.get("stage") == "provider-exhaustion-refusal"
+    ]
+    assert refusal["provider"] == "anthropic"
+    assert refusal["work_item_id"] == held.id
 
 
 def test_scenario60_admission_never_reads_provider_credential_material(

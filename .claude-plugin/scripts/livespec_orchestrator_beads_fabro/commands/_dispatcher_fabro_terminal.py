@@ -97,6 +97,9 @@ def fabro_run_terminal_outcome(
         fabro_failure_category=None if failure is None else failure.category,
         fabro_failure_signature=None if failure is None else failure.signature,
         provider_usage_limit=False if failure is None else failure.provider_usage_limit,
+        provider_usage_limit_provider=(
+            None if failure is None else failure.provider_usage_limit_provider
+        ),
         # The breaker's sentinel can arrive on EITHER channel and neither is
         # guaranteed: the raw `fabro run` stderr is tail-truncated, and the
         # structured cause chain need not carry a node's own output at all. Both
@@ -181,4 +184,7 @@ def _blocked_outcome(
         fabro_failure_category=None if failure is None else failure.category,
         fabro_failure_signature=None if failure is None else failure.signature,
         provider_usage_limit=False if failure is None else failure.provider_usage_limit,
+        provider_usage_limit_provider=(
+            None if failure is None else failure.provider_usage_limit_provider
+        ),
     )

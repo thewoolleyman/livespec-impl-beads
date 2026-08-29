@@ -54,6 +54,7 @@ from livespec_orchestrator_beads_fabro.commands import (
     _dispatcher_loop,
     _dispatcher_loop_command,
     _dispatcher_loop_selection,
+    _dispatcher_provider_exhaustion,
     _dispatcher_reflection,
     _dispatcher_run_commands,
     _dispatcher_self_update,
@@ -74,6 +75,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     DispatchOutcome,
     PollPolicy,
     run_dispatch,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_terminal import (
+    fabro_run_terminal_outcome,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_gh_refresh import (
     DEFAULT_SANDBOX_GH_REFRESH_ROOT,
@@ -136,7 +140,15 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_spec_commitments imp
     Obligation,
     collect_obligations_and_supersedes,
 )
-from livespec_orchestrator_beads_fabro.commands._fabro_port import FabroPort, FabroTarget
+from livespec_orchestrator_beads_fabro.commands._fabro_port import (
+    FabroInspectResult,
+    FabroPort,
+    FabroTarget,
+)
+from livespec_orchestrator_beads_fabro.commands._fabro_port_records import (
+    fabro_failure_detail_from_payload,
+    fabro_status_kind_from_payload,
+)
 from livespec_orchestrator_beads_fabro.commands._node_timeouts import (
     default_node_timeouts,
     derive_fabro_timeout_seconds,
@@ -3631,6 +3643,59 @@ def test_admission_time_lock_protects_queued_batch_items(tmp_path: Path) -> None
     assert "dispatch-claim-abandoned" not in {record["stage"] for record in records}
 
 
+# The two vendors' ceilings verbatim, from real `fabro inspect --json` payloads
+# measured on the hp factory (2026-08-22). These are the INPUT the production
+# classifier is fed; no test below writes a provider NAME into an outcome.
+_ACP_WRAPPER = "ACP protocol error"
+_CODEX_CEILING = (
+    "You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage "
+    "to purchase more credits or try again at Aug 27th, 2026 1:20 AM."
+)
+_ANTHROPIC_CEILING = (
+    "Internal error: You've hit your org's monthly spend limit "
+    "· ask your admin to raise it at claude.ai/settings/usage"
+)
+
+
+def _ceiling_outcome(*, work_item_id: str, cause: str) -> DispatchOutcome:
+    """A terminal outcome for an observed ceiling, built by PRODUCTION code.
+
+    The vendor is classified from the payload by
+    `fabro_run_terminal_outcome`, exactly as it is for a live run, so the
+    exhaustion record this drives is written from an input the system genuinely
+    produces rather than from a provider value hand-written here.
+    """
+    payload: list[object] = [
+        {
+            "status": {"kind": "failed"},
+            "failure": {"causes": [_ACP_WRAPPER, cause], "category": "transient_infra"},
+        }
+    ]
+    outcome = fabro_run_terminal_outcome(
+        outcome_type=DispatchOutcome,
+        plan=build_plan(
+            repo=Path("/nonexistent"),
+            work_item_id=work_item_id,
+            workflow_toml=Path("/nonexistent/wf.toml"),
+            goal_file=Path("/nonexistent/goal.md"),
+            fabro_bin="fabro",
+            janitor=None,
+            janitor_checkout=Path("/nonexistent/janitor-co"),
+        ),
+        run_id="01LIMIT",
+        inspect=FabroInspectResult(
+            command=CommandResult(exit_code=0, stdout="", stderr=""),
+            payload=payload,
+            status_kind=fabro_status_kind_from_payload(payload=payload),
+            failure=fabro_failure_detail_from_payload(payload=payload),
+        ),
+        exit_code=1,
+        stderr="",
+    )
+    assert outcome is not None
+    return outcome
+
+
 def test_provider_usage_limit_refuses_matching_provider_before_admission(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -3733,6 +3798,12 @@ def test_provider_usage_limit_gate_is_provider_selective(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """A record covers the vendor that refused and no other.
+
+    The record is WRITTEN by the production path from the measured Anthropic
+    ceiling, so the provider under test is one the system genuinely produces.
+    Hand-writing it proved selectivity against a value nothing could emit.
+    """
     repo, _workflow = _repo_with_workflow(tmp_path=tmp_path)
     ready = _item(id="bd-ready-uncovered-provider", status="ready", rank="a1")
     append_work_item(path=_config(), item=ready)
@@ -3742,15 +3813,38 @@ def test_provider_usage_limit_gate_is_provider_selective(
         encoding="utf-8",
     )
     journal = JournalFile(path=repo / "journal.jsonl")
-    journal.append(
-        record={
-            "stage": "provider-exhaustion-observed",
-            "provider": "anthropic",
-            "governing_condition": "provider_usage_limit",
-            "record_expires_at": "2026-08-23T10:15:00Z",
-            "work_item_id": "bd-earlier",
-        }
+    monkeypatch.setattr(
+        _dispatcher_loop_selection,
+        "utc_now_iso",
+        lambda: "2026-08-23T10:00:00Z",
+        raising=False,
     )
+    _dispatcher_loop_selection.post_run_dispositions(
+        args=argparse.Namespace(close_on_merge=False),
+        repo=repo,
+        item=_item(id="bd-observed-anthropic", status="active", assignee="fabro"),
+        outcome=_ceiling_outcome(work_item_id="bd-observed-anthropic", cause=_ANTHROPIC_CEILING),
+        journal=journal,
+        wall_clock_seconds=42.0,
+        dispatch_context_size=100,
+        token_supplier=lambda: "token",
+    )
+
+    covered = _dispatcher_provider_exhaustion.active_provider_exhaustion(
+        provider="anthropic",
+        journal_path=journal.path,
+        now_iso="2026-08-23T10:10:00Z",
+    )
+    uncovered = _dispatcher_provider_exhaustion.active_provider_exhaustion(
+        provider="codex",
+        journal_path=journal.path,
+        now_iso="2026-08-23T10:10:00Z",
+    )
+
+    # The vendor that refused is covered; the vendor that did not holds nothing.
+    assert covered is not None
+    assert covered.provider == "anthropic"
+    assert uncovered is None
     monkeypatch.setattr(
         _dispatcher_admission,
         "utc_now_iso",
@@ -3766,8 +3860,10 @@ def test_provider_usage_limit_gate_is_provider_selective(
         enforce_cap=True,
     )
 
-    assert [item.id for item in admission.admitted] == [ready.id]
-    assert admission.refused == []
+    # And the dispatch is refused against THAT vendor, not a fixed one.
+    assert admission.admitted == []
+    assert [outcome.stage for outcome in admission.refused] == ["provider-exhaustion"]
+    assert "provider=anthropic" in admission.refused[0].detail
 
 
 def test_provider_usage_limit_outcome_records_dispatcher_owned_expiry(
@@ -3783,22 +3879,7 @@ def test_provider_usage_limit_outcome_records_dispatcher_owned_expiry(
         lambda: "2026-08-23T10:00:00Z",
         raising=False,
     )
-    outcome = DispatchOutcome(
-        work_item_id=item.id,
-        status="blocked",
-        stage="fabro-run",
-        pr_number=None,
-        merge_sha=None,
-        detail="blocked on human gate",
-        fabro_run_id="01LIMIT",
-        fabro_failure_cause=(
-            "You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage "
-            "to purchase more credits or try again at Aug 27th, 2026 1:20 AM."
-        ),
-        fabro_failure_category="deterministic",
-        fabro_failure_signature="sig",
-        provider_usage_limit=True,
-    )
+    outcome = _ceiling_outcome(work_item_id=item.id, cause=_CODEX_CEILING)
 
     _dispatcher_loop_selection.post_run_dispositions(
         args=argparse.Namespace(close_on_merge=False),

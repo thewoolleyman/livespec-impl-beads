@@ -10,7 +10,7 @@ from livespec_runtime.attention_item import AttentionItem, Handoff, SourceRef
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import utc_now_iso
 from livespec_orchestrator_beads_fabro.commands._dispatcher_provider_exhaustion import (
-    active_provider_exhaustion,
+    dispatch_provider_exhaustion,
 )
 from livespec_orchestrator_beads_fabro.commands._needs_attention_handoffs import (
     dispatcher_loop_command,
@@ -74,8 +74,7 @@ def provider_exhaustion_items(
     repo: str,
     items: list[WorkItem],
 ) -> list[AttentionItem]:
-    record = active_provider_exhaustion(
-        provider="codex",
+    record = dispatch_provider_exhaustion(
         journal_path=project_root / _DISPATCHER_JOURNAL_PATH,
         now_iso=utc_now_iso(),
     )
@@ -95,8 +94,7 @@ def provider_exhaustion_items(
 
 def provider_exhaustion_wait_active(*, project_root: Path) -> bool:
     return (
-        active_provider_exhaustion(
-            provider="codex",
+        dispatch_provider_exhaustion(
             journal_path=project_root / _DISPATCHER_JOURNAL_PATH,
             now_iso=utc_now_iso(),
         )
@@ -135,8 +133,7 @@ def _provider_exhaustion_item(
 def _provider_exhaustion_summary(*, project_root: Path, work_item: str) -> str:
     record = cast(
         "Any",
-        active_provider_exhaustion(
-            provider="codex",
+        dispatch_provider_exhaustion(
             journal_path=project_root / _DISPATCHER_JOURNAL_PATH,
             now_iso=utc_now_iso(),
         ),

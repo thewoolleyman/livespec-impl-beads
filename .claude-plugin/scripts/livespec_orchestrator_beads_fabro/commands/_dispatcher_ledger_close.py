@@ -198,6 +198,7 @@ _OPTIONAL_OUTCOME_FIELDS: tuple[str, ...] = (
     "fabro_failure_category",
     "fabro_failure_signature",
     "missing_integration_point",
+    "provider_usage_limit_provider",
     "remedy",
     "step",
 )

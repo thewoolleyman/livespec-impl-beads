@@ -79,6 +79,59 @@ def test_anthropic_monthly_spend_limit_is_also_permanent() -> None:
     assert detail.category == "deterministic"
 
 
+def test_the_anthropic_ceiling_names_the_anthropic_provider() -> None:
+    """The vendor is READ OFF the observed cause, not assumed.
+
+    Detection is deliberately vendor-agnostic — the typed flag is set for
+    either vendor — so a fixed provider label would record this Anthropic
+    ceiling under the Codex vendor and hold no record for the one that
+    actually refused.
+    """
+    detail = fabro_failure_detail_from_payload(
+        payload=_payload(causes=[_ACP_WRAPPER, _ANTHROPIC_SPEND_LIMIT])
+    )
+    assert detail is not None
+    assert detail.provider_usage_limit_provider == "anthropic"
+
+
+def test_the_codex_ceiling_names_the_codex_provider() -> None:
+    """CONTROL for the case above: the Codex form still classifies as Codex.
+
+    Without it, a classifier that answered "anthropic" unconditionally would
+    pass the Anthropic case, which is the same fixed-constant defect one
+    vendor to the left.
+    """
+    detail = fabro_failure_detail_from_payload(
+        payload=_payload(causes=[_ACP_WRAPPER, _CODEX_USAGE_LIMIT])
+    )
+    assert detail is not None
+    assert detail.provider_usage_limit_provider == "codex"
+
+
+def test_an_ordinary_transient_failure_names_no_provider() -> None:
+    """A failure that is not a ceiling attributes no vendor at all."""
+    detail = fabro_failure_detail_from_payload(
+        payload=_payload(causes=[_ACP_WRAPPER, "connection reset by peer"])
+    )
+    assert detail is not None
+    assert detail.provider_usage_limit_provider is None
+
+
+def test_a_bare_usage_limit_sentence_falls_back_to_its_hint_vendor() -> None:
+    """A ceiling naming no vendor is attributed by the hint that matched it.
+
+    The measured Anthropic form carries `claude.ai` and the measured Codex
+    form carries `chatgpt.com/codex`, so the marker pass answers both. A
+    provider that ships neither still has to land somewhere, and the hint
+    family it matched is the only evidence left.
+    """
+    detail = fabro_failure_detail_from_payload(
+        payload=_payload(causes=[_ACP_WRAPPER, "Internal error: monthly spend limit reached"])
+    )
+    assert detail is not None
+    assert detail.provider_usage_limit_provider == "anthropic"
+
+
 def test_an_ordinary_transient_failure_is_left_alone() -> None:
     """CONTROL: this assertion fails if the reclassification is applied blindly.
 
