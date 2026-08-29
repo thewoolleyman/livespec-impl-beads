@@ -1,6 +1,16 @@
 ### Project ignores
 tmp/
 
+# The Fabro Enemy Unit Test comparison artifact. `just fabro-enemy-compare`
+# writes this on EVERY run — it is compare.py's default `--artifact`, and the
+# recipe passes no override — so the sanctioned operator entry point used to
+# leave the working tree dirty every time it was used. It is a regenerable
+# operator report, never durable state, and this repo's mutation protocol
+# treats a dirty checkout as a workflow failure (several gates inspect the
+# WORKING TREE, not the staged set). Kept beside the suite that produced it
+# rather than relocated to tmp/, so the artifact stays discoverable.
+/fabro-enemy-unit-tests/comparison.md
+
 # Worktree-discipline pack — installed from the livespec-dev-tooling package
 # (the single canonical source) via `just install-worktree-pack` / bootstrap,
 # NOT tracked here. The from-package installer writes byte-identical copies

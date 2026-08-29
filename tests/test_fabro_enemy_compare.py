@@ -378,6 +378,62 @@ def test_comparison_harness_exits_non_zero_for_a_genuinely_failing_testcase(
     assert "- Total deltas: 1" in artifact
 
 
+def test_comparison_harness_writes_a_git_ignored_artifact_when_no_artifact_flag_is_given(
+    *,
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    """The DEFAULT `--artifact` is the path `just fabro-enemy-compare` actually writes.
+
+    Every other case in this file passes an explicit `--artifact` under `tmp_path`,
+    so the default was this module's one uncovered path -- which is how it shipped
+    pointing at a path inside the repo that `.gitignore` did not cover, leaving the
+    working tree dirty after the sanctioned entry point ran. The two halves are
+    pinned in ONE case deliberately: asserting only that a default exists would not
+    catch a default that is not ignored, and asserting only that
+    `fabro-enemy-unit-tests/comparison.md` is ignored would not catch a default that
+    moved off it. `git check-ignore` is the behaviour test -- a grep of `.gitignore`
+    for the literal would still pass if a later negation pattern un-ignored it.
+    """
+    module_path = Path("fabro-enemy-unit-tests/compare.py")
+
+    assert module_path.is_file()
+    compare = _load_compare_module(module_path=module_path)
+    default_artifact = Path("fabro-enemy-unit-tests/comparison.md")
+    ignored = subprocess.run(
+        args=["git", "check-ignore", "--quiet", str(default_artifact)],
+        cwd=Path(__file__).resolve().parents[1],
+        check=False,
+    )
+
+    assert ignored.returncode == 0, f"{default_artifact} is not git-ignored"
+
+    (tmp_path / default_artifact.parent).mkdir()
+    (tmp_path / default_artifact.parent / "test_tier0_fabro.py").write_text("")
+    monkeypatch.chdir(tmp_path)
+
+    def fake_run(
+        *, args: list[str], env: dict[str, str], check: bool
+    ) -> subprocess.CompletedProcess[str]:
+        assert check is False
+        assert env["FABRO_EUT_BIN"] == "fabro"
+        _write_junit(
+            path=_junit_path(args=args),
+            cases={"test_tier0_fabro.py::test_version": "passed"},
+        )
+        return subprocess.CompletedProcess(args=args, returncode=0)
+
+    monkeypatch.setattr(compare.subprocess, "run", fake_run)
+
+    exit_code = compare.main(argv=[])
+
+    assert exit_code == 0
+    artifact = (tmp_path / default_artifact).read_text()
+    assert "# Fabro Enemy Unit Test Comparison" in artifact
+    assert "| `test_tier0_fabro.py::test_version` | passed | passed | unchanged |" in artifact
+    assert "- Total deltas: 0" in artifact
+
+
 def _load_compare_module(*, module_path: Path) -> ModuleType:
     spec = importlib.util.spec_from_file_location("fabro_enemy_compare", module_path)
     assert spec is not None
