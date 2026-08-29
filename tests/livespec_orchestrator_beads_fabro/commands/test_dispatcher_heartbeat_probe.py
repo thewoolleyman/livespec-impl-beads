@@ -3,8 +3,8 @@
 The watchdog's DEFERRED-PRIMARY liveness signal: a `LivenessProbe` that
 reads the metrics-heartbeat (last metric-emit timestamp for the
 run/session) written by the 29f.7 `HeartbeatSink` to a journal-sibling
-JSON file, feeding the EXISTING `decide_stall`. The wall-clock /
-`fabro inspect` backstop oyg already shipped STAYS as the permanent
+JSON file, feeding the EXISTING `decide_stall`. The wall-clock
+`fabro events` backstop oyg already shipped STAYS as the permanent
 defense-in-depth layer: if the observability pipeline has an outage, the
 watchdog degrades to coarse event-stream detection, NEVER to NO
 detection (design §4.4).
@@ -297,7 +297,7 @@ class _RecordingJournal:
 
 @dataclass(kw_only=True)
 class _ScriptedFabroRunner:
-    """Scripts fabro run/ps/events/inspect/rm; `events_jsons` per-poll feed.
+    """Scripts fabro run/ps/events/rm; `events_jsons` per-poll feed.
 
     `fabro run` BLOCKS on `run_done` so the foreground watch loop runs;
     `fabro rm` sets `run_done`. The wall-clock event reading is whatever
@@ -322,8 +322,6 @@ class _ScriptedFabroRunner:
             index = min(self._poll, len(self.events_jsons) - 1)
             self._poll += 1
             return CommandResult(exit_code=0, stdout=self.events_jsons[index], stderr="")
-        if verb == "inspect":
-            return CommandResult(exit_code=0, stdout="{}", stderr="")
         if verb == "rm":
             self.rm_calls.append(argv[-1])
             self.run_done.set()
@@ -339,7 +337,7 @@ def _advancing_clock() -> object:
 
 def test_scripted_runner_rejects_unknown_verb(tmp_path: Path) -> None:
     # Exercise the fake's defensive fallback (the launcher only ever issues
-    # run/ps/events/inspect/rm).
+    # run/ps/events/rm).
     runner = _ScriptedFabroRunner(events_jsons=["[]"])
     out = runner.run(argv=["fabro", "bogus"], cwd=tmp_path, timeout_seconds=1.0)
     assert out.exit_code == 1

@@ -25,7 +25,7 @@ This module adds two seams, both feeding the EXISTING `decide_stall`
   NEVER crashes the watchdog — it degrades to no signal.
 
 * `LayeredLivenessProbe` — composes the heartbeat probe as the
-  deferred-PRIMARY with the coarse wall-clock / `fabro inspect` probe as
+  deferred-PRIMARY with the coarse wall-clock `fabro events` probe as
   the PERMANENT fallback. It samples the primary first; when the primary
   yields a real signal that wins (the finer heartbeat reading); when the
   primary is "no signal" (pipeline outage / not-yet-started / malformed)
@@ -128,7 +128,7 @@ class LayeredLivenessProbe:
     yields a real signal (`last_event_epoch is not None`) that finer
     reading wins. When the primary is "no signal" (a pipeline outage, a
     not-yet-started run, or a malformed heartbeat file) it falls THROUGH
-    to the coarse `fallback` (the wall-clock / `fabro inspect` probe) — so
+    to the coarse `fallback` (the wall-clock `fabro events` probe) — so
     an observability-pipeline outage degrades the watchdog to coarse
     event-stream detection, NEVER to NO detection. Either reading feeds
     the SAME `decide_stall` unchanged; this composition only chooses which

@@ -27,17 +27,20 @@ def test_inspect_record_still_lacks_updated_at(
     config: _FabroTier0Config,
     port: FabroPort,
 ) -> None:
-    """`_dispatcher_watchdog.py` reads a field the pinned build never emits.
+    """The pinned build never emits the field the watchdog fallback once read.
 
-    The watchdog's fallback liveness source is `updated_at` from
-    `fabro inspect --json`, but no real payload carries it, so that fallback is
-    dead code in production. Measured 2026-08-20 against fabro 0.254.0: a real
-    inspect record carries `checkpoint`, `conclusion`, `parent_id`, `run_id`,
-    `run_spec`, `sandbox`, `start_record`, and `status` -- and nothing else.
+    `_dispatcher_watchdog.py` used to fall back to `updated_at` from
+    `fabro inspect --json`, but no real payload carries it, so that fallback
+    was dead code in production. Measured 2026-08-20 against fabro 0.254.0: a
+    real inspect record carries `checkpoint`, `conclusion`, `parent_id`,
+    `run_id`, `run_spec`, `sandbox`, `start_record`, and `status` -- and
+    nothing else. The fallback has since been REMOVED rather than repointed
+    (bd-ib-tec5sz); `fabro events` is the watchdog's sole coarse source.
 
     This asserts the ABSENCE deliberately, so that the day a future fabro build
-    starts emitting `updated_at` this test fails loudly and the watchdog
-    fallback is revived on purpose rather than by accident.
+    starts emitting `updated_at` this test fails loudly and any decision to
+    reintroduce an inspect-based fallback is taken on purpose rather than by
+    accident.
     """
     run_id = config.completed_run_id or _completed_run_id(port=port)
     inspect = port.inspect(run_id=run_id, timeout_seconds=TIMEOUT_SECONDS)
