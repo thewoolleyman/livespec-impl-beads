@@ -14,12 +14,19 @@ The load-bearing fail-safety property — a probe FAILURE ("no signal") is
 NOT a stall, so a flaky probe can never kill a healthy run — is proven by
 `test_probe_failure_is_not_a_stall` and the no-signal `decide_stall`
 cases.
+
+The `fabro events` stream is the SOLE liveness source: the former
+`fabro inspect` / `updated_at` fallback is removed (bd-ib-tec5sz), which
+`test_wall_clock_probe_reads_only_the_event_stream_never_fabro_inspect`
+pins from both ends — the probe never issues `fabro inspect`, and
+`parse_last_event_epoch` no longer accepts an inspect payload.
 """
 
 from __future__ import annotations
 
 import threading
 from dataclasses import dataclass, field
+from inspect import signature
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -154,21 +161,13 @@ def test_parse_last_event_epoch_accepts_envelope_and_numeric_and_alt_keys() -> N
     assert numeric == 1750000000.0
 
 
-def test_parse_last_event_epoch_falls_back_to_inspect_updated_at() -> None:
-    # Empty/unparseable events but inspect still reports a fresh update.
-    epoch = parse_last_event_epoch(
-        events_json="[]",
-        inspect_json='{"updated_at": "2026-06-13T09:00:00Z"}',
-    )
-    assert epoch is not None
-
-
 def test_parse_last_event_epoch_returns_none_on_no_signal() -> None:
     # A transient probe error / empty shapes land here — the fail-safe
-    # "no signal" result the caller must NOT treat as a stall.
-    assert parse_last_event_epoch(events_json="not json", inspect_json="") is None
-    assert parse_last_event_epoch(events_json="[]", inspect_json="{}") is None
-    assert parse_last_event_epoch(events_json='[{"noskey": 1}]', inspect_json="garbage") is None
+    # "no signal" result the caller must NOT treat as a stall. With the
+    # `updated_at` fallback removed there is no second source to consult.
+    assert parse_last_event_epoch(events_json="not json") is None
+    assert parse_last_event_epoch(events_json="[]") is None
+    assert parse_last_event_epoch(events_json='[{"noskey": 1}]') is None
 
 
 def test_parse_last_event_epoch_skips_unusable_event_shapes() -> None:
@@ -180,28 +179,14 @@ def test_parse_last_event_epoch_skips_unusable_event_shapes() -> None:
 
 
 def test_parse_last_event_epoch_envelope_with_non_list_events_is_no_signal() -> None:
-    # `{"events": <not a list>}` -> no usable events -> falls through.
-    assert parse_last_event_epoch(events_json='{"events": "nope"}', inspect_json="{}") is None
+    # `{"events": <not a list>}` -> no usable events -> no signal.
+    assert parse_last_event_epoch(events_json='{"events": "nope"}') is None
 
 
 def test_parse_last_event_epoch_top_level_scalar_is_no_signal() -> None:
     # A bare JSON scalar (neither array nor object) -> no usable events.
-    assert parse_last_event_epoch(events_json="42", inspect_json="{}") is None
-    assert parse_last_event_epoch(events_json='"a string"', inspect_json="{}") is None
-
-
-def test_parse_last_event_epoch_inspect_numeric_updated_at() -> None:
-    assert parse_last_event_epoch(events_json="[]", inspect_json='{"updated_at": 1750000200}') == (
-        1750000200.0
-    )
-
-
-def test_parse_last_event_epoch_inspect_non_timestamp_updated_at_is_no_signal() -> None:
-    # A boolean (which is an int subclass) and a non-scalar updated_at are
-    # both rejected -> no signal.
-    assert parse_last_event_epoch(events_json="[]", inspect_json='{"updated_at": true}') is None
-    assert parse_last_event_epoch(events_json="[]", inspect_json='{"updated_at": [1]}') is None
-    assert parse_last_event_epoch(events_json="[]", inspect_json="[1, 2, 3]") is None
+    assert parse_last_event_epoch(events_json="42") is None
+    assert parse_last_event_epoch(events_json='"a string"') is None
 
 
 def test_parse_last_event_epoch_handles_naive_and_offset_timestamps() -> None:
@@ -495,7 +480,7 @@ _PS_RUNNING = (
 
 @dataclass(kw_only=True)
 class _ScriptedFabroRunner:
-    """A CommandRunner scripting fabro's run/ps/events/inspect/rm subprocesses.
+    """A CommandRunner scripting fabro's run/ps/events/rm subprocesses.
 
     `fabro run` BLOCKS on `run_done` so the background thread stays alive
     while the foreground watch loop runs (mirroring a real long run);
@@ -504,7 +489,9 @@ class _ScriptedFabroRunner:
     the watch loop reads — a frozen value across polls models a stall, an
     advancing value models progress. `ps_exit` / `events_exit` flip a
     probe to a non-zero error so the no-signal / probe-failure branches
-    are exercised. NEVER launches a real process.
+    are exercised. Every verb the launcher issues is recorded in `verbs`,
+    so a test can assert `fabro inspect` is NEVER issued for liveness.
+    NEVER launches a real process.
     """
 
     events_jsons: list[str]
@@ -513,16 +500,17 @@ class _ScriptedFabroRunner:
     run_done: threading.Event = field(default_factory=threading.Event)
     run_returned: threading.Event = field(default_factory=threading.Event)
     rm_calls: list[str] = field(default_factory=list)
+    verbs: list[str] = field(default_factory=list)
     _poll: int = 0
 
     def run(self, *, argv: list[str], cwd: Path, timeout_seconds: float) -> CommandResult:
         _ = (cwd, timeout_seconds)
         verb = argv[1] if len(argv) > 1 else ""
+        self.verbs.append(verb)
         dispatch = {
             "run": self._run,
             "ps": self._ps,
             "events": self._events,
-            "inspect": lambda: CommandResult(exit_code=0, stdout="{}", stderr=""),
             "rm": lambda: self._rm(run_id=argv[-1]),
         }
         handler = dispatch.get(verb)
@@ -561,10 +549,30 @@ def _advancing_clock() -> object:
 
 def test_scripted_runner_rejects_unknown_verb(tmp_path: Path) -> None:
     # Exercise the fake's defensive fallback (the launcher only ever
-    # issues run/ps/events/inspect/rm).
+    # issues run/ps/events/rm).
     runner = _ScriptedFabroRunner(events_jsons=["[]"])
     out = runner.run(argv=["fabro", "bogus"], cwd=tmp_path, timeout_seconds=1.0)
     assert out.exit_code == 1
+
+
+def test_wall_clock_probe_reads_only_the_event_stream_never_fabro_inspect(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # bd-ib-tec5sz: the `updated_at` fallback is REMOVED, not repointed.
+    # The pinned fabro build never emits that field, and the only
+    # running-run candidate (`checkpoint.timestamp`) advances per NODE
+    # rather than per event, so it cannot be a wall-clock liveness signal.
+    # Pinned from both ends: the production probe issues `fabro events`
+    # and NEVER `fabro inspect`, and the parser accepts no inspect payload.
+    monkeypatch.setenv(STALL_SECONDS_ENV_VAR, "1000")
+    frozen = '[{"timestamp": "2026-06-13T08:00:00Z"}]'
+    runner = _ScriptedFabroRunner(events_jsons=[frozen])
+    launcher = WatchedFabroLauncher(sleep=lambda _s: None, clock=_advancing_clock())
+    result = launcher.launch(plan=_plan(repo=tmp_path), runner=runner, journal=_RecordingJournal())
+    assert result.stalled_run_id == "01RUN"
+    assert "events" in runner.verbs
+    assert "inspect" not in runner.verbs
+    assert "inspect_json" not in signature(parse_last_event_epoch).parameters
 
 
 def test_watched_launcher_cancels_a_confirmed_stall(
@@ -714,10 +722,10 @@ def test_watched_launcher_continues_when_discovered_run_item_is_absent(
 def test_watched_launcher_events_probe_error_is_no_signal_never_cancels(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    # The run id resolves (ps ok) but `fabro events` keeps erroring and
-    # `fabro inspect` returns "{}" -> no usable timestamp -> no-signal ->
-    # never stalls. Proves an events-probe outage degrades to no
-    # detection, not a false kill.
+    # The run id resolves (ps ok) but `fabro events` keeps erroring, and
+    # there is no second source to consult -> no usable timestamp ->
+    # no-signal -> never stalls. Proves an events-probe outage degrades to
+    # no detection, not a false kill.
     monkeypatch.setenv(STALL_SECONDS_ENV_VAR, "1000")
     runner = _ScriptedFabroRunner(events_jsons=["whatever"], events_exit=1)
     polls = {"n": 0}

@@ -72,17 +72,18 @@ class _WallClockEventProbe:
     def sample(self, *, observed_at: float) -> LivenessSample:
         if self.run_id is None:
             return LivenessSample(last_event_epoch=None, observed_at=observed_at)
+        # `fabro events` is the SOLE source: the `fabro inspect` /
+        # `updated_at` fallback this probe used to also read is removed
+        # (bd-ib-tec5sz — the pinned build never emits that field). Not
+        # probing inspect at all is what keeps a `fabro events` outage a
+        # "no signal", rather than a node-resolution clock that would
+        # read a healthy long node as a stall.
         events = self.port.events(
             run_id=self.run_id,
             timeout_seconds=_FABRO_PROBE_TIMEOUT_SECONDS,
         )
-        inspect = self.port.inspect(
-            run_id=self.run_id,
-            timeout_seconds=_FABRO_PROBE_TIMEOUT_SECONDS,
-        )
         events_json = events.command.stdout if events.command.exit_code == 0 else ""
-        inspect_json = inspect.command.stdout if inspect.command.exit_code == 0 else ""
-        epoch = parse_last_event_epoch(events_json=events_json, inspect_json=inspect_json)
+        epoch = parse_last_event_epoch(events_json=events_json)
         return LivenessSample(last_event_epoch=epoch, observed_at=observed_at)
 
 

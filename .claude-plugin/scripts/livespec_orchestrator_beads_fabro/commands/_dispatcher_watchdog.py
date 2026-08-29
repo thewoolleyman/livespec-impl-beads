@@ -12,13 +12,14 @@ not depend on any Fabro-internal machinery.
 
 This module is the COARSE WALL-CLOCK BACKSTOP. Its liveness signal is the
 last-event timestamp from the Fabro event stream (`fabro events <id>
---json`) with the run's `updated_at` (`fabro inspect <id> --json`) as a
-fallback: in the 7us.6 hang the event stream flatlined, so a
-last-event-timestamp that stops advancing for a sustained window IS a
-valid coarse liveness signal for this deadlock class. When no new event
+--json`) and NOTHING ELSE: in the 7us.6 hang the event stream flatlined,
+so a last-event-timestamp that stops advancing for a sustained window IS
+a valid coarse liveness signal for this deadlock class. When no new event
 arrives for the full stall window, the run is `fabro rm -f`-ed and the
 dispatch reports a distinct `stalled-no-progress` outcome (fail-CLOSED —
-never silently treated as success).
+never silently treated as success). There is deliberately NO `fabro
+inspect` fallback; the REMOVED-FALLBACK note on `parse_last_event_epoch`
+records why, and what was measured.
 
 DEFERRED PRIMARY (extension point — DO NOT remove this backstop when it
 lands): the eventual primary liveness signal is the 29f OpenTelemetry
@@ -32,12 +33,12 @@ SAME `decide_stall` logic; this wall-clock layer STAYS as the permanent
 defense-in-depth backstop, exactly so that an observability-pipeline
 outage degrades the watchdog to coarse detection — never to NO detection.
 
-Fail-safety (load-bearing): a probe FAILURE — `fabro events` / `fabro
-inspect` transiently errors or is unreachable — is "no signal", NOT a
-stall. `decide_stall` only confirms a stall on the full window of
-genuinely-absent events (a last-event timestamp that is present and
-unchanging across the whole window). A run with no signal at all keeps
-waiting; a flaky probe can never kill a healthy run. The coarse backstop
+Fail-safety (load-bearing): a probe FAILURE — `fabro events` transiently
+errors or is unreachable — is "no signal", NOT a stall. `decide_stall`
+only confirms a stall on the full window of genuinely-absent events (a
+last-event timestamp that is present and unchanging across the whole
+window). A run with no signal at all keeps waiting; a flaky probe can
+never kill a healthy run. The coarse backstop
 COEXISTS with bn4's 15h `_FABRO_TIMEOUT_SECONDS` subprocess ceiling
 (_dispatcher_engine) — both stay, defense in depth.
 
@@ -117,8 +118,8 @@ class LivenessSample:
 
     `last_event_epoch` is the most-recent event timestamp converted to
     epoch seconds, or None when the probe yielded NO usable signal (the
-    `fabro events` / `fabro inspect` call errored, returned an unparseable
-    shape, or reported no events yet). `observed_at` is the wall-clock
+    `fabro events` call errored, returned an unparseable shape, or
+    reported no events yet). `observed_at` is the wall-clock
     epoch the foreground watchdog took the sample (from the injected
     clock). A None `last_event_epoch` is the explicit fail-safe "no
     signal" marker `decide_stall` must NOT treat as a stall.
@@ -131,8 +132,8 @@ class LivenessSample:
 class LivenessProbe(Protocol):
     """The single liveness-signal seam the watchdog samples.
 
-    Production reads the Fabro event stream (`fabro events <id> --json`,
-    `fabro inspect` fallback) via the engine's `CommandRunner`. The
+    Production reads the Fabro event stream (`fabro events <id> --json`)
+    via the engine's `CommandRunner`. The
     DEFERRED 29f metrics-heartbeat primary will implement this SAME
     Protocol with a finer signal and feed the SAME `decide_stall`; this
     wall-clock implementation then stays as the coarse backstop. The
@@ -186,26 +187,56 @@ def resolve_stall_seconds(*, environ: dict[str, str] | None = None) -> float:
     return value
 
 
-def parse_last_event_epoch(*, events_json: str, inspect_json: str = "") -> float | None:
+def parse_last_event_epoch(*, events_json: str) -> float | None:
     """Extract the most-recent liveness timestamp as epoch seconds; None on no signal.
 
-    Primary source: `fabro events <id> --json` — the maximum timestamp
+    Sole source: `fabro events <id> --json` — the maximum timestamp
     across all events (events may arrive out of order; the watchdog cares
     about the MOST RECENT activity, so it takes the max, never the last).
-    Fallback source: the run's `updated_at` from `fabro inspect <id>
-    --json` when the event stream is empty or unparseable but inspect
-    still reports a fresh update. Returns None when NEITHER source yields
-    a usable timestamp — the explicit fail-safe "no signal" result the
-    caller must NOT treat as a stall (a transient probe error lands here
-    and keeps the run alive).
+    Returns None when that source yields no usable timestamp — the
+    explicit fail-safe "no signal" result the caller must NOT treat as a
+    stall (a transient probe error lands here and keeps the run alive).
 
-    Pure function of the two JSON blobs; the side-effecting `fabro events`
-    / `fabro inspect` calls happen in the engine through its CommandRunner.
+    Pure function of the events JSON blob; the side-effecting `fabro
+    events` call happens in the engine through its CommandRunner.
     """
-    from_events = _max_event_epoch(events_json=events_json)
-    if from_events is not None:
-        return from_events
-    return _inspect_updated_epoch(inspect_json=inspect_json)
+    # REMOVED FALLBACK (bd-ib-tec5sz) — REMOVED, not repointed, and this
+    # note records which, and why, so it is not "revived" by a future
+    # reader who reads the absence as an oversight.
+    #
+    # This function used to fall back to `updated_at` from `fabro inspect
+    # <id> --json` when the event stream yielded nothing. The PINNED
+    # fabro build (0.254.0, 8de6611) NEVER EMITS `updated_at`: measured
+    # 2026-08-20 over six real payloads and re-confirmed 2026-08-22 on a
+    # LIVE running run on the `hp` factory, an inspect record carries
+    # exactly `checkpoint`, `conclusion`, `parent_id`, `run_id`,
+    # `run_spec`, `sandbox`, `start_record`, `status` — and nothing else,
+    # at any nesting level. The fallback was therefore dead code in
+    # production. `fabro-enemy-unit-tests/test_tier0_watchdog_gap.py`
+    # pins that absence against the live dependency.
+    #
+    # It is NOT repointed at `checkpoint.timestamp`, the only other
+    # candidate on a RUNNING run (`conclusion.timestamp` exists only once
+    # a run has concluded, so it can never report on a live one).
+    # `checkpoint.timestamp` is written on NODE TRANSITION, so its
+    # staleness is time-in-current-node, not time-since-last-activity.
+    # Measured 2026-08-22: two healthy running runs sat 17 and 7 minutes
+    # stale inside `start`, and run 01M0M9DEHMC4 spent 42m12s of its
+    # 45m28s wall time inside inference-bearing nodes. Any window under
+    # ~45 minutes would kill healthy runs — including that one, which
+    # succeeded and merged its PR — while DEFAULT_STALL_SECONDS is 1500s
+    # (25 min), and a window over 45 minutes is coarser than the graph's
+    # own machinery this backstop exists to beat.
+    #
+    # Decisive on its own: the fallback fires exactly when the `fabro
+    # events` probe yields nothing, i.e. on a probe OUTAGE. Feeding a
+    # node-resolution clock in at that moment would convert this module's
+    # load-bearing fail-safe rule ("a probe failure is no signal, NOT a
+    # stall") into a false-KILL path. A fallback that reports healthy
+    # runs as hung is worse than no fallback. `fabro events` stays the
+    # sole coarse source; the finer signal is the deferred metrics
+    # heartbeat (`_dispatcher_heartbeat_probe`), not an inspect field.
+    return _max_event_epoch(events_json=events_json)
 
 
 def decide_stall(
@@ -289,22 +320,6 @@ def _event_epoch(*, event_raw: object) -> float | None:
                 return epoch
         if isinstance(value, int | float) and not isinstance(value, bool):
             return float(value)
-    return None
-
-
-def _inspect_updated_epoch(*, inspect_json: str) -> float | None:
-    """Read `updated_at` from `fabro inspect --json` as epoch seconds; None on no signal."""
-    parsed_raw = parse_json(text=inspect_json)
-    if isinstance(parsed_raw, JsonParseFailure):
-        return None
-    if not isinstance(parsed_raw, dict):
-        return None
-    parsed = cast("dict[str, Any]", parsed_raw)
-    updated_raw: object = parsed.get("updated_at")
-    if isinstance(updated_raw, str):
-        return _iso_to_epoch(value=updated_raw)
-    if isinstance(updated_raw, int | float) and not isinstance(updated_raw, bool):
-        return float(updated_raw)
     return None
 
 
