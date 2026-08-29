@@ -215,6 +215,169 @@ def test_comparison_harness_fails_clearly_when_tier0_tests_are_absent(
     )
 
 
+def test_comparison_harness_exits_non_zero_when_candidate_skips_a_passing_assertion(
+    *,
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    """A skip on one target is a delta, so it must move the exit code.
+
+    Both pytest legs exit 0 here -- pytest counts a skip as a success -- so this
+    is the exact case the old exit code could not see.
+    """
+    module_path = Path("fabro-enemy-unit-tests/compare.py")
+
+    assert module_path.is_file()
+    compare = _load_compare_module(module_path=module_path)
+    calls: list[Path] = []
+
+    def fake_run(
+        *, args: list[str], env: dict[str, str], check: bool
+    ) -> subprocess.CompletedProcess[str]:
+        assert check is False
+        assert env["FABRO_EUT_BIN"] != ""
+        calls.append(_junit_path(args=args))
+        candidate_status = "skipped" if len(calls) == 2 else "passed"
+        _write_junit(
+            path=calls[-1],
+            cases={
+                "test_tier0_fabro.py::test_version": "passed",
+                "test_tier0_fabro.py::test_watchdog_gap": candidate_status,
+            },
+        )
+        return subprocess.CompletedProcess(args=args, returncode=0)
+
+    monkeypatch.setattr(compare.subprocess, "run", fake_run)
+    artifact_path = tmp_path / "comparison.md"
+
+    exit_code = compare.main(argv=["--artifact", str(artifact_path)])
+
+    assert exit_code == 1
+    artifact = artifact_path.read_text()
+    assert (
+        "| `test_tier0_fabro.py::test_watchdog_gap` | passed | skipped | skip-delta |" in artifact
+    )
+    assert "- Skip deltas: 1" in artifact
+    assert "- Regressions: 0" in artifact
+    assert "- Total deltas: 1" in artifact
+
+
+def test_comparison_harness_exits_non_zero_for_a_pinned_only_assertion(
+    *,
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    """An assertion present only on the pinned side is a delta with both legs green."""
+    module_path = Path("fabro-enemy-unit-tests/compare.py")
+
+    assert module_path.is_file()
+    compare = _load_compare_module(module_path=module_path)
+    calls: list[Path] = []
+
+    def fake_run(
+        *, args: list[str], env: dict[str, str], check: bool
+    ) -> subprocess.CompletedProcess[str]:
+        assert check is False
+        assert env["FABRO_EUT_SERVER"] != ""
+        calls.append(_junit_path(args=args))
+        cases = {"test_tier0_fabro.py::test_version": "passed"}
+        if len(calls) == 1:
+            cases["test_tier0_fabro.py::test_pinned_only_case"] = "passed"
+        _write_junit(path=calls[-1], cases=cases)
+        return subprocess.CompletedProcess(args=args, returncode=0)
+
+    monkeypatch.setattr(compare.subprocess, "run", fake_run)
+    artifact_path = tmp_path / "comparison.md"
+
+    exit_code = compare.main(argv=["--artifact", str(artifact_path)])
+
+    assert exit_code == 1
+    artifact = artifact_path.read_text()
+    assert (
+        "| `test_tier0_fabro.py::test_pinned_only_case` | passed | missing | pinned-only |"
+        in artifact
+    )
+    assert "- Pinned-only assertions: 1" in artifact
+    assert "- Total deltas: 1" in artifact
+
+
+def test_comparison_harness_exits_zero_for_an_identical_pass_set_on_both_targets(
+    *,
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    """Control: the exit code is not simply stuck at non-zero once deltas are consulted."""
+    module_path = Path("fabro-enemy-unit-tests/compare.py")
+
+    assert module_path.is_file()
+    compare = _load_compare_module(module_path=module_path)
+
+    def fake_run(
+        *, args: list[str], env: dict[str, str], check: bool
+    ) -> subprocess.CompletedProcess[str]:
+        assert check is False
+        assert env["FABRO_EUT_BIN"] != ""
+        _write_junit(
+            path=_junit_path(args=args),
+            cases={
+                "test_tier0_fabro.py::test_version": "passed",
+                "test_tier0_fabro.py::test_watchdog_gap": "skipped",
+            },
+        )
+        return subprocess.CompletedProcess(args=args, returncode=0)
+
+    monkeypatch.setattr(compare.subprocess, "run", fake_run)
+    artifact_path = tmp_path / "comparison.md"
+
+    exit_code = compare.main(argv=["--artifact", str(artifact_path)])
+
+    assert exit_code == 0
+    artifact = artifact_path.read_text()
+    assert (
+        "| `test_tier0_fabro.py::test_watchdog_gap` | skipped | skipped | unchanged |" in artifact
+    )
+    assert "- Skip deltas: 0" in artifact
+    assert "- Total deltas: 0" in artifact
+
+
+def test_comparison_harness_exits_non_zero_for_a_genuinely_failing_testcase(
+    *,
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    """Control: a real regression still fails, and is counted as a regression, not a skip."""
+    module_path = Path("fabro-enemy-unit-tests/compare.py")
+
+    assert module_path.is_file()
+    compare = _load_compare_module(module_path=module_path)
+    calls: list[Path] = []
+
+    def fake_run(
+        *, args: list[str], env: dict[str, str], check: bool
+    ) -> subprocess.CompletedProcess[str]:
+        assert check is False
+        assert env["FABRO_EUT_BIN"] != ""
+        calls.append(_junit_path(args=args))
+        candidate_status = "failed" if len(calls) == 2 else "passed"
+        _write_junit(
+            path=calls[-1],
+            cases={"test_tier0_fabro.py::test_version": candidate_status},
+        )
+        return subprocess.CompletedProcess(args=args, returncode=1 if len(calls) == 2 else 0)
+
+    monkeypatch.setattr(compare.subprocess, "run", fake_run)
+    artifact_path = tmp_path / "comparison.md"
+
+    exit_code = compare.main(argv=["--artifact", str(artifact_path)])
+
+    assert exit_code == 1
+    artifact = artifact_path.read_text()
+    assert "| `test_tier0_fabro.py::test_version` | passed | failed | regressed |" in artifact
+    assert "- Regressions: 1" in artifact
+    assert "- Skip deltas: 0" in artifact
+    assert "- Total deltas: 1" in artifact
+
+
 def _load_compare_module(*, module_path: Path) -> ModuleType:
     spec = importlib.util.spec_from_file_location("fabro_enemy_compare", module_path)
     assert spec is not None
@@ -240,4 +403,6 @@ def _write_junit(*, path: Path, cases: dict[str, str]) -> None:
 def _testcase_xml(*, assertion_id: str, status: str) -> str:
     if status == "passed":
         return f'  <testcase classname="{assertion_id}" name="" />'
+    if status == "skipped":
+        return f'  <testcase classname="{assertion_id}" name=""><skipped /></testcase>'
     return f'  <testcase classname="{assertion_id}" name=""><failure /></testcase>'
