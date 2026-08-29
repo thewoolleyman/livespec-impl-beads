@@ -19,6 +19,7 @@ __all__: list[str] = [
     "reflector_oob_spans_path",
     "run_turn_sink_path",
     "spans_path",
+    "state_root",
     "store_config",
     "workflow_toml",
 ]
@@ -124,14 +125,27 @@ def run_turn_sink_path(*, args: argparse.Namespace, repo: Path) -> Path:
     timestamp-bounded guard reads the same signal whichever repo owns :4318.
     """
     _ = (args, repo)
-    state_home = os.environ.get("XDG_STATE_HOME")
-    base = Path(state_home) if state_home else Path.home() / ".local" / "state"
     return (
-        base
+        state_root()
         / "livespec-orchestrator-beads-fabro"
         / "run-turn-exports"
         / f"{_RUN_TURN_DATASET}.json"
     )
+
+
+def state_root() -> Path:
+    """The per-user root for host-local dispatcher state, repo-independent.
+
+    `XDG_STATE_HOME` when set, else `~/.local/state` — the freedesktop
+    convention. PUBLIC because more than one surface needs the SAME root
+    resolved the same way: the run-turn export marker above, and the
+    tenant-checkout registry that makes the WIP-cap counted-claim bound
+    tenant-scoped rather than per-checkout. Two checkouts of one tenant
+    resolve an identical root, which is the whole point — a per-repo root
+    could not be shared between a worktree and a fresh clone.
+    """
+    state_home = os.environ.get("XDG_STATE_HOME")
+    return Path(state_home) if state_home else Path.home() / ".local" / "state"
 
 
 def cost_report_spans_path(*, args: argparse.Namespace, repo: Path) -> Path:

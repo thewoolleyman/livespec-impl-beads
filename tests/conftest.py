@@ -112,6 +112,25 @@ def _hermetic_codex_home(
 
 
 @pytest.fixture(autouse=True)
+def _hermetic_state_home(
+    monkeypatch: pytest.MonkeyPatch, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """Point every host-local state read and write at a per-test scratch root.
+
+    `state_root()` resolves `XDG_STATE_HOME`, else the REAL `~/.local/state`,
+    and two surfaces write beneath it: the run-turn export marker, and the
+    tenant-checkout registry that makes the WIP-cap counted-claim bound
+    tenant-scoped. Left ambient, a test would both pollute the developer's home
+    and READ another test's entries back — the registry is keyed by tenant
+    NAME, and several fixtures here declare the same one — so the suite would
+    answer differently depending on which tests ran before it. That is exactly
+    the ambient-host dependency this file exists to replace. Tests asserting
+    the `~/.local/state` fallback itself delete the variable explicitly.
+    """
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path_factory.mktemp("state-home")))
+
+
+@pytest.fixture(autouse=True)
 def _hermetic_release_adoption_bases(
     monkeypatch: pytest.MonkeyPatch, tmp_path_factory: pytest.TempPathFactory
 ) -> None:

@@ -4,6 +4,7 @@ import importlib
 import json
 from pathlib import Path
 
+import pytest
 from livespec_orchestrator_beads_fabro.commands._dispatcher_claim_reclaim import (
     claimed_active_accounting,
     claimed_active_count,
@@ -291,6 +292,62 @@ def test_rework_pending_marker_never_pre_empts_a_live_dispatch_lock(tmp_path: Pa
     assert accounting.live_lock_active_ids == (marked.id,)
     assert accounting.rework_pending_active_ids == ()
     assert accounting.active_count == 1
+
+
+def test_counted_claim_total_is_identical_from_every_checkout_of_one_tenant(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CONTROL reproducing the 2026-08-22 measurement behind `bd-ib-snyquw.6`.
+
+    Two checkouts of ONE tenant, one of them holding a live dispatch lock, both
+    queried in the same second. Before the fix they reported DISJOINT
+    counted-claim totals (the lock-holder 1, its peer 0), because both counting
+    inputs resolved from the invoking `--repo` path rather than from the tenant
+    — so N checkouts admitted up to N x `wip_cap`. `SPECIFICATION/contracts.md`
+    requires that bound to be TENANT-scoped, which is this equality.
+
+    Both journals are READABLE and both carry the row's `ledger-admit`, which is
+    what isolates the lock term: a peer that counted the row only because its
+    own journal was missing would pass this by the wrong mechanism.
+    """
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    dispatching = _tenant_checkout(root=tmp_path, name="dispatching-checkout")
+    peer = _tenant_checkout(root=tmp_path, name="peer-checkout")
+    item = _item(item_id="bd-tenant-wide-claim", status="active")
+    _ = write_dispatch_lock(repo=dispatching, work_item_id=item.id, dispatch_id="disp-tenant")
+    dispatching_journal = _admitted_journal(repo=dispatching, item_id=item.id)
+    peer_journal = _admitted_journal(repo=peer, item_id=item.id)
+
+    from_dispatching = claimed_active_count(
+        repo=dispatching, items=[item], journal=dispatching_journal
+    )
+    from_peer = claimed_active_count(repo=peer, items=[item], journal=peer_journal)
+
+    assert from_dispatching == 1
+    assert from_peer == from_dispatching
+
+
+def _tenant_checkout(*, root: Path, name: str) -> Path:
+    """A checkout of one shared tenant, declared the way a real one declares it."""
+    checkout = root / name
+    checkout.mkdir(parents=True)
+    _ = (checkout / ".livespec.jsonc").write_text(
+        json.dumps(
+            {
+                "livespec-orchestrator-beads-fabro": {
+                    "connection": {"tenant": "control-tenant", "prefix": "bd-ib"}
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    return checkout
+
+
+def _admitted_journal(*, repo: Path, item_id: str) -> JournalFile:
+    journal = JournalFile(path=repo / "tmp" / "fabro-dispatch-journal.jsonl")
+    journal.append(record={"stage": "ledger-admit", "work_item_id": item_id})
+    return journal
 
 
 def _item(*, item_id: str, status: str, rework_pending: bool = False) -> WorkItem:

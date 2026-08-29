@@ -6,6 +6,13 @@ an arbitrary clock threshold, and deferral-only surfacing was already shipped
 by bd-ib-snyquw.1 but fires after capacity has been refused. Reclaiming here
 addresses accumulated stale occupancy; bd-ib-vfsg addresses the upstream
 green-outcome race that creates new rows in this state.
+
+The counted total is TENANT-scoped, not per-checkout: a live dispatch lock is
+looked for across EVERY checkout of this repository's tenant, because the lock
+is written under the invoking `--repo` path and N checkouts otherwise admitted
+up to N x `wip_cap` independently (bd-ib-snyquw.6). The widening only ever ADDS
+lock-backed rows, so neither guarantee below moves: a green-terminal row is
+still reclaimed and uncounted, and an unreadable journal still counts MORE.
 """
 
 from __future__ import annotations
@@ -18,6 +25,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_dispatch_lock import
     live_dispatch_lock,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
+from livespec_orchestrator_beads_fabro.commands._dispatcher_tenant_checkouts import (
+    tenant_checkouts,
+)
 from livespec_orchestrator_beads_fabro.effects import AttemptFailure, attempt, parse_json
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
@@ -95,6 +105,7 @@ def _claimed_active_accounting(
     journal: JournalFile,
     record_abandonment: bool,
 ) -> ActiveClaimAccounting:
+    checkouts = tenant_checkouts(repo=repo)
     histories: dict[str, _TerminalHistory] | None = None
     live_lock_active_ids: list[str] = []
     green_terminal_active_ids: list[str] = []
@@ -104,7 +115,7 @@ def _claimed_active_accounting(
     for item in items:
         if item.status != "active":
             continue
-        if live_dispatch_lock(repo=repo, work_item_id=item.id) is not None:
+        if _claim_held_live_in_tenant(checkouts=checkouts, work_item_id=item.id):
             live_lock_active_ids.append(item.id)
             continue
         if item.rework_pending:
@@ -147,6 +158,19 @@ def _claimed_active_accounting(
         journal_unreadable_active_ids=tuple(journal_unreadable_active_ids),
         rework_pending_active_ids=tuple(rework_pending_active_ids),
         actionable_holds=tuple(actionable_holds),
+    )
+
+
+def _claim_held_live_in_tenant(*, checkouts: tuple[Path, ...], work_item_id: str) -> bool:
+    """Does ANY checkout of this tenant hold a live lock on this row?
+
+    ANY, not the invoking one: every checkout pushes to the same
+    `origin/master`, so the merge/rebase contention the cap exists to bound is
+    a tenant-level property and a checkout-scoped answer does not constrain it.
+    """
+    return any(
+        live_dispatch_lock(repo=checkout, work_item_id=work_item_id) is not None
+        for checkout in checkouts
     )
 
 
