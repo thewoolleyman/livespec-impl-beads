@@ -13,6 +13,7 @@ __all__: list[str] = [
     "canary_self_check_argv",
     "canary_verdict",
     "promotion_decision",
+    "release_below_floor",
     "release_update_decision",
 ]
 
@@ -125,6 +126,24 @@ def promotion_decision(*, verdict: CanaryVerdictValue) -> PromotionDecision:
             "(the staged self-update is NOT promoted)"
         ),
     )
+
+
+def release_below_floor(*, release: str, floor: str) -> bool | None:
+    """Whether `release` orders below a deliberate operator floor.
+
+    `None` means the comparison COULD NOT BE MADE — either side carries no
+    orderable released-version identifier — and it is deliberately distinct
+    from `False`. The dispatch-admission currency check turns that `None` into
+    a recorded "currency could not be determined" rather than into a silent
+    pass, per the self-update contract in SPECIFICATION/contracts.md: an
+    unobservable release must never fail open into a false refusal nor be
+    silenced into a satisfied floor.
+    """
+    release_key = _version_key(version=release)
+    floor_key = _version_key(version=floor)
+    if not release_key or not floor_key:
+        return None
+    return release_key < floor_key
 
 
 def _version_key(*, version: str) -> tuple[int, ...]:

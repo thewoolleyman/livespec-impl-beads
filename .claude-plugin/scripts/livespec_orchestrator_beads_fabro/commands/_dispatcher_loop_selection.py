@@ -87,6 +87,7 @@ def prepare(
     staleness_exit = apply_dispatcher_staleness_gate(
         plugin_root=plugin_root(),
         journal=journal,
+        cwd=repo,
     )
     if staleness_exit is not None:
         return None
