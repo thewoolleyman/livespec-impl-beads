@@ -208,7 +208,7 @@
     "kind": "running"
   },
   "status_updated_at": "2026-08-29T11:39:40.016744759Z",
-  "last_event_at": "2026-08-29T11:39:42.224293838Z",
+  "last_event_at": "2026-08-29T11:39:47.677569856Z",
   "pending_control": null,
   "checkpoints": [
     {
@@ -247,9 +247,9 @@
       "diff": {}
     },
     {
-      "seq": 0,
+      "seq": 26,
       "checkpoint": {
-        "timestamp": "2026-08-29T11:39:42.238669813Z",
+        "timestamp": "2026-08-29T11:39:47.677491651Z",
         "current_node": "fail",
         "completed_nodes": [
           "start",
@@ -257,26 +257,22 @@
         ],
         "node_retries": {},
         "context_values": {
+          "current_node": "fail",
           "failure_signature": "fail|deterministic|script failed with exit code: <n> ## output fabro-enemy-tier1-fail",
           "graph.goal": "# goal\n",
+          "failure_class": "deterministic",
           "internal.node_visit_count": 1,
           "internal.retry_count.start": 0,
-          "command.output": "blob://sha256/2a350eb731a6af4b8255a1eed7090d828f248b45de6b6c5e66795e1a43eb49e7",
-          "internal.retry_count.fail": 0,
-          "failure_class": "deterministic",
           "internal.fidelity": "compact",
-          "thread.start.current_node": "fail",
-          "internal.run_id": "01M16N2RDP7E15BNZK7Z2AB0YD",
           "outcome": "failed",
+          "command.output": "blob://sha256/2a350eb731a6af4b8255a1eed7090d828f248b45de6b6c5e66795e1a43eb49e7",
+          "internal.run_id": "01M16N2RDP7E15BNZK7Z2AB0YD",
           "internal.thread_id": "start",
-          "current_node": "fail",
-          "internal.work_dir": "/workspace/livespec-orchestrator-beads-fabro"
+          "internal.work_dir": "/workspace/livespec-orchestrator-beads-fabro",
+          "thread.start.current_node": "fail",
+          "internal.retry_count.fail": 0
         },
         "node_outcomes": {
-          "start": {
-            "status": "succeeded",
-            "usage": null
-          },
           "fail": {
             "status": "failed",
             "context_updates": {
@@ -293,17 +289,74 @@
               "tool_time_ms": 264,
               "active_time_ms": 264
             }
+          },
+          "start": {
+            "status": "succeeded",
+            "usage": null
           }
         },
+        "git_commit_sha": "4ba6f71c7af8f481fafd99fdb3d913aa4e26e23b",
+        "loop_failure_signatures": {
+          "fail|deterministic|script failed with exit code: <n> ## output fabro-enemy-tier1-fail": 1
+        },
         "node_visits": {
-          "start": 1,
-          "fail": 1
+          "fail": 1,
+          "start": 1
         }
       },
-      "diff": {}
+      "diff": {
+        "summary": {
+          "files_changed": 0,
+          "additions": 0,
+          "deletions": 0
+        }
+      }
     }
   ],
-  "conclusion": null,
+  "conclusion": {
+    "timestamp": "2026-08-29T11:39:47.773210153Z",
+    "status": "failed",
+    "timing": {
+      "wall_time_ms": 7666,
+      "inference_time_ms": 0,
+      "tool_time_ms": 264,
+      "active_time_ms": 264
+    },
+    "failure": {
+      "reason": "workflow_error",
+      "detail": {
+        "message": "stage fail failed with no outgoing fail edge",
+        "category": "deterministic"
+      }
+    },
+    "final_git_commit_sha": "4ba6f71c7af8f481fafd99fdb3d913aa4e26e23b",
+    "stages": [
+      {
+        "stage_id": "start",
+        "stage_label": "start",
+        "timing": {
+          "wall_time_ms": 0,
+          "inference_time_ms": 0,
+          "tool_time_ms": 0,
+          "active_time_ms": 0
+        },
+        "retries": 0
+      },
+      {
+        "stage_id": "fail",
+        "stage_label": "fail",
+        "timing": {
+          "wall_time_ms": 290,
+          "inference_time_ms": 0,
+          "tool_time_ms": 264,
+          "active_time_ms": 264
+        },
+        "retries": 0
+      }
+    ],
+    "total_retries": 0,
+    "diff": {}
+  },
   "sandbox": {
     "kind": "ready",
     "plan": {
@@ -368,7 +421,12 @@
       "first_event_seq": 20,
       "prompt": null,
       "response": null,
-      "completion": null,
+      "completion": {
+        "outcome": "failed",
+        "notes": null,
+        "failure_reason": "Script failed with exit code: 1\n\n## output\nfabro-enemy-tier1-fail\n",
+        "timestamp": "2026-08-29T11:39:42.227459627Z"
+      },
       "provider_used": null,
       "diff": null,
       "script_invocation": {
@@ -391,6 +449,12 @@
       "termination": "exited",
       "started_at": "2026-08-29T11:39:41.934698332Z",
       "handler": "command",
+      "timing": {
+        "wall_time_ms": 290,
+        "inference_time_ms": 0,
+        "tool_time_ms": 264,
+        "active_time_ms": 264
+      },
       "usage": {
         "input_tokens": 0,
         "output_tokens": 0,
@@ -399,7 +463,7 @@
         "cache_read_tokens": 0,
         "cache_write_tokens": 0
       },
-      "state": "running"
+      "state": "failed"
     }
   }
 }
