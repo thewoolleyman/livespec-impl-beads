@@ -65,16 +65,21 @@ def _terminal_outcome(
     )
 
 
-def _await_ps_summary(*, port: FabroPort, run_id: str) -> Any | None:
+def _await_run_absent_from_ps(*, port: FabroPort, run_id: str) -> bool:
+    """Return True once `run_id` is no longer listed by `fabro ps -a`.
+
+    `fabro rm -f` removes a run from `ps -a` outright rather than leaving it
+    with a terminated status (measured 0.254.0 / 8de6611), so the force-remove
+    EUT waits for the run to disappear rather than for a status transition.
+    """
     deadline = time.monotonic() + POLL_TIMEOUT_SECONDS
     while time.monotonic() < deadline:
         ps = port.ps(timeout_seconds=TIMEOUT_SECONDS)
         _assert_success(command=ps.command)
-        for summary in ps.runs:
-            if summary.run_id == run_id:
-                return summary
+        if all(summary.run_id != run_id for summary in ps.runs):
+            return True
         time.sleep(POLL_INTERVAL_SECONDS)
-    return None
+    return False
 
 
 def _event_records(*, stdout: str, payload: object | None) -> list[dict[str, Any]]:
