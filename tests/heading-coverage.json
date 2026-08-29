@@ -1023,5 +1023,13 @@
     "test": "TODO",
     "work_item": "bd-ib-yhbsd4.1",
     "reason": "Ratified with the factory-spend-expiry-clause revision; the exhaustion record expiry is a bounded default in every case regardless of provider/account/hosting arrangement, no assumption is made about whether or how a provider communicates availability timing, and a successful dispatch against the same provider retires an unexpired record early. Awaits a dispatcher-tier test per the scenario-tier requirement; real test ID to follow."
+  },
+  {
+    "heading": "## Scenario 95 — Dispatch admission surfaces plugin-currency staleness rather than blocking on it",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "work_item": "bd-ib-24jveh",
+    "reason": "Ratified with the dispatcher-staleness-gate-comparand revision (plan bd-ib-3oeq3g): the dispatch-admission plugin-currency check surfaces staleness as a non-blocking needs-attention fact instead of refusing, refuses only below a deliberate dispatcher.minimum_release floor, and records undetermined currency without refusing. Awaits a dispatcher-tier test per the scenario-tier requirement; real test ID to follow with the implementing work-item."
   }
 ]
