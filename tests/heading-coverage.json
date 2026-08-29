@@ -999,5 +999,13 @@
     "test": "TODO",
     "reason": "Ratified with the wip-cap-bound-honesty revision; the hand-picked dispatch --item override is sanctioned and may exceed the cap. Awaits a consumer-tier (integration) test per the scenario-tier requirement; real test ID to follow.",
     "work_item": "bd-ib-snyquw.5"
+  },
+  {
+    "heading": "## Scenario 92 — Dry-run reports why a ready item was not picked",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "work_item": "bd-ib-nt3cjv",
+    "reason": "Ratified with the dry-run-not-picked-reasons revision; --dry-run reports a machine-stable exclusion reason for every ready-but-unpicked candidate. Awaits a consumer-tier (integration) test per the scenario-tier requirement; real test ID to follow."
   }
 ]
