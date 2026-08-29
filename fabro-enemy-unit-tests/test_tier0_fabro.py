@@ -86,7 +86,13 @@ def test_validate_accepts_livespec_workflow_templated_acp_command(
     """
     workflow_text = _WORKFLOW_PATH.read_text()
 
-    assert 'acp.command="{{ inputs.acp_adapter }}"' in workflow_text
+    # The single `acp_adapter` input was split into per-node adapter inputs by
+    # the ACP-node-adapter-layering refactor (master `8cb60236`); the fabro #474
+    # contract the EUT guards is that `acp.command` stays templated on every ACP
+    # node, so assert the templated form on each per-node adapter rather than a
+    # now-absent single input name.
+    for adapter in ("implement_adapter", "fix_adapter", "pr_adapter", "review_adapter"):
+        assert 'acp.command="{{ inputs.' + adapter + ' }}"' in workflow_text
     result = port.validate(workflow_toml=_WORKFLOW_PATH, timeout_seconds=TIMEOUT_SECONDS)
 
     _assert_success(command=result.command)
