@@ -27,6 +27,10 @@ from livespec_orchestrator_beads_fabro.commands._needs_attention_core_roots impo
     default_core_root_bases,
     resolve_spec_next_command,
 )
+from livespec_orchestrator_beads_fabro.commands._needs_attention_currency_staleness import (
+    currency_staleness_items,
+    default_currency_staleness_seams,
+)
 from livespec_orchestrator_beads_fabro.commands._needs_attention_detection_staleness import (
     detection_staleness_items,
 )
@@ -163,6 +167,16 @@ def build_attention(
             # completed coverage records on the committed anchor. Neither fact
             # invokes a detector: both are surfaced triggers naming the skill.
             + detection_staleness_items(project_root=project_root, repo=repo_name, config=config)
+            # Ambient plugin-currency staleness is SURFACED here and nowhere
+            # else: the dispatch-admission gate lost its blocking authority over
+            # it in v089, so this fact is what carries the freshness pressure.
+            # It never gates a dispatch — only a committed
+            # `dispatcher.minimum_release` floor can refuse on currency.
+            + currency_staleness_items(
+                project_root=project_root,
+                repo=repo_name,
+                seams=default_currency_staleness_seams(),
+            )
             # Adoption is a HOST fact, not a tenant fact: the pin is a moving
             # branch, so the only per-repo evidence that a release actually
             # arrived lives in this machine's install records.
