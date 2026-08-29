@@ -29,11 +29,11 @@ bounds and prior art, written up in
 `research/001-acp-implement-zero-output-hang-dossier.md`. The prior-art scan
 (full tenant ledger, 832 records, 2026-08-29) found NO existing item tracking
 the zero-output activation hang itself; the nearest neighbors — `bd-ib-2nq`
-(token-refresh lore the launch-env hypothesis overlaps), `bd-ib-a4e7` (runless
-claim, closed 2026-08-29), `bd-ib-oj71` (dead-implementer circuit breaker,
-Codex-usage-window trigger), `livespec-impl-beads-oyg` (silent-stall watchdog,
-covers zero-EVENT runs not zero-OUTPUT turns) — are cross-referenced in the
-dossier, not duplicated here.
+(token-refresh lore the launch-env hypothesis overlaps), `bd-ib-oj71`
+(dead-implementer circuit breaker, Codex-usage-window trigger),
+`livespec-impl-beads-oyg` (silent-stall watchdog, covers zero-EVENT runs not
+zero-OUTPUT turns) — are cross-referenced in the dossier, not duplicated
+here.
 
 The plan's three aims, with grooming owning the final cut:
 
@@ -53,6 +53,12 @@ of its remaining children pending an orchestrator-side fix.
 - **2026-08-29** — plan opened. Ledger epic `bd-ib-b5dg` created and verified
   by read-back; prior-art scan completed (no overlap owning this defect);
   dossier 001 written from the console repo's live catch.
+- **2026-08-29** — dossier corrected before merge, on the console team-lead's
+  relay of the filer's own retraction: `bd-ib-a4e7` was withdrawn as a false
+  alarm (kept only as a history note), and the not-universal hedge was
+  strengthened with the corrected `ag0` facts (two completed runs, PR #873 and
+  PR #876). The ledger epic description was corrected to match, verified by
+  read-back.
 
 ## Next action
 

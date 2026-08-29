@@ -45,10 +45,14 @@ Caught alive by the test-adequacy-gates worker in the console repo
 
 ## Counter-evidence and bounds (carry these hedges)
 
-- **NOT universal.** `livespec-console-beads-fabro-ag0`, dispatched
-  2026-08-29T11:20:33Z through the same `implement-work-item` workflow on the
-  same factory `hp`, progressed normally and merged at 12:22:34Z. The hang is
-  intermittent.
+- **NOT universal.** TWO runs produced real output on factory `hp` the same
+  day, both dispatched for `livespec-console-beads-fabro-ag0` through the same
+  `implement-work-item` workflow: run 1 (dispatched 10:54:53Z) authored the
+  actual production fix, PR #873 merged 11:36:07Z commit `9042269`; run 2
+  (dispatched 11:20:33Z, an accidental double-dispatch) authored tests-only
+  PR #876 merged 12:22:28Z commit `fded418`. So the same workflow on the same
+  factory ran to completion twice on the day the zero-output hang parked run
+  `01M16KMWY5Y2DY0X90S1BDXCQX`. The hang is real, measured, and intermittent.
 - **The env hypothesis is a hypothesis, not a measured cause.** A coherent
   HYPOTHESIS consistent with all observations: env (e.g. auth token) is
   delivered at ACP process launch; a launch with dead/expired env hangs
@@ -64,15 +68,6 @@ Caught alive by the test-adequacy-gates worker in the console repo
 
 ## Related, distinct, already filed
 
-- **`bd-ib-a4e7`** (P1, this tenant, filed 2026-08-29; observed `closed` at
-  2026-08-29T12:35:44Z during this plan's prior-art scan): dispatcher admitted
-  a claim (item active, assignee fabro, `dispatch_id` recorded) but NO fabro
-  run was ever created; stale-run-sweep correlates runs so a runless claim is
-  invisible to it; ledger-normalize found nothing; re-dispatch refused as
-  already-claimed; hand-repaired by ledger edit. Different defect (claim with
-  no engine) from the zero-output hang (engine that plays dead), but both are
-  dispatch-reliability failures that defeat the recovery machinery; the plan
-  may adopt follow-on work as a child if grooming favors that.
 - **Plan thread `fabro-token-refresh`** (ledger epic `bd-ib-2nq`) owns
   token-refresh lore; the launch-env hypothesis overlaps it. Its recent epic
   comments (read 2026-08-29) concern the three-credential-carrier findings and
@@ -94,6 +89,10 @@ Caught alive by the test-adequacy-gates worker in the console repo
 - **Archived plan `plan/archive/dispatch-claim-liveness/`** holds prior art on
   claim liveness and the standing verification rules cited from this repo's
   `CLAUDE.md`.
+- History note: an adjacent "stranded claim with no run" filing (`bd-ib-a4e7`)
+  was withdrawn as a false alarm the same day — the dispatcher's
+  already-claimed refusal and observe-only `active` behaved correctly and
+  prevented worse.
 
 Prior-art scan scope, per Verification discipline Rule 1: the full orchestrator
 tenant ledger (`bd list --status all -n 0 --json`, 832 records on 2026-08-29),
