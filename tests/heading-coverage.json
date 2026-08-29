@@ -1028,8 +1028,8 @@
     "heading": "## Scenario 95 — Dispatch admission surfaces plugin-currency staleness rather than blocking on it",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "work_item": "bd-ib-24jveh",
-    "reason": "Ratified with the dispatcher-staleness-gate-comparand revision (plan bd-ib-3oeq3g): the dispatch-admission plugin-currency check surfaces staleness as a non-blocking needs-attention fact instead of refusing, refuses only below a deliberate dispatcher.minimum_release floor, and records undetermined currency without refusing. Awaits a dispatcher-tier test per the scenario-tier requirement; real test ID to follow with the implementing work-item."
+    "test": "tests.integration.test_dispatcher_plugin_currency_scenario95.test_scenario95_a_release_published_after_session_start_does_not_refuse_the_dispatch",
+    "work_item": "bd-ib-yyz52u",
+    "reason": "Bound by bd-ib-yyz52u to the INTEGRATION-tier dispatcher journey the scenario describes: a real dispatch-admission preflight through _dispatcher_loop_selection.prepare, with only the git ls-remote CommandRunner stood in, asserting that a release published after session start does not refuse the dispatch and that the non-blocking dispatcher-currency-staleness fact surfaces the lag through the real build_attention composition. The same module carries the scenario's other two cases - the below-floor fail-closed refusal naming the committed dispatcher.minimum_release floor, and unobservable currency recorded under its own undetermined stage while dispatch proceeds. A unit-tier test cannot discharge it: the no-refusal claims are about the admission path going on to load work, which only the composed preflight can show."
   }
 ]
