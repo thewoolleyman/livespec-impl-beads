@@ -13,11 +13,20 @@ __all__: list[str] = [
 
 _DIFF_EVIDENCE_MINIMUM_TERMS = 2
 _HEADER_MAX_WORDS = 4
+# A verification assertion is BUILT from this vocabulary, so the arm that green
+# telemetry honours reads how much of a criterion is drawn from it — see
+# `_is_verification_assertion`. The set is consumed by that arm ALONE; widening
+# it cannot loosen the merged-diff arm.
 _EXTERNAL_VERIFICATION_TERMS = frozenset(
     {
         "check",
         "checks",
         "green",
+        "passes",
+        "passing",
+        "skipped",
+        "suite",
+        "suites",
         "test",
         "tests",
         "verify",
@@ -26,6 +35,10 @@ _EXTERNAL_VERIFICATION_TERMS = frozenset(
         "validation",
     }
 )
+# The share of a criterion's significant terms that must be drawn from that
+# vocabulary before green telemetry honours it: at least one term in every
+# _VERIFICATION_DOMINANCE_DIVISOR.
+_VERIFICATION_DOMINANCE_DIVISOR = 2
 _STOP_WORDS = frozenset(
     {
         "acceptance",
@@ -284,7 +297,7 @@ def _judge_criterion(
     terms = _significant_terms(text=criterion)
     if _has_diff_evidence(terms=terms, normalized_diff=normalized_diff):
         return CriterionCheck(text=criterion, passed=True, reason="matched merged diff evidence")
-    if telemetry_passed and any(term in _EXTERNAL_VERIFICATION_TERMS for term in terms):
+    if telemetry_passed and _is_verification_assertion(terms=terms):
         return CriterionCheck(
             text=criterion, passed=True, reason="matched green dispatch telemetry"
         )
@@ -298,6 +311,25 @@ def _judge_criterion(
 def _has_diff_evidence(*, terms: tuple[str, ...], normalized_diff: str) -> bool:
     matched = tuple(term for term in terms if term in normalized_diff)
     return len(matched) >= _DIFF_EVIDENCE_MINIMUM_TERMS
+
+
+def _is_verification_assertion(*, terms: tuple[str, ...]) -> bool:
+    """Report whether a criterion ASSERTS a verification outcome rather than mentioning one.
+
+    Green telemetry is the only evidence a criterion whose SUBJECT is a
+    checkable outcome can ever have — `the suite is green` describes no code the
+    merged diff could carry, and failing it sent landed work back to rework. It
+    is NOT evidence for a criterion that merely MENTIONS a verification word
+    while asserting something about the code; that assertion still owes the diff.
+
+    Intersecting the vocabulary cannot separate the two, and reading ANY single
+    term as verification made the arm unfailable for a measured 196 of one
+    tenant's 682 recorded criteria lines. Dominance separates them: an assertion
+    ABOUT verification is built out of verification vocabulary, while prose about
+    the code carries its own subject nouns and falls below the share.
+    """
+    matched = tuple(term for term in terms if term in _EXTERNAL_VERIFICATION_TERMS)
+    return bool(matched) and len(matched) * _VERIFICATION_DOMINANCE_DIVISOR >= len(terms)
 
 
 def _failure_reason(*, terms: tuple[str, ...], normalized_diff: str) -> str:

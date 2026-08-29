@@ -5,6 +5,8 @@ from __future__ import annotations
 import textwrap
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_acceptance_criteria import (
+    _DIFF_EVIDENCE_MINIMUM_TERMS,  # pyright: ignore[reportPrivateUsage]
+    _EXTERNAL_VERIFICATION_TERMS,  # pyright: ignore[reportPrivateUsage]
     criteria_checks,
     criteria_lines,
 )
@@ -92,10 +94,46 @@ _INITIALISM_TAIL_DIFF = (
 # ("pre-admission" becomes "pre- admission") and this sweep varies the wrap
 # alone.
 _WRAP_WIDTHS = tuple(range(60, 200))
+# The TELEMETRY-arm fixtures. bd-ib-5z0g hardened the DIFF arm; the telemetry
+# arm still fired on a SINGLE incidental verification word, which made a
+# measured 196 of this tenant's 682 recorded criteria lines unfailable by
+# construction on any green dispatch.
+#
+# A criterion that merely MENTIONS a verification word while asserting something
+# about the CODE. Its lone verification term is `test`; every other significant
+# term names dispatcher behaviour, which is exactly what a merged diff evidences.
+_INCIDENTAL_VERIFICATION_CRITERION = (
+    "The dispatcher releases its ledger claim before the watchdog reaps a run under test.\n"
+)
+_INCIDENTAL_VERIFICATION_TERMS = (
+    "dispatcher",
+    "releases",
+    "ledger",
+    "claim",
+    "before",
+    "watchdog",
+    "reaps",
+    "test",
+)
+# A genuine verification ASSERTION: its subject IS the checkable outcome, so no
+# merged diff can ever carry it and green telemetry is the only evidence there
+# is. Failing this shape is bd-ib-5z0g's defect 1 — landed work sent to rework.
+_VERIFICATION_ASSERTION_CRITERION = "The check suite is green with no test skipped.\n"
+# A criterion carrying NO verification vocabulary at all. Green telemetry says
+# nothing about it, so the telemetry arm stays shut whatever the dispatch did.
+_CODE_ONLY_CRITERION = "The dispatcher journals the released ledger claim.\n"
+_CODE_ONLY_TERMS = ("dispatcher", "journals", "released", "ledger", "claim")
+# A merged diff about something else entirely: it carries none of the terms of
+# any criterion above, so it supplies diff evidence to none of them.
+_UNRELATED_DIFF = "diff --git a/x b/x\n+the acceptance pass records its own verdict\n"
 
 
 def _wrapped(*, text: str, width: int) -> str:
     return textwrap.fill(text, width=width, break_on_hyphens=False, break_long_words=False)
+
+
+def _diff_carrying(*, terms: tuple[str, ...]) -> str:
+    return "diff --git a/x b/x\n+" + " ".join(terms) + "\n"
 
 
 def test_criteria_lines_folds_a_flush_left_wrapped_continuation() -> None:
@@ -341,3 +379,76 @@ def test_criteria_lines_ignores_a_marker_that_carries_no_text() -> None:
     assert criteria_lines(criteria_text=criteria) == (
         "The dispatcher journals the released claim.",
     )
+
+
+def test_a_criterion_mentioning_one_verification_word_still_owes_diff_evidence() -> None:
+    # The narrowing itself: one incidental verification term must not make an
+    # assertion about the CODE unfailable on every green dispatch.
+    assert tuple(
+        term for term in _INCIDENTAL_VERIFICATION_TERMS if term in _EXTERNAL_VERIFICATION_TERMS
+    ) == ("test",)
+
+    checks = criteria_checks(
+        criteria_text=_INCIDENTAL_VERIFICATION_CRITERION,
+        merged_diff=_UNRELATED_DIFF,
+        telemetry_passed=True,
+    )
+
+    assert [check.passed for check in checks] == [False]
+    assert checks[0].reason == "no merged diff or telemetry evidence"
+
+
+def test_a_verification_assertion_still_passes_on_green_telemetry() -> None:
+    # The discriminating control for the narrowing: a criterion whose SUBJECT is
+    # the checkable outcome has no merged-diff evidence to carry, so failing it
+    # is exactly the false rework bd-ib-5z0g removed.
+    checks = criteria_checks(
+        criteria_text=_VERIFICATION_ASSERTION_CRITERION,
+        merged_diff=_UNRELATED_DIFF,
+        telemetry_passed=True,
+    )
+
+    assert [check.passed for check in checks] == [True]
+    assert checks[0].reason == "matched green dispatch telemetry"
+
+
+def test_a_criterion_with_no_verification_vocabulary_never_reaches_the_telemetry_arm() -> None:
+    checks = criteria_checks(
+        criteria_text=_CODE_ONLY_CRITERION,
+        merged_diff=_UNRELATED_DIFF,
+        telemetry_passed=True,
+    )
+
+    assert [check.passed for check in checks] == [False]
+    assert checks[0].reason == "no merged diff or telemetry evidence"
+
+
+def test_a_verification_assertion_fails_without_green_telemetry() -> None:
+    # The telemetry arm is evidence, not a licence: the same assertion that
+    # passes on a green dispatch must fail when nothing observed a green one.
+    checks = criteria_checks(
+        criteria_text=_VERIFICATION_ASSERTION_CRITERION,
+        merged_diff=_UNRELATED_DIFF,
+        telemetry_passed=False,
+    )
+
+    assert [check.passed for check in checks] == [False]
+
+
+def test_the_diff_evidence_arm_still_requires_its_minimum_matching_terms() -> None:
+    # The bd-ib-5z0g control, held across this narrowing: the diff arm's bar is
+    # unchanged, so a diff one term short of the minimum still fails.
+    below = _diff_carrying(terms=_CODE_ONLY_TERMS[: _DIFF_EVIDENCE_MINIMUM_TERMS - 1])
+    at_minimum = _diff_carrying(terms=_CODE_ONLY_TERMS[:_DIFF_EVIDENCE_MINIMUM_TERMS])
+
+    short_checks = criteria_checks(
+        criteria_text=_CODE_ONLY_CRITERION, merged_diff=below, telemetry_passed=False
+    )
+    exact_checks = criteria_checks(
+        criteria_text=_CODE_ONLY_CRITERION, merged_diff=at_minimum, telemetry_passed=False
+    )
+
+    assert [check.passed for check in short_checks] == [False]
+    assert short_checks[0].reason == "insufficient merged diff evidence"
+    assert [check.passed for check in exact_checks] == [True]
+    assert exact_checks[0].reason == "matched merged diff evidence"
