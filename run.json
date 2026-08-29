@@ -213,7 +213,7 @@
     "kind": "running"
   },
   "status_updated_at": "2026-08-29T11:44:52.101225547Z",
-  "last_event_at": "2026-08-29T11:44:54.487017178Z",
+  "last_event_at": "2026-08-29T11:45:00.318298925Z",
   "pending_control": null,
   "checkpoints": [
     {
@@ -252,9 +252,9 @@
       "diff": {}
     },
     {
-      "seq": 0,
+      "seq": 28,
       "checkpoint": {
-        "timestamp": "2026-08-29T11:44:54.744439106Z",
+        "timestamp": "2026-08-29T11:45:00.317081701Z",
         "current_node": "done",
         "completed_nodes": [
           "start",
@@ -264,24 +264,20 @@
         "context_values": {
           "internal.fidelity": "compact",
           "internal.retry_count.start": 0,
-          "outcome": "succeeded",
-          "internal.retry_count.done": 0,
-          "current_node": "done",
-          "internal.run_id": "01M16NC9NEEBTRBXAS5W2FXJVV",
-          "failure_signature": "",
-          "internal.thread_id": "start",
-          "failure_class": "",
-          "internal.work_dir": "/workspace/livespec-orchestrator-beads-fabro",
-          "graph.goal": "# Fabro Enemy Unit Test: completed\n",
           "thread.start.current_node": "done",
+          "failure_class": "",
+          "internal.node_visit_count": 1,
+          "failure_signature": "",
+          "internal.run_id": "01M16NC9NEEBTRBXAS5W2FXJVV",
+          "graph.goal": "# Fabro Enemy Unit Test: completed\n",
+          "internal.thread_id": "start",
+          "internal.work_dir": "/workspace/livespec-orchestrator-beads-fabro",
+          "current_node": "done",
+          "outcome": "succeeded",
           "command.output": "blob://sha256/b077f3c26bf25ee7e107a1a023c591b350861a89e34a9474c73c36d96aa7442e",
-          "internal.node_visit_count": 1
+          "internal.retry_count.done": 0
         },
         "node_outcomes": {
-          "start": {
-            "status": "succeeded",
-            "usage": null
-          },
           "done": {
             "status": "succeeded",
             "context_updates": {
@@ -295,18 +291,65 @@
               "tool_time_ms": 234,
               "active_time_ms": 234
             }
+          },
+          "start": {
+            "status": "succeeded",
+            "usage": null
           }
         },
         "next_node_id": "exit",
+        "git_commit_sha": "d7bca5cecf701da58515e6c8854823e9419c2d37",
         "node_visits": {
-          "start": 1,
-          "done": 1
+          "done": 1,
+          "start": 1
         }
       },
-      "diff": {}
+      "diff": {
+        "summary": {
+          "files_changed": 0,
+          "additions": 0,
+          "deletions": 0
+        }
+      }
     }
   ],
-  "conclusion": null,
+  "conclusion": {
+    "timestamp": "2026-08-29T11:45:00.485076552Z",
+    "status": "succeeded",
+    "timing": {
+      "wall_time_ms": 8235,
+      "inference_time_ms": 0,
+      "tool_time_ms": 234,
+      "active_time_ms": 234
+    },
+    "final_git_commit_sha": "d7bca5cecf701da58515e6c8854823e9419c2d37",
+    "stages": [
+      {
+        "stage_id": "start",
+        "stage_label": "start",
+        "timing": {
+          "wall_time_ms": 0,
+          "inference_time_ms": 0,
+          "tool_time_ms": 0,
+          "active_time_ms": 0
+        },
+        "retries": 0
+      },
+      {
+        "stage_id": "done",
+        "stage_label": "done",
+        "timing": {
+          "wall_time_ms": 252,
+          "inference_time_ms": 0,
+          "tool_time_ms": 234,
+          "active_time_ms": 234
+        },
+        "retries": 0
+      }
+    ],
+    "total_retries": 0,
+    "diff": {}
+  },
   "sandbox": {
     "kind": "ready",
     "plan": {
@@ -371,7 +414,12 @@
       "first_event_seq": 21,
       "prompt": null,
       "response": null,
-      "completion": null,
+      "completion": {
+        "outcome": "succeeded",
+        "notes": "Script completed: echo fabro-enemy-tier1-pass",
+        "failure_reason": null,
+        "timestamp": "2026-08-29T11:44:54.739625301Z"
+      },
       "provider_used": null,
       "diff": null,
       "script_invocation": {
@@ -379,11 +427,27 @@
         "command": "exec 2>&1\necho fabro-enemy-tier1-pass",
         "language": "shell"
       },
-      "script_timing": null,
+      "script_timing": {
+        "output": "blob://sha256/b077f3c26bf25ee7e107a1a023c591b350861a89e34a9474c73c36d96aa7442e",
+        "exit_code": 0,
+        "duration_ms": 234,
+        "termination": "exited",
+        "output_bytes": 23,
+        "live_streaming": true
+      },
       "parallel_results": null,
       "output": null,
+      "output_bytes": 23,
+      "live_streaming": true,
+      "termination": "exited",
       "started_at": "2026-08-29T11:44:54.486953069Z",
       "handler": "command",
+      "timing": {
+        "wall_time_ms": 252,
+        "inference_time_ms": 0,
+        "tool_time_ms": 234,
+        "active_time_ms": 234
+      },
       "usage": {
         "input_tokens": 0,
         "output_tokens": 0,
@@ -392,7 +456,41 @@
         "cache_read_tokens": 0,
         "cache_write_tokens": 0
       },
-      "state": "running"
+      "state": "succeeded"
+    },
+    "exit@1": {
+      "first_event_seq": 31,
+      "prompt": null,
+      "response": null,
+      "completion": {
+        "outcome": "succeeded",
+        "notes": null,
+        "failure_reason": null,
+        "timestamp": "2026-08-29T11:45:00.318298925Z"
+      },
+      "provider_used": null,
+      "diff": null,
+      "script_invocation": null,
+      "script_timing": null,
+      "parallel_results": null,
+      "output": null,
+      "started_at": "2026-08-29T11:45:00.318187879Z",
+      "handler": "exit",
+      "timing": {
+        "wall_time_ms": 0,
+        "inference_time_ms": 0,
+        "tool_time_ms": 0,
+        "active_time_ms": 0
+      },
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "reasoning_tokens": 0,
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0
+      },
+      "state": "succeeded"
     }
   }
 }
