@@ -48,11 +48,32 @@ _TRANSIENT_SIGNATURE_SEGMENT = "|transient_infra|"
 # fabro-side fix on `fix/classify-provider-spend-limit-not-transient` would not
 # have caught the Codex form even once merged.
 _PROVIDER_USAGE_LIMIT_FIELD = '"codex_error_info": "usage_limit_exceeded"'
-_PROVIDER_USAGE_LIMIT_HINTS = (
-    "hit your usage limit",
-    "monthly spend limit",
-    "spend limit",
-    "usage limit exceeded",
+_PROVIDER_CODEX = "codex"
+_PROVIDER_ANTHROPIC = "anthropic"
+
+# WHICH VENDOR a matched ceiling belongs to. Detection above is vendor-agnostic
+# by design, so the vendor has to be READ OFF the cause; a fixed label records
+# an Anthropic ceiling under the Codex vendor, which then refuses the next
+# dispatch citing an exhaustion that never happened while holding no record for
+# the vendor that actually refused.
+#
+# TWO PASSES, most-decisive first. A vendor MARKER in the cause text wins,
+# because both measured forms name their vendor outright: the Codex form carries
+# `codex_error_info` and `https://chatgpt.com/codex/settings/usage`, and the
+# Anthropic form carries `claude.ai/settings/usage`. The hint's own vendor is the
+# fallback for a provider that names itself nowhere in the sentence, and it is
+# assigned from the family each hint was measured in.
+_PROVIDER_MARKERS: tuple[tuple[str, str], ...] = (
+    ("codex", _PROVIDER_CODEX),
+    ("chatgpt.com", _PROVIDER_CODEX),
+    ("anthropic", _PROVIDER_ANTHROPIC),
+    ("claude", _PROVIDER_ANTHROPIC),
+)
+_PROVIDER_USAGE_LIMIT_HINTS: tuple[tuple[str, str], ...] = (
+    ("hit your usage limit", _PROVIDER_CODEX),
+    ("monthly spend limit", _PROVIDER_ANTHROPIC),
+    ("spend limit", _PROVIDER_ANTHROPIC),
+    ("usage limit exceeded", _PROVIDER_CODEX),
 )
 
 
@@ -65,12 +86,18 @@ class FabroFailureDetail:
     ceiling was reached, so launching another sandbox against the same
     credential cannot produce a line of work. It is carried as a flag rather
     than left for each consumer to re-match against `cause` text.
+
+    `provider_usage_limit_provider` names WHICH vendor refused, and is the value
+    an exhaustion record is labelled with. It is set from the same single
+    classification that sets the flag, so the two cannot disagree: it is
+    non-None exactly when the flag is True.
     """
 
     cause: str | None
     category: str | None
     signature: str | None
     provider_usage_limit: bool = False
+    provider_usage_limit_provider: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -226,7 +253,7 @@ def _failure_detail(*, block: dict[object, object]) -> FabroFailureDetail | None
     selected = permanent_cause or _root_cause(causes=causes)
     cause = selected if selected is None else (_provider_message(text=selected) or selected)
     reclassified = permanent_cause is not None
-    usage_limit = _provider_usage_limit_cause(causes=causes) is not None
+    usage_limit_provider = _provider_usage_limit_provider(causes=causes)
     category = _failure_category(
         category=_str_value(value=block.get("category")),
         reclassified=reclassified,
@@ -241,7 +268,8 @@ def _failure_detail(*, block: dict[object, object]) -> FabroFailureDetail | None
         cause=cause,
         category=category,
         signature=signature,
-        provider_usage_limit=usage_limit,
+        provider_usage_limit=usage_limit_provider is not None,
+        provider_usage_limit_provider=usage_limit_provider,
     )
 
 
@@ -276,10 +304,12 @@ def _permanent_cause(*, causes: tuple[str, ...]) -> str | None:
     return None
 
 
-def _provider_usage_limit_cause(*, causes: tuple[str, ...]) -> str | None:
+def _provider_usage_limit_provider(*, causes: tuple[str, ...]) -> str | None:
+    """The vendor whose ceiling this chain reports, or None if it reports none."""
     for text in causes:
-        if _is_provider_usage_limit(text=text):
-            return text
+        provider = _usage_limit_provider(text=text)
+        if provider is not None:
+            return provider
     return None
 
 
@@ -307,16 +337,33 @@ def _provider_message(*, text: str) -> str | None:
 
 
 def _is_provider_usage_limit(*, text: str) -> bool:
-    """Whether this cause is a provider usage / spend ceiling.
+    """Whether this cause is a provider usage / spend ceiling."""
+    return _usage_limit_provider(text=text) is not None
 
-    The structured field is checked first and on the RAW text, because its value
-    is a machine token rather than prose; the hint list is the prose fallback and
-    is matched case-insensitively.
+
+def _usage_limit_provider(*, text: str) -> str | None:
+    """The vendor whose ceiling this cause reports, or None if it is not one.
+
+    The structured field is checked on the WHITESPACE-NORMALIZED text, because
+    its value is a machine token rather than prose; the hint list is the prose
+    fallback and is matched case-insensitively. Recognition and attribution are
+    one step deliberately — a second, separate vendor pass could answer for a
+    cause the first pass never matched, which is how a fixed label gets
+    reintroduced by accident.
     """
-    if _PROVIDER_USAGE_LIMIT_FIELD in " ".join(text.split()):
-        return True
-    lowered = text.lower()
-    return any(hint in lowered for hint in _PROVIDER_USAGE_LIMIT_HINTS)
+    normalized = " ".join(text.split())
+    lowered = normalized.lower()
+    hinted = next(
+        (provider for hint, provider in _PROVIDER_USAGE_LIMIT_HINTS if hint in lowered),
+        None,
+    )
+    if _PROVIDER_USAGE_LIMIT_FIELD not in normalized and hinted is None:
+        return None
+    marked = next(
+        (provider for marker, provider in _PROVIDER_MARKERS if marker in lowered),
+        None,
+    )
+    return marked if marked is not None else hinted
 
 
 def _is_remote_compaction_404(*, text: str) -> bool:

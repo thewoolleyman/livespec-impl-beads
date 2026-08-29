@@ -249,6 +249,11 @@ class DispatchOutcome:
     each consumer to re-match against `detail` prose — the same seam rationale
     as `provider_usage_limit`. It is None on every run whose implementer
     changed the worktree, which is every ordinary run.
+
+    `provider_usage_limit_provider` names the vendor that refused, read off this
+    run's own failure. It is what an exhaustion record is labelled with, and it
+    is carried rather than assumed because the detection behind
+    `provider_usage_limit` fires for either vendor.
     """
 
     work_item_id: str
@@ -265,6 +270,7 @@ class DispatchOutcome:
     fabro_failure_category: str | None = None
     fabro_failure_signature: str | None = None
     provider_usage_limit: bool = False
+    provider_usage_limit_provider: str | None = None
     dead_implementer_condition: str | None = None
 
 
