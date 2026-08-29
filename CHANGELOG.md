@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.96.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.96.0...v0.96.1) (2026-08-29)
+
+
+### Bug Fixes
+
+* **acceptance:** narrow the telemetry arm to genuine verification assertions ([4b1f376](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/4b1f37638bf1e6edff776001d427534f489a2354))
+
 ## [0.96.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.95.3...v0.96.0) (2026-08-29)
 
 
