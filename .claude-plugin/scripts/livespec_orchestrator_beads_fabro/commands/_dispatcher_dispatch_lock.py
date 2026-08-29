@@ -13,6 +13,9 @@ from typing import cast
 from livespec_orchestrator_beads_fabro.commands._dispatcher_pid_liveness import (
     process_started_at_epoch,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_tenant_checkouts import (
+    register_tenant_checkout,
+)
 from livespec_orchestrator_beads_fabro.effects import AttemptFailure, attempt, parse_json
 
 __all__: list[str] = [
@@ -39,6 +42,10 @@ def dispatch_lock_path(*, repo: Path, work_item_id: str) -> Path:
 
 
 def write_dispatch_lock(*, repo: Path, work_item_id: str, dispatch_id: str) -> Path:
+    # Register BEFORE the claim is attempted, not after it succeeds: the WIP-cap
+    # bound is TENANT-scoped, and a checkout whose lock this call is about to
+    # write must already be enumerable by every sibling checkout counting claims.
+    register_tenant_checkout(repo=repo)
     path = dispatch_lock_path(repo=repo, work_item_id=work_item_id)
     path.parent.mkdir(parents=True, exist_ok=True)
     opened = _open_dispatch_lock(path=path)

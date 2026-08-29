@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 from typing import Protocol, cast
 
+import pytest
 from livespec_orchestrator_beads_fabro.commands import _dispatcher_paths
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import CommandResult
 
@@ -38,9 +39,24 @@ def test_dispatcher_paths_exports_promoted_public_helpers() -> None:
         "reflector_oob_spans_path",
         "run_turn_sink_path",
         "spans_path",
+        "state_root",
         "store_config",
         "workflow_toml",
     ]
+
+
+def test_state_root_falls_back_to_the_home_local_state_dir(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With no `XDG_STATE_HOME`, the root is the freedesktop default under HOME.
+
+    The suite sets `XDG_STATE_HOME` per test for hermeticity, so this arm needs
+    its own control: without it the fallback would be dead code the suite never
+    reaches while the real deploy path runs nothing else.
+    """
+    monkeypatch.delenv("XDG_STATE_HOME", raising=False)
+
+    assert _dispatcher_paths.state_root() == Path.home() / ".local" / "state"
 
 
 def test_nf39_fake_runner_helper_is_covered(tmp_path: Path) -> None:
