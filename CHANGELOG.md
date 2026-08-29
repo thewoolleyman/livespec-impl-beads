@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.97.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.97.0...v0.97.1) (2026-08-29)
+
+
+### Bug Fixes
+
+* remove the never-emitted updated_at watchdog liveness fallback ([f1b6144](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/f1b6144e31160f72693eb6735ffaf88d35278cec))
+
 ## [0.97.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.96.1...v0.97.0) (2026-08-29)
 
 
