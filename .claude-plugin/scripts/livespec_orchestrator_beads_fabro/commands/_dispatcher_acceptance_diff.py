@@ -4,12 +4,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import cast
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandResult,
     CommandRunner,
     DispatchOutcome,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_merge_pr_association import (
+    associated_pr_numbers_for_merge,
 )
 from livespec_orchestrator_beads_fabro.effects import JsonParseFailure, parse_json
 
@@ -49,7 +52,7 @@ def read_merged_diff(*, repo: Path, outcome: DispatchOutcome, runner: CommandRun
         if diff.merged_diff is not None:
             return diff
         if not diff.gradeable:
-            associated = _associated_pr_numbers_for_merge(
+            associated = associated_pr_numbers_for_merge(
                 repo=repo,
                 merge_sha=merge_sha,
                 runner=runner,
@@ -107,37 +110,6 @@ def _diff_from_command(
             gradeable=False,
         )
     return DiffResult(merged_diff=result.stdout, reason=read_reason, gradeable=True)
-
-
-def _associated_pr_numbers_for_merge(
-    *, repo: Path, merge_sha: str, runner: CommandRunner
-) -> tuple[int, ...] | None:
-    result = runner.run(
-        argv=[
-            "gh",
-            "api",
-            "-H",
-            "Accept: application/vnd.github+json",
-            f"/repos/{{owner}}/{{repo}}/commits/{merge_sha}/pulls",
-        ],
-        cwd=repo,
-        timeout_seconds=_DIFF_TIMEOUT_SECONDS,
-    )
-    if result.exit_code != 0:
-        return None
-    parsed_raw = parse_json(text=result.stdout)
-    if isinstance(parsed_raw, JsonParseFailure) or not isinstance(parsed_raw, list):
-        return None
-    parsed = cast("list[Any]", parsed_raw)
-    numbers: list[int] = []
-    for item in parsed:
-        if not isinstance(item, dict):
-            continue
-        record = cast("dict[str, object]", item)
-        number = record.get("number")
-        if isinstance(number, int) and not isinstance(number, bool):
-            numbers.append(number)
-    return tuple(numbers)
 
 
 def _looks_like_pr_metadata_json(*, stdout: str) -> bool:

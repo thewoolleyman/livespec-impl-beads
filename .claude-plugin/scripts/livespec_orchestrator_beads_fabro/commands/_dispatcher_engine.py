@@ -69,6 +69,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_terminal impor
     fabro_run_terminal_outcome,
     inspect_run,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_merge_pr_association import (
+    pr_view_for_merge_sha,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     DispatchPlan,
 )
@@ -375,7 +378,13 @@ def run_dispatch(
             plan=plan,
             runner=runner,
             journal=journal,
-            merged=merged,
+            merged=pr_view_for_merge_sha(
+                repo=plan.repo,
+                work_item_id=plan.work_item_id,
+                merged=merged,
+                runner=runner,
+                journal=journal,
+            ),
         )
     if run_id is not None and outcome.fabro_run_id is None:
         outcome = replace(outcome, fabro_run_id=run_id)
