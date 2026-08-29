@@ -68,6 +68,7 @@ __all__: list[str] = [
     "effective_admission_policy",
     "effective_merge_on_review_cap",
     "effective_review_fix_cap",
+    "read_dispatcher_config_value",
     "resolve_acceptance_mode",
     "resolve_acceptance_rework_cap",
     "resolve_auto_approve_ready",
@@ -144,7 +145,7 @@ def resolve_merge_on_review_cap(*, cwd: Path) -> IOResult[bool, PolicySettingUnr
 
 def resolve_acceptance_mode(*, cwd: Path) -> IOResult[str, PolicySettingUnreadable]:
     """Read `dispatcher.acceptance_mode`, defaulting to `ai-then-human`."""
-    return _read_dispatcher_config_value(cwd=cwd, key=_ACCEPTANCE_MODE_KEY).bind_result(
+    return read_dispatcher_config_value(cwd=cwd, key=_ACCEPTANCE_MODE_KEY).bind_result(
         lambda value: _acceptance_mode_value(value=value)
     )
 
@@ -257,9 +258,17 @@ def effective_acceptance_rework_cap(
     return resolve_acceptance_rework_cap(cwd=cwd)
 
 
-def _read_dispatcher_config_value(
+def read_dispatcher_config_value(
     *, cwd: Path, key: str
 ) -> IOResult[object, PolicySettingUnreadable]:
+    """One raw `dispatcher.<key>` value, absent-is-an-answer / unreadable-is-a-failure.
+
+    PUBLIC because a `dispatcher.*` setting whose coercion is cohesive with its
+    CONSUMER rather than with this module is read through here rather than by
+    hand-rolling the nested lookup — `dispatcher.minimum_release` lives with the
+    dispatch-admission currency floor in `_dispatcher_minimum_release_floor.py`,
+    which owns the released-version semantics that key is written in.
+    """
     return _read_nested_config_value(
         cwd=cwd, keys=(_PLUGIN_BLOCK, _DISPATCHER_KEY, key), setting=key
     )
@@ -302,7 +311,7 @@ def _read_nested_config_value(
 def _resolve_bool_setting(
     *, cwd: Path, key: str, default: bool
 ) -> IOResult[bool, PolicySettingUnreadable]:
-    return _read_dispatcher_config_value(cwd=cwd, key=key).bind_result(
+    return read_dispatcher_config_value(cwd=cwd, key=key).bind_result(
         lambda value: _bool_value(key=key, value=value, default=default)
     )
 
@@ -310,7 +319,7 @@ def _resolve_bool_setting(
 def _resolve_int_setting(
     *, cwd: Path, key: str, default: int, minimum: int
 ) -> IOResult[int, PolicySettingUnreadable]:
-    return _read_dispatcher_config_value(cwd=cwd, key=key).bind_result(
+    return read_dispatcher_config_value(cwd=cwd, key=key).bind_result(
         lambda value: _int_value(key=key, value=value, default=default, minimum=minimum)
     )
 

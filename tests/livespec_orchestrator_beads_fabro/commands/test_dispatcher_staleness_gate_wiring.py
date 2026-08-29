@@ -52,10 +52,16 @@ def _ls_remote(*, ref: str, sha: str) -> CommandResult:
     return CommandResult(exit_code=0, stdout=f"{sha}\t{ref}\n", stderr="")
 
 
-def test_apply_gate_records_refusal_and_returns_precondition_exit(
+def test_apply_gate_records_ambient_lag_without_a_precondition_exit(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    """The `dispatcher-staleness-refused` record this gate used to write is gone.
+
+    Its exit-3 return is now reachable ONLY through a committed
+    `dispatcher.minimum_release` floor, so a build behind the live release head
+    journals a non-blocking record and dispatch continues.
+    """
     cache_root = tmp_path / "b6e4012cafed"
     cache_root.mkdir()
     journal = _Journal()
@@ -70,14 +76,15 @@ def test_apply_gate_records_refusal_and_returns_precondition_exit(
         plugin_root=cache_root,
         journal=journal,
         runner=runner,
+        cwd=tmp_path,
     )
 
-    assert exit_code == 3
+    assert exit_code is None
     assert journal.records == [
         {
-            "stage": "dispatcher-staleness-refused",
+            "stage": "dispatcher-staleness-warning",
             "detail": journal.records[0]["detail"],
-            "blocking": True,
+            "blocking": False,
         }
     ]
     assert "b6e4012cafed" in str(journal.records[0]["detail"])
@@ -105,6 +112,7 @@ def test_apply_gate_records_warning_and_proceeds(
         plugin_root=cache_root,
         journal=journal,
         runner=runner,
+        cwd=tmp_path,
     )
 
     assert exit_code is None
@@ -136,7 +144,7 @@ def test_git_checkout_head_matching_release_proceeds_without_warning(tmp_path: P
         }
     )
 
-    decision = dispatcher_staleness_decision(plugin_root=plugin_root, runner=runner)
+    decision = dispatcher_staleness_decision(plugin_root=plugin_root, runner=runner, cwd=tmp_path)
 
     assert decision.refusal is None
     assert decision.warnings == ()
@@ -153,7 +161,7 @@ def test_unknown_short_cache_name_warns_and_proceeds_without_network(tmp_path: P
         }
     )
 
-    decision = dispatcher_staleness_decision(plugin_root=plugin_root, runner=runner)
+    decision = dispatcher_staleness_decision(plugin_root=plugin_root, runner=runner, cwd=tmp_path)
 
     assert decision.refusal is None
     assert len(decision.warnings) == 1

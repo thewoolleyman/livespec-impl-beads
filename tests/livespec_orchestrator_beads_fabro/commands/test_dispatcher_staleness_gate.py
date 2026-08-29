@@ -66,12 +66,15 @@ def test_unestablishable_build_identity_warns_and_proceeds_without_network(
     cache_root.mkdir()
     runner = _Runner(results={})
 
-    decision = module.dispatcher_staleness_decision(plugin_root=cache_root, runner=runner)
+    decision = module.dispatcher_staleness_decision(
+        plugin_root=cache_root, runner=runner, cwd=tmp_path
+    )
 
     assert decision.refusal is None
     assert len(decision.warnings) == 1
+    assert decision.warnings[0].stage == module.CURRENCY_UNDETERMINED_STAGE
     assert "could not establish the executing build identity" in decision.warnings[0].detail
-    assert "dispatch proceeds without a plugin-currency verdict" in decision.warnings[0].detail
+    assert "currency could not be determined" in decision.warnings[0].detail
     assert runner.calls == [_checkout_head_argv(plugin_root=cache_root)]
 
 
@@ -81,7 +84,9 @@ def test_short_non_hex_root_name_is_not_treated_as_a_build_id(tmp_path: Path) ->
     cache_root.mkdir()
     runner = _Runner(results={})
 
-    decision = module.dispatcher_staleness_decision(plugin_root=cache_root, runner=runner)
+    decision = module.dispatcher_staleness_decision(
+        plugin_root=cache_root, runner=runner, cwd=tmp_path
+    )
 
     assert decision.refusal is None
     assert len(decision.warnings) == 1
@@ -105,16 +110,25 @@ def test_git_checkout_plugin_root_is_exempt_with_no_probes_or_warnings(
         }
     )
 
-    decision = module.dispatcher_staleness_decision(plugin_root=checkout_root, runner=runner)
+    decision = module.dispatcher_staleness_decision(
+        plugin_root=checkout_root, runner=runner, cwd=tmp_path
+    )
 
     assert decision.refusal is None
     assert decision.warnings == ()
     assert runner.calls == [_checkout_head_argv(plugin_root=checkout_root)]
 
 
-def test_read_only_cache_build_predating_latest_release_refuses_with_performable_remedy(
+def test_read_only_cache_build_predating_latest_release_warns_with_performable_remedy(
     tmp_path: Path,
 ) -> None:
+    """The retired refusal. Ambient staleness carries the SAME remedy, non-blocking.
+
+    Before the v089 re-base this was a blocking exit-3 refusal, which is what
+    bricked a live session the moment a release was published mid-session. The
+    remedy text is preserved because it was always right — only its authority
+    to stop a dispatch is gone.
+    """
     module = _module()
     cache_root = tmp_path / "b6e4012cafed"
     cache_root.mkdir()
@@ -128,17 +142,19 @@ def test_read_only_cache_build_predating_latest_release_refuses_with_performable
         }
     )
 
-    decision = module.dispatcher_staleness_decision(plugin_root=cache_root, runner=runner)
+    decision = module.dispatcher_staleness_decision(
+        plugin_root=cache_root, runner=runner, cwd=tmp_path
+    )
 
-    assert decision.refusal is not None
-    assert "b6e4012cafed" in decision.refusal.detail
-    assert _RELEASE_SHA[:12] in decision.refusal.detail
+    assert decision.refusal is None
+    assert len(decision.warnings) == 1
+    assert "b6e4012cafed" in decision.warnings[0].detail
+    assert _RELEASE_SHA[:12] in decision.warnings[0].detail
     assert (
         "claude plugin update "
         "livespec-orchestrator-beads-fabro@livespec-orchestrator-beads-fabro"
-        in decision.refusal.detail
+        in decision.warnings[0].detail
     )
-    assert decision.warnings == ()
 
 
 def test_current_release_build_proceeds_when_master_is_ahead_and_warns_with_commit(
@@ -165,7 +181,9 @@ def test_current_release_build_proceeds_when_master_is_ahead_and_warns_with_comm
         }
     )
 
-    decision = module.dispatcher_staleness_decision(plugin_root=cache_root, runner=runner)
+    decision = module.dispatcher_staleness_decision(
+        plugin_root=cache_root, runner=runner, cwd=tmp_path
+    )
 
     assert decision.refusal is None
     assert len(decision.warnings) == 1
@@ -198,7 +216,9 @@ def test_unreleased_master_build_proceeds_when_master_is_ahead_and_warns(
         }
     )
 
-    decision = module.dispatcher_staleness_decision(plugin_root=cache_root, runner=runner)
+    decision = module.dispatcher_staleness_decision(
+        plugin_root=cache_root, runner=runner, cwd=tmp_path
+    )
 
     assert decision.refusal is None
     assert len(decision.warnings) == 1
@@ -219,7 +239,9 @@ def test_master_ahead_with_no_dispatcher_commits_names_master_sha(tmp_path: Path
         }
     )
 
-    decision = module.dispatcher_staleness_decision(plugin_root=cache_root, runner=runner)
+    decision = module.dispatcher_staleness_decision(
+        plugin_root=cache_root, runner=runner, cwd=tmp_path
+    )
 
     assert decision.refusal is None
     assert len(decision.warnings) == 1
@@ -240,7 +262,9 @@ def test_current_release_build_with_no_newer_release_does_not_fire(tmp_path: Pat
         }
     )
 
-    decision = module.dispatcher_staleness_decision(plugin_root=cache_root, runner=runner)
+    decision = module.dispatcher_staleness_decision(
+        plugin_root=cache_root, runner=runner, cwd=tmp_path
+    )
 
     assert decision.refusal is None
     assert decision.warnings == ()
@@ -252,8 +276,12 @@ def test_unobservable_latest_release_probe_warns_without_refusing(tmp_path: Path
     cache_root.mkdir()
     runner = _Runner(results={})
 
-    decision = module.dispatcher_staleness_decision(plugin_root=cache_root, runner=runner)
+    decision = module.dispatcher_staleness_decision(
+        plugin_root=cache_root, runner=runner, cwd=tmp_path
+    )
 
     assert decision.refusal is None
     assert len(decision.warnings) == 1
+    assert decision.warnings[0].stage == module.CURRENCY_UNDETERMINED_STAGE
     assert "could not inspect latest release" in decision.warnings[0].detail
+    assert "currency could not be determined" in decision.warnings[0].detail
