@@ -24,6 +24,7 @@ __all__: list[str] = [
     "plans",
     "pr_view_command",
     "reconcile_merged_command",
+    "reconcile_runs_command",
     "release_to_ready_command",
     "untriaged_backlog_command",
     "untriaged_backlog_summary_command",
@@ -148,6 +149,20 @@ def reconcile_merged_command(*, project_root: Path, work_item: str) -> str:
         f"python3 {_quote(path=_wrapper_path(name='dispatcher.py'))} "
         f"reconcile-merged --repo {_quote(path=project_root)} "
         f"--item {shlex.quote(work_item)} --json"
+    )
+
+
+def reconcile_runs_command(*, project_root: Path, factory: str) -> str:
+    """The exact remedy for ONE factory's orphaned runs.
+
+    Narrowed with `--factory` rather than handing over the whole-inventory
+    form: the lane reports per run, so the remedy beside a run must act on the
+    factory that run is holding a slot on and not silently sweep the others.
+    """
+    return (
+        f"python3 {_quote(path=_wrapper_path(name='dispatcher.py'))} "
+        f"reconcile-runs --repo {_quote(path=project_root)} "
+        f"--factory {shlex.quote(factory)} --json"
     )
 
 
