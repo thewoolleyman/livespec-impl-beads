@@ -1095,5 +1095,37 @@
     "test": "TODO",
     "work_item": "bd-ib-6pshji",
     "reason": "Owned by plan epic bd-ib-6pshji; bound to the adopter-member-fixtures and fleet-toolchain-literal-ban followups (integration-tier fixture parametrization and the check-no-fleet-toolchain-literals gate)."
+  },
+  {
+    "heading": "## Scenario 103 — A needs-human outcome terminates the run and routes the decision to the ledger",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "work_item": "bd-ib-n77djm",
+    "reason": "Owned by plan epic bd-ib-n77djm (ledger-is-the-only-gate); bound to an INTEGRATION-tier test by slice S2 bd-ib-iqyekp (reconcile-runs terminal sentinel path) and S6 (workflow needs_human node)."
+  },
+  {
+    "heading": "## Scenario 104 — An item closed by any route releases its non-terminal run",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "work_item": "bd-ib-n77djm",
+    "reason": "Owned by plan epic bd-ib-n77djm (ledger-is-the-only-gate); bound to an INTEGRATION-tier test by slice S2 bd-ib-iqyekp (reconcile-runs orphan join and export-then-terminate)."
+  },
+  {
+    "heading": "## Scenario 105 — A parked run past its grace period is exported and abandoned, and its item is untouched",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "work_item": "bd-ib-n77djm",
+    "reason": "Owned by plan epic bd-ib-n77djm (ledger-is-the-only-gate); bound to an INTEGRATION-tier test by slice S5 (blocked_run_grace_seconds, after ratification)."
+  },
+  {
+    "heading": "## Scenario 106 — Reconciliation addresses every declared factory by its server target",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "work_item": "bd-ib-n77djm",
+    "reason": "Owned by plan epic bd-ib-n77djm (ledger-is-the-only-gate); bound to an INTEGRATION-tier test by slice S2 bd-ib-iqyekp (per-factory server-target discipline)."
   }
 ]
