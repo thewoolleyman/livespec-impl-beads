@@ -1033,12 +1033,15 @@ WRAPPERS = PACKAGE / "wrappers"
 _ALLOWED_HARDCODED_ASSERTIONS = {("assert-client-anchor.sh", "read_only_transaction")}
 
 
-def _run_wrapper(script: str, *args: str) -> subprocess.CompletedProcess[str]:
+def _run_wrapper(
+    script: str, *args: str, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [str(WRAPPERS / script), *args],
         capture_output=True,
         text=True,
         check=False,
+        env=env,
     )
 
 
@@ -1323,6 +1326,89 @@ def test_cleanup_receipt_refuses_a_foreign_production_receipt(tmp_path: Path) ->
     )
     assert refused.returncode != 0
     assert "HALT" in refused.stderr
+
+
+# --- The secret scan must see the VALUE, not only the variable name ---------
+#
+# `verify-no-secret-values.sh` used to hold exactly one pattern -- a shell-style
+# `BEADS_DOLT_PASSWORD=` assignment -- and it never received the secret at all,
+# so it was structurally incapable of seeing the leak it exists to catch. A raw
+# credential inside a DSN, a connection string, a JSON field, or a client error
+# message carries no variable name, so it passed AND collected a clean
+# `secret_scan` receipt: positive evidence for a property nobody had measured.
+# The arms below are a three-way control -- arm (b) proves the instrument can
+# fire, which is what makes arm (a)'s pass and arm (c)'s old pass different
+# observations rather than the same one.
+
+# Synthetic and secret-SHAPED only: this is not a credential, it is never read
+# from a credential source, and it only ever reaches a `tmp_path` receipt root.
+_SYNTHETIC_SECRET = "sYnth3t1c-not-a-real-credential-9f2b"
+_SECRET_SCAN_SCHEMA = "livespec.beads_v112_rehearsal.secret_scan_receipt.v1"
+
+
+def _secret_scan(receipt_root: Path, *, secret: str | None) -> subprocess.CompletedProcess[str]:
+    # The value travels by ENVIRONMENT, which is the channel the wrapper reads:
+    # never an argv element (visible in `ps` and shell history) and never a file.
+    env = {"PATH": os.environ["PATH"]}
+    if secret is not None:
+        env["BEADS_DOLT_PASSWORD"] = secret
+    return _run_wrapper(
+        "verify-no-secret-values.sh", str(receipt_root), "BEADS_DOLT_PASSWORD", env=env
+    )
+
+
+def test_secret_scan_sees_the_secret_value_and_not_only_the_variable_name(tmp_path: Path) -> None:
+    root = tmp_path / "receipts"
+    root.mkdir()
+    receipt = root / "inventory.json"
+
+    # Arm (a) -- a clean receipt root scans clean and publishes the receipt.
+    receipt.write_text(json.dumps({"rows": 12, "sanitized_env_names": "BEADS_DOLT_PASSWORD"}))
+    clean = _secret_scan(root, secret=_SYNTHETIC_SECRET)
+    assert clean.returncode == 0, clean.stderr
+    assert json.loads(clean.stdout)["schema"] == _SECRET_SCAN_SCHEMA
+
+    # Arm (b) -- the name-shaped assignment. Retained as the second arm because
+    # it still fires once the credential has been rotated and the value below
+    # no longer matches anything in the bundle.
+    receipt.write_text(f"BEADS_DOLT_PASSWORD={_SYNTHETIC_SECRET}\n")
+    named = _secret_scan(root, secret=_SYNTHETIC_SECRET)
+    assert named.returncode == 70
+    assert "HALT" in named.stderr
+    assert _SECRET_SCAN_SCHEMA not in named.stdout
+
+    # Arm (c) -- the raw VALUE inside a DSN, with no variable name anywhere. The
+    # absence assertion is the discriminator: without it, arm (b)'s pattern could
+    # have produced this halt and the value arm would still be untested.
+    receipt.write_text(json.dumps({"dsn": f"mysql://user:{_SYNTHETIC_SECRET}@127.0.0.1:13307/db"}))
+    assert "BEADS_DOLT_PASSWORD" not in receipt.read_text()
+    valued = _secret_scan(root, secret=_SYNTHETIC_SECRET)
+    assert valued.returncode == 70
+    assert "HALT" in valued.stderr
+    assert _SECRET_SCAN_SCHEMA not in valued.stdout
+    assert valued.stderr != named.stderr
+
+
+def test_secret_scan_halts_when_it_cannot_establish_the_no_leak_property(tmp_path: Path) -> None:
+    # Fail-closed: a scan that could not run must not publish a receipt saying
+    # it ran and found nothing. Unset and empty are separate arms because
+    # `${VAR:-}` collapses them only if the wrapper is written to.
+    root = tmp_path / "receipts"
+    root.mkdir()
+    (root / "inventory.json").write_text(json.dumps({"rows": 12}))
+
+    for missing in (None, ""):
+        refused = _secret_scan(root, secret=missing)
+        assert refused.returncode == 70
+        assert "HALT" in refused.stderr
+        assert _SECRET_SCAN_SCHEMA not in refused.stdout
+
+    # A receipt root the scan cannot read is the same class: grep exits 2, which
+    # the original `if grep ...` form silently read as "no match, all clean".
+    unreadable = _secret_scan(tmp_path / "absent-receipt-root", secret=_SYNTHETIC_SECRET)
+    assert unreadable.returncode == 70
+    assert "HALT" in unreadable.stderr
+    assert _SECRET_SCAN_SCHEMA not in unreadable.stdout
 
 
 def test_every_produced_receipt_has_a_schema_and_a_contract_entry() -> None:
