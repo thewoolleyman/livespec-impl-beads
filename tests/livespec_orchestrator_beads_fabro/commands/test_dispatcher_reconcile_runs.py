@@ -24,9 +24,25 @@ from livespec_orchestrator_beads_fabro.commands._fabro_port_http import FabroHtt
 from livespec_orchestrator_beads_fabro.commands._fabro_port_types import FabroTarget
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
-_HP = FactoryTarget(name="hp", server="https://hp.example:32276", dev_token=None)
-_VPS = FactoryTarget(name="vps", server="https://vps.example:32276", dev_token=None)
-_QUESTIONS_BODY = json.dumps([{"id": "q-1", "options": ["[A] Abandon (leave open for triage)"]}])
+_HP_DEV_TOKEN_VALUE = "hp-fixture-dev-token"
+_VPS_DEV_TOKEN_VALUE = "vps-fixture-dev-token"
+_HP = FactoryTarget(name="hp", server="https://hp.example:32276", dev_token=_HP_DEV_TOKEN_VALUE)
+_VPS = FactoryTarget(name="vps", server="https://vps.example:32276", dev_token=_VPS_DEV_TOKEN_VALUE)
+# The factory an operator host has NOT exported a dev token for, and which no
+# `~/.fabro/auth.json` entry covers either: every HTTP route it offers is 401.
+_UNAUTHENTICATED = FactoryTarget(name="hp", server="https://hp.example:32276", dev_token=None)
+_QUESTIONS_BODY = json.dumps(
+    {
+        "data": [
+            {
+                "id": "q-1",
+                "options": [{"key": "A", "label": "[A] Abandon (leave open for triage)"}],
+                "stage": "escalate",
+            }
+        ],
+        "meta": {"has_more": False},
+    }
+)
 
 
 @dataclass(kw_only=True)
@@ -82,6 +98,27 @@ class _Transport:
 
 
 @dataclass(kw_only=True)
+class _RefusingTransport:
+    """What an unauthenticated port meets on every route: 401, no body."""
+
+    calls: list[str] = field(default_factory=list)
+
+    def send(
+        self,
+        *,
+        method: str,
+        url: str,
+        headers: dict[str, str],
+        body: bytes | None,
+        timeout_seconds: float,
+    ) -> FabroHttpResult:
+        _ = (body, timeout_seconds)
+        self.calls.append(f"{method} {url}")
+        assert "Authorization" not in headers
+        return FabroHttpResult(status=401, body="", error=None, payload=None, succeeded=False)
+
+
+@dataclass(kw_only=True)
 class _Journal:
     written: list[dict[str, object]] = field(default_factory=list)
 
@@ -128,9 +165,43 @@ def test_a_closed_item_run_is_exported_then_terminated_and_journaled(tmp_path: P
     # before any HTTP verb reaches the factory.
     assert ledger.verbs[0] == "list_comments:bd-ib-orphan"
     assert "add_comment:bd-ib-orphan" in ledger.verbs
-    assert transport.calls[0].startswith("GET https://hp.example:32276/runs/01ORPHAN/questions")
+    assert transport.calls[0].startswith(
+        "GET https://hp.example:32276/api/v1/runs/01ORPHAN/questions"
+    )
     assert [record["stage"] for record in journal.written] == ["orphan-run-reconciled"]
     assert journal.written[0]["export_comment_id"] == "c-bd-ib-orphan"
+
+
+def test_an_unresolved_credential_is_journaled_before_the_rm_fallback(tmp_path: Path) -> None:
+    runner = _Runner(
+        ps_by_server={_UNAUTHENTICATED.server or "": _ps(run_id="01ORPHAN", kind="blocked")}
+    )
+    transport = _RefusingTransport()
+    journal = _Journal()
+
+    summary = reconcile.reconcile_runs(
+        inputs=_inputs(
+            tmp_path=tmp_path,
+            runner=runner,
+            transport=transport,
+            journal=journal,
+            ledger=_Ledger(),
+            items=[_item(id="bd-ib-orphan", status="closed")],
+        ),
+        factories=[_UNAUTHENTICATED],
+    )
+
+    assert [run.termination_route for run in summary.reconciled] == ["rm-force"]
+    # The unauthenticated record is written BEFORE the reconciled one, so the
+    # degrade is legible as this host carrying no credential rather than as the
+    # factory having refused each route on its merits.
+    assert [record["stage"] for record in journal.written] == [
+        "terminate-route-unauthenticated",
+        "orphan-run-reconciled",
+        "orphan-run-reconcile-rm-fallback",
+    ]
+    assert journal.written[0]["run_id"] == "01ORPHAN"
+    assert "~/.fabro/auth.json" in str(journal.written[0]["detail"])
 
 
 def test_a_failing_factory_is_journaled_and_the_other_still_reconciles(tmp_path: Path) -> None:

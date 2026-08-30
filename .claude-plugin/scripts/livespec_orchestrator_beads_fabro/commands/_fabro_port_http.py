@@ -4,24 +4,31 @@ The pinned `fabro` CLI answers a run's pending interview only interactively
 (`fabro attach`) and exposes no cancel verb at all, so the two routes the
 run reconciler needs are reached over the server's own HTTP API instead.
 
-Authentication REUSES the factory target resolution the CLI calls already
-use: the `FabroTarget` carrying a declared factory's server url and its
-per-factory dev token, which `_config.resolve_fabro_factory` resolves from
-the same configuration and environment. The token rides as a bearer
-credential; a target that carries none sends no authorization header, which
-is the same posture `fabro auth login` leaves the CLI in.
+Every route is mounted under `/api/v1`. The bare `/runs/...` form the server
+does NOT serve answers 404, which this port's own fallback discipline then
+reads as "this route did not work" — so the prefix being wrong is invisible
+at the call site and costs the destructive last-resort route instead.
+
+Authentication resolves through `_fabro_port_auth.resolve_bearer_token`:
+the `FABRO_DEV_TOKEN__<factory>` environment variable that
+`_config.resolve_fabro_factory` already folded into the target, else the
+`~/.fabro/auth.json` entry `fabro auth login` wrote for the configured
+server url. A target that resolves neither sends no authorization header and
+is refused with 401 on every route, which is why the reconciler journals
+that case by name rather than letting it read as a server that declined.
 
 A target with NO server url yields a failed result rather than a request
 against a guessed host. Building a bare target is the mis-aimed instrument
 this reconciler exists to avoid, and the failure is returned as data so the
 caller journals it rather than proceeding on a request nobody can name.
 
-The request and response SHAPES here are defensive on purpose. They were
-written against the route names the fabro fork's server handlers expose and
-have not been exercised against a live server from this repo, so the
-reconciler treats any non-2xx or unparsable answer as "this route did not
-work" and falls through to the next one. A wrong guess therefore costs a
-fallback, never a wrong action.
+The request and response SHAPES here were recorded from a live `hp` server
+on 2026-08-30 against a parked run, not inferred from handler names: a
+questions listing is `{"data": [...], "meta": {...}}`, and an answer is the
+typed `SubmitAnswerRequest` — `{"kind": "selected", "option_key": "A"}`. The
+legacy `{"answer": ...}` / `{"value": ...}` bodies are rejected with 422.
+Any non-2xx or unparsable answer is still treated as "this route did not
+work" so the caller falls through to the next one.
 """
 
 from __future__ import annotations
@@ -32,6 +39,7 @@ import urllib.request
 from dataclasses import dataclass, field, replace
 from typing import Protocol
 
+from livespec_orchestrator_beads_fabro.commands._fabro_port_auth import resolve_bearer_token
 from livespec_orchestrator_beads_fabro.commands._fabro_port_types import FabroTarget
 from livespec_orchestrator_beads_fabro.effects import (
     AttemptFailure,
@@ -50,6 +58,12 @@ __all__: list[str] = [
 
 _HTTP_SUCCESS_FLOOR = 200
 _HTTP_SUCCESS_CEILING = 300
+# The server mounts the whole run API under this prefix; the bare `/runs/...`
+# form 404s.
+_API_PREFIX = "/api/v1"
+# The `SubmitAnswerRequest` variant that picks one option of a multiple-choice
+# question by its `key`.
+_ANSWER_KIND_SELECTED = "selected"
 _NO_SERVER_URL_ERROR = (
     "the factory target carries no server url; refusing to send a Fabro HTTP "
     "request against an unnamed host"
@@ -142,11 +156,20 @@ class FabroHttpPort:
     target: FabroTarget
     transport: FabroHttpTransport = field(default_factory=UrllibFabroHttpTransport)
 
+    def bearer_token(self) -> str | None:
+        """This factory's resolved bearer credential, or `None` if it has none.
+
+        Exposed because "no credential resolved" is a fact the CALLER has to
+        record: from inside a request it is indistinguishable from a server
+        that considered the act and refused it.
+        """
+        return resolve_bearer_token(target=self.target)
+
     def questions(self, *, run_id: str, timeout_seconds: float) -> FabroHttpResult:
         """List one run's pending interview questions."""
         return self._verb(
             method="GET",
-            path=f"/runs/{run_id}/questions",
+            path=f"{_API_PREFIX}/runs/{run_id}/questions",
             payload=None,
             timeout_seconds=timeout_seconds,
         )
@@ -156,14 +179,14 @@ class FabroHttpPort:
         *,
         run_id: str,
         question_id: str,
-        answer: str,
+        option_key: str,
         timeout_seconds: float,
     ) -> FabroHttpResult:
-        """Answer one pending interview question non-interactively."""
+        """Answer one pending question by selecting one of its option keys."""
         return self._verb(
             method="POST",
-            path=f"/runs/{run_id}/questions/{question_id}/answer",
-            payload={"answer": answer},
+            path=f"{_API_PREFIX}/runs/{run_id}/questions/{question_id}/answer",
+            payload={"kind": _ANSWER_KIND_SELECTED, "option_key": option_key},
             timeout_seconds=timeout_seconds,
         )
 
@@ -171,7 +194,7 @@ class FabroHttpPort:
         """Cancel one run through the server's lifecycle route."""
         return self._verb(
             method="POST",
-            path=f"/runs/{run_id}/cancel",
+            path=f"{_API_PREFIX}/runs/{run_id}/cancel",
             payload=None,
             timeout_seconds=timeout_seconds,
         )
@@ -228,8 +251,9 @@ def _headers(*, target: FabroTarget, carries_body: bool) -> dict[str, str]:
     headers = {"Accept": "application/json"}
     if carries_body:
         headers["Content-Type"] = "application/json"
-    if target.dev_token is not None:
-        headers["Authorization"] = f"Bearer {target.dev_token}"
+    token = resolve_bearer_token(target=target)
+    if token is not None:
+        headers["Authorization"] = f"Bearer {token}"
     return headers
 
 

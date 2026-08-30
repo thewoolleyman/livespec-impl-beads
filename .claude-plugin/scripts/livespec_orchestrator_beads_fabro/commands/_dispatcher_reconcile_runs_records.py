@@ -10,6 +10,14 @@ go", which is the question a slot that disappeared always raises.
 The `fabro rm --force` fallback gets its OWN stage name in addition to the
 reconciled record. It is the destructive route, and a fallback that is
 counted the same as a clean cancel cannot be noticed becoming routine.
+
+A pass that resolved NO bearer credential gets a stage of its own too, and
+it is written BEFORE the termination is attempted. Unauthenticated, every
+HTTP route is refused with 401 and the destructive fallback fires every
+time — but the reconciled record of that pass is indistinguishable from a
+server that considered each route and declined it, so the degrade would read
+as the routes being unavailable rather than as this host never having
+presented a credential.
 """
 
 from __future__ import annotations
@@ -28,6 +36,7 @@ __all__: list[str] = [
     "JOURNAL_STAGE_EXPORT",
     "JOURNAL_STAGE_RECONCILED",
     "JOURNAL_STAGE_RM_FALLBACK",
+    "JOURNAL_STAGE_UNAUTHENTICATED",
     "TERMINATION_ROUTE_NONE",
     "ReconcileError",
     "ReconcileRunsSummary",
@@ -35,6 +44,7 @@ __all__: list[str] = [
     "journal_error",
     "journal_export",
     "journal_reconciled",
+    "journal_unauthenticated",
     "reconciled_from",
 ]
 
@@ -42,6 +52,14 @@ JOURNAL_STAGE_RECONCILED = "orphan-run-reconciled"
 JOURNAL_STAGE_ERROR = "orphan-run-reconcile-error"
 JOURNAL_STAGE_EXPORT = "orphan-run-reconcile-export"
 JOURNAL_STAGE_RM_FALLBACK = "orphan-run-reconcile-rm-fallback"
+JOURNAL_STAGE_UNAUTHENTICATED = "terminate-route-unauthenticated"
+
+_UNAUTHENTICATED_DETAIL = (
+    "no bearer credential resolved for this factory: neither a "
+    "FABRO_DEV_TOKEN__<factory> environment variable nor a ~/.fabro/auth.json "
+    "servers entry matching the configured server url; every HTTP termination "
+    "route will be refused with 401 and the fabro rm --force fallback will fire"
+)
 
 # What a `--dry-run` projection reports instead of a route: nothing was
 # terminated, and naming a route it did not take would read as a record of
@@ -141,6 +159,20 @@ def journal_reconciled(*, journal: JournalWriter, run: ReconciledRun) -> None:
                 "termination_detail": run.termination_detail,
             }
         )
+
+
+def journal_unauthenticated(*, journal: JournalWriter, orphan: OrphanRun) -> None:
+    """Record that this pass carries no credential, before it degrades."""
+    journal.append(
+        record={
+            "stage": JOURNAL_STAGE_UNAUTHENTICATED,
+            "run_id": orphan.run_id,
+            "factory_name": orphan.factory_name,
+            "factory_server_url": orphan.factory_server_url,
+            "work_item_id": orphan.work_item_id,
+            "detail": _UNAUTHENTICATED_DETAIL,
+        }
+    )
 
 
 def journal_export(*, journal: JournalWriter, orphan: OrphanRun, body: str) -> None:
