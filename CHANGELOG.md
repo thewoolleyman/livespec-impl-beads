@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.109.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.108.0...v0.109.0) (2026-08-30)
+
+
+### Features
+
+* **dispatcher:** operator clearance for a provider-exhaustion record (bd-ib-yhbsd4.4) ([e3d1f15](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/e3d1f150f8c4f84f475e8f6371bd5d754ff6ad3a))
+
 ## [0.108.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.107.0...v0.108.0) (2026-08-30)
 
 
