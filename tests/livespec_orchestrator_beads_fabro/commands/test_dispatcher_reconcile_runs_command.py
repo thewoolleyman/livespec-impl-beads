@@ -1,4 +1,4 @@
-"""CLI wiring tests for `reconcile-runs` and its `stale-run-sweep` alias."""
+"""CLI wiring tests for the `reconcile-runs` dispatcher subcommand."""
 
 from __future__ import annotations
 
@@ -67,7 +67,29 @@ def test_reconcile_runs_emits_a_json_projection_and_wires_every_input(
     assert inputs["metadata_run_ids"] == {"01STAMPED": "bd-ib-stamped"}
 
 
-def test_the_stale_run_sweep_alias_resolves_to_the_same_handler(
+def test_the_retired_stale_run_sweep_name_fails_as_an_unknown_subcommand(
+    *,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The alias is retired: argparse's own refusal, not a custom farewell.
+
+    A custom message would keep the retired name a recognised token, which is
+    how a caller keeps invoking it and how the alias grows back.
+    """
+    _ = _stub(monkeypatch=monkeypatch, summary=_summary())
+
+    with pytest.raises(SystemExit) as refusal:
+        _ = main(argv=["stale-run-sweep", "--repo", str(tmp_path), "--factory", "hp"])
+
+    captured = capsys.readouterr()
+    assert refusal.value.code == 2
+    assert "invalid choice: 'stale-run-sweep'" in captured.err
+    assert captured.out == ""
+
+
+def test_the_factory_flag_reaches_the_factory_resolver(
     *,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
@@ -75,7 +97,7 @@ def test_the_stale_run_sweep_alias_resolves_to_the_same_handler(
 ) -> None:
     calls = _stub(monkeypatch=monkeypatch, summary=_summary())
 
-    exit_code = main(argv=["stale-run-sweep", "--repo", str(tmp_path), "--factory", "hp"])
+    exit_code = main(argv=["reconcile-runs", "--repo", str(tmp_path), "--factory", "hp"])
 
     assert exit_code == 0
     assert capsys.readouterr().out == "(no orphaned fabro runs found)\n"

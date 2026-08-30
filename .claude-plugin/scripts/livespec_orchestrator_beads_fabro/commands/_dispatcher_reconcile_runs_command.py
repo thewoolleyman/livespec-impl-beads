@@ -1,11 +1,12 @@
-"""The `reconcile-runs` dispatcher subcommand (aliased `stale-run-sweep`).
+"""The `reconcile-runs` dispatcher subcommand.
 
-`stale-run-sweep` is kept as an alias rather than as a second
-implementation. It surveyed one factory, considered only `runnable` and
-`running` runs, and skipped any run whose item it could not find — three
-filters that together let a run parked at the human gate hold a scheduler
-slot indefinitely. Everything it did correctly, this command does; nothing
-would be gained by keeping a narrower sweep reachable under its old name.
+It subsumes the narrower per-factory sweep that preceded it, which surveyed
+one factory, considered only `runnable` and `running` runs, and skipped any
+run whose item it could not find — three filters that together let a run
+parked at the human gate hold a scheduler slot indefinitely. That sweep's
+name was carried for a while as an alias so the host timer could be renamed
+without a flag day; the timer now names this command, so the alias is gone
+and the old name fails as an ordinary unknown subcommand.
 
 `--dry-run --json` is the read-only projection: it emits the orphan set and
 performs no export, no termination, and no journal write, so a caller can

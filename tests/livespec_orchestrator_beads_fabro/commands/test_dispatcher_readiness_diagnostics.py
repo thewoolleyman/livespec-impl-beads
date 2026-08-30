@@ -171,7 +171,7 @@ def test_not_ready_requested_items_error_names_claimed_item(tmp_path: Path) -> N
     ) == (
         "ERROR: requested work-item(s) already claimed by a dispatch: claimed; "
         "status=active assignee=<unassigned>; Inspect the dispatch journal and "
-        "stale-run-sweep for a stranded claim before checking dependencies.\n"
+        "reconcile-runs for a stranded claim before checking dependencies.\n"
     )
 
 

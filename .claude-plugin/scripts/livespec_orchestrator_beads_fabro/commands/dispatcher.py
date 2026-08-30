@@ -25,7 +25,6 @@ orchestrator-PRIVATE tooling: core's contract sees only the three
   dispatcher.py reconcile-runs [--repo <path>] [--factory <name>]
                                 [--fabro-bin <path>] [--journal <path>]
                                 [--invoker <id>] [--dry-run] [--json]
-  dispatcher.py stale-run-sweep  (alias of reconcile-runs)
   dispatcher.py clear-provider-exhaustion --provider <name> --reason <text>
                                           [--repo <path>] [--invoker <id>]
                                           [--journal <path>]
@@ -43,10 +42,10 @@ tree at `--spec-root` (default `<project-root>/SPECIFICATION`).
 (no-stale-merged-branch / no-stale-merged-pr-branch / no-stale-worktree;
 see `_dispatcher_janitor_checks.py`) against the repo's git/gh state.
 `reconcile-runs` is the single authority over every configured factory's
-non-terminal run inventory (`stale-run-sweep` is its alias). It surveys each
-declared factory through that factory's own resolved target, considers every
-non-terminal status kind — `blocked` and `paused` included, which is what the
-narrower sweep it replaces could not see — and joins each run against the
+non-terminal run inventory. It surveys each declared factory through that
+factory's own resolved target, considers every non-terminal status kind —
+`blocked` and `paused` included, which is what the narrower sweep it
+replaces could not see — and joins each run against the
 Ledger plus the dispatch journal's run ids. A run whose item is not `active`,
 whose item is `active` under a DIFFERENT journaled run, or whose item is
 absent from the Ledger is an ORPHAN: its record is exported and read back
@@ -359,9 +358,6 @@ _SUBCOMMAND_HANDLERS: dict[str, Callable[..., int]] = {
     "reconcile-merged": run_reconcile_merged_command,
     "reconcile-runs": run_reconcile_runs_command,
     "spec-check": run_spec_check,
-    # The alias, resolving to the SAME handler: a second implementation is
-    # what let the narrower sweep survive under this name.
-    "stale-run-sweep": run_reconcile_runs_command,
 }
 
 
@@ -386,7 +382,6 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_spec_check(parser=subparsers.add_parser("spec-check"))
     _add_janitor_check(parser=subparsers.add_parser("janitor-check"))
     _add_reconcile_runs(parser=subparsers.add_parser("reconcile-runs"))
-    _add_reconcile_runs(parser=subparsers.add_parser("stale-run-sweep"))
     _add_reconcile_merged(parser=subparsers.add_parser("reconcile-merged"))
     _add_probe(parser=subparsers.add_parser("probe"))
     dispatch = subparsers.add_parser("dispatch")
