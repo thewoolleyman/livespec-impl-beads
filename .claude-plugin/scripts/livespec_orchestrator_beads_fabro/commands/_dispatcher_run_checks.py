@@ -16,9 +16,8 @@ from livespec_orchestrator_beads_fabro.commands._config import (
     resolve_fabro_factory,
 )
 from livespec_orchestrator_beads_fabro.commands._cross_repo import load_manifest
-from livespec_orchestrator_beads_fabro.commands._dispatcher_check_suite_view import (
-    check_suite_refusal,
-    resolve_janitor_check_suite,
+from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_validation import (
+    schema_validation_refusal,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import (
     invoker_from_args,
@@ -270,21 +269,26 @@ def _fabro_preflight_error(*, fabro_bin: str) -> str | None:
 def dispatch_preamble(
     *, args: argparse.Namespace, repo: Path
 ) -> tuple[tuple[str, ...] | None, int | None]:
-    """Shared dispatch/loop entry validation: janitor spec + fabro engine binary.
+    """Shared dispatch/loop entry validation: janitor spec, declaration, engine binary.
 
     Returns `(janitor, None)` to proceed (the parsed janitor override to thread
     downstream, which `build_plan` resolves against the repository's committed
     check-suite declaration), or `(None, exit_code)` to short-circuit the
     command: `_EXIT_USAGE_ERROR` for a malformed `--janitor`,
-    `_EXIT_PRECONDITION_ERROR` for an unresolvable fabro engine binary or an
-    unresolvable `dispatcher.janitor.check_suite` declaration. The check-suite
-    is resolved here only to REFUSE on it: a present-but-unusable declaration
-    resolves no command at all, and this is where that is caught before a merge
-    can land on a check-suite that cannot run. The fabro check runs BEFORE the
-    caller arms the receiver, prepares the store, or admits anything, so a
-    misconfigured engine binary refuses with ZERO side effects and provably
-    before admission (ready -> active) rather than stranding an item at active.
-    Sets `args.fabro_bin` to the resolved path as a side effect.
+    `_EXIT_PRECONDITION_ERROR` for a declaration that does not satisfy the
+    contract schema version this build requires, or for an unresolvable fabro
+    engine binary. The fabro check runs BEFORE the caller arms the receiver,
+    prepares the store, or admits anything, so a misconfigured engine binary
+    refuses provably before admission (ready -> active) rather than stranding an
+    item at active. Sets `args.fabro_bin` to the resolved path as a side effect.
+
+    The schema-validation pass is where a defective declaration is refused, and
+    it supersedes the per-key check-suite refusal that used to stand here: the
+    ratified pass enumerates EVERY `Defective` point in one message, so an
+    adopter learns its whole unmet set at once rather than one dispatch at a
+    time. It gates ADMISSION only -- the reconcile valve, which carries an
+    ALREADY-ADMITTED item forward, keeps its own narrow check-suite refusal, so
+    an expectation a later build adds cannot strand a mid-pipeline item.
 
     The invoker refusal runs FIRST of all, ahead of even the janitor parse:
     with `dispatcher.require_invoker` true, a fallback-only invocation must be
@@ -312,11 +316,9 @@ def dispatch_preamble(
     janitor, janitor_ok = parse_janitor(raw=args.janitor)
     if not janitor_ok:
         return None, _EXIT_USAGE_ERROR
-    check_suite_error = check_suite_refusal(
-        check_suite=resolve_janitor_check_suite(cwd=repo, janitor=janitor)
-    )
-    if check_suite_error is not None:
-        _ = write_stderr(text=check_suite_error)
+    schema_refusal = schema_validation_refusal(args=args, repo=repo)
+    if schema_refusal is not None:
+        _ = write_stderr(text=schema_refusal)
         return None, _EXIT_PRECONDITION_ERROR
     args.fabro_bin = _resolve_fabro_bin_for(args=args, repo=repo)
     args.fabro_factory_target = _resolve_fabro_factory_for(args=args, repo=repo)

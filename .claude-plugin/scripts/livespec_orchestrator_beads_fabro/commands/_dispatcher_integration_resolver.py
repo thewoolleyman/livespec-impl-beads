@@ -71,6 +71,7 @@ __all__: list[str] = [
     "IntegrationResolution",
     "IntegrationValue",
     "ResolvedIntegrationContract",
+    "declaration_carries",
     "is_declared",
     "resolve_integration_contract",
     "resolve_integration_field",
@@ -221,6 +222,31 @@ def resolve_integration_contract(
     return ResolvedIntegrationContract(
         contract=contract, defects=defects, resolutions=MappingProxyType(resolved)
     )
+
+
+def declaration_carries(*, field: IntegrationField, declaration: Mapping[str, object]) -> bool:
+    """Whether this DECLARATION writes anything AT this point.
+
+    The three arms above answer what a point RESOLVES to; this answers the prior
+    question of whether the repository wrote at it, which is the distinction the
+    pre-dispatch validation pass grades on. A key written as JSON `null` counts
+    as written, and so does an ancestor that is present but is not a mapping:
+    the repository put something there, and what it put does not resolve.
+
+    A declared PARENT does NOT count. `parent_key` obliges a half the repository
+    did not write, and the resolver is right to call that missing half
+    `Defective`; but it is an ABSENCE at this point, and the step that consumes
+    the point -- the master-CI preflight, the janitor-bootstrap check -- already
+    refuses on it pre-dispatch, naming its own resolution and its own committed
+    waiver. Grading it here as well would move that refusal to a surface with no
+    waiver and silently retire the escape hatch.
+
+    It is deliberately NOT the negation of `is_declared`, which reads a
+    RESOLUTION and calls a `Defective` declared whatever produced it. This reads
+    the declaration itself, so an absence stays an absence.
+    """
+    found = _walk(declaration=declaration, path=field.path)
+    return found.present or found.blocked_at is not None
 
 
 def is_declared(*, resolution: IntegrationResolution) -> bool:
