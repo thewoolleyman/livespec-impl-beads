@@ -36,6 +36,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_io import (
     JournalFile,
     ShellCommandRunner,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_check_suite import (
+    check_suite_refusal,
+    resolve_janitor_check_suite,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_close import (
     emit_outcomes,
     load_items,
@@ -141,15 +145,39 @@ def _reconcile_preflight(*, args: argparse.Namespace, repo: Path) -> _ReconcileP
     if item_refusal is not None:
         _ = write_stderr(text=item_refusal)
         return EXIT_PRECONDITION_ERROR
-    janitor, janitor_ok = parse_janitor(raw=args.janitor)
-    if not janitor_ok:
-        return 2
+    janitor, janitor_exit = _janitor_preflight(args=args, repo=repo)
+    if janitor_exit is not None:
+        return janitor_exit
     if not args.force:
         live_detail = _live_dispatch_refusal(args=args, repo=repo, item=item)
         if live_detail is not None:
             _ = write_stderr(text=live_detail)
             return EXIT_PRECONDITION_ERROR
     return _ReconcilePreflight(item=item, janitor=janitor)
+
+
+def _janitor_preflight(
+    *, args: argparse.Namespace, repo: Path
+) -> tuple[tuple[str, ...] | None, int | None]:
+    """The `--janitor` half of the preflight: parse the override, then resolve it.
+
+    Returns `(janitor, None)` to proceed, or `(None, exit_code)` to
+    short-circuit. The reconcile valve is the second `--janitor` entry point, so
+    it refuses on the same unresolvable declaration the dispatch preamble does:
+    `build_plan` would otherwise hand the janitor the empty argv a
+    present-but-unusable `dispatcher.janitor.check_suite` resolves to, and it
+    would do so on an item whose merge has already landed.
+    """
+    janitor, janitor_ok = parse_janitor(raw=args.janitor)
+    if not janitor_ok:
+        return None, 2
+    check_suite_error = check_suite_refusal(
+        check_suite=resolve_janitor_check_suite(cwd=repo, janitor=janitor)
+    )
+    if check_suite_error is not None:
+        _ = write_stderr(text=check_suite_error)
+        return None, EXIT_PRECONDITION_ERROR
+    return janitor, None
 
 
 def _item_precondition_refusal(*, item: WorkItem, repo: Path) -> str | None:

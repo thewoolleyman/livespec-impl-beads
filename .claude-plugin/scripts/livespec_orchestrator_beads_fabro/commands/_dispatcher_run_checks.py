@@ -24,6 +24,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_io import (
     JournalFile,
     ShellCommandRunner,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_check_suite import (
+    check_suite_refusal,
+    resolve_janitor_check_suite,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_checks import run_janitor_checks
 from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_checks import (
     LedgerFinding,
@@ -252,9 +256,14 @@ def dispatch_preamble(
     """Shared dispatch/loop entry validation: janitor spec + fabro engine binary.
 
     Returns `(janitor, None)` to proceed (the parsed janitor override to thread
-    downstream), or `(None, exit_code)` to short-circuit the command:
-    `_EXIT_USAGE_ERROR` for a malformed `--janitor`, `_EXIT_PRECONDITION_ERROR`
-    for an unresolvable fabro engine binary. The fabro check runs BEFORE the
+    downstream, which `build_plan` resolves against the repository's committed
+    check-suite declaration), or `(None, exit_code)` to short-circuit the
+    command: `_EXIT_USAGE_ERROR` for a malformed `--janitor`,
+    `_EXIT_PRECONDITION_ERROR` for an unresolvable fabro engine binary or an
+    unresolvable `dispatcher.janitor.check_suite` declaration. The check-suite
+    is resolved here only to REFUSE on it: a present-but-unusable declaration
+    resolves no command at all, and this is where that is caught before a merge
+    can land on a check-suite that cannot run. The fabro check runs BEFORE the
     caller arms the receiver, prepares the store, or admits anything, so a
     misconfigured engine binary refuses with ZERO side effects and provably
     before admission (ready -> active) rather than stranding an item at active.
@@ -280,6 +289,12 @@ def dispatch_preamble(
     janitor, janitor_ok = parse_janitor(raw=args.janitor)
     if not janitor_ok:
         return None, _EXIT_USAGE_ERROR
+    check_suite_error = check_suite_refusal(
+        check_suite=resolve_janitor_check_suite(cwd=repo, janitor=janitor)
+    )
+    if check_suite_error is not None:
+        _ = write_stderr(text=check_suite_error)
+        return None, _EXIT_PRECONDITION_ERROR
     args.fabro_bin = _resolve_fabro_bin_for(args=args, repo=repo)
     args.fabro_factory_target = _resolve_fabro_factory_for(args=args, repo=repo)
     fabro_error = _fabro_preflight_error(fabro_bin=args.fabro_bin)

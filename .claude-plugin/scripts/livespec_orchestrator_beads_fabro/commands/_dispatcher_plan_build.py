@@ -7,8 +7,11 @@ from pathlib import Path
 
 from livespec_orchestrator_beads_fabro.commands._acp_node_layers import AcpNodeResolution
 from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_argv import (
-    janitor_argv_with_default,
+    janitor_argv,
     janitor_core_checkout_path,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_check_suite import (
+    resolve_janitor_check_suite,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings import (
     DEFAULT_MERGE_ON_REVIEW_CAP,
@@ -112,7 +115,7 @@ def build_plan(  # noqa: PLR0913 — kw-only plan resolver; each field is an ind
         fabro_factory_name=fabro_factory_name,
         fabro_factory_server=fabro_factory_server,
         fabro_factory_dev_token=fabro_factory_dev_token,
-        janitor=janitor_argv_with_default(janitor=janitor),
+        janitor=janitor_argv(check_suite=resolve_janitor_check_suite(cwd=repo, janitor=janitor)),
         janitor_checkout=janitor_checkout,
         janitor_core_checkout=janitor_core_checkout_path(janitor_checkout=janitor_checkout),
         janitor_core_repo_url=janitor_core_repo_url,
