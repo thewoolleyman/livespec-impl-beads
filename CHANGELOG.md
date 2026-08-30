@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.111.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.110.0...v0.111.0) (2026-08-30)
+
+
+### Features
+
+* **dispatcher:** reconcile-runs over every factory's run inventory (bd-ib-iqyekp) ([60e15bc](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/60e15bc7f6f125927cbd6e69b9d27bde4bf4a568))
+
 ## [0.110.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.109.0...v0.110.0) (2026-08-30)
 
 
