@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.99.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.98.1...v0.99.0) (2026-08-30)
+
+
+### Features
+
+* **dispatcher:** resolve the post-merge janitor check-suite from a committed declaration ([a6ebaaf](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/a6ebaafba2c17f3b169de7085509525ea0faa4d7))
+
 ## [0.98.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.98.0...v0.98.1) (2026-08-30)
 
 
