@@ -227,11 +227,24 @@ def test_watched_launcher_reaps_queued_run_after_item_closes(
     assert journal.records == [
         {
             "work_item_id": "bd-ib-queued",
+            "stage": "watchdog-discovery-poll",
+            "matched": True,
+            "reason": "matched",
+            "ps_exit_code": 0,
+            "ps_row_count": 1,
+            "work_item_row_count": 1,
+            "unattributed_row_count": 0,
+            "status_kinds": ["runnable"],
+            "run_id": "01QUEUED",
+            "status_kind": "runnable",
+        },
+        {
+            "work_item_id": "bd-ib-queued",
             "stage": "stale-run-reap",
             "run_id": "01QUEUED",
             "item_status": "done",
             "rm_exit_code": 0,
-        }
+        },
     ]
 
 
@@ -332,7 +345,7 @@ def test_watched_launcher_skips_item_status_lookup_without_store_config(
     assert reader.call_count == 0
 
 
-def test_watched_launcher_continues_when_ps_has_no_matching_run(
+def test_watched_launcher_journals_discovery_record_when_ps_has_no_matching_run(
     *,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -410,6 +423,24 @@ def test_watched_launcher_continues_when_ps_has_no_matching_run(
     assert result.abandoned_run_id is None
     assert "ps" in runner.calls
     assert "rm" not in runner.calls
+    # The 11-day blind spot this test pins: a poll that discovers no matching
+    # run used to `continue` with ZERO output, so a total watchdog outage was
+    # indistinguishable from a healthy run. Every poll now leaves a record.
+    assert journal.records == [
+        {
+            "work_item_id": "bd-ib-queued",
+            "stage": "watchdog-discovery-poll",
+            "matched": False,
+            "reason": "work-item-id-mismatch",
+            "ps_exit_code": 0,
+            "ps_row_count": 1,
+            "work_item_row_count": 0,
+            "unattributed_row_count": 0,
+            "status_kinds": [],
+            "run_id": None,
+            "status_kind": None,
+        }
+    ]
 
 
 def test_watched_launcher_continues_when_item_status_lookup_fails(

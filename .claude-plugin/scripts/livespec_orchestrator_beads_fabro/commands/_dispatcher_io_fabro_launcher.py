@@ -33,6 +33,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_watchdog import (
     parse_last_event_epoch,
     resolve_stall_seconds,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_watchdog_discovery import (
+    journaled_discovery,
+)
 from livespec_orchestrator_beads_fabro.commands._fabro_port import (
     FabroPort,
     FabroRunSummary,
@@ -159,7 +162,7 @@ class WatchedFabroLauncher:
             self.sleep(_WATCHDOG_POLL_INTERVAL_SECONDS)
             if not thread.is_alive():
                 return _WatchResult()
-            run = self._discover_run(plan=plan, port=port)
+            run = self._discover_run(plan=plan, port=port, journal=journal)
             run_id = run.run_id if run is not None and run.status_kind == "running" else None
             known_run_id = run_id if run_id is not None else known_run_id
             if run is not None:
@@ -186,17 +189,26 @@ class WatchedFabroLauncher:
                 return _WatchResult(stalled_run_id=known_run_id)
         return _WatchResult()
 
-    def _discover_run(self, *, plan: DispatchPlan, port: FabroPort) -> FabroRunSummary | None:
-        ps = port.ps(timeout_seconds=_FABRO_PROBE_TIMEOUT_SECONDS)
-        if ps.command.exit_code != 0:
-            return None
-        for run in ps.runs:
-            if run.work_item_id == plan.work_item_id and run.status_kind in {
-                "runnable",
-                "running",
-            }:
-                return run
-        return None
+    def _discover_run(
+        self,
+        *,
+        plan: DispatchPlan,
+        port: FabroPort,
+        journal: JournalWriter,
+    ) -> FabroRunSummary | None:
+        """Probe `fabro ps` and hand the poll to the journaling discovery seam.
+
+        This method owns the port call and NOTHING else. The classification
+        and its unconditional per-poll journal record live together in
+        `_dispatcher_watchdog_discovery`, so no future caller can take the
+        discovery result without leaving the record — the silent-miss shape
+        that hid a total watchdog outage on `hp` for 11 days.
+        """
+        return journaled_discovery(
+            work_item_id=plan.work_item_id,
+            ps=port.ps(timeout_seconds=_FABRO_PROBE_TIMEOUT_SECONDS),
+            journal=journal,
+        )
 
     def _sample(
         self,
