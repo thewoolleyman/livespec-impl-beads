@@ -109,8 +109,22 @@ def fabro_run_terminal_outcome(
     )
 
 
-def _blocked_detail(*, run_id: str, escalation: FabroEscalation | None) -> str:
+def _blocked_detail(
+    *,
+    run_id: str,
+    server_url: str | None,
+    escalation: FabroEscalation | None,
+) -> str:
     """Render the blocked terminal for the operator who has to triage it.
+
+    Every `fabro` command named here carries the FACTORY it must be aimed at.
+    That suffix is part of the command, not decoration: a bare `fabro attach
+    <run>` defaults to the LOCAL server, and against a run living on a remote
+    factory it reports "No running processes found" — a clean, plausible, wrong
+    answer with no error, which sends the triager hunting for a run that was
+    never missing. The suffix is omitted only when the resolved factory HAS no
+    server url, i.e. the single-factory local default, where naming one would be
+    inventing a target rather than recording the resolved one.
 
     An ENGINE-ESCALATED run and a run genuinely parked on a human gate share
     one terminal status, so a single wording has to be wrong for one of them.
@@ -125,11 +139,12 @@ def _blocked_detail(*, run_id: str, escalation: FabroEscalation | None) -> str:
     triaging — and pointedly NOT offering a gate to answer. The genuine gate
     keeps the original wording verbatim.
     """
+    factory = "" if server_url is None else f" --server {server_url}"
     if escalation is None:
         return (
             f"run {run_id} parked at the in-loop human gate (needs-human); "
-            f"answer with `fabro attach {run_id}` while the engine lives, "
-            f"`fabro resume {run_id}` only if the engine died; "
+            f"answer with `fabro attach {run_id}{factory}` while the engine lives, "
+            f"`fabro resume {run_id}{factory}` only if the engine died; "
             "not auto-resumed, item left open"
         )
     signatures = ", ".join(escalation.loop_failure_signatures)
@@ -177,6 +192,7 @@ def _blocked_outcome(
         merge_sha=None,
         detail=_blocked_detail(
             run_id=run_id,
+            server_url=plan.fabro_factory_server,
             escalation=fabro_escalation_from_payload(payload=inspect.payload),
         ),
         fabro_run_id=run_id,

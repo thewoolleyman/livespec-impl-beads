@@ -124,7 +124,7 @@ _MID_LOOP_GATE_PAYLOAD = _record(
 )
 
 
-def _plan(*, tmp_path: Path) -> DispatchPlan:
+def _plan(*, tmp_path: Path, server_url: str | None = None) -> DispatchPlan:
     return DispatchPlan(
         repo=tmp_path,
         work_item_id="bd-ib-utq7b4",
@@ -133,7 +133,7 @@ def _plan(*, tmp_path: Path) -> DispatchPlan:
         goal_file=tmp_path / "goal.txt",
         fabro_bin="fabro",
         fabro_factory_name="hp",
-        fabro_factory_server=None,
+        fabro_factory_server=server_url,
         fabro_factory_dev_token=None,
         janitor=("just", "check"),
         janitor_checkout=tmp_path / ".janitor",
@@ -145,10 +145,10 @@ def _plan(*, tmp_path: Path) -> DispatchPlan:
     )
 
 
-def _detail(*, tmp_path: Path, payload: object) -> str:
+def _detail(*, tmp_path: Path, payload: object, server_url: str | None = None) -> str:
     outcome = fabro_run_terminal_outcome(
         outcome_type=DispatchOutcome,
-        plan=_plan(tmp_path=tmp_path),
+        plan=_plan(tmp_path=tmp_path, server_url=server_url),
         run_id=_RUN_ID,
         inspect=FabroInspectResult(
             command=_CommandResult(exit_code=0, stdout="", stderr=""),
@@ -294,3 +294,35 @@ def test_top_level_checkpoint_is_the_newest_state_and_wins() -> None:
     ]
 
     assert module.fabro_escalation_from_payload(payload=payload) is None
+
+
+_HP_SERVER = "https://hp-xubuntu.perch-rudd.ts.net:32276"
+
+
+def test_the_gate_commands_name_the_factory_the_run_actually_went_to(
+    tmp_path: Path,
+) -> None:
+    """A recovery command aimed at the wrong pool answers about a run that is not there.
+
+    This repo dispatches to a named remote factory, so a bare `fabro attach`
+    reads the LOCAL server and reports no such run — with exit 0 and no error.
+    """
+    detail = _detail(
+        tmp_path=tmp_path,
+        payload=_AGENT_GATE_PAYLOAD,
+        server_url=_HP_SERVER,
+    )
+
+    assert f"fabro attach {_RUN_ID} --server {_HP_SERVER}" in detail
+    assert f"fabro resume {_RUN_ID} --server {_HP_SERVER}" in detail
+    assert f"fabro attach {_RUN_ID}`" not in detail
+
+
+def test_the_gate_commands_name_no_factory_when_the_target_resolves_to_none(
+    tmp_path: Path,
+) -> None:
+    """The single-factory default has no url; naming one would be inventing it."""
+    detail = _detail(tmp_path=tmp_path, payload=_AGENT_GATE_PAYLOAD)
+
+    assert f"fabro attach {_RUN_ID}`" in detail
+    assert "--server" not in detail
