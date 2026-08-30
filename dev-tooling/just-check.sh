@@ -86,6 +86,7 @@ targets=(
     check-bd-guard
     check-codex-skill-picker
     check-no-fleet-pat-dispatch-surface
+    check-seam-equivalence
     check-no-workflow-edits
     check-fresh-clone-setup
     check-doctor-static
