@@ -76,6 +76,35 @@ fabro-enemy-tier1:
 fabro-enemy-compare:
     uv run python fabro-enemy-unit-tests/compare.py
 
+# Beads Enemy Unit Tests tier 0. Real `bd` reads/contracts against a candidate
+# binary and an isolated store, no item mutation. The pure-contract assertions
+# run always; the live-store assertions SKIP without BEADS_EUT_BIN. Kept outside
+# `just check`. BEADS_EUT_CWD is a scratch client dir whose .beads/config.yaml
+# routes bd auto-discovery at the isolated server (no family password):
+#   BEADS_EUT_BIN=/path/to/bd BEADS_EUT_CWD=/scratch/client just beads-enemy-tier0
+beads-enemy-tier0:
+    uv run pytest beads-enemy-unit-tests/test_tier0_*.py -q
+
+# Beads Enemy Unit Tests tier 1. Live create/update/close/dependency/comment
+# round-trips, the two-step create normalization, assignee clearing, and the
+# metadata compact-JSON round-trip -- all against a THROWAWAY isolated store.
+# Mutates data; run only when deliberately evaluating a pinned or candidate bd
+# binary against the isolated server:
+#   BEADS_EUT_BIN=/path/to/bd BEADS_EUT_CWD=/scratch/client just beads-enemy-tier1
+beads-enemy-tier1:
+    uv run pytest beads-enemy-unit-tests/test_tier1_*.py -q
+
+# Compare the tier-0 Beads Enemy Unit Tests across two independently configured
+# bd binary/store pairs and write a Markdown delta artifact. Exits 0 only when
+# both pytest legs exited 0 AND the rendered delta is empty, so this recipe may
+# be gated on directly; a skip on one target is a delta, counted separately from
+# a regression. The delta artifact IS the upgrade risk assessment:
+#   BEADS_EUT_PINNED_BIN=/usr/local/bin/bd-real BEADS_EUT_PINNED_CWD=/scratch/pinned \
+#   BEADS_EUT_CANDIDATE_BIN=/path/to/bd-candidate BEADS_EUT_CANDIDATE_CWD=/scratch/candidate \
+#   just beads-enemy-compare
+beads-enemy-compare:
+    uv run python beads-enemy-unit-tests/compare.py
+
 # W7 LIVE Beads/Fabro golden-master tier. The REAL end-to-end proof: creates a
 # throwaway `livespec-e2e/livespec-e2e-*` repo, seeds it with the hello-world
 # fixture SPECIFICATION + an embedded beads ledger carrying one ready greeting
