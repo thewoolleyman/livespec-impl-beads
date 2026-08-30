@@ -1,0 +1,61 @@
+"""POSITIVE CONTROL for no_fleet_toolchain_literals — this file MUST produce findings.
+
+Not a module. It is stored with a `.py.txt` suffix so no linter, typechecker,
+coverage gate or mirror-pairing check treats it as first-party source, while the
+check still reads and parses it through the same path it uses for the real
+package walk.
+
+Every literal below is a fleet premise in the shape the dispatcher package
+actually wrote it -- an argv element, an `sh -lc` command string, a bare ref
+constant -- not merely a mention of a tool's name. If `no_fleet_toolchain_literals`
+reports no finding here, the matcher is broken and its clean report on the real
+package means nothing.
+
+This docstring names `mise`, `lefthook`, `livespec_dev_tooling`,
+`livespec-step-timer`, `just` and `master` DELIBERATELY: a docstring is the design
+record, the scan must never read one, and a fixture that proves the positive case
+should prove the negative one beside it.
+"""
+
+from __future__ import annotations
+
+__all__: list[str] = [
+    # `main` here is a Python symbol name, not a default branch. The scan skips
+    # `__all__` entries for exactly this reason, and a finding on this line
+    # would mean that skip has regressed.
+    "main",
+]
+
+
+def janitor_check_argv() -> list[str]:
+    # The argv-element shape: each literal IS the token.
+    return ["mise", "exec", "--", "just", "check"]
+
+
+def hook_install_argv() -> list[str]:
+    # The shell-command-string shape: the token sits in command position.
+    return ["sh", "-lc", "lefthook install && livespec-step-timer report"]
+
+
+def dev_tooling_module() -> str:
+    return "livespec_dev_tooling"
+
+
+def merge_base_ref() -> str:
+    # A bare default-branch name used as a ref, and the ref-path spelling of it.
+    return "master"
+
+
+def upstream_ref() -> str:
+    return "refs/remotes/origin/main"
+
+
+def refusal_sentence() -> str:
+    # PROSE, not a premise: a sentence that names the fleet's tools describes
+    # what happened and imposes nothing. A finding here would mean the matcher
+    # has widened into operator-facing text.
+    return "the janitor could not run mise inside the checkout on the master branch"
+
+
+def main() -> int:
+    return 0

@@ -413,6 +413,7 @@ check:
         check-closed-item-integrity
         check-needs-attention-surface-ownership
         check-spec-id-presence-discipline
+        check-no-fleet-toolchain-literals
         check-codex-plugin-structure
         check-pi-plugin-structure
         check-bd-guard
@@ -630,6 +631,24 @@ check-needs-attention-surface-ownership:
 # livespec-dev-tooling slug, so it is wired in the private block.
 check-spec-id-presence-discipline:
     uv run python dev-tooling/checks/spec_id_presence_discipline.py
+
+# `check-no-fleet-toolchain-literals` — SPECIFICATION/constraints.md
+# §"Fleet-toolchain literal ban". Fails on any fleet-toolchain literal (`mise`, a
+# fleet `just` recipe name, `lefthook`, `livespec_dev_tooling`,
+# `livespec-step-timer`, or a bare default-branch name used as a ref) in the
+# dispatcher package outside the single fleet-defaults module the
+# `RepoIntegrationContract` schema designates, so a new hardcoded premise cannot
+# be reintroduced by a later change. The package scan is AST-based, so comments,
+# docstrings and `__all__` symbol lists are out of scope; the workflow payload
+# and the prompt files are allow-listed pending their conversion by carrier
+# C5-payload, which deletes that list. A STALE allow-list entry fails too, which
+# is what makes the deletion mechanical. Because it reports an absence, it
+# refuses to report a clean scan unless its discovery, designation and matcher
+# positive controls all hold. Pure AST/text read of committed files: no beads, no
+# store, no network. Not a canonical livespec-dev-tooling slug, so it is wired in
+# the private block.
+check-no-fleet-toolchain-literals:
+    uv run python dev-tooling/checks/no_fleet_toolchain_literals.py
 
 # `check-bd-guard` — lint + hermetically test the warn-first `bd` guard wrapper
 # (bd-guard/), the stopgap that fronts every `bd` call and warns/blocks the
