@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.102.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.101.0...v0.102.0) (2026-08-30)
+
+
+### Features
+
+* **dispatcher:** janitor venue is the merged default-branch tip (bd-ib-f3uuqm) ([9dc92e6](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/9dc92e65617adf8c94ed4c7b55b0ace89bfb1817))
+
 ## [0.101.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.100.0...v0.101.0) (2026-08-30)
 
 
