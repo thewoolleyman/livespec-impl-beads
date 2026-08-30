@@ -55,10 +55,13 @@ def test_a_pass_surveys_every_factory_and_journals_its_own_summary(
     # never happened.
     assert captured["dry_run"] is False
     assert captured["attribution_repo"] == tmp_path
+    assert summary.factory_names == ("hp", "vps")
     assert _pass_records(tmp_path=tmp_path) == [
         {
             "stage": "reconcile-runs-pass",
+            "dry_run": False,
             "factories_surveyed": 2,
+            "factory_names": ["hp", "vps"],
             "orphans_found": 2,
             "orphans_reconciled": 1,
             "errors": 0,
@@ -136,6 +139,7 @@ def test_a_repo_declaring_no_factory_never_reaches_the_ledger(
     # line, and the absence of a read is exactly what is being asserted.
     assert reads == []
     assert (summary.factories_surveyed, summary.errors) == (0, 0)
+    assert summary.factory_names == ()
     assert summary.failure_detail is None
     assert [record["factories_surveyed"] for record in _pass_records(tmp_path=tmp_path)] == [0]
 
@@ -157,6 +161,7 @@ def test_an_unreadable_config_is_journaled_and_never_raised(
     summary = module.reconcile_runs_pass(args=_args(tmp_path=tmp_path), repo=tmp_path)
 
     assert summary.factories_surveyed == 0
+    assert summary.factory_names == ()
     assert summary.errors == 1
     assert summary.failure_detail is not None
     assert "LivespecConfigUnreadableError" in summary.failure_detail
