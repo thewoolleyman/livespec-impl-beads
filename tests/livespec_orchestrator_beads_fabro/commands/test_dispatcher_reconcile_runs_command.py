@@ -405,6 +405,7 @@ def _held() -> HeldRun:
         grace_seconds=1800,
     )
 
+
 def _pass_records(*, journal: Path) -> list[dict[str, Any]]:
     lines = journal.read_text(encoding="utf-8").splitlines()
     records = [json.loads(line) for line in lines]
