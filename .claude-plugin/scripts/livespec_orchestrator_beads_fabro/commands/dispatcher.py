@@ -181,14 +181,15 @@ with PR/merge-sha evidence) are machine-path dispositions of already-filed
 items, exempt from the per-operation consent discipline that governs
 user-facing capture front-ends (livespec-impl-beads-nip);
 `--no-close-on-merge` turns the post-merge acceptance writes off entirely.
-A `blocked` outcome (run parked at the phase graph's in-loop human gate)
-closes nothing and frees the slot: the operator answers via `fabro attach
-<run-id>`; the Dispatcher never auto-resumes.
+A `blocked` outcome (the phase graph's `needs_human` terminal fired: the
+run preserved its tree and ended) closes nothing: the item rests at
+`blocked / needs-human` and the human decides through the ledger's
+valves (`resolve-blocked:<id>:ready`); no run waits, nothing is resumed.
 
 Exit codes: 0 success / all dispatched green; 1 non-skipped findings
 present or any terminal failed dispatch; 2 usage error; 3 precondition
-error (missing repo / workflow / item not ready); 4 dispatch completed at a
-live human-gate blocked state with no terminal failures; 5
+error (missing repo / workflow / item not ready); 4 dispatch completed with the
+work-item routed to the ledger's human gate and no terminal failures; 5
 ungradeable-acceptance-criteria refusal (the effective-acceptance-criteria
 clause of contracts.md — an AI-dispositive item whose effective criteria parse
 to zero gradeable assertions, refused before any run is created).

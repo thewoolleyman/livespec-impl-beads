@@ -12,7 +12,7 @@ The payload fixtures below carry the two tells measured on the real incident —
 this repo, run 01M10CYZ8S9TNPZ2MW096NJW7V (work-item bd-ib-utq7b4), 2026-08-27,
 read structurally out of the run's own record:
 
-    checkpoints[4].checkpoint.next_node_id            = "escalate"
+    checkpoints[4].checkpoint.next_node_id            = "needs_human"
     checkpoints[4].checkpoint.loop_failure_signatures =
         {"review|deterministic|acp turn failed": 1}
 
@@ -110,14 +110,14 @@ _ESCALATED_PAYLOAD = _record(
         {"checkpoint": {"next_node_id": "review"}},
         {
             "checkpoint": {
-                "next_node_id": "escalate",
+                "next_node_id": "needs_human",
                 "loop_failure_signatures": {_MEASURED_SIGNATURE: 1},
             }
         },
     ]
 )
 _AGENT_GATE_PAYLOAD = _record(
-    checkpoints=[{"checkpoint": {"next_node_id": "escalate"}}],
+    checkpoints=[{"checkpoint": {"next_node_id": "needs_human"}}],
 )
 _MID_LOOP_GATE_PAYLOAD = _record(
     checkpoints=[{"checkpoint": {"next_node_id": "implement"}}],
@@ -171,7 +171,7 @@ def test_escalated_run_is_surfaced_as_an_escalation_not_as_a_human_gate(
     detail = _detail(tmp_path=tmp_path, payload=_ESCALATED_PAYLOAD)
 
     assert "ESCALATED by the engine" in detail
-    assert "`escalate` node" in detail
+    assert "`needs_human` node" in detail
     assert "parked at the in-loop human gate" not in detail
 
 
@@ -227,9 +227,9 @@ def test_escalation_reader_module_exists_and_reads_both_tells() -> None:
 
     escalation = module.fabro_escalation_from_payload(payload=_ESCALATED_PAYLOAD)
 
-    assert module.ESCALATION_NODE_ID == "escalate"
+    assert module.ESCALATION_NODE_ID == "needs_human"
     assert escalation is not None
-    assert escalation.next_node_id == "escalate"
+    assert escalation.next_node_id == "needs_human"
     assert escalation.loop_failure_signatures == (_MEASURED_SIGNATURE,)
 
 
@@ -254,7 +254,7 @@ def test_escalation_reader_tolerates_every_malformed_checkpoint_shape() -> None:
             {
                 "run_id": _RUN_ID,
                 "checkpoint": {
-                    "next_node_id": "escalate",
+                    "next_node_id": "needs_human",
                     "loop_failure_signatures": "not-a-mapping",
                 },
             }
@@ -263,7 +263,7 @@ def test_escalation_reader_tolerates_every_malformed_checkpoint_shape() -> None:
             {
                 "run_id": _RUN_ID,
                 "checkpoint": {
-                    "next_node_id": "escalate",
+                    "next_node_id": "needs_human",
                     "loop_failure_signatures": {"  ": 1, 17: 2},
                 },
             }
@@ -284,7 +284,7 @@ def test_top_level_checkpoint_is_the_newest_state_and_wins() -> None:
             "checkpoints": [
                 {
                     "checkpoint": {
-                        "next_node_id": "escalate",
+                        "next_node_id": "needs_human",
                         "loop_failure_signatures": {_MEASURED_SIGNATURE: 1},
                     }
                 }

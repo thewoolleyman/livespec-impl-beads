@@ -8,10 +8,13 @@
 //   implement (Red-Green-Replay) -> janitor hard gate (`mise exec --
 //   just check`, bounded fix loop) -> Claude review gate (blocking by default,
 //   merge-on-cap only via explicit escape hatch; work-item bd-ib-egms32) -> PR + rebase auto-merge
-//   arming, with an in-loop `escalate` human gate (work-item
-//   livespec-impl-beads-4zl) for outcomes the loop cannot
-//   auto-resolve: the run parks in Fabro's native `blocked` status and
-//   the human's answer routes BACK into the loop (`fabro attach`).
+//   arming, with a `needs_human` TERMINAL node (plan
+//   ledger-is-the-only-gate, epic bd-ib-n77djm; contracts.md "A factory
+//   run never awaits a human", v093) for outcomes the loop cannot
+//   auto-resolve: the run preserves its tree on a run-scoped ref, emits
+//   the LIVESPEC_NEEDS_HUMAN sentinel and terminates non-green. The
+//   human's decision lives in the LEDGER (the item rests at
+//   blocked / needs-human; the answer is a valve), never in a parked run.
 //
 // The run executes in an ISOLATED Fabro-owned docker sandbox clone
 // (Architecture C, workflow.toml): Fabro clones the repo fresh inside
@@ -83,12 +86,11 @@ digraph ImplementWorkItem {
     // subprocess budget is derived from whatever resolves.
     //
     // retry_target: fires ONLY at exit-node goal-gate enforcement (the
-    // `outcome=failed` edge to the human gate takes precedence at node
-    // failure — docs.fabro.sh/execution/failures §"When failures become
-    // fatal"). With the `abandon` terminal node below, the only path
-    // that reaches exit with this gate unsatisfied is a human [R]
-    // answer after an implement failure; the jump back here re-attempts
-    // the implement instead of failing a run whose fix path went green.
+    // `outcome=failed` edge to the needs_human terminal takes precedence
+    // at node failure — docs.fabro.sh/execution/failures §"When failures
+    // become fatal"). With needs_human a dead end, no path reaches exit
+    // with this gate unsatisfied; the attribute stays to satisfy fabro's
+    // goal_gate_has_retry lint alongside the real node-retry budget.
     implement [
         label="Implement (Red-Green-Replay)"
         backend="acp"
@@ -237,39 +239,36 @@ digraph ImplementWorkItem {
         script="echo 'LIVESPEC_DEAD_IMPLEMENTER: unchanged tree after implementer; no janitor/review/disposition rounds will run against dispatch base' >&2; exit 1"
     ]
 
-    // In-loop human escalation (livespec-impl-beads-4zl): outcomes the
-    // loop cannot auto-resolve park the run at this gate — Fabro's
-    // native `blocked` status — instead of going quiet. A foreground
-    // `fabro run` RETURNS at the gate (the Dispatcher's slot frees)
-    // while a server-side engine stays alive holding the run; `fabro
-    // attach <run-id>` is the answer path (resume is only for a dead
-    // engine). The answer routes BACK into the loop via the labeled
-    // edges below. [A] Abandon routes to the `abandon` terminal command
-    // node, which fails the run WITHOUT reaching exit, so the work-item
-    // stays open for triage.
-    escalate [
-        shape=hexagon
-        label="Needs human: the loop cannot auto-resolve this work-item"
-    ]
-
-    // Terminal abandon node (bn4): a deliberate dead end (no outgoing
-    // edges — fabro validate accepts a dead-end node but rejects a
-    // conditional-only edge set). Pre-bn4, [A] Abandon routed straight
-    // to exit and relied on "goal gate unsatisfied at exit WITH NO
-    // RETRY TARGET" to fail the run — but wiring retry_target on the
-    // goal-gated nodes (above) would have turned that exact path into
-    // a jump BACK into the loop, making Abandon un-answerable. This
-    // node restores hard termination: the script always exits 1 (a
-    // deterministic, never-retried failure), there is no outgoing edge
-    // to follow and no retry target on the node or graph, so the run
-    // terminates non-green BEFORE the exit node's goal-gate enforcement
-    // can bounce it (docs.fabro.sh/execution/failures §"When failures
-    // become fatal", step 7).
-    abandon [
-        label="Abandon: terminate non-green (work-item stays open)"
+    // Needs-human TERMINAL node (plan ledger-is-the-only-gate, epic
+    // bd-ib-n77djm; contracts.md "A factory run never awaits a human",
+    // ratified v093, Scenario 103). It REPLACES the former `escalate`
+    // hexagon + `abandon` pair. A hexagon parked the run in Fabro's native
+    // `blocked` status until a human ran `fabro attach`; nothing in the
+    // orchestrator ever looked at a blocked run again, so every park whose
+    // question was overtaken (re-dispatch, hand landing, hand close) held a
+    // scheduler slot until a human happened to notice — measured 17 parks
+    // in nine days in this repo, 16 of them moot by the time anyone looked.
+    //
+    // This node is the same dead-end command shape as `non_converged` and
+    // `dead_implementer`: it (1) pushes the CURRENT tree, best-effort, to a
+    // run-scoped ref `refs/heads/needs-human/<run id>` so the work survives
+    // the sandbox (never the `feat/<work-item-id>` publish branch, which the
+    // pr stage owns), (2) writes the LIVESPEC_NEEDS_HUMAN sentinel to
+    // stderr, and (3) exits 1 with NO outgoing edge, so the run terminates
+    // non-green and the foreground `fabro run` returns. The Dispatcher reads
+    // the sentinel and rests the work-item at `blocked / needs-human`
+    // (the SAME blocked outcome and exit code 4 the gate produced); the
+    // former [R] Retry / [I] Re-implement / [A] Abandon answers are now the
+    // ledger's own valves: `resolve-blocked:<id>:ready` (with rework seeded
+    // from the preserved ref, or from scratch), or leaving the item blocked.
+    // The sentinel string is shared with the Dispatcher consumer
+    // (commands/_dispatcher_plan.NEEDS_HUMAN_MARKER) — keep the two in
+    // lockstep, exactly as LIVESPEC_NON_CONVERGED is.
+    needs_human [
+        label="Needs human: terminate, preserve the tree, route the decision to the ledger"
         shape=parallelogram
-        timeout="1800s"
-        script="echo 'operator abandoned the run; work-item left open for triage' >&2; exit 1"
+        timeout="600s"
+        script="ref=\"refs/heads/needs-human/${FABRO_RUN_ID:-unknown-run}\"; git add -A >/dev/null 2>&1 || true; git -c user.name=fabro -c user.email=fabro@livespec.invalid commit -q -m 'needs-human: preserve tree before terminating' >/dev/null 2>&1 || true; if git push origin \"HEAD:$ref\" >/dev/null 2>&1; then echo \"LIVESPEC_NEEDS_HUMAN_PRESERVED: $ref\" >&2; else echo 'LIVESPEC_NEEDS_HUMAN_PUSH_FAILED: tree not pushed; rely on the preserve-by-reference dump pointer' >&2; fi; echo 'LIVESPEC_NEEDS_HUMAN: loop cannot auto-resolve this work-item; run terminated, work preserved by reference, decision routed to the ledger (blocked / needs-human)' >&2; exit 1"
     ]
 
     // Terminal non-converged node (work-item livespec-impl-beads-rw75ym,
@@ -301,10 +300,11 @@ digraph ImplementWorkItem {
     start -> implement
 
     // A failed implement (structured needs-human ending, see
-    // prompts/implement.md) routes to the human gate — conditional
-    // edges take priority over the unconditional fallback; everything
-    // else proceeds to the diff breaker before any downstream spend.
-    implement -> escalate [label="Blocked", condition="outcome=failed"]
+    // prompts/implement.md) routes to the needs_human terminal —
+    // conditional edges take priority over the unconditional fallback;
+    // everything else proceeds to the diff breaker before any downstream
+    // spend.
+    implement -> needs_human [label="Blocked", condition="outcome=failed"]
     implement -> implementation_diff
 
     // Changed-tree routing: exit 0 means `git diff --quiet` found a
@@ -364,30 +364,24 @@ digraph ImplementWorkItem {
     //                                route directly back to review.
     //   - fix & cap + escape hatch -> pr, only when merge_on_review_cap is
     //                                rendered to outcome=succeeded.
-    //   - fix & cap + default      -> escalate / needs-human; the reviewer
-    //                                said fix this, so the run must not ship.
-    //   - node failure             -> escalate; weight=100 keeps that
+    //   - fix & cap + default      -> needs_human; the reviewer said fix
+    //                                this, so the run must not ship.
+    //   - node failure             -> needs_human; weight=100 keeps that
     //                                deterministic against other conditions.
-    review -> escalate   [label="Blocked", condition="outcome=failed", weight=100]
+    review -> needs_human [label="Blocked", condition="outcome=failed", weight=100]
     review -> disposition [label="fix", condition="preferred_label=fix && context.internal.node_visit_count < {{ inputs.review_fix_visit_cap }}"]
     review -> pr         [label="approve", condition="preferred_label=approve"]
     review -> pr         [label="ship on review cap", condition="preferred_label=fix && context.internal.node_visit_count >= {{ inputs.review_fix_visit_cap }} && outcome={{ inputs.merge_on_review_cap_outcome }}"]
-    review -> escalate   [label="needs-human", condition="preferred_label=fix && context.internal.node_visit_count >= {{ inputs.review_fix_visit_cap }} && outcome!={{ inputs.merge_on_review_cap_outcome }}"]
-    review -> escalate   [label="unmatched review outcome"]
-    disposition -> escalate   [label="Blocked", condition="outcome=failed", weight=100]
+    review -> needs_human [label="needs-human", condition="preferred_label=fix && context.internal.node_visit_count >= {{ inputs.review_fix_visit_cap }} && outcome!={{ inputs.merge_on_review_cap_outcome }}"]
+    review -> needs_human [label="unmatched review outcome"]
+    disposition -> needs_human [label="Blocked", condition="outcome=failed", weight=100]
     disposition -> review_fix [label="fix accepted", condition="preferred_label=fix"]
     disposition -> review     [label="all rejected", condition="preferred_label=all_rejected"]
-    disposition -> escalate   [label="unmatched disposition outcome"]
+    disposition -> needs_human [label="unmatched disposition outcome"]
     review_fix -> janitor
 
     // A failed pr stage (hook rejection, gh failure — structured
-    // needs-human ending per prompts/pr.md) parks at the gate too.
-    pr -> escalate [label="Blocked", condition="outcome=failed"]
+    // needs-human ending per prompts/pr.md) terminates at needs_human too.
+    pr -> needs_human [label="Blocked", condition="outcome=failed"]
     pr -> exit
-
-    // The human's answer = one of these labels; it routes the run back
-    // INTO the loop (or to the abandon terminal node, for triage).
-    escalate -> fix       [label="[R] Retry the fix"]
-    escalate -> implement [label="[I] Re-implement from scratch"]
-    escalate -> abandon   [label="[A] Abandon (leave open for triage)"]
 }

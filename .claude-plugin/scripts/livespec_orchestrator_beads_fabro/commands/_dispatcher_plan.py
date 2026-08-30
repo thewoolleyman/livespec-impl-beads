@@ -129,6 +129,7 @@ __all__: list[str] = [
     "CURRENCY_GATE_ENV_VALUE",
     "CURRENCY_GATE_ENV_VAR",
     "DEFAULT_SANDBOX_OTEL_ENDPOINT",
+    "NEEDS_HUMAN_MARKER",
     "NON_CONVERGED_MARKER",
     "SANDBOX_OTEL_ENDPOINT_ENV_VAR",
     "SIBLING_CLONES_ROOT_ENV_VAR",
@@ -147,6 +148,7 @@ __all__: list[str] = [
     "escape_minijinja_literal",
     "host_only_refusal_detail",
     "is_host_only_item",
+    "is_needs_human_outcome",
     "is_non_convergence_outcome",
     "item_sizing_warnings",
     "janitor_argv",
@@ -196,6 +198,19 @@ _SIZING_ENUMERATED_LIMIT = 3
 # sentinel here makes the DOT-side producer and the Dispatcher-side
 # consumer share ONE literal (the DOT references this exact string).
 NON_CONVERGED_MARKER = "LIVESPEC_NON_CONVERGED"
+
+# The needs-human sentinel the `needs_human` TERMINAL node emits to stderr
+# (plan ledger-is-the-only-gate, epic bd-ib-n77djm; contracts.md "A factory
+# run never awaits a human", v093, Scenario 103). The node replaced the
+# in-loop `escalate` hexagon: instead of parking the run in Fabro's native
+# blocked status until a human attached, the run preserves its tree on
+# `refs/heads/needs-human/<run id>`, prints this marker and exits 1 with no
+# outgoing edge. The Dispatcher recognises the marker and produces the SAME
+# `blocked` outcome the gate used to — the item rests at blocked /
+# needs-human and the decision reaches a human through the ledger's valves —
+# while the run itself is already gone. One literal shared by producer and
+# consumer, exactly as NON_CONVERGED_MARKER.
+NEEDS_HUMAN_MARKER = "LIVESPEC_NEEDS_HUMAN"
 
 
 def item_sizing_warnings(*, item: WorkItem) -> tuple[str, ...]:
@@ -283,3 +298,13 @@ def is_non_convergence_outcome(*, outcome: _NonConvergenceOutcome) -> bool:
     if outcome.status == "stalled-no-progress":
         return True
     return outcome.status == "failed" and NON_CONVERGED_MARKER in outcome.detail
+
+
+def is_needs_human_outcome(*, outcome: _NonConvergenceOutcome) -> bool:
+    """Recognise the `needs_human` terminal's sentinel on a failed outcome.
+
+    Deliberately narrow, like `is_non_convergence_outcome`: only a `failed`
+    status whose detail carries the exact marker. A green or blocked outcome
+    that happens to quote the marker is not a needs-human terminal.
+    """
+    return outcome.status == "failed" and NEEDS_HUMAN_MARKER in outcome.detail

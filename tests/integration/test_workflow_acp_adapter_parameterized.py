@@ -162,10 +162,10 @@ def test_scenario20_review_cap_routes_to_escape_hatch_or_needs_human() -> None:
     assert "SHIP-ON-CAP" not in dot
 
 
-def test_scenario20_review_has_unconditional_fallback_to_human_gate() -> None:
+def test_scenario20_review_has_unconditional_fallback_to_needs_human() -> None:
     """Fabro requires a fallback when a node has conditional custom routing."""
-    escalate_edges = _review_edge_lines(to_node="escalate")
-    assert 'review -> escalate   [label="unmatched review outcome"]' in escalate_edges
+    fallback_edges = _review_edge_lines(to_node="needs_human")
+    assert 'review -> needs_human [label="unmatched review outcome"]' in fallback_edges
 
 
 def test_scenario20_review_fix_cap_counts_fix_rounds_not_review_visits() -> None:
