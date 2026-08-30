@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.119.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.118.1...v0.119.0) (2026-08-30)
+
+
+### Features
+
+* **dispatcher:** retire the stale-run-sweep alias of reconcile-runs (bd-ib-az73w3) ([ba050ea](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/ba050ea3849ef0a7c184e90c073cc71ae2b0e24e))
+
 ## [0.118.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.118.0...v0.118.1) (2026-08-30)
 
 
