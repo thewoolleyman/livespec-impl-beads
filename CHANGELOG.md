@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.118.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.117.0...v0.118.0) (2026-08-30)
+
+
+### Features
+
+* **dispatcher:** resolve the integration contract once at plan build and project it to every seam (bd-ib-t5ierm) ([d9c53a3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/d9c53a3e8f015f3ada874f668549a1d17177d706))
+
 ## [0.117.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.116.0...v0.117.0) (2026-08-30)
 
 
