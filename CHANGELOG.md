@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.117.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.116.0...v0.117.0) (2026-08-30)
+
+
+### Features
+
+* **dev-tooling:** check-no-fleet-toolchain-literals gate over the dispatcher package (bd-ib-u2d62p) ([095217d](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/095217db4992ab87783fe32d7f9b0fe7eb9e33a8))
+
 ## [0.116.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.115.0...v0.116.0) (2026-08-30)
 
 
