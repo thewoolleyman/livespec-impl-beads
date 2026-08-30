@@ -21,6 +21,11 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_step_ids import JANITOR_BOOTSTRAP
 
+# A declaration carrying the two REQUIRED contract fields: an undeclared
+# janitor-core pin, or an unresolved default branch, degrades the post-merge
+# flow before any of these cases is reached.
+_DECLARED_CONFIG = '{"livespec-orchestrator-beads-fabro": {"compat": {"pinned": "master"}}}'
+
 
 def _plan(*, repo: Path) -> DispatchPlan:
     return build_plan(
@@ -31,9 +36,8 @@ def _plan(*, repo: Path) -> DispatchPlan:
         fabro_bin="fabro",
         janitor=None,
         janitor_checkout=repo / "janitor-co",
-        # A DECLARED janitor-core pin: an undeclared one degrades the post-merge
-        # flow before any of these cases is reached.
-        janitor_core_ref="master",
+        config_text=_DECLARED_CONFIG,
+        default_branch="master",
     )
 
 

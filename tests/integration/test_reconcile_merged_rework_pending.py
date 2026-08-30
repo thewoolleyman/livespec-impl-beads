@@ -209,7 +209,13 @@ def test_unmarked_merged_item_still_reconciles_to_done(
     # reconcile janitor provisions at the default-branch TIP naming itself here,
     # not at the merge sha the PR view just reported -- and every stage after it.
     runner = _Runner(
-        queue=[_ok(stdout=_pr_json(number=1381, sha="0bd9ce1")), _ok(), _ok(stdout="origin/master")]
+        queue=[
+            # Plan build takes the ratified default-branch probe FIRST; the venue
+            # later names its tip off the contract that answer resolved into.
+            _ok(stdout="origin/master"),
+            _ok(stdout=_pr_json(number=1381, sha="0bd9ce1")),
+            _ok(),
+        ]
         + [_ok()] * 8
     )
     _patch_runner(monkeypatch=monkeypatch, runner=runner)

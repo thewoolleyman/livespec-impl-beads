@@ -65,6 +65,7 @@ def test_reconcile_merged_allows_stale_dispatch_lock(
     _write_dispatch_lock(repo=repo, item_id=item.id, pid=999_999_999, started_at=1.0)
     runner = _Runner(
         queue=[
+            *_plan_build_probe(),
             _ok(stdout=_pr_json(number=11, state="MERGED", sha="abc111")),
             _ok(),
             *_venue_resolution(),
@@ -81,7 +82,8 @@ def test_reconcile_merged_allows_stale_dispatch_lock(
     exit_code = main(argv=["reconcile-merged", "--repo", str(repo), "--item", item.id])
 
     assert exit_code == 0
-    assert runner.calls[0][0][:3] == ["gh", "pr", "view"]
+    # calls[0] is plan build's default-branch probe; the PR read follows it.
+    assert runner.calls[1][0][:3] == ["gh", "pr", "view"]
     assert "post-merge janitor green" in capsys.readouterr().out
 
 
@@ -96,6 +98,7 @@ def test_reconcile_merged_force_bypasses_live_dispatch_lock(
     _write_dispatch_lock(repo=repo, item_id=item.id, pid=os.getpid(), started_at=1.0)
     runner = _Runner(
         queue=[
+            *_plan_build_probe(),
             _ok(stdout=_pr_json(number=12, state="MERGED", sha="abc222")),
             _ok(),
             *_venue_resolution(),
@@ -379,11 +382,18 @@ def _item(**overrides: object) -> WorkItem:
     return replace(base, **overrides)
 
 
+def _plan_build_probe() -> list[CommandResult]:
+    """The ONE read `reconcile_plan` takes before anything else: the ratified
+    default-branch probe, whose answer rides the plan's resolved integration
+    contract and is what the venue later names its tip from."""
+    return [_ok(stdout="origin/master")]
+
+
 def _venue_resolution() -> list[CommandResult]:
-    """The two venue reads between pull-primary and the preclean: the reconcile
-    janitor provisions at the resolved default-branch TIP that contains the
-    merge, so it names the branch and then probes for merge containment."""
-    return [_ok(stdout="origin/master"), _ok()]
+    """The ONE venue read between pull-primary and the preclean: the reconcile
+    janitor probes the tip for merge containment; the branch came off the
+    contract."""
+    return [_ok()]
 
 
 def _ok(*, stdout: str = "") -> CommandResult:

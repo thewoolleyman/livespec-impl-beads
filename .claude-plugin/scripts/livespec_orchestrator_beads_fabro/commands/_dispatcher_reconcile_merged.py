@@ -24,6 +24,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_command_common impor
 from livespec_orchestrator_beads_fabro.commands._dispatcher_completion import (
     complete_and_accept,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_default_branch import (
+    resolve_default_branch,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_dispatch_lock import (
     live_dispatch_lock,
 )
@@ -45,8 +48,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_close import 
     load_items,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_selection import (
-    janitor_core_ref,
-    janitor_core_repo_url,
+    livespec_config_text,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_otel_wiring import parse_janitor
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import journal_path
@@ -105,7 +107,7 @@ def run_reconcile_merged_command(
         path=journal_path(args=args, repo=repo),
         identity=invoker_from_args(args=args),
     )
-    plan = reconcile_plan(repo=repo, item=item, janitor=janitor)
+    plan = reconcile_plan(repo=repo, item=item, janitor=janitor, runner=command_runner)
     merged = resolve_merged_pr(plan=plan, item=item, runner=command_runner, journal=journal)
     if isinstance(merged, str):
         _ = write_stderr(text=merged)
@@ -213,8 +215,16 @@ def _live_dispatch_refusal(*, args: argparse.Namespace, repo: Path, item: WorkIt
     )
 
 
-def reconcile_plan(*, repo: Path, item: WorkItem, janitor: tuple[str, ...] | None) -> DispatchPlan:
-    """Build the subset of a dispatch plan needed by the reconcile valve."""
+def reconcile_plan(
+    *, repo: Path, item: WorkItem, janitor: tuple[str, ...] | None, runner: CommandRunner
+) -> DispatchPlan:
+    """Build the subset of a dispatch plan needed by the reconcile valve.
+
+    It resolves the SAME contract a live dispatch would, from the same two
+    sources, because it runs the same post-merge janitor at the same venue: a
+    reconcile that resolved its own core pin or its own default branch could
+    clean up somewhere the original dispatch never named.
+    """
     return build_plan(
         repo=repo,
         work_item_id=item.id,
@@ -223,8 +233,8 @@ def reconcile_plan(*, repo: Path, item: WorkItem, janitor: tuple[str, ...] | Non
         fabro_bin=resolve_fabro_bin(cwd=repo),
         janitor=janitor,
         janitor_checkout=janitor_reconcile_checkout_path(repo=repo, work_item_id=item.id),
-        janitor_core_ref=janitor_core_ref(repo=repo),
-        janitor_core_repo_url=janitor_core_repo_url(repo=repo),
+        config_text=livespec_config_text(repo=repo),
+        default_branch=resolve_default_branch(repo=repo, runner=runner),
     )
 
 

@@ -43,7 +43,8 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_defaults
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_resolver import (
     Defective,
-    resolve_integration_field,
+    ResolvedIntegrationContract,
+    resolve_integration_contract,
     resolved_name,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_schema import (
@@ -60,6 +61,7 @@ __all__: list[str] = [
     "UNRESOLVED_JANITOR_CORE",
     "JanitorCoreProvisioning",
     "janitor_core_provisioning_defect",
+    "janitor_core_provisioning_from_contract",
     "resolve_janitor_core_provisioning",
 ]
 
@@ -101,10 +103,31 @@ def resolve_janitor_core_provisioning(*, config_text: str) -> JanitorCoreProvisi
     An unreadable config is not a third answer: it means neither key could be
     read, which is `pinned` absent (a defect) and `core_repo` absent (the fleet
     default), exactly as an empty but well-formed config would resolve.
+
+    This is the PRE-PLAN entry point. A dispatch that HAS a plan reads its core
+    provisioning off the contract that plan already resolved, through
+    `janitor_core_provisioning_from_contract`.
     """
-    declaration = declaration_from_config_text(config_text=config_text)
-    ref = resolve_integration_field(field=CORE_PINNED_REF_FIELD, declaration=declaration)
-    repo_url = resolve_integration_field(field=CORE_REPO_URL_FIELD, declaration=declaration)
+    return janitor_core_provisioning_from_contract(
+        resolved=resolve_integration_contract(
+            declaration=declaration_from_config_text(config_text=config_text)
+        )
+    )
+
+
+def janitor_core_provisioning_from_contract(
+    *, resolved: ResolvedIntegrationContract
+) -> JanitorCoreProvisioning:
+    """Shape the ALREADY-RESOLVED core pin and clone repository for the dispatch plan.
+
+    The declared-core-provisioning behaviour is HOMED on the one resolved
+    contract rather than on a reading of its own: the pin and the clone
+    repository are two of that contract's fields, and re-reading them beside it
+    is how the plan and the journaled record could name different cores for one
+    dispatch.
+    """
+    ref = resolved.resolutions[CORE_PINNED_REF_FIELD.attribute]
+    repo_url = resolved.resolutions[CORE_REPO_URL_FIELD.attribute]
     defects = tuple(
         resolution.reason for resolution in (ref, repo_url) if isinstance(resolution, Defective)
     )

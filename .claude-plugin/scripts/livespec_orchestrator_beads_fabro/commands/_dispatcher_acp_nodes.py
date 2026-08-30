@@ -17,7 +17,6 @@ an `--input` name its own workflow does not declare, which fabro rejects.
 
 from __future__ import annotations
 
-import re
 from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -33,6 +32,9 @@ from livespec_orchestrator_beads_fabro.commands._acp_node_layers import (
     resolve_acp_nodes,
 )
 from livespec_orchestrator_beads_fabro.commands._config import resolve_acp_node_overlays
+from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_projection import (
+    workflow_declared_inputs,
+)
 from livespec_orchestrator_beads_fabro.effects import AttemptFailure, attempt
 
 if TYPE_CHECKING:
@@ -54,14 +56,6 @@ _ADAPTER_INPUT_NAMES: frozenset[str] = frozenset(
     name for candidates in NODE_INPUT_CANDIDATES.values() for name in candidates
 )
 
-# `[run.inputs]` and its body, up to the next table header. A full TOML
-# parser is unavailable on the pinned Python (tomllib is 3.11+; the family
-# vendors no TOML library) and the run config is repo-owned with a stable
-# shape, so a section-scoped regex is sufficient and dependency-free --
-# the same reasoning `_dispatcher_overlay._toml_section_string` records.
-_RUN_INPUTS_RE = re.compile(r"(?ms)^\[run\.inputs\][ \t]*\r?$(?P<body>.*?)(?=^\[|\Z)")
-_INPUT_ASSIGNMENT_RE = re.compile(r'(?m)^(?P<key>\w+)[ \t]*=[ \t]*"(?P<value>[^"]*)"[ \t]*\r?$')
-
 
 def workflow_adapter_inputs(*, committed_text: str) -> Mapping[str, str]:
     """The adapter inputs a committed run config declares, with their defaults.
@@ -70,14 +64,16 @@ def workflow_adapter_inputs(*, committed_text: str) -> Mapping[str, str]:
     refusal: the refusal belongs to `resolve_node_inputs`, which can name
     the NODE that ended up without an adapter input instead of reporting a
     missing table the operator would still have to map back to a node.
+
+    The `[run.inputs]` scan itself is SHARED with the integration-contract
+    projection, which asks the same question about its own input names; two
+    copies of that scan is how the two would come to disagree about what one
+    payload declares.
     """
-    section = _RUN_INPUTS_RE.search(committed_text)
-    if section is None:
-        return {}
     return {
-        match.group("key"): match.group("value")
-        for match in _INPUT_ASSIGNMENT_RE.finditer(section.group("body"))
-        if match.group("key") in _ADAPTER_INPUT_NAMES
+        key: value
+        for key, value in workflow_declared_inputs(committed_text=committed_text).items()
+        if key in _ADAPTER_INPUT_NAMES
     }
 
 

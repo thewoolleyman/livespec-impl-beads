@@ -34,7 +34,6 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     janitor_core_ref_from_config,
-    janitor_core_repo_url_from_config,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_preserve_reference import (
     preserve_checkpointed_work_reference,
@@ -56,7 +55,7 @@ __all__: list[str] = [
     "candidates",
     "is_dispatch_candidate",
     "janitor_core_ref",
-    "janitor_core_repo_url",
+    "livespec_config_text",
     "post_run_dispositions",
     "prepare",
     "ready_items",
@@ -110,25 +109,19 @@ def candidates(
 
 
 def janitor_core_ref(*, repo: Path) -> str:
-    return janitor_core_ref_from_config(config_text=_livespec_config_text(repo=repo))
+    return janitor_core_ref_from_config(config_text=livespec_config_text(repo=repo))
 
 
-def janitor_core_repo_url(*, repo: Path) -> str:
-    """The livespec-core clone repository the target repo declares.
-
-    Read from the same committed file as the ref, and passed into the plan
-    beside it, so an adopter that mirrors livespec core provisions from its own
-    mirror instead of from the hardwired fleet repository.
-    """
-    return janitor_core_repo_url_from_config(config_text=_livespec_config_text(repo=repo))
-
-
-def _livespec_config_text(*, repo: Path) -> str:
+def livespec_config_text(*, repo: Path) -> str:
     """The target repository's committed `.livespec.jsonc`; `{}` when it has none.
 
     A repository with no config declares nothing, which is the same input as an
     empty object -- the resolver, not this reader, decides which fields that
     leaves unresolved.
+
+    PUBLIC because plan build reads it too: the WHOLE integration contract now
+    resolves from this one text, so the reader that answers it crosses a module
+    boundary rather than staying private to the core-pin wrapper above.
     """
     config = repo / ".livespec.jsonc"
     if not config.exists():

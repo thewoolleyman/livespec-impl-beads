@@ -155,6 +155,11 @@ def _dispatch_one_locked(  # noqa: PLR0911 — one return per PRE-RUN REFUSAL ST
         janitor=janitor,
         raw_labels=raw_labels,
         timeouts=payload.timeouts,
+        # The default-branch probe rides a plain shell runner: it reads the
+        # target's own git/forge state and predates the per-dispatch GitHub App
+        # token, whose remint decorator exists for the engine's long merge poll.
+        runner=ShellCommandRunner(),
+        committed_workflow=committed_workflow,
         acp_nodes=materialized.acp_nodes,
     )
     warn_item_sizing(item=item, journal=journal)
@@ -169,6 +174,7 @@ def _dispatch_one_locked(  # noqa: PLR0911 — one return per PRE-RUN REFUSAL ST
         identity=identity,
         started_at_epoch=time.time(),
         workflow_toml=committed_workflow,
+        integration=plan.integration,
     )
     token_supplier = selfup.github_token_supplier()
     if isinstance(token_supplier, str):

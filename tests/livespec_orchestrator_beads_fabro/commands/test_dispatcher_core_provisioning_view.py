@@ -29,6 +29,7 @@ _PUBLIC_NAMES = {
     "UNRESOLVED_JANITOR_CORE",
     "JanitorCoreProvisioning",
     "janitor_core_provisioning_defect",
+    "janitor_core_provisioning_from_contract",
     "resolve_janitor_core_provisioning",
 }
 

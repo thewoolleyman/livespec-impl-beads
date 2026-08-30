@@ -13,15 +13,17 @@ from __future__ import annotations
 import argparse
 import tempfile
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from returns.unsafe import unsafe_perform_io
 
 from livespec_orchestrator_beads_fabro.commands._acp_node_layers import AcpNodeResolution
 from livespec_orchestrator_beads_fabro.commands._config import FactoryTarget
+from livespec_orchestrator_beads_fabro.commands._dispatcher_default_branch import (
+    resolve_default_branch,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_selection import (
-    janitor_core_ref,
-    janitor_core_repo_url,
+    livespec_config_text,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     build_plan,
@@ -38,7 +40,11 @@ from livespec_orchestrator_beads_fabro.commands._node_timeouts import (
     NodeTimeouts,
     derive_fabro_timeout_seconds,
 )
+from livespec_orchestrator_beads_fabro.effects import AttemptFailure, attempt
 from livespec_orchestrator_beads_fabro.types import WorkItem
+
+if TYPE_CHECKING:
+    from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import CommandRunner
 
 __all__: list[str] = [
     "dispatch_plan_for_item",
@@ -46,6 +52,19 @@ __all__: list[str] = [
     "overlay_file_path",
     "workflow_payload_dir",
 ]
+
+
+def _readable_text(*, path: Path) -> str:
+    """A committed payload's text, or the empty string when it cannot be read.
+
+    Unreadability is not a third answer HERE: this text is consulted only for
+    which input names the workflow declares, so a payload nobody could read
+    declares none and the dispatch sends no contract inputs. The refusal an
+    unreadable workflow config earns belongs to the materialization stage, which
+    names the file.
+    """
+    text = attempt(action=lambda: path.read_text(encoding="utf-8"), exceptions=(OSError,))
+    return "" if isinstance(text, AttemptFailure) else text
 
 
 def goal_file_path(*, work_item_id: str) -> Path:
@@ -71,9 +90,18 @@ def dispatch_plan_for_item(  # noqa: PLR0913 — kw-only plan resolver; each fie
     janitor: tuple[str, ...] | None,
     raw_labels: tuple[str, ...],
     timeouts: NodeTimeouts,
+    runner: CommandRunner,
+    committed_workflow: Path,
     acp_nodes: AcpNodeResolution | None = None,
 ) -> DispatchPlan:
-    """Resolve one item's dispatch plan from its args, labels and timeouts."""
+    """Resolve one item's dispatch plan from its args, labels and timeouts.
+
+    The `runner` is here for ONE call: the ratified two-route default-branch
+    probe, taken once, at plan build, because the plan's integration contract
+    carries that branch and every seam downstream reads it from there rather
+    than re-probing. `committed_workflow` is read only for the input NAMES the
+    dispatched payload declares.
+    """
     factory_target = cast("FactoryTarget", args.fabro_factory_target)
     return build_plan(
         repo=repo,
@@ -86,8 +114,9 @@ def dispatch_plan_for_item(  # noqa: PLR0913 — kw-only plan resolver; each fie
         fabro_factory_dev_token=factory_target.dev_token,
         janitor=janitor,
         janitor_checkout=janitor_checkout_path(repo=repo, work_item_id=item.id),
-        janitor_core_ref=janitor_core_ref(repo=repo),
-        janitor_core_repo_url=janitor_core_repo_url(repo=repo),
+        config_text=livespec_config_text(repo=repo),
+        default_branch=resolve_default_branch(repo=repo, runner=runner),
+        committed_workflow_text=_readable_text(path=committed_workflow),
         # An unreadable `.livespec.jsonc` falls back to the documented
         # defaults, visibly and here rather than inside the reader.
         # `unsafe_perform_io` is required: `IOResult.value_or` returns

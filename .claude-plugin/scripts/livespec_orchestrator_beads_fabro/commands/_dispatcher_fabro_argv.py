@@ -13,6 +13,9 @@ from livespec_orchestrator_beads_fabro.commands import _jsonc
 from livespec_orchestrator_beads_fabro.commands._dispatcher_core_provisioning_view import (
     resolve_janitor_core_provisioning,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_projection import (
+    merge_method_flag,
+)
 
 if TYPE_CHECKING:
     from livespec_orchestrator_beads_fabro.commands._codex_model_tiers import CodexModelTier
@@ -313,8 +316,29 @@ def pr_view_argv(*, plan: DispatchPlan) -> list[str]:
 
 
 def pr_arm_argv(*, plan: DispatchPlan, number: int) -> list[str]:
-    _ = plan
-    return ["gh", "pr", "merge", str(number), "--rebase", "--auto", "--delete-branch"]
+    """Arm auto-merge, with the METHOD flag projected from the resolved merge mode.
+
+    `dispatcher.merge_mode` is a ratified field of the repository integration
+    contract, so the strategy is DECLARED (defaulting to the fleet's `rebase`)
+    rather than hard-coded here -- the `--rebase` literal this replaced was one
+    of the silent assumptions the contract retires, and an adopter whose merge
+    queue squashes had no way to say so.
+
+    A mode that resolved NOTHING renders no method flag at all, which `gh pr
+    merge` refuses outright. That is deliberate: the alternative is arming a
+    merge strategy this repository has already said is not its own, and a
+    refusal an operator can read beats a merge they did not choose.
+    """
+    method = merge_method_flag(resolved=plan.integration)
+    return [
+        "gh",
+        "pr",
+        "merge",
+        str(number),
+        *(() if method is None else (method,)),
+        "--auto",
+        "--delete-branch",
+    ]
 
 
 def pr_update_branch_argv(*, plan: DispatchPlan, number: int) -> list[str]:

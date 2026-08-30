@@ -1,10 +1,14 @@
 """The post-merge / reconcile janitor VENUE: the merged default-branch tip.
 
 The venue is the target repository's default-branch tip that CONTAINS the
-item's merge, resolved through the ratified default-branch-resolution helper --
-never the item's historical merge sha. Pinning it to the merge sha deadlocks
-every item that merged before a janitor-environment fix landed, because each
-reconcile re-provisions a checkout from before the fix existed.
+item's merge -- never the item's historical merge sha. Pinning it to the merge
+sha deadlocks every item that merged before a janitor-environment fix landed,
+because each reconcile re-provisions a checkout from before the fix existed.
+
+The branch itself is READ OFF THE PLAN'S RESOLVED INTEGRATION CONTRACT, whose
+`default_branch` field carries what the ratified two-route resolution answered
+at plan build, so these cases declare it on the plan rather than queueing a
+probe result for the venue to read.
 
 Every behavioural case is driven through `post_merge`, the published entry
 point both the post-merge flow and the reconcile-merged valve call, so the
@@ -39,7 +43,13 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
 _MERGE_SHA = "16fe3ac"
 
 
-def _plan(*, repo: Path) -> DispatchPlan:
+# The venue cases are about WHERE the janitor runs, so every one of them
+# declares a janitor-core ref: an undeclared pin degrades before the venue is
+# ever resolved.
+_DECLARED_CONFIG = '{"livespec-orchestrator-beads-fabro": {"compat": {"pinned": "master"}}}'
+
+
+def _plan(*, repo: Path, default_branch: str | None = "master") -> DispatchPlan:
     return build_plan(
         repo=repo,
         work_item_id="x-1",
@@ -48,10 +58,8 @@ def _plan(*, repo: Path) -> DispatchPlan:
         fabro_bin="fabro",
         janitor=None,
         janitor_checkout=repo / "janitor-co",
-        # The venue cases are about WHERE the janitor runs, so every one of them
-        # declares a janitor-core ref: an undeclared pin now degrades before the
-        # venue is ever resolved.
-        janitor_core_ref="master",
+        config_text=_DECLARED_CONFIG,
+        default_branch=default_branch,
     )
 
 
@@ -88,11 +96,6 @@ def _ok() -> CommandResult:
 
 def _err(*, stderr: str = "") -> CommandResult:
     return CommandResult(exit_code=1, stdout="", stderr=stderr)
-
-
-def _branch(*, name: str = "main") -> CommandResult:
-    """What `git symbolic-ref --short refs/remotes/origin/HEAD` answers."""
-    return CommandResult(exit_code=0, stdout=f"origin/{name}\n", stderr="")
 
 
 def _merged(*, merge_sha: str | None = _MERGE_SHA) -> PrView:
@@ -138,8 +141,8 @@ def test_post_merge_provisions_the_venue_at_the_merged_default_branch_tip(tmp_pa
     CURRENT default-branch tip, which carries both its merge and the later fix --
     where a venue pinned to the item's merge sha could only ever re-fail.
     """
-    plan = _plan(repo=tmp_path)
-    runner = Runner(queue=[_ok(), _branch(), *[_ok() for _ in range(8)]])
+    plan = _plan(repo=tmp_path, default_branch="main")
+    runner = Runner(queue=[_ok(), *[_ok() for _ in range(8)]])
     journal = Journal()
 
     outcome = post_merge(
@@ -173,8 +176,8 @@ def test_post_merge_provisions_the_venue_at_the_merged_default_branch_tip(tmp_pa
 def test_post_merge_degrades_when_the_resolved_tip_does_not_contain_the_merge(
     tmp_path: Path,
 ) -> None:
-    plan = _plan(repo=tmp_path)
-    runner = Runner(queue=[_ok(), _branch(), _err(), *[_ok() for _ in range(8)]])
+    plan = _plan(repo=tmp_path, default_branch="main")
+    runner = Runner(queue=[_ok(), _err(), *[_ok() for _ in range(8)]])
     journal = Journal()
 
     outcome = post_merge(
@@ -201,8 +204,9 @@ def test_post_merge_degrades_when_the_resolved_tip_does_not_contain_the_merge(
 
 
 def test_post_merge_degrades_when_no_default_branch_can_be_resolved(tmp_path: Path) -> None:
-    plan = _plan(repo=tmp_path)
-    runner = Runner(queue=[_ok(), _err(), _err(), *[_ok() for _ in range(8)]])
+    """Both probe routes silent at plan build leaves the REQUIRED field unresolved."""
+    plan = _plan(repo=tmp_path, default_branch=None)
+    runner = Runner(queue=[_ok(), *[_ok() for _ in range(8)]])
     journal = Journal()
 
     outcome = post_merge(
@@ -226,8 +230,8 @@ def test_post_merge_venue_skips_the_containment_probe_when_no_merge_sha_is_known
     tmp_path: Path,
 ) -> None:
     """No merge sha is nothing to confirm, not a degradation."""
-    plan = _plan(repo=tmp_path)
-    runner = Runner(queue=[_ok(), _branch(name="master"), *[_ok() for _ in range(8)]])
+    plan = _plan(repo=tmp_path, default_branch="master")
+    runner = Runner(queue=[_ok(), *[_ok() for _ in range(8)]])
     journal = Journal()
 
     outcome = post_merge(
@@ -240,10 +244,10 @@ def test_post_merge_venue_skips_the_containment_probe_when_no_merge_sha_is_known
 
     assert (outcome.status, outcome.stage) == ("green", "done")
     argvs = [argv for argv, _ in runner.calls]
-    # `origin/master` here is RESOLVED, not a literal fallback: the branch read
-    # happened, and it is the absence of a merge sha -- not of a default branch --
-    # that leaves the containment probe unmade.
-    assert ["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"] in argvs
+    # `origin/master` here is RESOLVED, not a literal fallback: the contract
+    # carries a declared branch, and it is the absence of a merge sha -- not of a
+    # default branch -- that leaves the containment probe unmade.
+    assert plan.integration.contract.default_branch == "master"
     assert not [argv for argv in argvs if "merge-base" in argv]
     add = next(argv for argv in argvs if argv[3:5] == ["worktree", "add"])
     assert add[-1] == "origin/master"
