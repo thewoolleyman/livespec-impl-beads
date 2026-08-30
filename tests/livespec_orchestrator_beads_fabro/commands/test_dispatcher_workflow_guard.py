@@ -110,8 +110,11 @@ def test_workflow_guard_allows_non_workflow_paths(tmp_path: Path) -> None:
 
     result = guard.check_no_workflow_changes(repo=tmp_path, runner=runner)
 
+    # Not blocked (the boundary is intact), but not a pass either: the scope
+    # matched zero of the two judged files, so the check observed nothing.
     assert result.exit_code == 0
-    assert result.message == "No .github/workflows/ changes detected."
+    assert result.outcome == "vacuous-match"
+    assert "matched zero of the 2 file(s)" in result.message
 
 
 def test_workflow_guard_reports_git_diff_failure(tmp_path: Path) -> None:
