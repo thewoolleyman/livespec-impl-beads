@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.104.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.103.0...v0.104.0) (2026-08-30)
+
+
+### Features
+
+* resolve the default branch in the factory workflow-drift guard ([afd86c2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/afd86c214d08a51f6c7a592f2876a073b0017d4d))
+
+
+### Bug Fixes
+
+* restore default branch resolver export ([447ee3c](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/447ee3cc45e908099b823704e0a5e616d972cc25))
+
 ## [0.103.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.102.0...v0.103.0) (2026-08-30)
 
 
