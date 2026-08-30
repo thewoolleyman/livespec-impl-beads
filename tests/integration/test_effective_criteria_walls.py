@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import json
 import tempfile
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, cast
@@ -231,8 +231,16 @@ def _real_acceptance_pass() -> Callable[..., AcceptancePassResult]:
     """The REAL acceptance pass, with only its command seam stood in."""
     runner = _StubRunner(stdout=_READABLE_DIFF)
 
-    def _call(*, repo: Path, item: WorkItem, outcome: DispatchOutcome) -> AcceptancePassResult:
-        return run_acceptance_pass(repo=repo, item=item, outcome=outcome, runner=runner)
+    def _call(
+        *,
+        repo: Path,
+        item: WorkItem,
+        outcome: DispatchOutcome,
+        raw_labels: Sequence[str] = (),
+    ) -> AcceptancePassResult:
+        return run_acceptance_pass(
+            repo=repo, item=item, outcome=outcome, runner=runner, raw_labels=raw_labels
+        )
 
     return _call
 

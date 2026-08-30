@@ -4456,6 +4456,70 @@ def test_dispatch_does_not_release_claim_after_fabro_run_exists(
     assert "ledger-admit-release" not in {record["stage"] for record in records}
 
 
+def test_complete_and_accept_hands_the_acceptance_pass_the_declared_markers(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, _workflow = _repo_with_workflow(tmp_path=tmp_path)
+    item = _item(acceptance_policy="ai-only")
+    append_work_item(path=_config(), item=item)
+    seen: dict[str, object] = {}
+
+    def _pass(**kwargs: object) -> _FakeAcceptancePass:
+        seen.update(kwargs)
+        return _FakeAcceptancePass(verdict="PASS")
+
+    monkeypatch.setattr(
+        _dispatcher_completion,
+        "read_dispatch_labels",
+        lambda **_: ("change-optional:true",),
+    )
+    monkeypatch.setattr(_dispatcher_completion, "run_acceptance_pass", _pass, raising=False)
+    journal = JournalFile(path=repo / "journal.jsonl")
+
+    dispatcher.complete_and_accept(
+        repo=repo,
+        item=item,
+        outcome=_green_outcome(item_id=item.id),
+        journal=journal,
+    )
+
+    assert seen["raw_labels"] == ("change-optional:true",)
+
+
+def test_complete_and_accept_fails_closed_when_the_declared_markers_are_unreadable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, _workflow = _repo_with_workflow(tmp_path=tmp_path)
+    item = _item(acceptance_policy="ai-only")
+    append_work_item(path=_config(), item=item)
+    seen: dict[str, object] = {}
+
+    def _pass(**kwargs: object) -> _FakeAcceptancePass:
+        seen.update(kwargs)
+        return _FakeAcceptancePass(verdict="PASS")
+
+    monkeypatch.setattr(
+        _dispatcher_completion,
+        "read_dispatch_labels",
+        lambda **_: "ledger label read failed for bd-ib-x (BeadsMappingError: gone)",
+    )
+    monkeypatch.setattr(_dispatcher_completion, "run_acceptance_pass", _pass, raising=False)
+    journal = JournalFile(path=repo / "journal.jsonl")
+
+    dispatcher.complete_and_accept(
+        repo=repo,
+        item=item,
+        outcome=_green_outcome(item_id=item.id),
+        journal=journal,
+    )
+
+    # A label set that could not be READ cannot DECLARE the change-optional
+    # exemption, so the pass is handed no markers and classifies change-implying.
+    assert seen["raw_labels"] == ()
+
+
 def test_complete_and_accept_ai_only_pass_journals_verdict_and_closes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -14,6 +15,8 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_acceptance_diff impo
     read_merged_diff,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_effective_criteria import (
+    ChangeClassification,
+    change_classification,
     effective_criteria,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
@@ -69,6 +72,7 @@ class AcceptancePassResult:
     telemetry_reason: str
     criteria: tuple[CriterionCheck, ...]
     absent_evidence: tuple[str, ...]
+    classification: ChangeClassification
 
     def journal_record(self, *, work_item_id: str, policy: str) -> dict[str, object]:
         return {
@@ -77,6 +81,11 @@ class AcceptancePassResult:
             "verdict": self.verdict,
             "acceptance_policy": policy,
             "absent_evidence": list(self.absent_evidence),
+            # The classification is journaled on EVERY pass, not only when the
+            # empty-diff refusal fires: an item MUST NOT be silently exempted,
+            # and "silently" is decided by the record of the passes that did
+            # NOT refuse just as much as by the ones that did.
+            "change_classification": self.classification.as_record(),
             "diff": {
                 "observed": self.merged_diff is not None,
                 "bytes": 0 if self.merged_diff is None else len(self.merged_diff.encode()),
@@ -100,12 +109,18 @@ def run_acceptance_pass(
     item: WorkItem,
     outcome: DispatchOutcome,
     runner: CommandRunner | None = None,
+    raw_labels: Sequence[str] = (),
 ) -> AcceptancePassResult:
     """Read the merged diff, judge criteria, watch telemetry, and return a verdict.
 
     The verdict obeys the ratified evidence rule: PASS needs every leg observed
     and passing, FAIL needs OBSERVED failing evidence, and anything the pass
     cannot observe yields NEEDS_ATTENTION rather than a manufactured judgment.
+
+    `raw_labels` carries the item's declared ledger markers, from which the
+    change-implying/change-optional classification is resolved and recorded.
+    An empty sequence classifies change-implying, so a caller that cannot read
+    the item's labels fails closed rather than exempting it.
     """
     active_runner = ShellCommandRunner() if runner is None else runner
     diff_result = read_merged_diff(repo=repo, outcome=outcome, runner=active_runner)
@@ -125,6 +140,7 @@ def run_acceptance_pass(
         telemetry_reason=telemetry.reason,
         criteria=checks,
         absent_evidence=absent,
+        classification=change_classification(raw_labels=raw_labels),
     )
 
 
