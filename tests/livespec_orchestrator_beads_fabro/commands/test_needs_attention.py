@@ -506,6 +506,77 @@ def test_build_attention_enriches_needs_attention_parked_acceptance(
     assert "absent evidence: diff, telemetry" in parked.summary
 
 
+def test_build_attention_names_the_empty_diff_leg_on_a_zero_change_park(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A zero-change merged run composes as ONE attention item naming the empty-diff leg.
+
+    The park is the one the empty-merged-diff refusal produces: telemetry and
+    criteria were both observed, and the ONLY absent leg is the merged diff the
+    pass read as changing zero files. It composes through the existing
+    NEEDS_ATTENTION-parked-acceptance class — the `accept` human valve, no new
+    attention kind — and its summary names that leg as the empty-diff leg rather
+    than as a diff nobody could read, per the parked-acceptance arity and
+    distinguishability rule of `SPECIFICATION/contracts.md`.
+    """
+    _write_config(tmp_path)
+    _stub_spec_next(monkeypatch, output=None)
+    _seed(
+        _item(
+            id_="bd-zero-change",
+            status="acceptance",
+            rank="a1",
+            acceptance_policy="ai-only",
+        )
+    )
+    _write_journal_record(
+        tmp_path,
+        record={
+            "stage": "acceptance-ai-pass",
+            "work_item_id": "bd-zero-change",
+            "verdict": "NEEDS_ATTENTION",
+            "acceptance_policy": "ai-only",
+            "absent_evidence": ["empty merged diff"],
+            "change_classification": {
+                "classification": "change-implying",
+                "declared_marker": None,
+            },
+            "diff": {"observed": False, "bytes": 0, "reason": "merged diff is empty"},
+            "criteria": {"observed": True, "checks": []},
+            "telemetry": {"observed": True, "passed": True, "reason": "green merged dispatch"},
+        },
+    )
+    _write_journal_record(
+        tmp_path,
+        record={
+            "stage": "acceptance-parked",
+            "work_item_id": "bd-zero-change",
+            "policy": "ai-only",
+            "advisory": False,
+            "acceptance_verdict": "NEEDS_ATTENTION",
+            "absent_evidence": ["empty merged diff"],
+        },
+    )
+
+    attention = build_attention(
+        project_root=tmp_path,
+        repo_name="repo",
+        include_hygiene=False,
+    )
+
+    # Exactly ONE attention item, through the class that already exists.
+    assert [item.id for item in attention] == ["valve:accept:bd-zero-change"]
+    [parked] = attention
+    assert parked.kind == "human-valve"
+    assert parked.handoff.action_id == "accept:bd-zero-change"
+    assert "NEEDS_ATTENTION" in parked.summary
+    # The empty-diff merged-diff leg is named as the absent-evidence leg, so a
+    # zero-change merge surfaces as itself and not as an unreadable diff.
+    assert "absent evidence: empty merged diff." in parked.summary
+    assert "reject:bd-zero-change:rework" in parked.summary
+    assert "reject:bd-zero-change:regroom" in parked.summary
+
+
 def test_build_attention_surfaces_stranded_merged_dispatch(tmp_path, monkeypatch) -> None:
     _write_config(tmp_path)
     _stub_spec_next(monkeypatch, output=None)
