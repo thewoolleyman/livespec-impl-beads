@@ -15,6 +15,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_dispatch_lock import
     live_dispatch_lock,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import ShellCommandRunner
+from livespec_orchestrator_beads_fabro.commands._dispatcher_run_stamp import repo_run_attribution
 from livespec_orchestrator_beads_fabro.commands._drive_valve_predicates import (
     awaits_dispatcher_admission,
     can_approve_item,
@@ -175,10 +176,12 @@ def watchable_fabro_run_item_ids(*, repo: Path) -> frozenset[str]:
     result = _fabro_ps(repo=repo)
     if result.command.exit_code != 0:
         return frozenset()
+    attribution = repo_run_attribution(repo=repo)
     return frozenset(
-        run.work_item_id
+        work_item_id
         for run in result.runs
-        if run.work_item_id is not None and run.status_kind in {"runnable", "running"}
+        if (work_item_id := attribution.work_item_id_for(run=run)) is not None
+        and run.status_kind in {"runnable", "running"}
     )
 
 
@@ -190,11 +193,13 @@ def _watchable_fabro_run(*, repo: Path, work_item_id: str) -> object | None:
     result = _fabro_ps(repo=repo)
     if result.command.exit_code != 0:
         return None
+    attribution = repo_run_attribution(repo=repo)
     return next(
         (
             run
             for run in result.runs
-            if run.work_item_id == work_item_id and run.status_kind in {"runnable", "running"}
+            if attribution.owns(run=run, work_item_id=work_item_id)
+            and run.status_kind in {"runnable", "running"}
         ),
         None,
     )

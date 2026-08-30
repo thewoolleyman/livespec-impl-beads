@@ -24,6 +24,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import Dispat
 from livespec_orchestrator_beads_fabro.commands._fabro_port import (
     fabro_run_summaries_from_stdout,
 )
+from livespec_orchestrator_beads_fabro.commands._run_attribution import RunAttribution
 
 
 @dataclass(kw_only=True)
@@ -169,3 +170,38 @@ def test_gate_wave_is_fail_open_on_unparseable_ps_json() -> None:
     )
     assert refusals == ()
     assert any(r.get("stage") == "cost-gate-skipped" for r in journal.records)
+
+
+def test_gate_wave_costs_the_run_the_stamp_names_not_the_goal_texts_run() -> None:
+    """A mis-attributed run charges one item's spend against another's cap.
+
+    Without the stamp the gate finds no run for `item-owner` and journals a
+    fail-open `cost-gate-skipped`, while the real run's cost is silently
+    attributed to whatever item its goal text happens to name.
+    """
+    journal = _RecordingJournal()
+
+    _ = gate_wave(
+        unattended=True,
+        outcomes=(_green("item-owner"),),
+        ps_json=_PS_JSON_NULL,
+        journal=journal,
+        attribution=RunAttribution(metadata_run_ids={"01RUNZZZ": "item-owner"}),
+    )
+
+    assert [record["stage"] for record in journal.records] == ["cost-gate"]
+    assert journal.records[0]["run_id"] == "01RUNZZZ"
+    assert journal.records[0]["work_item_id"] == "item-owner"
+
+
+def test_gate_wave_without_the_stamp_cannot_find_the_run_at_all() -> None:
+    journal = _RecordingJournal()
+
+    _ = gate_wave(
+        unattended=True,
+        outcomes=(_green("item-owner"),),
+        ps_json=_PS_JSON_NULL,
+        journal=journal,
+    )
+
+    assert [record["stage"] for record in journal.records] == ["cost-gate-skipped"]

@@ -3,8 +3,10 @@
 The watchdog cannot key its liveness probe on a known run id: `fabro run`
 is BLOCKING and only yields the run id on RETURN, i.e. after the run has
 already finished. So every 30s poll RE-DISCOVERS the in-flight run by
-matching a `fabro ps -a --json --server <factory>` row on the goal-derived
-work-item id. That re-discovery is the watchdog's single point of failure,
+attributing each `fabro ps -a --json --server <factory>` row to a work-item
+through `_run_attribution` — the ledger's own run-id stamp once the dispatch
+has written one, and the goal-text regex until then. That re-discovery is the
+watchdog's single point of failure,
 and it used to fail SILENTLY: a poll that matched nothing returned None,
 the watch loop hit a bare `continue`, `decide_stall` was never consulted,
 and the watchdog no-opped with ZERO output. Measured: that hid a TOTAL
@@ -52,6 +54,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import Journa
 from livespec_orchestrator_beads_fabro.commands._fabro_port import (
     FabroPsResult,
     FabroRunSummary,
+)
+from livespec_orchestrator_beads_fabro.commands._run_attribution import (
+    GOAL_TEXT_ONLY,
+    RunAttribution,
 )
 
 __all__: list[str] = [
@@ -113,6 +119,7 @@ def journaled_discovery(
     work_item_id: str,
     ps: FabroPsResult,
     journal: JournalWriter,
+    attribution: RunAttribution = GOAL_TEXT_ONLY,
 ) -> FabroRunSummary | None:
     """Classify one ps poll, record it unconditionally, and return the run.
 
@@ -125,6 +132,7 @@ def journaled_discovery(
         work_item_id=work_item_id,
         ps_exit_code=ps.command.exit_code,
         runs=ps.runs,
+        attribution=attribution,
     )
     journal.append(record=_journal_record(work_item_id=work_item_id, outcome=outcome))
     return outcome.run
@@ -135,19 +143,29 @@ def classify_discovery(
     work_item_id: str,
     ps_exit_code: int,
     runs: tuple[FabroRunSummary, ...],
+    attribution: RunAttribution = GOAL_TEXT_ONLY,
 ) -> DiscoveryOutcome:
     """Classify one `fabro ps` poll into a named discovery outcome.
 
     The ps exit code is checked FIRST: a failed probe observed nothing, so
     reporting it as "no matching row" would assert something about the run
     that was never measured.
+
+    Which rows are "mine" is decided by `attribution`, not by re-reading the
+    goal-derived id off the row. `work-item-id-mismatch` is the leading
+    hypothesis for the 11-day outage precisely because a goal the id regex
+    cannot parse produces a row that IS the run and reads as somebody else's;
+    the ledger stamp answers that row directly, and the regex remains the floor
+    for the window before the stamp lands.
     """
-    mine = tuple(run for run in runs if run.work_item_id == work_item_id)
+    mine = tuple(run for run in runs if attribution.owns(run=run, work_item_id=work_item_id))
     evidence = _DiscoveryEvidence(
         ps_exit_code=ps_exit_code,
         ps_row_count=len(runs),
         work_item_row_count=len(mine),
-        unattributed_row_count=sum(1 for run in runs if run.work_item_id is None),
+        unattributed_row_count=sum(
+            1 for run in runs if attribution.work_item_id_for(run=run) is None
+        ),
         status_kinds=tuple(run.status_kind for run in mine),
     )
     if ps_exit_code != 0:

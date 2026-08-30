@@ -44,6 +44,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
     cost_report_spans_path,
     cost_sink_path,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_run_stamp import repo_run_attribution
 from livespec_orchestrator_beads_fabro.commands._fabro_port import FabroPort, FabroTarget
 from livespec_orchestrator_beads_fabro.effects import AttemptFailure, attempt
 
@@ -130,6 +131,7 @@ def _cost_gate(
         environ=dict(os.environ),
         derived_cost_micros_by_work_item=derived_costs(args=args, repo=repo, outcomes=outcomes),
         cost_mode=cost_mode,
+        attribution=repo_run_attribution(repo=repo),
     )
     if cost_mode == COST_MODE_REPORT:
         _emit_cost_report_telemetry(args=args, repo=repo, outcomes=outcomes)

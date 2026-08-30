@@ -8,6 +8,11 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+from livespec_orchestrator_beads_fabro._beads_client import (
+    FakeBeadsClient,
+    IssueDraft,
+    make_beads_client,
+)
 from livespec_orchestrator_beads_fabro.commands import (
     _dispatcher_io,
     _dispatcher_io_fabro_launcher,
@@ -16,6 +21,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import Comman
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io_fabro_launcher import (
     WatchedFabroLauncher,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import store_config
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import build_plan
 from livespec_orchestrator_beads_fabro.commands._dispatcher_watchdog import (
     STALL_SECONDS_ENV_VAR,
@@ -240,12 +246,85 @@ def test_watched_launcher_reaps_queued_run_after_item_closes(
         },
         {
             "work_item_id": "bd-ib-queued",
+            "stage": "dispatch-run-stamp",
+            "run_id": "01QUEUED",
+            "dispatch_factory": "default",
+            "dispatch_factory_server": None,
+            # The item is absent from the hermetic tenant, so the ledger write
+            # fails open — and says so, rather than leaving the miss silent.
+            "stamped": False,
+        },
+        {
+            "work_item_id": "bd-ib-queued",
             "stage": "stale-run-reap",
             "run_id": "01QUEUED",
             "item_status": "done",
             "rm_exit_code": 0,
         },
     ]
+
+
+def test_watched_launcher_stamps_the_discovered_run_onto_its_work_item(
+    *,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The ledger learns the run id while the run is still alive, not after it.
+
+    `fabro run` is blocking and only yields its run id on RETURN, so a stamp
+    written from the launcher's return value would land after the window in
+    which anyone reconciling the factory needs it. The watchdog's own
+    re-discovery poll is the first moment the id exists, and it is where the
+    stamp is taken.
+    """
+
+    def _thread(*, target: Callable[[], None], name: str) -> _QueuedThread:
+        return _QueuedThread(target=target, name=name, runner=runner)
+
+    runner = _QueuedRunner(calls=[], rm_calls=[])
+    journal = _Journal(records=[])
+    _write_livespec_config(repo=tmp_path)
+    client = make_beads_client(config=store_config(repo=tmp_path))
+    assert isinstance(client, FakeBeadsClient)
+    _ = client.create_issue(
+        draft=IssueDraft(
+            issue_id="bd-ib-queued",
+            issue_type="task",
+            title="queued",
+            description="queued",
+            assignee=None,
+            created_at="2026-08-30T00:00:00Z",
+        )
+    )
+    monkeypatch.setattr(_dispatcher_io_fabro_launcher.threading, "Thread", _thread)
+    monkeypatch.setattr(_dispatcher_io_fabro_launcher, "_work_item_status", lambda **_: "done")
+    plan = build_plan(
+        repo=tmp_path,
+        work_item_id="bd-ib-queued",
+        workflow_toml=tmp_path / "workflow.toml",
+        goal_file=tmp_path / "goal.md",
+        fabro_bin="fabro",
+        janitor=None,
+        janitor_checkout=tmp_path / "janitor",
+        fabro_factory_name="hp",
+        fabro_factory_server="https://hp-xubuntu.perch-rudd.ts.net:32276",
+    )
+
+    _ = WatchedFabroLauncher(sleep=lambda _seconds: None, clock=lambda: 0.0).launch(
+        plan=plan,
+        runner=runner,
+        journal=journal,
+    )
+
+    metadata = client.show_issue(issue_id="bd-ib-queued")["metadata"]
+    assert isinstance(metadata, dict)
+    assert metadata["dispatch_fabro_run_id"] == "01QUEUED"
+    assert metadata["dispatch_factory"] == {
+        "name": "hp",
+        "server": "https://hp-xubuntu.perch-rudd.ts.net:32276",
+    }
+    stamps = [record for record in journal.records if record["stage"] == "dispatch-run-stamp"]
+    assert [record["stamped"] for record in stamps] == [True]
 
 
 def test_watched_launcher_does_not_stall_cancel_queued_active_run(

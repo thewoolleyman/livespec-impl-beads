@@ -68,6 +68,10 @@ from livespec_orchestrator_beads_fabro.commands._fabro_port import (
     FabroRunSummary,
     fabro_run_summaries_from_stdout,
 )
+from livespec_orchestrator_beads_fabro.commands._run_attribution import (
+    GOAL_TEXT_ONLY,
+    RunAttribution,
+)
 from livespec_orchestrator_beads_fabro.effects import (
     FloatParseFailure,
     parse_float,
@@ -334,6 +338,7 @@ def gate_wave(  # noqa: PLR0913 — kw-only post-verdict gate/reporter; each fie
     environ: dict[str, str] | None = None,
     derived_cost_micros_by_work_item: dict[str, int] | None = None,
     cost_mode: str = COST_MODE_REPORT,
+    attribution: RunAttribution = GOAL_TEXT_ONLY,
 ) -> tuple[str, ...]:
     """Apply the cost gate / reporter to a completed dispatch wave (5v9 + y0m + efj).
 
@@ -407,6 +412,7 @@ def gate_wave(  # noqa: PLR0913 — kw-only post-verdict gate/reporter; each fie
         environ=environ,
         derived_cost_micros_by_work_item=derived_cost_micros_by_work_item,
         cost_mode=cost_mode,
+        attribution=attribution,
     )
 
 

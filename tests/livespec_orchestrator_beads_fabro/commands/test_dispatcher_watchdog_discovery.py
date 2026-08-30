@@ -19,6 +19,7 @@ from livespec_orchestrator_beads_fabro.commands._fabro_port import (
     FabroPsResult,
     FabroRunSummary,
 )
+from livespec_orchestrator_beads_fabro.commands._run_attribution import RunAttribution
 
 
 @dataclass(kw_only=True)
@@ -202,3 +203,42 @@ def test_every_discovery_failure_mode_has_its_own_reason_name() -> None:
             "status-kind-not-running",
         )
     )
+
+
+def test_discovery_matches_a_run_the_goal_regex_attributes_to_another_item() -> None:
+    """The stamp answers the row the goal text mis-names — the outage's own shape.
+
+    `work-item-id-mismatch` is indistinguishable from "no run of mine exists" in
+    the ps listing alone, which is why a goal the regex mis-parses could blind
+    the watchdog for eleven days without a single record saying so.
+    """
+    row = _row(run_id="01MINE", work_item_id="bd-ib-someone-else")
+    attribution = RunAttribution(metadata_run_ids={"01MINE": "bd-ib-mine"})
+
+    unattributed = classify_discovery(work_item_id="bd-ib-mine", ps_exit_code=0, runs=(row,))
+    attributed = classify_discovery(
+        work_item_id="bd-ib-mine",
+        ps_exit_code=0,
+        runs=(row,),
+        attribution=attribution,
+    )
+
+    assert unattributed.reason == DISCOVERY_REASON_WORK_ITEM_ID_MISMATCH
+    assert unattributed.run is None
+    assert attributed.reason == DISCOVERY_REASON_MATCHED
+    assert attributed.run is row
+
+
+def test_a_row_the_stamp_claims_is_no_longer_counted_as_unattributed() -> None:
+    row = _row(run_id="01MINE", work_item_id=None)
+    attribution = RunAttribution(metadata_run_ids={"01MINE": "bd-ib-mine"})
+
+    outcome = classify_discovery(
+        work_item_id="bd-ib-mine",
+        ps_exit_code=0,
+        runs=(row,),
+        attribution=attribution,
+    )
+
+    assert outcome.unattributed_row_count == 0
+    assert outcome.reason == DISCOVERY_REASON_MATCHED

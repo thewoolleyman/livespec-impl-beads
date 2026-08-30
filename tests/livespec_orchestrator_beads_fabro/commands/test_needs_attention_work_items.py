@@ -6,9 +6,15 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import CommandResult
+from livespec_orchestrator_beads_fabro.commands._fabro_port import (
+    FabroPsResult,
+    FabroRunSummary,
+)
 from livespec_orchestrator_beads_fabro.commands._needs_attention_work_items import (
     host_only_items,
 )
+from livespec_orchestrator_beads_fabro.commands._run_attribution import RunAttribution
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
 
@@ -185,3 +191,54 @@ def test_host_only_items_fail_soft_when_journal_cannot_be_read(
     attention = host_only_items(project_root=tmp_path, repo="repo", items=[])
 
     assert attention == []
+
+
+def _ps_result(*, runs: tuple[FabroRunSummary, ...]) -> FabroPsResult:
+    return FabroPsResult(
+        command=CommandResult(exit_code=0, stdout="", stderr=""),
+        payload=None,
+        runs=runs,
+    )
+
+
+def _live_row(*, run_id: str, work_item_id: str | None) -> FabroRunSummary:
+    return FabroRunSummary(
+        run_id=run_id,
+        status_kind="running",
+        goal=None,
+        work_item_id=work_item_id,
+        total_usd_micros=None,
+    )
+
+
+def test_needs_attention_reads_live_runs_through_the_stamp_not_the_goal_regex(
+    *,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A live run reported under the wrong item makes needs-attention lie twice.
+
+    It says the mis-named item is busy and it says the real owner is idle, so an
+    operator reading the lane re-dispatches work that is already running.
+    """
+    module = importlib.import_module(
+        "livespec_orchestrator_beads_fabro.commands._needs_attention_work_items"
+    )
+    row = _live_row(run_id="01LIVE", work_item_id="bd-ib-mislabelled")
+
+    def _ps(*, repo: Path) -> FabroPsResult:
+        assert repo == tmp_path
+        return _ps_result(runs=(row,))
+
+    def _attribution(*, repo: Path) -> RunAttribution:
+        assert repo == tmp_path
+        return RunAttribution(metadata_run_ids={"01LIVE": "bd-ib-owner"})
+
+    monkeypatch.setattr(module, "_fabro_ps", _ps)
+    monkeypatch.setattr(module, "repo_run_attribution", _attribution)
+
+    assert module.watchable_fabro_run_item_ids(repo=tmp_path) == frozenset({"bd-ib-owner"})
+    assert module.watchable_fabro_run_lookup(repo=tmp_path, work_item_id="bd-ib-owner") is row
+    assert (
+        module.watchable_fabro_run_lookup(repo=tmp_path, work_item_id="bd-ib-mislabelled") is None
+    )
