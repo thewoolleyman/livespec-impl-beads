@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 from livespec_orchestrator_beads_fabro.commands import _dispatcher_reconcile_runs_command as cli
 from livespec_orchestrator_beads_fabro.commands._config import FactoryTarget
+from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_grace import HeldRun
 from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_records import (
     ReconciledRun,
     ReconcileError,
@@ -149,6 +150,80 @@ def test_an_omitted_repo_defaults_to_the_working_directory(
     assert inputs["journal_path"] == tmp_path / "own.jsonl"
 
 
+def test_a_held_parked_run_is_projected_with_the_time_it_has_left(
+    *,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _ = _stub(monkeypatch=monkeypatch, summary=_summary(held=(_held(),)))
+
+    exit_code = main(argv=["reconcile-runs", "--repo", str(tmp_path), "--dry-run", "--json"])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload["held"][0]["hold_reason"] == "blocked-within-grace"
+    assert payload["held"][0]["seconds_remaining"] == 1500.0
+    assert payload["held"][0]["grace_seconds"] == 1800
+
+
+def test_a_held_parked_run_renders_a_human_line_rather_than_reading_as_empty(
+    *,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _ = _stub(monkeypatch=monkeypatch, summary=_summary(held=(_held(),)))
+
+    exit_code = main(argv=["reconcile-runs", "--repo", str(tmp_path)])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out == (
+        "HELD    bd-ib-parked  01YOUNG  factory=hp run=blocked item=blocked "
+        "reason=blocked-within-grace remaining=1500.0\n"
+    )
+
+
+def test_the_committed_grace_setting_reaches_the_reconciler(
+    *,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    calls = _stub(monkeypatch=monkeypatch, summary=_summary())
+    _ = (tmp_path / ".livespec.jsonc").write_text(
+        json.dumps(
+            {"livespec-orchestrator-beads-fabro": {"dispatcher": {"blocked_run_grace_seconds": 0}}}
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = main(argv=["reconcile-runs", "--repo", str(tmp_path)])
+
+    inputs = calls["inputs"]
+    assert exit_code == 0
+    assert capsys.readouterr().out == "(no orphaned fabro runs found)\n"
+    assert isinstance(inputs, dict)
+    assert inputs["blocked_run_grace_seconds"] == 0
+
+
+def test_an_unconfigured_grace_reaches_the_reconciler_as_the_documented_default(
+    *,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    calls = _stub(monkeypatch=monkeypatch, summary=_summary())
+
+    exit_code = main(argv=["reconcile-runs", "--repo", str(tmp_path)])
+
+    inputs = calls["inputs"]
+    assert exit_code == 0
+    assert capsys.readouterr().out == "(no orphaned fabro runs found)\n"
+    assert isinstance(inputs, dict)
+    assert inputs["blocked_run_grace_seconds"] == 1800
+
+
 def _stub(
     *,
     monkeypatch: pytest.MonkeyPatch,
@@ -184,6 +259,7 @@ def _stub(
             "journal_path": inputs.journal.path,
             "invoker": inputs.journal.identity.invoker,
             "metadata_run_ids": dict(inputs.attribution.metadata_run_ids),
+            "blocked_run_grace_seconds": inputs.blocked_run_grace_seconds,
         }
         calls["factory_targets"] = factories
         calls["dry_run"] = dry_run
@@ -203,13 +279,29 @@ class _StoreConfig:
     prefix = "bd-ib"
 
 
+def _held() -> HeldRun:
+    return HeldRun(
+        run_id="01YOUNG",
+        factory_name="hp",
+        factory_server_url="https://hp.example:32276",
+        status_kind="blocked",
+        work_item_id="bd-ib-parked",
+        work_item_status="blocked",
+        hold_reason="blocked-within-grace",
+        parked_seconds=300.0,
+        seconds_remaining=1500.0,
+        grace_seconds=1800,
+    )
+
+
 def _summary(
     *,
     reconciled: tuple[ReconciledRun, ...] = (),
     errors: tuple[ReconcileError, ...] = (),
     dry_run: bool = False,
+    held: tuple[HeldRun, ...] = (),
 ) -> ReconcileRunsSummary:
-    return ReconcileRunsSummary(reconciled=reconciled, errors=errors, dry_run=dry_run)
+    return ReconcileRunsSummary(reconciled=reconciled, errors=errors, dry_run=dry_run, held=held)
 
 
 def _run(*, termination_succeeded: bool = True) -> ReconciledRun:

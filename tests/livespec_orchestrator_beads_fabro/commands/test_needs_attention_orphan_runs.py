@@ -8,7 +8,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
-from livespec_orchestrator_beads_fabro.commands import _dispatcher_reconcile_runs as reconcile
+from livespec_orchestrator_beads_fabro.commands import (
+    _dispatcher_reconcile_runs_inputs as reconcile_inputs,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import CommandResult
 from livespec_orchestrator_beads_fabro.commands._fabro_port_types import FabroTarget
 from livespec_orchestrator_beads_fabro.types import WorkItem
@@ -97,7 +99,9 @@ def test_each_factory_is_addressed_by_its_declared_server_target(
         built.append(target)
         return target
 
-    monkeypatch.setattr(reconcile, "FabroTarget", _record)
+    # The port is opened by the seams module, which is where the target is
+    # built; patching the survey module would patch a name that is not there.
+    monkeypatch.setattr(reconcile_inputs, "FabroTarget", _record)
 
     _ = module.orphan_run_items(
         project_root=repo,
