@@ -39,6 +39,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_facto
 from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_join import (
     read_journaled_runs,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_run_stamp import (
+    repo_run_attribution,
+)
 from livespec_orchestrator_beads_fabro.io import write_stdout
 
 __all__: list[str] = ["run_reconcile_runs_command"]
@@ -61,6 +64,7 @@ def run_reconcile_runs_command(*, args: argparse.Namespace) -> int:
             runner=ShellCommandRunner(),
             journal=JournalFile(path=journal, identity=invoker_from_args(args=args)),
             ledger=make_beads_client(config=store),
+            attribution=repo_run_attribution(repo=repo),
         ),
         factories=reconcile_factory_targets(repo=repo, factory=args.factory),
         dry_run=args.dry_run,

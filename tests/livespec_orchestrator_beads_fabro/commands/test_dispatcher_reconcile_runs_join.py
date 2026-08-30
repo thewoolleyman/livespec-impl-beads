@@ -13,6 +13,7 @@ _MODULE_PATH = (
     / "_dispatcher_reconcile_runs_join.py"
 )
 _MODULE_NAME = "livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_join"
+_ATTRIBUTION_MODULE_NAME = "livespec_orchestrator_beads_fabro.commands._run_attribution"
 
 
 def test_blocked_run_whose_item_closed_is_an_orphan() -> None:
@@ -118,6 +119,87 @@ def test_journal_attribution_wins_over_the_goal_regex() -> None:
     assert [(run.work_item_id, run.orphan_reason) for run in orphans] == [
         ("bd-ib-real", module.ORPHAN_REASON_ITEM_NOT_ACTIVE)
     ]
+
+
+def test_a_ledger_stamped_run_is_spared_though_its_goal_text_names_a_closed_item() -> None:
+    """The stamp is the whole point: the goal regex alone gets this run wrong.
+
+    The control below runs the IDENTICAL join with no attribution and shows it
+    classified as an orphan, so this pair discriminates the ledger leg from the
+    regex leg rather than merely exercising it.
+    """
+    module = importlib.import_module(_MODULE_NAME)
+    attribution = importlib.import_module(_ATTRIBUTION_MODULE_NAME)
+
+    orphans = module.classify_orphans(
+        runs=[_run(run_id="01RUN", work_item_id="bd-ib-closed", status_kind="running")],
+        item_statuses={"bd-ib-closed": "closed", "bd-ib-active": "active"},
+        journaled=module.journaled_runs(text=""),
+        id_prefix="bd-ib",
+        factory_name="hp",
+        factory_server_url="https://hp.example:32276",
+        attribution=attribution.RunAttribution(metadata_run_ids={"01RUN": "bd-ib-active"}),
+    )
+
+    assert orphans == ()
+
+
+def test_the_same_run_without_the_stamp_reads_as_an_orphan() -> None:
+    module = importlib.import_module(_MODULE_NAME)
+
+    orphans = module.classify_orphans(
+        runs=[_run(run_id="01RUN", work_item_id="bd-ib-closed", status_kind="running")],
+        item_statuses={"bd-ib-closed": "closed", "bd-ib-active": "active"},
+        journaled=module.journaled_runs(text=""),
+        id_prefix="bd-ib",
+        factory_name="hp",
+        factory_server_url="https://hp.example:32276",
+    )
+
+    assert [(run.work_item_id, run.orphan_reason) for run in orphans] == [
+        ("bd-ib-closed", module.ORPHAN_REASON_ITEM_NOT_ACTIVE)
+    ]
+
+
+def test_ledger_metadata_outranks_the_journal_which_outranks_the_goal_text() -> None:
+    module = importlib.import_module(_MODULE_NAME)
+    attribution = importlib.import_module(_ATTRIBUTION_MODULE_NAME)
+    journal = json.dumps({"work_item_id": "bd-ib-journaled", "run_id": "01RUN"})
+
+    orphans = module.classify_orphans(
+        runs=[_run(run_id="01RUN", work_item_id="bd-ib-goal", status_kind="running")],
+        item_statuses={
+            "bd-ib-goal": "active",
+            "bd-ib-journaled": "acceptance",
+            "bd-ib-stamped": "closed",
+        },
+        journaled=module.journaled_runs(text=journal),
+        id_prefix="bd-ib",
+        factory_name="hp",
+        factory_server_url="https://hp.example:32276",
+        attribution=attribution.RunAttribution(metadata_run_ids={"01RUN": "bd-ib-stamped"}),
+    )
+
+    assert [(run.work_item_id, run.orphan_reason) for run in orphans] == [
+        ("bd-ib-stamped", module.ORPHAN_REASON_ITEM_NOT_ACTIVE)
+    ]
+
+
+def test_a_foreign_tenants_stamped_run_stays_out_of_scope() -> None:
+    module = importlib.import_module(_MODULE_NAME)
+    attribution = importlib.import_module(_ATTRIBUTION_MODULE_NAME)
+
+    orphans = module.classify_orphans(
+        runs=[_run(run_id="01RUN", work_item_id="bd-ib-goal", status_kind="running")],
+        item_statuses={"bd-ib-goal": "closed"},
+        journaled=module.journaled_runs(text=""),
+        id_prefix="bd-ib",
+        factory_name="hp",
+        factory_server_url="https://hp.example:32276",
+        attribution=attribution.RunAttribution(metadata_run_ids={"01RUN": "overseer-abc"}),
+    )
+
+    assert orphans == ()
 
 
 def test_read_journaled_runs_reads_a_file_and_tolerates_an_absent_one(tmp_path: Path) -> None:
