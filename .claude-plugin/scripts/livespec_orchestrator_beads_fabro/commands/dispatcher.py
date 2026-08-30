@@ -414,6 +414,8 @@ def _add_ledger_normalize(*, parser: argparse.ArgumentParser) -> None:
     # exit-code contract (0 clean/healed / 1 residual drift / 2 could-not-check).
     # See `_dispatcher_ledger_gate.run_ledger_gate`.
     _ = parser.add_argument("--gate", dest="gate", action="store_true")
+
+
 def _add_spec_check(*, parser: argparse.ArgumentParser) -> None:
     _ = parser.add_argument("--project-root", dest="project_root", default=None)
     _ = parser.add_argument("--spec-root", dest="spec_root", default=None)
