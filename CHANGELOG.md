@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.100.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.99.0...v0.100.0) (2026-08-30)
+
+
+### Features
+
+* **acceptance:** classify gradeable criteria change-implying by default (bd-ib-e3lr6p) ([5344115](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/5344115214fb9721510a750e8da35122efd30a71))
+
 ## [0.99.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.98.1...v0.99.0) (2026-08-30)
 
 
