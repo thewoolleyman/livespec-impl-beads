@@ -107,6 +107,13 @@ Private helper modules (underscore-prefixed) carry shared plumbing:
   `_dispatcher_check_suite_view`, `_dispatcher_core_provisioning_view`,
   `_dispatcher_hook_install_recipe`) are PROJECTIONS of that resolution — they
   shape it for one consumer and MUST NOT re-derive it from configuration.
+  `_dispatcher_integration_projection` carries the projections that cross into
+  a run — the `fabro run --input` pairs, the prompt variables, the prepare-step
+  parameters — plus the dispatch record's contract projection and the `gh pr
+  merge` method flag. The contract itself is resolved ONCE, in
+  `_dispatcher_plan_build.build_plan`, and rides `DispatchPlan.integration`;
+  every seam reads it from there. A seam that resolves an integration point of
+  its own is the defect the resolve-once-project-everywhere clause retires.
 
 Rules an agent editing this tree must follow:
 

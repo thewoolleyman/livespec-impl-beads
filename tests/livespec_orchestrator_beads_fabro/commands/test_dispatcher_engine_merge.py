@@ -19,6 +19,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     build_plan,
 )
 
+# A DECLARED janitor-core pin: an undeclared one, or an unresolved default
+# branch, degrades the post-merge flow before any of these cases is reached.
+_DECLARED_CONFIG = '{"livespec-orchestrator-beads-fabro": {"compat": {"pinned": "master"}}}'
+
 
 def _plan(*, repo: Path) -> DispatchPlan:
     return build_plan(
@@ -29,9 +33,8 @@ def _plan(*, repo: Path) -> DispatchPlan:
         fabro_bin="fabro",
         janitor=None,
         janitor_checkout=repo / "janitor-co",
-        # A DECLARED janitor-core pin: an undeclared one degrades the post-merge
-        # flow before any of these cases is reached.
-        janitor_core_ref="master",
+        config_text=_DECLARED_CONFIG,
+        default_branch="master",
     )
 
 
@@ -68,9 +71,10 @@ def _ok(stdout: str = "") -> CommandResult:
 
 
 def _venue_resolution() -> list[CommandResult]:
-    """The two venue reads between pull-primary and the preclean: the default
-    branch naming itself, then the probe confirming its tip contains the merge."""
-    return [_ok(stdout="origin/master"), _ok()]
+    """The ONE venue read between pull-primary and the preclean: the probe
+    confirming the tip contains the merge. The branch it names is read off the
+    plan's resolved integration contract rather than re-probed here."""
+    return [_ok()]
 
 
 def _err(stderr: str = "boom") -> CommandResult:

@@ -40,6 +40,11 @@ from livespec_orchestrator_beads_fabro.store import (
 )
 from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
 
+# The DECLARED pin this fixture repository carries: provisioning refuses rather
+# than cloning a moving tip when none is declared, and an unresolved default
+# branch degrades the venue before the janitor is ever reached.
+_DECLARED_CONFIG = '{"livespec-orchestrator-beads-fabro": {"compat": {"pinned": "master"}}}'
+
 
 @dataclass(frozen=True, kw_only=True)
 class _MergedFabroLauncher:
@@ -99,9 +104,8 @@ def test_real_post_merge_janitor_provisions_livespec_core(
         fabro_bin="fabro",
         janitor=None,
         janitor_checkout=janitor_checkout_path(repo=target, work_item_id="bd-ib-cyv"),
-        # The DECLARED pin this fixture repository carries; provisioning refuses
-        # rather than cloning a moving tip when none is declared.
-        janitor_core_ref="master",
+        config_text=_DECLARED_CONFIG,
+        default_branch="master",
     )
     journal = _RecordingJournal()
     outcome = run_dispatch(

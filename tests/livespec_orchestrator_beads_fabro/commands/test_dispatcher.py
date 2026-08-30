@@ -426,6 +426,12 @@ def _item(**overrides: object) -> WorkItem:
     return replace(base, **overrides)
 
 
+# A DECLARED pin and a resolved default branch, because either left
+# unresolved degrades the post-merge provisioning before the janitor is
+# reached -- which is its own case, in the venue tests.
+_DECLARED_CONFIG = '{"livespec-orchestrator-beads-fabro": {"compat": {"pinned": "master"}}}'
+
+
 def _plan(*, repo: Path) -> DispatchPlan:
     return build_plan(
         repo=repo,
@@ -435,9 +441,8 @@ def _plan(*, repo: Path) -> DispatchPlan:
         fabro_bin="fabro",
         janitor=None,
         janitor_checkout=repo / "janitor-co",
-        # A DECLARED pin, because an undeclared one now degrades the post-merge
-        # provisioning before the janitor is reached -- which is its own case.
-        janitor_core_ref="master",
+        config_text=_DECLARED_CONFIG,
+        default_branch="master",
     )
 
 
@@ -488,16 +493,17 @@ def _pr_association() -> CommandResult:
 
 
 def _venue_resolution() -> list[CommandResult]:
-    """The two venue reads between pull-primary and the preclean: the default
-    branch naming itself, then the probe confirming that its tip contains the
-    merge. The janitor venue is that resolved tip, never the item's merge sha."""
-    return [_ok(stdout="origin/master"), _ok()]
+    """The ONE venue read between pull-primary and the preclean: the probe
+    confirming the tip contains the merge. The branch itself is read off the
+    plan's resolved integration contract rather than re-probed here, so the
+    janitor venue is that declared tip, never the item's merge sha."""
+    return [_ok()]
 
 
 def _post_merge_green_tail() -> list[CommandResult]:
-    """The ten all-green post-merge results: pull-primary, the venue
-    resolution, then the janitor-checkout lifecycle (preclean, add, trust,
-    bootstrap, core clone, janitor run, remove)."""
+    """The nine all-green post-merge results: pull-primary, the venue
+    containment probe, then the janitor-checkout lifecycle (preclean, add,
+    trust, bootstrap, core clone, janitor run, remove)."""
     return [_ok(), *_venue_resolution(), *[_ok() for _ in range(7)]]
 
 
@@ -2468,16 +2474,11 @@ def test_engine_green_runs_janitor_in_fresh_checkout(tmp_path: Path) -> None:
         "janitor-checkout-remove",
     ]
     checkout = tmp_path / "janitor-co"
-    # The venue reads sit between pull-primary (4) and the preclean (7): the
-    # default branch names itself, then the merge-containment probe proves the
-    # tip carries `cafe01`. The checkout is added at that TIP, not at the sha.
+    # The venue read sits between pull-primary (4) and the preclean (6): the
+    # merge-containment probe proving the tip carries `cafe01`. The branch it
+    # names comes off the plan's resolved contract rather than a probe of its
+    # own. The checkout is added at that TIP, not at the sha.
     assert runner.calls[5][0] == [
-        "git",
-        "symbolic-ref",
-        "--short",
-        "refs/remotes/origin/HEAD",
-    ]
-    assert runner.calls[6][0] == [
         "git",
         "-C",
         str(tmp_path),
@@ -2486,7 +2487,7 @@ def test_engine_green_runs_janitor_in_fresh_checkout(tmp_path: Path) -> None:
         "cafe01",
         "origin/master",
     ]
-    add_argv, add_cwd = runner.calls[8]
+    add_argv, add_cwd = runner.calls[7]
     assert add_argv == [
         "git",
         "-C",
@@ -2499,9 +2500,9 @@ def test_engine_green_runs_janitor_in_fresh_checkout(tmp_path: Path) -> None:
     ]
     assert add_cwd == tmp_path
     remove_argv = ["git", "-C", str(tmp_path), "worktree", "remove", "--force", str(checkout)]
-    assert runner.calls[7][0] == remove_argv
-    assert runner.calls[13][0] == remove_argv
-    assert runner.envs[12] == {
+    assert runner.calls[6][0] == remove_argv
+    assert runner.calls[12][0] == remove_argv
+    assert runner.envs[11] == {
         "LIVESPEC_CORE_PLUGIN_ROOT": str(checkout / ".livespec-core" / ".claude-plugin")
     }
 
@@ -2878,7 +2879,7 @@ def test_engine_janitor_red_keeps_checkout_for_diagnosis(tmp_path: Path) -> None
     assert "2 failed, 1 passed" in outcome.detail
     # A red checkout is PRESERVED (no remove after the janitor ran):
     # the working tree is the diagnosis evidence.
-    assert len(runner.calls) == 13
+    assert len(runner.calls) == 12
     assert [record["stage"] for record in journal.records][-1] == "janitor-post-merge"
 
 
@@ -2903,7 +2904,7 @@ def test_engine_degrades_when_janitor_checkout_provisioning_fails(tmp_path: Path
     assert "mise exec -- just check" in outcome.detail
     assert "not a work-item failure" in outcome.detail
     # The janitor itself never ran: the dispatch ends at the failed add.
-    assert len(runner.calls) == 9
+    assert len(runner.calls) == 8
     assert [record["stage"] for record in journal.records][-1] == "janitor-checkout-add"
 
 
@@ -2925,7 +2926,7 @@ def test_engine_degrades_when_mise_trust_fails(tmp_path: Path) -> None:
     assert (outcome.status, outcome.stage) == ("green", "janitor-env-degraded")
     assert "mise trust" in outcome.detail
     assert "config not trusted" in outcome.detail
-    trust_argv, trust_cwd = runner.calls[9]
+    trust_argv, trust_cwd = runner.calls[8]
     assert trust_argv == ["mise", "trust"]
     assert trust_cwd == tmp_path / "janitor-co"
 
@@ -2951,7 +2952,7 @@ def test_engine_degrades_when_janitor_bootstrap_fails(tmp_path: Path) -> None:
     assert "DID NOT RUN" in outcome.detail
     assert "no hook-install recipe" in outcome.detail
     assert "not a work-item failure" in outcome.detail
-    bootstrap_argv, bootstrap_cwd = runner.calls[10]
+    bootstrap_argv, bootstrap_cwd = runner.calls[9]
     assert bootstrap_argv == ["mise", "exec", "--", "just", "install-commit-refuse-hooks"]
     assert bootstrap_cwd == tmp_path  # runs in plan.repo, not janitor_checkout
     assert [record["stage"] for record in journal.records][-1] == "janitor-checkout-bootstrap"
@@ -2989,7 +2990,7 @@ def test_engine_degrades_when_janitor_core_provisioning_fails(tmp_path: Path) ->
     # integration point for an adopter to provide carries no structured id, so
     # it cannot persist into a refusal the adopter has no way to clear.
     assert (outcome.step, outcome.missing_integration_point, outcome.remedy) == (None, None, None)
-    assert len(runner.calls) == 12
+    assert len(runner.calls) == 11
     assert [record["stage"] for record in journal.records][-1] == "janitor-core-provision"
 
 

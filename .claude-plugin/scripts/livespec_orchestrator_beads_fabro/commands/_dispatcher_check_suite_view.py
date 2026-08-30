@@ -56,7 +56,8 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_defaults
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_resolver import (
     Declared,
     Defective,
-    resolve_integration_field,
+    ResolvedIntegrationContract,
+    resolve_integration_contract,
     resolved_argv,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_schema import (
@@ -75,6 +76,7 @@ __all__: list[str] = [
     "check_suite_refusal",
     "check_suite_resolution_sentence",
     "janitor_check_suite_from_block",
+    "janitor_check_suite_from_contract",
     "resolve_janitor_check_suite",
 ]
 
@@ -126,6 +128,11 @@ def resolve_janitor_check_suite(*, cwd: Path, janitor: tuple[str, ...] | None) -
     An absent key is an ANSWER -- this repository uses the fleet convention --
     so it rides the same block reader as every other dispatcher key rather than
     a special absent-file path of its own.
+
+    This is the PRE-PLAN entry point, for the dispatch-path checks that run
+    before a plan exists. A dispatch that HAS a plan reads its check-suite off
+    the contract that plan already resolved, through
+    `janitor_check_suite_from_contract`.
     """
     return janitor_check_suite_from_block(block=dispatcher_block(cwd=cwd), janitor=janitor)
 
@@ -134,10 +141,32 @@ def janitor_check_suite_from_block(
     *, block: dict[str, Any], janitor: tuple[str, ...] | None
 ) -> JanitorCheckSuite:
     """Project the host-janitor venue's check-suite field; declared wins over `janitor`."""
-    resolution = resolve_integration_field(
-        field=JANITOR_CHECK_SUITE_FIELD,
-        declaration=declaration_from_dispatcher_block(block=block),
+    return janitor_check_suite_from_contract(
+        resolved=resolve_integration_contract(
+            declaration=declaration_from_dispatcher_block(block=block)
+        ),
+        janitor=janitor,
     )
+
+
+def janitor_check_suite_from_contract(
+    *, resolved: ResolvedIntegrationContract, janitor: tuple[str, ...] | None
+) -> JanitorCheckSuite:
+    """Shape an ALREADY-RESOLVED host-janitor check-suite; declared wins over `janitor`.
+
+    The host janitor argv is rendered from the dispatch plan's ONE resolved
+    contract rather than from a second reading of the repository's declaration,
+    per the resolve-once-project-everywhere clause: a re-read could disagree
+    with the reading the dispatch record journaled, and nothing downstream would
+    say which of the two the janitor actually ran.
+
+    This projection needs the resolution ARM and not merely the value, which is
+    why it reads `resolutions` rather than the contract's `janitor_check_suite`
+    field: the `--janitor` override is scoped to a repository that declared no
+    check-suite, and a repository is free to declare exactly the fleet
+    convention, so `Declared` and `FleetDefault` can carry identical argv.
+    """
+    resolution = resolved.resolutions[JANITOR_CHECK_SUITE_FIELD.attribute]
     if isinstance(resolution, Defective):
         return JanitorCheckSuite(
             command=(),

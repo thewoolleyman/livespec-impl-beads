@@ -35,6 +35,7 @@ from __future__ import annotations
 import shlex
 from collections.abc import Mapping
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import cast
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_defaults import (
@@ -128,10 +129,21 @@ class ResolvedIntegrationContract:
     ratified validation pass refuses enumerating all of them in one message: an
     adopter that has declared nothing learns the whole list in one refusal
     instead of one dispatch at a time.
+
+    `resolutions` carries the per-field ARM the resolver took, keyed by the
+    schema field's attribute. It exists because `contract` carries only VALUES,
+    and a value cannot say whether the repository declared it: a repository is
+    free to declare exactly the fleet convention, so `Declared` and
+    `FleetDefault` can hold identical bytes. A seam whose behaviour turns on
+    that distinction -- the host janitor, whose per-invocation `--janitor`
+    override is scoped to a repository that declared no check-suite -- would
+    otherwise have to re-resolve the field to find out, which is the
+    re-derivation the resolve-once rule exists to forbid.
     """
 
     contract: RepoIntegrationContract
     defects: tuple[Defective, ...]
+    resolutions: Mapping[str, IntegrationResolution]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -206,7 +218,9 @@ def resolve_integration_contract(
     defects = tuple(
         resolution for resolution in resolved.values() if isinstance(resolution, Defective)
     )
-    return ResolvedIntegrationContract(contract=contract, defects=defects)
+    return ResolvedIntegrationContract(
+        contract=contract, defects=defects, resolutions=MappingProxyType(resolved)
+    )
 
 
 def is_declared(*, resolution: IntegrationResolution) -> bool:

@@ -406,10 +406,18 @@ def dispatch_fabro_run_inputs(*, plan: DispatchPlan) -> tuple[str, ...]:
     A plan carrying NO resolution passes no adapter input at all, leaving
     the workflow's own declared defaults standing — layer 1 applied by
     fabro rather than by us, not a fallback provider choice.
+
+    `plan.integration_inputs` carries the same discipline for the repository
+    integration contract: the sandbox-facing fields are PROJECTIONS of the one
+    contract the plan resolved and the dispatch record journaled, already
+    intersected with the input names the dispatched workflow declares. They are
+    rendered here rather than resolved here for exactly the reason the adapters
+    are — the record and the run must not be able to disagree.
     """
     adapters = () if plan.acp_nodes is None else plan.acp_nodes.run_inputs
     return (
         *adapters,
+        *plan.integration_inputs,
         f"review_fix_visit_cap={plan.review_fix_visit_cap}",
         f"merge_on_review_cap_outcome={plan.merge_on_review_cap_outcome}",
     )

@@ -23,12 +23,15 @@ resolved tip that does not contain the item's merge is a DEGRADED post-merge
 outcome carrying the missing point and the remedy, never a silent proceed
 against a venue that cannot prove the work landed.
 
-The branch itself is resolved through the ratified default-branch-resolution
-helper that `SPECIFICATION/contracts.md` requires of every dispatch-path stage
-naming the target's primary branch, so an adopter whose primary branch is `main`
-gets its own tip rather than the `master` literal this fleet happens to use. A
-branch nobody could name is not a venue either: when both resolution routes are
-silent the venue degrades rather than guessing at a ref.
+The branch itself is READ OFF THE PLAN'S RESOLVED INTEGRATION CONTRACT, whose
+`default_branch` field carries what the ratified two-route resolution answered
+at plan build. So an adopter whose primary branch is `main` gets its own tip
+rather than the `master` literal this fleet happens to use, and the venue cannot
+name a different branch than the dispatch record journaled -- which a second
+probe here, taken minutes later against a repository whose `origin/HEAD` may
+have been re-pointed in between, could. A branch nobody could name is not a
+venue either: when both resolution routes were silent the field resolves to its
+sentinel and the venue degrades rather than guessing at a ref.
 """
 
 from __future__ import annotations
@@ -39,18 +42,9 @@ from typing import TYPE_CHECKING
 from livespec_orchestrator_beads_fabro.commands._dispatcher_core_provisioning_view import (
     janitor_core_provisioning_defect,
 )
-from livespec_orchestrator_beads_fabro.commands._dispatcher_default_branch import (
-    resolve_default_branch,
-)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_journal import run_stage
-from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_resolver import (
-    Defective,
-    resolve_integration_field,
-    resolved_name,
-)
-from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_schema import (
-    DEFAULT_BRANCH_FIELD,
-    DEFAULT_BRANCH_KEY,
+from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_defaults import (
+    UNRESOLVED_NAME,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_degraded import (
     DegradedStep,
@@ -134,21 +128,19 @@ def resolve_janitor_venue(
     A `merge_sha` of None is not a degradation: the caller has no merge to
     confirm, so the tip is the venue with nothing left to prove about it.
 
-    The branch is read as the contract's DEFAULT-BRANCH FIELD rather than as a
-    bare probe result: the repository's own git/forge state is what declares it,
-    and running that declaration through the one generic resolver is what makes
-    a silent probe the same REQUIRED-field refusal every other unresolvable
-    point earns, instead of a local `is None` convention this venue happens to
-    keep.
+    The branch is READ OFF THE PLAN'S RESOLVED CONTRACT rather than probed here.
+    The repository's own git/forge state is what declares it, that declaration
+    is one of the contract's REQUIRED fields, and the ratified
+    resolve-once-project-everywhere rule puts the single probe at plan build --
+    so a venue resolved for the janitor and a default branch journaled with the
+    dispatch record cannot name two different branches. An unresolvable branch
+    arrives as the name sentinel, which is the same REQUIRED-field refusal every
+    other unresolvable point earns, never a `master` literal guessed at.
     """
-    probed = resolve_default_branch(repo=plan.repo, runner=runner)
-    branch = resolve_integration_field(
-        field=DEFAULT_BRANCH_FIELD,
-        declaration={} if probed is None else {DEFAULT_BRANCH_KEY: probed},
-    )
-    if isinstance(branch, Defective):
+    branch = plan.integration.contract.default_branch
+    if branch == UNRESOLVED_NAME:
         return JanitorVenue(ref=UNRESOLVED_VENUE, defect=_unresolved_branch_step(plan=plan))
-    tip = f"origin/{resolved_name(resolution=branch)}"
+    tip = f"origin/{branch}"
     if merge_sha is None:
         return JanitorVenue(ref=tip)
     contains = runner.run(

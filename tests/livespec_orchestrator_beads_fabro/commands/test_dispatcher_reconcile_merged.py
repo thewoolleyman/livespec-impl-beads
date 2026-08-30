@@ -87,6 +87,7 @@ def test_reconcile_merged_active_item_runs_post_merge_janitor_then_accepts(
     append_work_item(path=_config(), item=item)
     runner = _Runner(
         queue=[
+            *_plan_build_probe(),
             _ok(stdout=_pr_json(number=1381, state="MERGED", sha="0bd9ce1")),
             _ok(),
             *_venue_resolution(),
@@ -160,6 +161,7 @@ def test_reconcile_merged_resolves_merged_pr_by_title_search(
     append_work_item(path=_config(), item=item)
     runner = _Runner(
         queue=[
+            *_plan_build_probe(),
             CommandResult(exit_code=1, stdout="", stderr="not found"),
             _ok(stdout=json.dumps([_list_pr(number=17, title=f"fix {item.id}", sha="abc777")])),
             _ok(),
@@ -197,6 +199,7 @@ def test_reconcile_merged_accepts_merge_verified_parked_items(
     append_work_item(path=_config(), item=item)
     runner = _Runner(
         queue=[
+            *_plan_build_probe(),
             _ok(stdout=_pr_json(number=1654, state="MERGED", sha="33b230b6")),
             _ok(),
             *_venue_resolution(),
@@ -233,6 +236,7 @@ def test_reconcile_merged_janitor_red_leaves_item_active(
     append_work_item(path=_config(), item=item)
     runner = _Runner(
         queue=[
+            *_plan_build_probe(),
             _ok(stdout=_pr_json(number=9, state="MERGED", sha="badc0de")),
             _ok(),
             *_venue_resolution(),
@@ -298,6 +302,7 @@ def test_reconcile_merged_refuses_live_dispatch_lock_before_pr_resolution(
     append_work_item(path=_config(), item=item)
     runner = _Runner(
         queue=[
+            *_plan_build_probe(),
             _ok(stdout=_pr_json(number=9, state="MERGED", sha="badc0de")),
             _ok(),
             *_venue_resolution(),
@@ -345,6 +350,7 @@ def test_reconcile_merged_proceeds_when_dispatch_lock_absent_or_stale(
         )
     runner = _Runner(
         queue=[
+            *_plan_build_probe(),
             _ok(stdout=_pr_json(number=10, state="MERGED", sha="abc010")),
             _ok(),
             *_venue_resolution(),
@@ -361,7 +367,8 @@ def test_reconcile_merged_proceeds_when_dispatch_lock_absent_or_stale(
     exit_code = main(argv=["reconcile-merged", "--repo", str(repo), "--item", item.id])
 
     assert exit_code == 0
-    assert runner.calls[0][0][:3] == ["gh", "pr", "view"]
+    # calls[0] is plan build's default-branch probe; the PR read follows it.
+    assert runner.calls[1][0][:3] == ["gh", "pr", "view"]
     assert "post-merge janitor green" in capsys.readouterr().out
 
 
@@ -374,7 +381,9 @@ def test_reconcile_merged_uses_checkout_path_distinct_from_loop_janitor(
     repo = _repo(tmp_path=tmp_path)
     item = _item(id="bd-ib-path")
 
-    plan = module.reconcile_plan(repo=repo, item=item, janitor=None)
+    plan = module.reconcile_plan(
+        repo=repo, item=item, janitor=None, runner=_Runner(queue=[*_plan_build_probe()])
+    )
 
     assert plan.janitor_checkout != janitor_checkout_path(repo=repo, work_item_id=item.id)
     assert plan.janitor_checkout.name == f"janitor-reconcile-{item.id}"
@@ -394,7 +403,9 @@ def test_reconcile_plan_uses_resolved_fabro_bin(
     fabro_bin.chmod(0o755)
     monkeypatch.setenv("LIVESPEC_FABRO_BIN", str(fabro_bin))
 
-    plan = module.reconcile_plan(repo=repo, item=item, janitor=None)
+    plan = module.reconcile_plan(
+        repo=repo, item=item, janitor=None, runner=_Runner(queue=[*_plan_build_probe()])
+    )
 
     assert plan.fabro_bin == str(fabro_bin)
     assert plan.fabro_bin != "fabro"
@@ -491,6 +502,7 @@ def test_reconcile_merged_refuses_when_no_merged_pr_resolves(
     append_work_item(path=_config(), item=item)
     runner = _Runner(
         queue=[
+            *_plan_build_probe(),
             CommandResult(exit_code=1, stdout="", stderr="not found"),
             _ok(stdout="[]"),
         ]
@@ -522,6 +534,7 @@ def test_reconcile_merged_refuses_ambiguous_title_search_candidates(
     _ = shared_journal.write_text(json.dumps(unrelated_record) + "\n", encoding="utf-8")
     runner = _Runner(
         queue=[
+            *_plan_build_probe(),
             CommandResult(exit_code=1, stdout="", stderr="not found"),
             _ok(
                 stdout=json.dumps(
@@ -689,11 +702,18 @@ def _item(**overrides: object) -> WorkItem:
     return replace(base, **overrides)
 
 
+def _plan_build_probe() -> list[CommandResult]:
+    """The ONE read `reconcile_plan` takes before anything else: the ratified
+    default-branch probe, whose answer rides the plan's resolved integration
+    contract and is what the venue later names its tip from."""
+    return [_ok(stdout="origin/master")]
+
+
 def _venue_resolution() -> list[CommandResult]:
-    """The two venue reads between pull-primary and the preclean: the reconcile
-    janitor provisions at the resolved default-branch TIP that contains the
-    merge, so it names the branch and then probes for merge containment."""
-    return [_ok(stdout="origin/master"), _ok()]
+    """The ONE venue read between pull-primary and the preclean: the reconcile
+    janitor provisions at the default-branch TIP that contains the merge, so it
+    probes for merge containment. The branch itself came off the contract."""
+    return [_ok()]
 
 
 def _ok(*, stdout: str = "") -> CommandResult:

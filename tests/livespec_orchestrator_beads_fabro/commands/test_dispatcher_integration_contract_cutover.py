@@ -72,13 +72,19 @@ def test_no_module_anywhere_still_imports_a_retired_per_key_resolver() -> None:
 
 
 def test_the_two_named_call_sites_read_integration_points_through_the_contract() -> None:
-    """Plan build and the janitor venue name no per-key module, and the venue resolves generically."""
+    """Plan build and the janitor venue name no per-key module, and both read the contract.
+
+    The venue no longer resolves the default-branch FIELD itself: the plan
+    resolves the whole contract once and the venue projects `default_branch`
+    off it, which is the resolve-once-project-everywhere rule one step further
+    than the cutover this file guards left it.
+    """
     for name in _CALL_SITES:
         source = (_COMMANDS / name).read_text(encoding="utf-8")
         assert "_dispatcher_integration_" in source
     venue = (_COMMANDS / "_dispatcher_janitor_venue.py").read_text(encoding="utf-8")
-    assert "resolve_integration_field" in venue
-    assert "DEFAULT_BRANCH_FIELD" in venue
+    assert "plan.integration.contract.default_branch" in venue
+    assert "resolve_default_branch" not in venue
 
 
 def test_the_master_ci_key_still_resolves_with_its_ratified_semantics() -> None:
