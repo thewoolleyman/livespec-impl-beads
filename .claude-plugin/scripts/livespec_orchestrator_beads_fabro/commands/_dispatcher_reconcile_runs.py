@@ -47,6 +47,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_recor
     journal_error,
     journal_export,
     journal_reconciled,
+    journal_unauthenticated,
     reconciled_from,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_terminate import (
@@ -199,6 +200,8 @@ def _reconcile_one_run(
         )
     if export.journal_body is not None:
         journal_export(journal=inputs.journal, orphan=orphan, body=export.journal_body)
+    if port.server_api().bearer_token() is None:
+        journal_unauthenticated(journal=inputs.journal, orphan=orphan)
     termination = terminate_orphan_run(
         port=port,
         run_id=orphan.run_id,

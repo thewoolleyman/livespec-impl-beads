@@ -10,7 +10,7 @@ from pathlib import Path
 from types import TracebackType
 
 import pytest
-from livespec_orchestrator_beads_fabro.commands import _fabro_port_http
+from livespec_orchestrator_beads_fabro.commands import _fabro_port_auth, _fabro_port_http
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import CommandResult
 from livespec_orchestrator_beads_fabro.commands._fabro_port import FabroPort
 from livespec_orchestrator_beads_fabro.commands._fabro_port_http import (
@@ -22,6 +22,9 @@ from livespec_orchestrator_beads_fabro.commands._fabro_port_http import (
 from livespec_orchestrator_beads_fabro.commands._fabro_port_types import FabroTarget
 
 _DEV_TOKEN_VALUE = "fixture-dev-token"
+# Captured before any fixture runs, so the auth-file test can exercise the real
+# HOME-relative seam that `tests/conftest.py` autouse-replaces everywhere else.
+_REAL_AUTH_FILE = _fabro_port_auth.fabro_auth_file
 
 
 @dataclass(kw_only=True)
@@ -71,7 +74,7 @@ class _FakeResponse:
 
 
 def test_questions_and_answer_and_cancel_hit_the_documented_routes() -> None:
-    transport = _RecordingTransport(result=_ok(body='{"questions": []}'))
+    transport = _RecordingTransport(result=_ok(body='{"data": [], "meta": {"has_more": false}}'))
     port = FabroHttpPort(
         target=FabroTarget(server_url="https://hp.example:32276/", dev_token=_DEV_TOKEN_VALUE),
         transport=transport,
@@ -81,26 +84,56 @@ def test_questions_and_answer_and_cancel_hit_the_documented_routes() -> None:
     _ = port.answer_question(
         run_id="01RUN",
         question_id="q1",
-        answer="[A] Abandon",
+        option_key="A",
         timeout_seconds=5.0,
     )
     _ = port.cancel(run_id="01RUN", timeout_seconds=5.0)
 
-    assert listed.payload == {"questions": []}
+    assert listed.payload == {"data": [], "meta": {"has_more": False}}
     assert [(call["method"], call["url"]) for call in transport.calls] == [
-        ("GET", "https://hp.example:32276/runs/01RUN/questions"),
-        ("POST", "https://hp.example:32276/runs/01RUN/questions/q1/answer"),
-        ("POST", "https://hp.example:32276/runs/01RUN/cancel"),
+        ("GET", "https://hp.example:32276/api/v1/runs/01RUN/questions"),
+        ("POST", "https://hp.example:32276/api/v1/runs/01RUN/questions/q1/answer"),
+        ("POST", "https://hp.example:32276/api/v1/runs/01RUN/cancel"),
     ]
     assert transport.calls[0]["headers"] == {
         "Accept": "application/json",
         "Authorization": f"Bearer {_DEV_TOKEN_VALUE}",
     }
-    assert transport.calls[1]["body"] == json.dumps({"answer": "[A] Abandon"}).encode("utf-8")
+    assert transport.calls[1]["body"] == json.dumps(
+        {"kind": "selected", "option_key": "A"}, sort_keys=True
+    ).encode("utf-8")
     assert transport.calls[1]["headers"] == {
         "Accept": "application/json",
         "Content-Type": "application/json",
         "Authorization": f"Bearer {_DEV_TOKEN_VALUE}",
+    }
+
+
+def test_the_auth_file_token_rides_as_the_bearer_when_no_env_token_is_set(
+    *,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    auth_file = tmp_path / ".fabro" / "auth.json"
+    auth_file.parent.mkdir(parents=True)
+    _ = auth_file.write_text(
+        json.dumps({"servers": {"https://hp.example:32276": {"token": "logged-in-token"}}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(_fabro_port_auth, "fabro_auth_file", _REAL_AUTH_FILE)
+    transport = _RecordingTransport(result=_ok(body="{}"))
+    port = FabroHttpPort(
+        target=FabroTarget(server_url="https://hp.example:32276"),
+        transport=transport,
+    )
+
+    _ = port.cancel(run_id="01RUN", timeout_seconds=5.0)
+
+    assert port.bearer_token() == "logged-in-token"
+    assert transport.calls[0]["headers"] == {
+        "Accept": "application/json",
+        "Authorization": "Bearer logged-in-token",
     }
 
 
@@ -111,7 +144,7 @@ def test_a_target_without_a_server_url_never_sends_a_request() -> None:
         target=FabroTarget(),
         transport=transport,
         method="POST",
-        path="/runs/01RUN/cancel",
+        path="/api/v1/runs/01RUN/cancel",
         payload=None,
         timeout_seconds=5.0,
     )
@@ -129,7 +162,7 @@ def test_an_unparsable_body_leaves_the_payload_empty_without_failing() -> None:
         target=FabroTarget(server_url="https://hp.example:32276"),
         transport=transport,
         method="GET",
-        path="/runs/01RUN/questions",
+        path="/api/v1/runs/01RUN/questions",
         payload=None,
         timeout_seconds=5.0,
     )

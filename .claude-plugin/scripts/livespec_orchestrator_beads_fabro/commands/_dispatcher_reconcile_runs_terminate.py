@@ -10,6 +10,12 @@ vanished. The option text is matched on the word "abandon" rather than on a
 fixed label, because the label belongs to the workflow graph's edge
 (`[A] Abandon (leave open for triage)`) and may be reworded there.
 
+What is SENT, though, is the option's `key` and not its label: the server's
+typed `SubmitAnswerRequest` selects by key and rejects a label with 422. So
+an option carrying no key is not answerable however plainly it says
+"abandon", and such a question falls through to the cancel route rather than
+posting a body the server will refuse.
+
 Anything else — and any blocked run whose interview could not be answered —
 is cancelled through the server's cancel route.
 
@@ -45,17 +51,33 @@ TERMINATION_ROUTE_RM = "rm-force"
 _BLOCKED_STATUS_KIND = "blocked"
 _ABANDON_HINT = "abandon"
 _QUESTION_ID_KEYS = ("id", "question_id", "qid")
+_QUESTION_LIST_KEYS = ("data", "questions")
 _OPTION_KEYS = ("options", "choices", "answers")
-_OPTION_TEXT_KEYS = ("label", "text", "value", "id")
+_OPTION_TEXT_KEYS = ("label", "text", "value")
+_OPTION_KEY_KEYS = ("key", "option_key")
 _HTTP_TIMEOUT_SECONDS = 60.0
 _RM_TIMEOUT_SECONDS = 120.0
 
 
 @dataclass(frozen=True, kw_only=True)
+class _AbandonOption:
+    """One question option's wire key beside the label it was matched on."""
+
+    key: str
+    label: str
+
+
+@dataclass(frozen=True, kw_only=True)
 class PendingAbandonAnswer:
-    """The question to answer and the option text that abandons the run."""
+    """The question to answer, and the option that abandons the run.
+
+    `option_key` is what the answer route is given; `option` is the label it
+    was matched on, carried so the journalled detail names something an
+    operator can recognise in the workflow graph.
+    """
 
     question_id: str
+    option_key: str
     option: str
 
 
@@ -74,7 +96,11 @@ def abandon_answer(*, payload: object | None) -> PendingAbandonAnswer | None:
         question_id = _first_str(record=question, keys=_QUESTION_ID_KEYS)
         option = _abandon_option(question=question)
         if question_id is not None and option is not None:
-            return PendingAbandonAnswer(question_id=question_id, option=option)
+            return PendingAbandonAnswer(
+                question_id=question_id,
+                option_key=option.key,
+                option=option.label,
+            )
     return None
 
 
@@ -123,7 +149,7 @@ def _answered_abandon(
     answered = server_api.answer_question(
         run_id=run_id,
         question_id=pending.question_id,
-        answer=pending.option,
+        option_key=pending.option_key,
         timeout_seconds=_HTTP_TIMEOUT_SECONDS,
     )
     if not answered.succeeded:
@@ -142,13 +168,15 @@ def _route_detail(*, status: int, error: str | None) -> str:
 def _questions(*, payload: object | None) -> tuple[dict[str, Any], ...]:
     if not isinstance(payload, dict):
         return _question_records(value=payload)
-    # A mapping payload is either an envelope carrying `questions`, or one
-    # question sent bare. Both shapes are accepted because the route's
-    # response envelope is not verified from this repo.
-    nested: object = cast("dict[str, Any]", payload).get("questions")
-    if isinstance(nested, list):
-        return _question_records(value=cast("list[object]", nested))
-    return (cast("dict[str, Any]", payload),)
+    # The live envelope carries its listing under `data` beside a `meta`
+    # block; `questions` is kept as a tolerated alias, and a mapping holding
+    # neither is read as one question sent bare.
+    record = cast("dict[str, Any]", payload)
+    for key in _QUESTION_LIST_KEYS:
+        nested: object = record.get(key)
+        if isinstance(nested, list):
+            return _question_records(value=cast("list[object]", nested))
+    return (record,)
 
 
 def _question_records(*, value: object) -> tuple[dict[str, Any], ...]:
@@ -158,7 +186,7 @@ def _question_records(*, value: object) -> tuple[dict[str, Any], ...]:
     return tuple(cast("dict[str, Any]", entry) for entry in entries if isinstance(entry, dict))
 
 
-def _abandon_option(*, question: dict[str, Any]) -> str | None:
+def _abandon_option(*, question: dict[str, Any]) -> _AbandonOption | None:
     for key in _OPTION_KEYS:
         raw: object = question.get(key)
         if not isinstance(raw, list):
@@ -169,19 +197,15 @@ def _abandon_option(*, question: dict[str, Any]) -> str | None:
     return None
 
 
-def _abandon_from_options(*, options: Sequence[object]) -> str | None:
+def _abandon_from_options(*, options: Sequence[object]) -> _AbandonOption | None:
     for option in options:
-        text = _option_text(option=option)
-        if text is not None and _ABANDON_HINT in text.lower():
-            return text
-    return None
-
-
-def _option_text(*, option: object) -> str | None:
-    if isinstance(option, str):
-        return option
-    if isinstance(option, dict):
-        return _first_str(record=cast("dict[str, Any]", option), keys=_OPTION_TEXT_KEYS)
+        if not isinstance(option, dict):
+            continue
+        record = cast("dict[str, Any]", option)
+        label = _first_str(record=record, keys=_OPTION_TEXT_KEYS)
+        option_key = _first_str(record=record, keys=_OPTION_KEY_KEYS)
+        if label is not None and option_key is not None and _ABANDON_HINT in label.lower():
+            return _AbandonOption(key=option_key, label=label)
     return None
 
 

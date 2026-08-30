@@ -12,18 +12,26 @@ from livespec_orchestrator_beads_fabro.commands._fabro_port import FabroPort
 from livespec_orchestrator_beads_fabro.commands._fabro_port_http import FabroHttpResult
 from livespec_orchestrator_beads_fabro.commands._fabro_port_types import FabroTarget
 
+# Recorded verbatim from hp (https://hp-xubuntu.perch-rudd.ts.net:32276) on
+# 2026-08-30 against parked run 01M19HK2WMTSSGMT96HWNF0WKP: the envelope keys
+# its listing `data`, and each option carries a `key` beside its `label`.
 _QUESTIONS_BODY = json.dumps(
     {
-        "questions": [
+        "data": [
             {
                 "id": "q-7",
+                "allow_freeform": False,
                 "options": [
-                    {"label": "[R] Retry the fix"},
-                    {"label": "[I] Re-implement from scratch"},
-                    {"label": "[A] Abandon (leave open for triage)"},
+                    {"key": "R", "label": "[R] Retry the fix"},
+                    {"key": "I", "label": "[I] Re-implement from scratch"},
+                    {"key": "A", "label": "[A] Abandon (leave open for triage)"},
                 ],
+                "question_type": "multiple_choice",
+                "stage": "escalate",
+                "text": "The fix did not converge. What next?",
             }
-        ]
+        ],
+        "meta": {"has_more": False},
     }
 )
 
@@ -32,6 +40,7 @@ _QUESTIONS_BODY = json.dumps(
 class _FakeTransport:
     results: dict[str, FabroHttpResult]
     calls: list[tuple[str, str]] = field(default_factory=list)
+    bodies: list[bytes | None] = field(default_factory=list)
 
     def send(
         self,
@@ -42,8 +51,9 @@ class _FakeTransport:
         body: bytes | None,
         timeout_seconds: float,
     ) -> FabroHttpResult:
-        _ = (headers, body, timeout_seconds)
+        _ = (headers, timeout_seconds)
         self.calls.append((method, url))
+        self.bodies.append(body)
         route = url.rsplit("/runs/", maxsplit=1)[-1]
         return self.results.get(route, _failed())
 
@@ -86,9 +96,12 @@ def test_a_blocked_orphan_is_abandoned_through_the_answer_route(tmp_path: Path) 
     assert outcome.succeeded is True
     assert "[A] Abandon (leave open for triage)" in outcome.detail
     assert transport.calls == [
-        ("GET", "https://hp.example:32276/runs/01BLOCKED/questions"),
-        ("POST", "https://hp.example:32276/runs/01BLOCKED/questions/q-7/answer"),
+        ("GET", "https://hp.example:32276/api/v1/runs/01BLOCKED/questions"),
+        ("POST", "https://hp.example:32276/api/v1/runs/01BLOCKED/questions/q-7/answer"),
     ]
+    assert transport.bodies[1] == json.dumps(
+        {"kind": "selected", "option_key": "A"}, sort_keys=True
+    ).encode("utf-8")
     assert runner.calls == []
 
 
@@ -104,7 +117,7 @@ def test_a_running_orphan_is_terminated_through_the_cancel_route(tmp_path: Path)
 
     assert outcome.route == term.TERMINATION_ROUTE_CANCEL
     assert outcome.succeeded is True
-    assert transport.calls == [("POST", "https://hp.example:32276/runs/01RUNNING/cancel")]
+    assert transport.calls == [("POST", "https://hp.example:32276/api/v1/runs/01RUNNING/cancel")]
     assert runner.calls == []
 
 
@@ -147,7 +160,28 @@ def test_a_failed_rm_fallback_is_reported_as_not_succeeded(tmp_path: Path) -> No
 def test_an_unanswerable_blocked_run_falls_through_to_cancel(tmp_path: Path) -> None:
     transport = _FakeTransport(
         results={
-            "01BLOCKED/questions": _ok(body=json.dumps([{"id": "q-1", "options": ["Retry"]}])),
+            "01BLOCKED/questions": _ok(
+                body=json.dumps([{"id": "q-1", "options": [{"key": "R", "label": "Retry"}]}])
+            ),
+            "01BLOCKED/cancel": _ok(body="{}"),
+        }
+    )
+
+    outcome = term.terminate_orphan_run(
+        port=_port(tmp_path=tmp_path, transport=transport, runner=_FakeRunner()),
+        run_id="01BLOCKED",
+        status_kind="blocked",
+    )
+
+    assert outcome.route == term.TERMINATION_ROUTE_CANCEL
+
+
+def test_an_abandon_option_carrying_no_key_is_not_answerable(tmp_path: Path) -> None:
+    transport = _FakeTransport(
+        results={
+            "01BLOCKED/questions": _ok(
+                body=json.dumps({"data": [{"id": "q-9", "options": [{"label": "Abandon"}]}]})
+            ),
             "01BLOCKED/cancel": _ok(body="{}"),
         }
     )
@@ -178,23 +212,33 @@ def test_a_rejected_answer_falls_through_to_cancel(tmp_path: Path) -> None:
     assert outcome.route == term.TERMINATION_ROUTE_CANCEL
 
 
-def test_abandon_answer_reads_every_shape_it_accepts_and_rejects_the_rest() -> None:
-    bare_question = {"question_id": "q-2", "choices": ["Abandon now"]}
-    string_options = [{"qid": "q-3", "answers": [{"value": "abandon it"}]}]
+def test_abandon_answer_reads_the_recorded_payload_and_rejects_the_rest() -> None:
+    recorded = json.loads(_QUESTIONS_BODY)
+    bare_question = {"question_id": "q-2", "choices": [{"key": "A", "text": "Abandon now"}]}
+    aliased = [{"qid": "q-3", "answers": [{"option_key": "A", "value": "abandon it"}]}]
 
-    assert term.abandon_answer(payload=bare_question) == term.PendingAbandonAnswer(
-        question_id="q-2", option="Abandon now"
+    assert term.abandon_answer(payload=recorded) == term.PendingAbandonAnswer(
+        question_id="q-7", option_key="A", option="[A] Abandon (leave open for triage)"
     )
-    assert term.abandon_answer(payload=string_options) == term.PendingAbandonAnswer(
-        question_id="q-3", option="abandon it"
+    assert term.abandon_answer(payload=bare_question) == term.PendingAbandonAnswer(
+        question_id="q-2", option_key="A", option="Abandon now"
+    )
+    assert term.abandon_answer(payload=aliased) == term.PendingAbandonAnswer(
+        question_id="q-3", option_key="A", option="abandon it"
     )
     assert term.abandon_answer(payload=None) is None
     assert term.abandon_answer(payload=["not-a-mapping"]) is None
-    assert term.abandon_answer(payload=[{"options": ["Abandon"]}]) is None
-    assert term.abandon_answer(payload=[{"id": "", "options": ["Abandon"]}]) is None
+    assert term.abandon_answer(payload=[{"options": [{"key": "A", "label": "Abandon"}]}]) is None
+    assert (
+        term.abandon_answer(payload=[{"id": "", "options": [{"key": "A", "label": "Abandon"}]}])
+        is None
+    )
     assert term.abandon_answer(payload=[{"id": "q-4", "options": "Abandon"}]) is None
     assert term.abandon_answer(payload=[{"id": "q-5", "options": [7]}]) is None
-    assert term.abandon_answer(payload=[{"id": "q-6", "options": [{"label": "Retry"}]}]) is None
+    assert (
+        term.abandon_answer(payload=[{"id": "q-6", "options": [{"key": "R", "label": "Retry"}]}])
+        is None
+    )
 
 
 def _port(*, tmp_path: Path, transport: _FakeTransport, runner: _FakeRunner) -> FabroPort:

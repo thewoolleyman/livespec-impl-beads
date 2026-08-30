@@ -160,6 +160,27 @@ def _hermetic_release_adoption_bases(
 
 
 @pytest.fixture(autouse=True)
+def _hermetic_fabro_auth_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """Point the Fabro bearer-credential read at an absent scratch file.
+
+    `resolve_bearer_token` falls back to `~/.fabro/auth.json`, which is where
+    `fabro auth login` leaves a real token — so on the maintainer's own host,
+    and on the factory hosts themselves, every port built for a configured
+    server url would silently acquire an Authorization header that a runner
+    with no login never sees. That is the ambient-host dependency this file
+    exists to replace, and it would flip assertions about the unauthenticated
+    posture rather than merely adding noise. The credential-resolution tests
+    point this seam at their own fixtures explicitly.
+    """
+    from livespec_orchestrator_beads_fabro.commands import _fabro_port_auth
+
+    absent = tmp_path_factory.mktemp("fabro-home") / "auth.json"
+    monkeypatch.setattr(_fabro_port_auth, "fabro_auth_file", lambda: absent)
+
+
+@pytest.fixture(autouse=True)
 def _clear_dispatch_surface_bytecode(request: pytest.FixtureRequest) -> None:
     if request.node.path.name != "test_fleet_pat_dispatch_surface.py":
         return
