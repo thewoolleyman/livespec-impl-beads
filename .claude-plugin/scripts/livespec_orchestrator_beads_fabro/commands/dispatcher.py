@@ -22,8 +22,10 @@ orchestrator-PRIVATE tooling: core's contract sees only the three
   dispatcher.py claude-cred-status [--json]
   dispatcher.py spec-check [--project-root <path>] [--spec-root <path>] [--json]
   dispatcher.py janitor-check [--repo <path>] [--json]
-  dispatcher.py stale-run-sweep [--repo <path>] [--factory <name>]
-                                 [--fabro-bin <path>] [--json]
+  dispatcher.py reconcile-runs [--repo <path>] [--factory <name>]
+                                [--fabro-bin <path>] [--journal <path>]
+                                [--invoker <id>] [--dry-run] [--json]
+  dispatcher.py stale-run-sweep  (alias of reconcile-runs)
   dispatcher.py clear-provider-exhaustion --provider <name> --reason <text>
                                           [--repo <path>] [--invoker <id>]
                                           [--journal <path>]
@@ -40,9 +42,19 @@ tree at `--spec-root` (default `<project-root>/SPECIFICATION`).
 `janitor-check` runs the three re-homed stale-cleanup checks
 (no-stale-merged-branch / no-stale-merged-pr-branch / no-stale-worktree;
 see `_dispatcher_janitor_checks.py`) against the repo's git/gh state.
-`stale-run-sweep` reaps orphaned `runnable` / `running` Fabro runs whose
-Ledger item is no longer `active`, covering runs whose launching
-dispatcher process has already exited.
+`reconcile-runs` is the single authority over every configured factory's
+non-terminal run inventory (`stale-run-sweep` is its alias). It surveys each
+declared factory through that factory's own resolved target, considers every
+non-terminal status kind — `blocked` and `paused` included, which is what the
+narrower sweep it replaces could not see — and joins each run against the
+Ledger plus the dispatch journal's run ids. A run whose item is not `active`,
+whose item is `active` under a DIFFERENT journaled run, or whose item is
+absent from the Ledger is an ORPHAN: its record is exported and read back
+first, then it is terminated (a blocked run by answering its interview
+Abandon, anything else by cancel, `fabro rm -f` only after both fail), and the
+reconciliation is journaled. It NEVER writes the item's status,
+`blocked_reason`, or labels — the decision stays in the Ledger. `--dry-run
+--json` is the read-only projection over the same join.
 The pre-dispatch hard gate inside `dispatch`/`loop` stays the pure-Ledger
 dispatch-safety trio.
 `reconcile-merged` is the guarded recovery valve for an already-merged
@@ -274,6 +286,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_provider_exhaustion_
 from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_merged import (
     run_reconcile_merged_command,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_command import (
+    run_reconcile_runs_command,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_reflection import reflect
 from livespec_orchestrator_beads_fabro.commands._dispatcher_run_checks import (
     dispatch_preamble,
@@ -285,9 +300,6 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_run_checks import (
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_run_commands import (
     run_dispatch_command,
-)
-from livespec_orchestrator_beads_fabro.commands._dispatcher_stale_run_sweep import (
-    run_stale_run_sweep_command,
 )
 
 # Keep pre-existing dispatcher mini-hub attributes available without changing __all__.
@@ -327,8 +339,8 @@ __all__: list[str] = [
     "run_ledger_normalize",
     "run_probe_command",
     "run_reconcile_merged_command",
+    "run_reconcile_runs_command",
     "run_spec_check",
-    "run_stale_run_sweep_command",
     "warn_item_sizing",
 ]
 
@@ -344,8 +356,11 @@ _SUBCOMMAND_HANDLERS: dict[str, Callable[..., int]] = {
     "ledger-normalize": run_ledger_normalize,
     "probe": run_probe_command,
     "reconcile-merged": run_reconcile_merged_command,
+    "reconcile-runs": run_reconcile_runs_command,
     "spec-check": run_spec_check,
-    "stale-run-sweep": run_stale_run_sweep_command,
+    # The alias, resolving to the SAME handler: a second implementation is
+    # what let the narrower sweep survive under this name.
+    "stale-run-sweep": run_reconcile_runs_command,
 }
 
 
@@ -369,7 +384,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     _add_spec_check(parser=subparsers.add_parser("spec-check"))
     _add_janitor_check(parser=subparsers.add_parser("janitor-check"))
-    _add_stale_run_sweep(parser=subparsers.add_parser("stale-run-sweep"))
+    _add_reconcile_runs(parser=subparsers.add_parser("reconcile-runs"))
+    _add_reconcile_runs(parser=subparsers.add_parser("stale-run-sweep"))
     _add_reconcile_merged(parser=subparsers.add_parser("reconcile-merged"))
     _add_probe(parser=subparsers.add_parser("probe"))
     dispatch = subparsers.add_parser("dispatch")
@@ -398,8 +414,6 @@ def _add_ledger_normalize(*, parser: argparse.ArgumentParser) -> None:
     # exit-code contract (0 clean/healed / 1 residual drift / 2 could-not-check).
     # See `_dispatcher_ledger_gate.run_ledger_gate`.
     _ = parser.add_argument("--gate", dest="gate", action="store_true")
-
-
 def _add_spec_check(*, parser: argparse.ArgumentParser) -> None:
     _ = parser.add_argument("--project-root", dest="project_root", default=None)
     _ = parser.add_argument("--spec-root", dest="spec_root", default=None)
@@ -420,10 +434,16 @@ def _add_janitor_check(*, parser: argparse.ArgumentParser) -> None:
     _ = parser.add_argument("--json", dest="as_json", action="store_true")
 
 
-def _add_stale_run_sweep(*, parser: argparse.ArgumentParser) -> None:
+def _add_reconcile_runs(*, parser: argparse.ArgumentParser) -> None:
+    # `--factory` NARROWS the survey to one declared factory. Omitting it is
+    # the correct default: reconciliation is an inventory question, and an
+    # inventory taken of one factory says nothing about the others.
     _ = parser.add_argument("--repo", dest="repo", default=None)
     _ = parser.add_argument("--factory", dest="factory", default=None)
     _ = parser.add_argument("--fabro-bin", dest="fabro_bin", default=None)
+    _ = parser.add_argument("--journal", dest="journal", default=None)
+    _ = parser.add_argument("--dry-run", dest="dry_run", action="store_true")
+    add_invoker_argument(parser=parser)
     _ = parser.add_argument("--json", dest="as_json", action="store_true")
 
 

@@ -33,7 +33,11 @@ from livespec_orchestrator_beads_fabro.errors import (
 )
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
-__all__: list[str] = ["preserve_checkpointed_work_reference"]
+__all__: list[str] = [
+    "PointerRecord",
+    "pointer_record_for_run",
+    "preserve_checkpointed_work_reference",
+]
 
 _DUMP_TIMEOUT_SECONDS = 300.0
 _LEDGER_WRITE_ERRORS = (
@@ -83,8 +87,8 @@ def preserve_checkpointed_work_reference(
         return
     command_runner = runner if runner is not None else ShellCommandRunner()
     pointer = attempt(
-        action=lambda: _pointer_body(
-            args=args,
+        action=lambda: pointer_record_for_run(
+            fabro_bin=str(args.fabro_bin),
             repo=repo,
             item_id=item.id,
             run_id=run_id,
@@ -120,16 +124,23 @@ def preserve_checkpointed_work_reference(
     )
 
 
-def _pointer_body(
+def pointer_record_for_run(
     *,
-    args: argparse.Namespace,
+    fabro_bin: str,
     repo: Path,
     item_id: str,
     run_id: str,
     server_url: str,
     command_runner: CommandRunner,
 ) -> PointerRecord:
-    fabro_bin = str(args.fabro_bin)
+    """Export one run and build the pointer body that references it.
+
+    PUBLIC because the run reconciler preserves work for runs no dispatch of
+    this process ever launched, so it has no `DispatchOutcome` to hand the
+    outcome-shaped entry point above — but it must produce the SAME pointer
+    body, or a pointer written by one path would not be recognized by the
+    other's read-back.
+    """
     with tempfile.TemporaryDirectory(prefix=f"fabro-preserve-{item_id}-") as raw_dir:
         output_dir = Path(raw_dir)
         dumped = command_runner.run(

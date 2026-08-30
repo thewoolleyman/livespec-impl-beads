@@ -55,14 +55,19 @@ def test_fabro_port_is_the_only_public_fabro_cli_and_response_surface() -> None:
     run_status_module = importlib.import_module(
         "livespec_orchestrator_beads_fabro.commands._dispatcher_run_status"
     )
-    stale_sweep_module = importlib.import_module(
-        "livespec_orchestrator_beads_fabro.commands._dispatcher_stale_run_sweep"
+    # The stale-run sweep that used to carry its own Fabro reader is GONE,
+    # subsumed by the reconciler, so the guard is now that no module of that
+    # name survives to grow one back.
+    sweep_path = _MODULE_PATH.with_name("_dispatcher_stale_run_sweep.py")
+    reconciler_module = importlib.import_module(
+        "livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs"
     )
 
     assert not any(name.startswith("fabro_") for name in argv_module.__all__)
     assert "parse_run_id" not in run_status_module.__all__
     assert "parse_run_status" not in run_status_module.__all__
-    assert not hasattr(stale_sweep_module, "_watchable_fabro_run")
+    assert not sweep_path.exists()
+    assert not any(name.startswith("fabro_") for name in reconciler_module.__all__)
 
 
 def test_fabro_port_run_builds_livespec_run_argv_and_parses_run_id(tmp_path: Path) -> None:
