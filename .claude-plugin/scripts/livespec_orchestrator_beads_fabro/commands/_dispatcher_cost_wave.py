@@ -18,6 +18,10 @@ from livespec_orchestrator_beads_fabro.commands._fabro_port import (
     FabroRunSummary,
     fabro_run_summaries_from_stdout,
 )
+from livespec_orchestrator_beads_fabro.commands._run_attribution import (
+    GOAL_TEXT_ONLY,
+    RunAttribution,
+)
 
 __all__: list[str] = ["gate_wave_refusals"]
 
@@ -31,6 +35,7 @@ def gate_wave_refusals(  # noqa: PLR0913 - mirrors the public gate_wave inputs.
     environ: dict[str, str] | None,
     derived_cost_micros_by_work_item: dict[str, int] | None,
     cost_mode: str,
+    attribution: RunAttribution = GOAL_TEXT_ONLY,
 ) -> tuple[str, ...]:
     refusals: list[str] = []
     session_usd_micros = 0
@@ -42,7 +47,11 @@ def gate_wave_refusals(  # noqa: PLR0913 - mirrors the public gate_wave inputs.
     for outcome in outcomes:
         if outcome.status != "green":
             continue
-        run = _run_for_work_item(runs=runs, work_item_id=outcome.work_item_id)
+        run = _run_for_work_item(
+            runs=runs,
+            work_item_id=outcome.work_item_id,
+            attribution=attribution,
+        )
         if run is None:
             _append_skipped(journal=journal, work_item_id=outcome.work_item_id)
             continue
@@ -165,9 +174,12 @@ def _observe_with_derived(
 
 
 def _run_for_work_item(
-    *, runs: tuple[FabroRunSummary, ...], work_item_id: str
+    *,
+    runs: tuple[FabroRunSummary, ...],
+    work_item_id: str,
+    attribution: RunAttribution,
 ) -> FabroRunSummary | None:
     for run in runs:
-        if run.work_item_id == work_item_id:
+        if attribution.owns(run=run, work_item_id=work_item_id):
             return run
     return None

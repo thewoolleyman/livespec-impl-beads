@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import CommandResult
+from livespec_orchestrator_beads_fabro.commands._run_attribution import RunAttribution
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
 
@@ -86,6 +87,47 @@ def test_standalone_sweep_reaps_orphaned_closed_item_runs(tmp_path: Path) -> Non
         ("bd-ib-closed", "01CLOSEDQUEUED", "done"),
         ("bd-ib-running", "01CLOSEDRUNNING", "closed"),
     ]
+
+
+def test_the_sweep_reaps_against_the_stamped_item_not_the_goal_texts_item() -> None:
+    """A destructive consumer must never act on the weakest evidence available.
+
+    The row's goal names a CLOSED item and the ledger stamp names an ACTIVE one.
+    Read by goal text this run is an orphan and gets `fabro rm`-ed; read by the
+    stamp it is the live dispatch of an active item and must be left alone. Both
+    readings are silent, and only one of them is reversible.
+    """
+    module = importlib.import_module(
+        "livespec_orchestrator_beads_fabro.commands._dispatcher_stale_run_sweep"
+    )
+    runner = _RecordingRunner(
+        ps_json=json.dumps(
+            [
+                {
+                    "run_id": "01STAMPED",
+                    "goal": "Work-item: bd-ib-closed\nRepo: /tmp/repo",
+                    "status": "running",
+                }
+            ]
+        )
+    )
+    items = [_item(id="bd-ib-closed", status="done"), _item(id="bd-ib-active", status="active")]
+    kwargs: dict[str, object] = {
+        "repo": Path("/tmp/repo"),
+        "runner": runner,
+        "items": items,
+        "fabro_bin": "fabro",
+        "fabro_factory_server": None,
+    }
+
+    by_goal_text = module.reap_stale_fabro_runs(**kwargs)
+    by_stamp = module.reap_stale_fabro_runs(
+        **kwargs,
+        attribution=RunAttribution(metadata_run_ids={"01STAMPED": "bd-ib-active"}),
+    )
+
+    assert [run.work_item_id for run in by_goal_text.reaped] == ["bd-ib-closed"]
+    assert by_stamp.reaped == ()
 
 
 def _item(*, id: str, status: str) -> WorkItem:

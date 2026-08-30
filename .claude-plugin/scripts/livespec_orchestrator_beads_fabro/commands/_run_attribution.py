@@ -44,6 +44,7 @@ if TYPE_CHECKING:
     from livespec_orchestrator_beads_fabro.commands._fabro_port import FabroRunSummary
 
 __all__: list[str] = [
+    "GOAL_TEXT_ONLY",
     "RunAttribution",
     "journal_run_ids",
     "newest_journaled_run_id",
@@ -78,6 +79,13 @@ class RunAttribution:
     def owns(self, *, run: FabroRunSummary, work_item_id: str) -> bool:
         """Whether this run belongs to the named work-item."""
         return self.work_item_id_for(run=run) == work_item_id
+
+
+# The attribution a call site with no ledger and no journal to hand still routes
+# through. Shared rather than constructed per call because a `RunAttribution()`
+# default argument would be a call in a default (ruff B008); it is safe to share
+# because the dataclass is frozen and neither map is ever mutated in place.
+GOAL_TEXT_ONLY = RunAttribution()
 
 
 def run_attribution(

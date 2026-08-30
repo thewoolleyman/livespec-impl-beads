@@ -26,6 +26,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import store_c
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     DispatchPlan,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_run_stamp import stamped_attribution
 from livespec_orchestrator_beads_fabro.commands._dispatcher_watchdog import (
     LivenessSample,
     StallVerdict,
@@ -42,6 +43,7 @@ from livespec_orchestrator_beads_fabro.commands._fabro_port import (
     fabro_port_for_plan,
 )
 from livespec_orchestrator_beads_fabro.commands._otel_receive import HeartbeatSink
+from livespec_orchestrator_beads_fabro.commands._run_attribution import RunAttribution
 from livespec_orchestrator_beads_fabro.errors import BeadsCommandError, BeadsConnectionError
 from livespec_orchestrator_beads_fabro.store import read_work_items
 
@@ -158,11 +160,13 @@ class WatchedFabroLauncher:
         stall_seconds = resolve_stall_seconds()
         samples: list[LivenessSample] = []
         known_run_id: str | None = None
+        stamp = RunAttribution()
         while thread.is_alive():
             self.sleep(_WATCHDOG_POLL_INTERVAL_SECONDS)
             if not thread.is_alive():
                 return _WatchResult()
-            run = self._discover_run(plan=plan, port=port, journal=journal)
+            run = self._discover_run(plan=plan, port=port, journal=journal, attribution=stamp)
+            stamp = stamped_attribution(plan=plan, journal=journal, run=run, attribution=stamp)
             run_id = run.run_id if run is not None and run.status_kind == "running" else None
             known_run_id = run_id if run_id is not None else known_run_id
             if run is not None:
@@ -195,6 +199,7 @@ class WatchedFabroLauncher:
         plan: DispatchPlan,
         port: FabroPort,
         journal: JournalWriter,
+        attribution: RunAttribution,
     ) -> FabroRunSummary | None:
         """Probe `fabro ps` and hand the poll to the journaling discovery seam.
 
@@ -203,11 +208,17 @@ class WatchedFabroLauncher:
         `_dispatcher_watchdog_discovery`, so no future caller can take the
         discovery result without leaving the record — the silent-miss shape
         that hid a total watchdog outage on `hp` for 11 days.
+
+        `attribution` accumulates across the watch loop: it is empty on the
+        first poll, so that poll matches on the goal-text regex, and carries the
+        ledger stamp on every poll after, so a goal the regex later fails to
+        parse can no longer blind the watchdog to its own run.
         """
         return journaled_discovery(
             work_item_id=plan.work_item_id,
             ps=port.ps(timeout_seconds=_FABRO_PROBE_TIMEOUT_SECONDS),
             journal=journal,
+            attribution=attribution,
         )
 
     def _sample(
