@@ -1069,7 +1069,7 @@
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
     "test": "TODO",
-    "work_item": "bd-ib-6pshji",
+    "work_item": "bd-ib-vblnq2",
     "reason": "Owned by plan epic bd-ib-6pshji; bound to an INTEGRATION-tier test of the integration-contract-schema and resolved-contract-projection followups, exercising resolve-once journaling, identical host and in-sandbox projection, Defective with no default substitution, and the seam-equivalence check."
   },
   {
@@ -1077,7 +1077,7 @@
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
     "test": "TODO",
-    "work_item": "bd-ib-6pshji",
+    "work_item": "bd-ib-vblnq2",
     "reason": "Owned by plan epic bd-ib-6pshji; bound to an INTEGRATION-tier test of the schema-validation-pass followup, exercising the complete enumerated pre-dispatch refusal on a contract-version mismatch and non-stranding of an already-admitted item."
   },
   {
@@ -1085,7 +1085,7 @@
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
     "test": "TODO",
-    "work_item": "bd-ib-6pshji",
+    "work_item": "bd-ib-vblnq2",
     "reason": "Owned by plan epic bd-ib-6pshji; bound to an INTEGRATION-tier test of the adopter-member-fixtures and fleet-toolchain-literal-ban followups, exercising the adopter fixture passing with zero fleet tooling, the member fixture on defaults, and a reintroduced literal failing the gate."
   },
   {
