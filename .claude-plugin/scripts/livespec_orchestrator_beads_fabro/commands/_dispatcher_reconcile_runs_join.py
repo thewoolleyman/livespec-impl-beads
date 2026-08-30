@@ -1,106 +1,71 @@
-"""Pure join of a factory's non-terminal run inventory against the ledger.
+"""Pure classification of a factory's attributed runs into orphans and holds.
 
 The reconciler's whole safety argument lives here: an ORPHAN is a run the
-LEDGER says nothing is waiting on, and every other run is left alone. Four
-properties of the join are deliberate rather than incidental.
+LEDGER says nothing is waiting on, and every other run is left alone. The
+attribution beneath this layer decides which item each run belongs to and
+whether the ledger has a moot-question reason for it
+(`_dispatcher_reconcile_runs_attribution.py`); this layer decides what
+becomes of each row.
 
-A run whose work-item is `active` and whose newest journaled run id IS this
-run is never an orphan, even when no dispatcher process is watching it. A
-remote run outlives the process that launched it, so "no local process is
-watching" is a statement about this host, never about the work.
+One arm is NOT about mootness. A run parked in a human-input-required state
+whose item is still live has a question nobody has answered, so the
+moot-question reasons do not reach it; the grace arm bounds how long it may
+hold a slot on that basis, and it OVERRIDES the moot reading for exactly
+that population. An item resting at `blocked` reads as `item-not-active` to
+the attribution layer — true, and beside the point, because
+`blocked / needs-human` is the ledger state a LIVE decision waits in. Left
+alone, that reading would terminate the parked run the instant it was seen,
+which is the behaviour the ratified grace exists to replace. A SUPERSEDED
+run keeps the moot reading: another run now owns the item, so its question
+really has stopped mattering and there is nothing left to wait for.
 
-Attribution runs through the shared `RunAttribution` precedence — ledger
-metadata, then the journal, then the goal text. The goal regex parses prose
-the run itself carries, so a goal-template edit silently breaks it; the
-journal is what this repo recorded when it launched the run; the ledger
-stamp is what the ledger itself names. Ordering them here rather than
-locally is what keeps a run the LEDGER puts on an ACTIVE item off the
-orphan list even when its goal text names a closed one — the case the
-regex alone gets wrong, and gets wrong in the direction of terminating live
-work.
-
-The caller's attribution is composed with THIS pass's journal index rather
-than replacing it: the reconciler reads the journal for the supersession
-arm regardless, and that reading is the freshest run-to-item evidence the
-pass has. Composing keeps the metadata leg on top of both.
-
-Runs whose attributed work-item id does not carry this tenant's id prefix
-are OUT OF SCOPE entirely. The family factories are shared — a dozen
-tenants submit to the same server — so without the prefix scope every other
-tenant's healthy run would read as `item-missing` against this ledger and be
-terminated. That failure would be silent and would look exactly like correct
-operation, because a foreign run is genuinely absent from this ledger.
-
-Every status kind Fabro can hold that is not terminal is considered. The
-predecessor sweep looked only at `runnable` / `running`, which is precisely
-why a run parked at the in-loop human gate was never looked at again.
+Orphans and holds come out as SEPARATE collections rather than as one list
+carrying a disposition field. Only orphans reach the termination path, and a
+held run cannot be handed to it by a caller that forgot to check a flag.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, cast
 
-from livespec_orchestrator_beads_fabro.commands._fabro_port_records import FabroRunSummary
-from livespec_orchestrator_beads_fabro.commands._run_attribution import (
-    GOAL_TEXT_ONLY,
-    RunAttribution,
+from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_attribution import (
+    ORPHAN_REASON_SUPERSEDED_RUN,
+    AttributedRun,
+    FactoryRunInventory,
+    attributed_runs,
 )
-from livespec_orchestrator_beads_fabro.effects import (
-    AttemptFailure,
-    JsonParseFailure,
-    attempt,
-    parse_json,
+from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_grace import (
+    ORPHAN_REASON_BLOCKED_PAST_GRACE,
+    BlockedRunGrace,
+    HeldRun,
+    grace_hold_reason,
+    seconds_remaining,
 )
 
 __all__: list[str] = [
-    "NON_TERMINAL_STATUS_KINDS",
-    "ORPHAN_REASON_ITEM_MISSING",
-    "ORPHAN_REASON_ITEM_NOT_ACTIVE",
-    "ORPHAN_REASON_SUPERSEDED_RUN",
-    "JournaledRuns",
     "OrphanRun",
+    "blocked_grace_candidate_ids",
+    "classify_blocked_holds",
     "classify_orphans",
-    "journaled_runs",
-    "read_journaled_runs",
 ]
 
-NON_TERMINAL_STATUS_KINDS: tuple[str, ...] = (
-    "blocked",
-    "paused",
-    "runnable",
-    "running",
-    "starting",
-)
-
-ORPHAN_REASON_ITEM_MISSING = "item-missing"
-ORPHAN_REASON_ITEM_NOT_ACTIVE = "item-not-active"
-ORPHAN_REASON_SUPERSEDED_RUN = "superseded-run"
-
-_ACTIVE_STATUS = "active"
-# The two spellings a dispatch journal record uses for the Fabro run it
-# names. `fabro-run` outcome records carry `fabro_run_id`; the
-# preserve-by-reference records carry `run_id`.
-_RUN_ID_KEYS = ("fabro_run_id", "run_id")
-
-
-@dataclass(frozen=True, kw_only=True)
-class JournaledRuns:
-    """What the dispatch journal knows about run-to-item association.
-
-    `newest_run_id_by_item` is last-write-wins over the journal's own append
-    order, so a re-dispatch supersedes the run its predecessor recorded.
-    """
-
-    newest_run_id_by_item: Mapping[str, str]
-    item_id_by_run: Mapping[str, str]
+_BLOCKED_STATUS_KIND = "blocked"
+# The ledger statuses under which a parked run's question is still LIVE:
+# `active` is work in flight, and `blocked` is a decision waiting on a human.
+# Every other status means the ledger has moved on.
+_LIVE_ITEM_STATUSES = ("active", "blocked")
 
 
 @dataclass(frozen=True, kw_only=True)
 class OrphanRun:
-    """One non-terminal run this ledger says nothing is waiting on."""
+    """One non-terminal run this ledger says nothing is waiting on.
+
+    `parked_seconds` and `grace_seconds` are populated only on the
+    `blocked-past-grace` arm, and they are the whole justification for that
+    arm: the record that terminated a run whose question was NOT moot has to
+    carry the measurement and the bound it exceeded, or nobody can tell a
+    correct reap from a misread clock.
+    """
 
     run_id: str
     factory_name: str
@@ -109,140 +74,134 @@ class OrphanRun:
     work_item_id: str
     work_item_status: str | None
     orphan_reason: str
+    parked_seconds: float | None = None
+    grace_seconds: int | None = None
 
 
-def journaled_runs(*, text: str) -> JournaledRuns:
-    """Index a dispatch journal's raw text by work-item and by run id."""
-    newest: dict[str, str] = {}
-    item_by_run: dict[str, str] = {}
-    for line in text.splitlines():
-        record = _record(line=line)
-        if record is None:
-            continue
-        work_item_id = _str_value(value=record.get("work_item_id"))
-        run_id = _run_id(record=record)
-        if work_item_id is None or run_id is None:
-            continue
-        newest[work_item_id] = run_id
-        item_by_run[run_id] = work_item_id
-    return JournaledRuns(newest_run_id_by_item=newest, item_id_by_run=item_by_run)
+@dataclass(frozen=True, kw_only=True)
+class _GraceReading:
+    """One run's final orphan reason beside the measurement behind it."""
+
+    reason: str | None
+    parked_seconds: float | None = None
+    grace_seconds: int | None = None
 
 
-def read_journaled_runs(*, path: Path) -> JournaledRuns:
-    """Read the dispatch journal, treating an unreadable file as no knowledge.
-
-    An absent journal is the ordinary state of a fresh clone, and it must not
-    make the join louder: with no journaled run ids the `superseded-run` arm
-    simply never fires, and every other arm still holds.
-    """
-    read = attempt(action=lambda: path.read_text(encoding="utf-8"), exceptions=(OSError,))
-    if isinstance(read, AttemptFailure):
-        return JournaledRuns(newest_run_id_by_item={}, item_id_by_run={})
-    return journaled_runs(text=read)
-
-
-def classify_orphans(  # noqa: PLR0913 — the join's whole evidence surface: the run inventory, the ledger statuses, the journal index, the tenant scope, the two factory identity fields the orphan record carries, and the attribution precedence. Each is an independent input, so bundling any two would invent a grouping the join does not have.
+def classify_orphans(
     *,
-    runs: Sequence[FabroRunSummary],
-    item_statuses: Mapping[str, str],
-    journaled: JournaledRuns,
-    id_prefix: str,
-    factory_name: str,
-    factory_server_url: str,
-    attribution: RunAttribution = GOAL_TEXT_ONLY,
+    inventory: FactoryRunInventory,
+    grace: BlockedRunGrace | None = None,
 ) -> tuple[OrphanRun, ...]:
-    """Return the orphans among one factory's runs, leaving every other run.
-
-    `attribution` defaults to the regex-only value, which is a legitimate
-    answer rather than a degraded one: a caller with no ledger to hand still
-    resolves through the same precedence, so the day it gains one the stronger
-    leg wins with no edit here.
-    """
-    resolved = _resolved_attribution(attribution=attribution, journaled=journaled)
+    """Return the orphans among one factory's runs, leaving every other run."""
     orphans: list[OrphanRun] = []
-    for run in runs:
-        work_item_id = _attributed_item_id(run=run, attribution=resolved, id_prefix=id_prefix)
-        if run.status_kind not in NON_TERMINAL_STATUS_KINDS or work_item_id is None:
-            continue
-        work_item_status = item_statuses.get(work_item_id)
-        reason = _orphan_reason(
-            work_item_id=work_item_id,
-            work_item_status=work_item_status,
-            run_id=run.run_id,
-            journaled=journaled,
-        )
-        if reason is None:
+    for row in attributed_runs(inventory=inventory):
+        reading = _reason_with_grace(row=row, inventory=inventory, grace=grace)
+        if reading.reason is None:
             continue
         orphans.append(
             OrphanRun(
-                run_id=run.run_id,
-                factory_name=factory_name,
-                factory_server_url=factory_server_url,
-                status_kind=str(run.status_kind),
-                work_item_id=work_item_id,
-                work_item_status=work_item_status,
-                orphan_reason=reason,
+                run_id=row.run.run_id,
+                factory_name=inventory.factory_name,
+                factory_server_url=inventory.factory_server_url,
+                status_kind=str(row.run.status_kind),
+                work_item_id=row.work_item_id,
+                work_item_status=row.work_item_status,
+                orphan_reason=reading.reason,
+                parked_seconds=reading.parked_seconds,
+                grace_seconds=reading.grace_seconds,
             )
         )
     return tuple(orphans)
 
 
-def _resolved_attribution(
-    *,
-    attribution: RunAttribution,
-    journaled: JournaledRuns,
-) -> RunAttribution:
-    return RunAttribution(
-        metadata_run_ids=attribution.metadata_run_ids,
-        journal_run_ids={**attribution.journal_run_ids, **journaled.item_id_by_run},
+def blocked_grace_candidate_ids(*, inventory: FactoryRunInventory) -> tuple[str, ...]:
+    """The run ids the grace arm governs, named BEFORE their parks are measured.
+
+    Measuring a park costs a `fabro inspect` per run, so the caller asks which
+    runs are worth the call rather than inspecting the whole inventory.
+    """
+    return tuple(
+        row.run.run_id
+        for row in attributed_runs(inventory=inventory)
+        if _grace_governed(row=row, inventory=inventory)
     )
 
 
-def _attributed_item_id(
+def classify_blocked_holds(
     *,
-    run: FabroRunSummary,
-    attribution: RunAttribution,
-    id_prefix: str,
-) -> str | None:
-    attributed = attribution.work_item_id_for(run=run)
-    if attributed is None or not attributed.startswith(f"{id_prefix}-"):
-        return None
-    return attributed
+    inventory: FactoryRunInventory,
+    grace: BlockedRunGrace | None = None,
+) -> tuple[HeldRun, ...]:
+    """The parked runs the grace arm is holding — reported, never terminated."""
+    if grace is None or grace.grace_seconds <= 0:
+        return ()
+    held: list[HeldRun] = []
+    for row in attributed_runs(inventory=inventory):
+        if not _grace_governed(row=row, inventory=inventory):
+            continue
+        parked = grace.parked_seconds_by_run.get(row.run.run_id)
+        hold_reason = grace_hold_reason(parked_seconds=parked, grace_seconds=grace.grace_seconds)
+        if hold_reason == ORPHAN_REASON_BLOCKED_PAST_GRACE:
+            continue
+        held.append(_held_run(row=row, inventory=inventory, grace=grace, parked=parked))
+    return tuple(held)
 
 
-def _orphan_reason(
+def _held_run(
     *,
-    work_item_id: str,
-    work_item_status: str | None,
-    run_id: str,
-    journaled: JournaledRuns,
-) -> str | None:
-    if work_item_status is None:
-        return ORPHAN_REASON_ITEM_MISSING
-    if work_item_status != _ACTIVE_STATUS:
-        return ORPHAN_REASON_ITEM_NOT_ACTIVE
-    newest = journaled.newest_run_id_by_item.get(work_item_id)
-    if newest is not None and newest != run_id:
-        return ORPHAN_REASON_SUPERSEDED_RUN
-    return None
+    row: AttributedRun,
+    inventory: FactoryRunInventory,
+    grace: BlockedRunGrace,
+    parked: float | None,
+) -> HeldRun:
+    return HeldRun(
+        run_id=row.run.run_id,
+        factory_name=inventory.factory_name,
+        factory_server_url=inventory.factory_server_url,
+        status_kind=str(row.run.status_kind),
+        work_item_id=row.work_item_id,
+        work_item_status=row.work_item_status,
+        hold_reason=grace_hold_reason(parked_seconds=parked, grace_seconds=grace.grace_seconds),
+        parked_seconds=parked,
+        seconds_remaining=seconds_remaining(
+            parked_seconds=parked, grace_seconds=grace.grace_seconds
+        ),
+        grace_seconds=grace.grace_seconds,
+    )
 
 
-def _record(*, line: str) -> Mapping[str, object] | None:
-    parsed = parse_json(text=line)
-    if isinstance(parsed, JsonParseFailure) or not isinstance(parsed, dict):
-        return None
-    return cast("Mapping[str, object]", cast("dict[str, Any]", parsed))
+def _grace_governed(*, row: AttributedRun, inventory: FactoryRunInventory) -> bool:
+    if inventory.only_work_item_id not in (None, row.work_item_id):
+        return False
+    return (
+        row.run.status_kind == _BLOCKED_STATUS_KIND
+        and row.work_item_status in _LIVE_ITEM_STATUSES
+        and row.base_reason != ORPHAN_REASON_SUPERSEDED_RUN
+    )
 
 
-def _run_id(*, record: Mapping[str, object]) -> str | None:
-    for key in _RUN_ID_KEYS:
-        value = _str_value(value=record.get(key))
-        if value is not None:
-            return value
-    return None
+def _reason_with_grace(
+    *,
+    row: AttributedRun,
+    inventory: FactoryRunInventory,
+    grace: BlockedRunGrace | None,
+) -> _GraceReading:
+    """One run's orphan reason, with the measurement that justifies a reap.
 
-
-def _str_value(*, value: object) -> str | None:
-    if not isinstance(value, str):
-        return None
-    return value or None
+    The reason and its measurement are decided together rather than looked up
+    twice: `blocked-past-grace` is the ONE arm whose justification is a number
+    taken against a clock, and a record carrying the reason without the number
+    it was read from cannot be checked afterwards.
+    """
+    governed = _grace_governed(row=row, inventory=inventory)
+    if grace is None or grace.grace_seconds <= 0 or not governed:
+        return _GraceReading(reason=row.base_reason)
+    parked = grace.parked_seconds_by_run.get(row.run.run_id)
+    hold_reason = grace_hold_reason(parked_seconds=parked, grace_seconds=grace.grace_seconds)
+    if hold_reason != ORPHAN_REASON_BLOCKED_PAST_GRACE:
+        return _GraceReading(reason=None)
+    return _GraceReading(
+        reason=hold_reason,
+        parked_seconds=parked,
+        grace_seconds=grace.grace_seconds,
+    )

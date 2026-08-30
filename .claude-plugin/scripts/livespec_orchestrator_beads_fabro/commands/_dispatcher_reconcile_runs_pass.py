@@ -31,6 +31,8 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 
+from returns.unsafe import unsafe_perform_io
+
 from livespec_orchestrator_beads_fabro._beads_client import make_beads_client
 from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import invoker_from_args
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import (
@@ -40,15 +42,21 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_io import (
 from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_close import load_items
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import journal_path, store_config
 from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs import (
-    ReconcileInputs,
     ReconcileRunsSummary,
     reconcile_runs,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_attribution import (
+    read_journaled_runs,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_factories import (
     reconcile_factory_targets,
 )
-from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_join import (
-    read_journaled_runs,
+from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_grace import (
+    DEFAULT_BLOCKED_RUN_GRACE_SECONDS,
+    resolve_blocked_run_grace_seconds,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_inputs import (
+    ReconcileInputs,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_run_stamp import repo_run_attribution
 from livespec_orchestrator_beads_fabro.effects import AttemptFailure, attempt
@@ -157,6 +165,11 @@ def _survey(
             journal=journal,
             ledger=make_beads_client(config=store),
             attribution=repo_run_attribution(repo=repo),
+            blocked_run_grace_seconds=unsafe_perform_io(
+                resolve_blocked_run_grace_seconds(cwd=repo).value_or(
+                    DEFAULT_BLOCKED_RUN_GRACE_SECONDS
+                )
+            ),
         ),
         factories=factories,
         dry_run=False,
