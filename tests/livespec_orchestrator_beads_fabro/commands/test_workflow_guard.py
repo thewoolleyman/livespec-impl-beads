@@ -8,9 +8,13 @@ import pytest
 from livespec_orchestrator_beads_fabro.commands import workflow_guard
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import CommandResult
 
+_ORIGIN_HEAD_ARGV = ["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"]
+
 
 @dataclass(frozen=True, kw_only=True)
 class StubRunner:
+    """The guard's diff answer, with its default-branch read answered separately."""
+
     result: CommandResult
 
     def run(
@@ -22,7 +26,9 @@ class StubRunner:
         env: dict[str, str] | None = None,
         stdin: int | None = None,
     ) -> CommandResult:
-        _ = (argv, cwd, timeout_seconds, env, stdin)
+        _ = (cwd, timeout_seconds, env, stdin)
+        if argv == _ORIGIN_HEAD_ARGV:
+            return CommandResult(exit_code=0, stdout="origin/master\n", stderr="")
         return self.result
 
 

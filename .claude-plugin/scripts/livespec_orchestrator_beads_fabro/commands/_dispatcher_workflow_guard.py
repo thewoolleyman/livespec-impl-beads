@@ -11,6 +11,15 @@ Note the shape that makes the distinction load-bearing here: this is a
 PROHIBITION check, so a matched file is always a fail and its only non-failing
 outcome IS vacuity. It has no pass arm to report, which is exactly why reading
 its zero matches as green could never have been evidence of anything.
+
+THE RANGE IS NEVER HARD-CODED. The branch the diff is taken against is resolved
+through the shared `_dispatcher_default_branch` rule, per
+`SPECIFICATION/contracts.md`'s default-branch-resolution clause. Under the
+retired `origin/master...HEAD` literal an
+adopter whose primary branch is `main` had this guard ask git for a range built
+on a ref they do not have -- and `git diff` answers that with a fatal, which
+this check reports as an unreadable diff. So the literal did not merely
+mis-describe such a repository; it refused it.
 """
 
 from __future__ import annotations
@@ -19,6 +28,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from livespec_orchestrator_beads_fabro.commands._dispatcher_default_branch import (
+    resolve_default_branch,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_scoped_check_vacuity import (
     VACUOUS_MATCH,
     ScopedCheckOutcome,
@@ -50,11 +62,13 @@ _DIFF_TIMEOUT_SECONDS = 30.0
 class WorkflowGuardResult:
     """Outcome of the workflow-file boundary inspection.
 
-    `outcome` is None on exactly one arm: the diff could not be read at all,
-    so the scope was never resolved and there is no matched-file count to call
-    vacuous. That is an UNOBSERVABLE check, which is a different thing from a
-    check that observed an empty scope, and collapsing the two would hide a
-    broken probe inside the vacuity the clause expects to see.
+    `outcome` is None on the two arms where the diff was never read -- the
+    default branch would not resolve, so no range could be named; or the range
+    resolved and `git diff` failed on it. Either way the scope was never
+    resolved and there is no matched-file count to call vacuous. That is an
+    UNOBSERVABLE check, which is a different thing from a check that observed
+    an empty scope, and collapsing the two would hide a broken probe inside the
+    vacuity the clause expects to see.
     """
 
     exit_code: int
@@ -67,9 +81,21 @@ def check_no_workflow_changes(
     repo: Path,
     runner: CommandRunner,
 ) -> WorkflowGuardResult:
-    """Fail when the branch diff vs origin/master touches workflow files."""
+    """Fail when the branch diff vs the resolved default branch touches workflow files."""
+    branch = resolve_default_branch(repo=repo, runner=runner)
+    if branch is None:
+        return WorkflowGuardResult(
+            exit_code=2,
+            message=(
+                "workflow guard could not resolve the target's default branch, so there "
+                "is no diff range to inspect: neither `git symbolic-ref "
+                "refs/remotes/origin/HEAD` nor `gh repo view --json defaultBranchRef` "
+                "named one."
+            ),
+        )
+    diff_range = f"origin/{branch}...HEAD"
     diff = runner.run(
-        argv=["git", "diff", "--name-only", "origin/master...HEAD"],
+        argv=["git", "diff", "--name-only", diff_range],
         cwd=repo,
         timeout_seconds=_DIFF_TIMEOUT_SECONDS,
     )
@@ -77,7 +103,7 @@ def check_no_workflow_changes(
         detail = diff.stderr.strip() or diff.stdout.strip() or "git diff failed"
         return WorkflowGuardResult(
             exit_code=2,
-            message=f"workflow guard could not inspect origin/master...HEAD: {detail}",
+            message=f"workflow guard could not inspect {diff_range}: {detail}",
         )
     diff_paths = _diff_paths(diff_names=diff.stdout)
     workflow_paths = tuple(path for path in diff_paths if path.startswith(_WORKFLOWS_PREFIX))

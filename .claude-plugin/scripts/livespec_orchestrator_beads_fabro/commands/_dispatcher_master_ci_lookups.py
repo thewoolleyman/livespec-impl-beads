@@ -6,13 +6,12 @@ which stays there. The two change for different reasons: a `gh` output-shape
 change touches only this module, and a policy change about what counts as proof
 touches only the classifier.
 
-THE DEFAULT-BRANCH RESOLUTION IS THE POINT OF THIS MODULE'S EXISTENCE. It is the
-ratified two-route rule -- `git symbolic-ref refs/remotes/origin/HEAD` first,
-`gh repo view --json defaultBranchRef` when git has no answer -- and it replaces
-a hard-coded branch literal that quietly asked the forge about a branch adopters
-whose primary branch is `main` do not have. Neither route is a fallback to a
-CONSTANT: when both are silent the caller gets `None` and refuses, because a
-branch nobody could name is not a branch that can be proven green.
+THE DEFAULT-BRANCH RESOLUTION IS NO LONGER HERE. It began in this module, as the
+preflight's own replacement for a hard-coded branch literal, and it now lives in
+`_dispatcher_default_branch` because a SECOND dispatch-path stage -- the factory
+workflow-file guard -- asks the same question, and the ratified clause has the
+dispatch path reuse one resolution rather than each caller carrying its own. The
+preflight imports it from there; nothing about what it does changed.
 """
 
 from __future__ import annotations
@@ -40,7 +39,6 @@ __all__: list[str] = [
     "has_stored_credential",
     "job_records",
     "list_runs",
-    "resolve_default_branch",
     "run_id_of",
     "run_records",
     "view_run_jobs",
@@ -67,27 +65,6 @@ class CiJob(TypedDict, total=False):
     name: str | None
     conclusion: str | None
     status: str | None
-
-
-def resolve_default_branch(*, repo: Path, runner: CommandRunner) -> str | None:
-    """The target's default branch by the ratified two-route rule; None when silent."""
-    head = runner.run(
-        argv=["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
-        cwd=repo,
-        timeout_seconds=_PREFLIGHT_TIMEOUT_SECONDS,
-    )
-    if head.exit_code == 0:
-        resolved = head.stdout.strip().removeprefix("origin/")
-        if resolved != "":
-            return resolved
-    view = _gh(
-        repo=repo,
-        runner=runner,
-        argv=["repo", "view", "--json", "defaultBranchRef", "--jq", ".defaultBranchRef.name"],
-    )
-    if view.exit_code != 0:
-        return None
-    return view.stdout.strip() or None
 
 
 def has_stored_credential(*, repo: Path, runner: CommandRunner) -> bool:
