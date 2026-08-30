@@ -80,6 +80,7 @@ targets=(
     check-closed-item-integrity
     check-needs-attention-surface-ownership
     check-spec-id-presence-discipline
+    check-no-fleet-toolchain-literals
     check-codex-plugin-structure
     check-pi-plugin-structure
     check-bd-guard
