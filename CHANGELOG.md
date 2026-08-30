@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.98.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.98.0...v0.98.1) (2026-08-30)
+
+
+### Bug Fixes
+
+* **beads112-rehearsal:** secret scan must see the leaked VALUE, not only the variable name ([cb9662b](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/cb9662b0afe41fcfac9a4d727361b0388c66d0f3))
+
 ## [0.98.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.97.2...v0.98.0) (2026-08-29)
 
 
