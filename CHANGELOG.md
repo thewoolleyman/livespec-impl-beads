@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.103.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.102.0...v0.103.0) (2026-08-30)
+
+
+### Features
+
+* **acceptance:** refuse an empty merged diff for a change-implying item (bd-ib-jzikwb) ([897af44](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/897af44db3b3a9d7d8c36d0c717b372fc31a196e))
+
 ## [0.102.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.101.0...v0.102.0) (2026-08-30)
 
 
