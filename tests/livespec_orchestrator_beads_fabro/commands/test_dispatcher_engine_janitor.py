@@ -10,7 +10,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     DispatchOutcome,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_janitor import post_merge
-from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_recipe import (
+from livespec_orchestrator_beads_fabro.commands._dispatcher_hook_install_recipe import (
     JANITOR_BOOTSTRAP_KEY,
     JanitorBootstrapRecipe,
 )

@@ -19,11 +19,11 @@ in a declared workflow name that slid onto the convention would admit the
 dispatch on an unrelated pipeline's green, which is indistinguishable at the
 call site from the repository's own pipeline passing.
 
-WHAT is looked up comes from `_dispatcher_master_ci_pipeline`; the branch comes
+WHAT is looked up comes from `_dispatcher_ci_pipeline_view`; the branch comes
 from the shared `_dispatcher_default_branch` resolution every dispatch-path
-stage uses; the forge reads come from `_dispatcher_master_ci_lookups`; HOW an
+stage uses; the forge reads come from `_dispatcher_ci_preflight_lookups`; HOW an
 outcome reads comes from
-`_dispatcher_master_ci_refusals`. This module is the classifier between them.
+`_dispatcher_ci_preflight_refusals`. This module is the classifier between them.
 WHERE an outcome is journaled is none of the four: the pre-dispatch step gate
 owns one journal handle and appends every step's record through it.
 """
@@ -33,14 +33,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import cast
 
-from livespec_orchestrator_beads_fabro.commands._dispatcher_default_branch import (
-    resolve_default_branch,
+from livespec_orchestrator_beads_fabro.commands._dispatcher_ci_pipeline_view import (
+    MasterCiPipeline,
+    resolve_master_ci_pipeline,
 )
-from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
-    CommandResult,
-    CommandRunner,
-)
-from livespec_orchestrator_beads_fabro.commands._dispatcher_master_ci_lookups import (
+from livespec_orchestrator_beads_fabro.commands._dispatcher_ci_preflight_lookups import (
     UNKNOWN_RUN,
     CiJob,
     CiRun,
@@ -52,11 +49,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_master_ci_lookups im
     run_records,
     view_run_jobs,
 )
-from livespec_orchestrator_beads_fabro.commands._dispatcher_master_ci_pipeline import (
-    MasterCiPipeline,
-    resolve_master_ci_pipeline,
-)
-from livespec_orchestrator_beads_fabro.commands._dispatcher_master_ci_refusals import (
+from livespec_orchestrator_beads_fabro.commands._dispatcher_ci_preflight_refusals import (
     BRANCH_REMEDY,
     CREDENTIAL_REMEDY,
     NO_RUNS_REMEDY,
@@ -66,6 +59,13 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_master_ci_refusals i
     pass_outcome,
     red_outcome,
     unprovable_outcome,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_default_branch import (
+    resolve_default_branch,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
+    CommandResult,
+    CommandRunner,
 )
 
 __all__: list[str] = [

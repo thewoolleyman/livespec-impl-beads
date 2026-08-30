@@ -1,6 +1,6 @@
 """Focused tests for the declared janitor check-suite and its resolution.
 
-Covers `_dispatcher_janitor_check_suite`: the committed
+Covers `_dispatcher_check_suite_view`: the committed
 `dispatcher.janitor.check_suite` reader, the fleet default convention an ABSENT
 key falls back to, the subordination of the uncommitted per-invocation
 `--janitor` override to a committed declaration, the defects a PRESENT key can
@@ -21,7 +21,7 @@ from inspect import signature
 from pathlib import Path
 
 import pytest
-from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_check_suite import (
+from livespec_orchestrator_beads_fabro.commands._dispatcher_check_suite_view import (
     DECLARED_RESOLUTION,
     DEFAULT_CHECK_SUITE,
     DEFAULT_RESOLUTION,
@@ -123,7 +123,7 @@ def test_the_override_still_applies_where_no_check_suite_is_declared() -> None:
         pytest.param({"check_suite": 7}, "not a non-empty string", id="non-string-check-suite"),
         pytest.param({"check_suite": "   "}, "not a non-empty string", id="blank-check-suite"),
         pytest.param({"check_suite": "sh -c 'unbalanced"}, "does not parse", id="unbalanced"),
-        pytest.param({"check_suite": "''"}, "does not parse", id="no-tokens"),
+        pytest.param({"check_suite": "''"}, "names no program", id="no-tokens"),
     ],
 )
 def test_a_present_but_unusable_declaration_is_a_defect_not_a_fallback(

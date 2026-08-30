@@ -375,7 +375,7 @@ def dispatcher_block(*, cwd: Path) -> dict[str, Any]:
     """The dispatcher block, RAISING when `.livespec.jsonc` cannot be read.
 
     PUBLIC because a policy module that owns its own resolver reads the block
-    from OUTSIDE this module (`_dispatcher_master_ci_pipeline`), and importing a
+    from OUTSIDE this module (`_dispatcher_ci_pipeline_view`), and importing a
     `_`-prefixed name across a module boundary is exactly what pyright strict and
     the `private_calls` check refuse. The alternative — a second per-key
     `resolve_*` seam here for every policy module — is what pushed this file at

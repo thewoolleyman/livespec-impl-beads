@@ -67,8 +67,15 @@ from livespec_orchestrator_beads_fabro.commands._config import FactoryTarget
 from livespec_orchestrator_beads_fabro.commands._dispatcher_acceptance_ai import (
     run_acceptance_pass,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_check_suite_view import (
+    janitor_check_suite_from_block,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_claim_reclaim import (
     ActiveClaimAccounting,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_core_provisioning_view import (
+    FLEET_JANITOR_CORE_REPO_URL,
+    UNRESOLVED_JANITOR_CORE,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandResult,
@@ -84,6 +91,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_gh_refresh import (
     MAX_PREPARE_STEP_BYTES,
     SANDBOX_GH_REFRESH_ROOT_ENV_VAR,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_hook_install_recipe import (
+    janitor_bootstrap_recipe_from_block,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import (
     GithubTokenEnvRunner,
     JournalFile,
@@ -91,17 +101,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_io import (
     _decode,  # pyright: ignore[reportPrivateUsage]
     utc_now_iso,
 )
-from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_recipe import (
-    janitor_bootstrap_recipe_from_block,
-)
-from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_check_suite import (
-    janitor_check_suite_from_block,
-)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_checks import run_janitor_checks
-from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_core_provisioning import (
-    FLEET_JANITOR_CORE_REPO_URL,
-    UNRESOLVED_JANITOR_CORE,
-)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_checks import (
     LedgerFinding,
     run_ledger_checks,

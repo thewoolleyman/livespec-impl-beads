@@ -26,17 +26,18 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Protocol
 
+from livespec_orchestrator_beads_fabro.commands._dispatcher_ci_preflight import (
+    master_ci_preflight,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_hook_install_recipe import (
+    hook_install_recipe_present,
+    recipe_resolution_sentence,
+    resolve_janitor_bootstrap_recipe,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import InvokerIdentity
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import (
     JournalFile,
     ShellCommandRunner,
-)
-from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_recipe import (
-    recipe_resolution_sentence,
-    resolve_janitor_bootstrap_recipe,
-)
-from livespec_orchestrator_beads_fabro.commands._dispatcher_master_ci_preflight import (
-    master_ci_preflight,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import journal_path
 from livespec_orchestrator_beads_fabro.commands._dispatcher_source_preflight import (
@@ -46,9 +47,6 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_step_ids import (
     JANITOR_BOOTSTRAP,
     MASTER_CI,
     SOURCE_CHECKOUT,
-)
-from livespec_orchestrator_beads_fabro.commands._dispatcher_step_janitor_bootstrap import (
-    hook_install_recipe_present,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_step_persistence import (
     DegradedStepOutcome,

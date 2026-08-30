@@ -20,7 +20,7 @@ from pathlib import Path
 from types import ModuleType
 
 _COMMANDS = Path(".claude-plugin/scripts/livespec_orchestrator_beads_fabro/commands")
-_MODULE_PATH = _COMMANDS / "_dispatcher_janitor_core_provisioning.py"
+_MODULE_PATH = _COMMANDS / "_dispatcher_core_provisioning_view.py"
 
 _PUBLIC_NAMES = {
     "FLEET_JANITOR_CORE_REPO_URL",
@@ -36,7 +36,7 @@ _PUBLIC_NAMES = {
 def _module() -> ModuleType:
     assert _MODULE_PATH.is_file()
     return importlib.import_module(
-        "livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_core_provisioning"
+        "livespec_orchestrator_beads_fabro.commands._dispatcher_core_provisioning_view"
     )
 
 

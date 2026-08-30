@@ -5,12 +5,12 @@ from __future__ import annotations
 import importlib
 from pathlib import Path
 
+from livespec_orchestrator_beads_fabro.commands._dispatcher_check_suite_view import (
+    janitor_check_suite_from_block,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import CommandResult
 from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_argv import janitor_argv
 from livespec_orchestrator_beads_fabro.commands._dispatcher_goal import render_goal
-from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_check_suite import (
-    janitor_check_suite_from_block,
-)
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
 _GUARD_MODULE = "livespec_orchestrator_beads_fabro.commands._dispatcher_workflow_guard"

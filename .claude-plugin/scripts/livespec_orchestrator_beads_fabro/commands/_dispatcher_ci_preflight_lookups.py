@@ -1,6 +1,6 @@
 """The git/forge reads the master-CI preflight makes, and the shapes they return.
 
-Split out of `_dispatcher_master_ci_preflight` along the seam between ASKING —
+Split out of `_dispatcher_ci_preflight` along the seam between ASKING —
 which argv, which timeout, which payload key — and CLASSIFYING what came back,
 which stays there. The two change for different reasons: a `gh` output-shape
 change touches only this module, and a policy change about what counts as proof

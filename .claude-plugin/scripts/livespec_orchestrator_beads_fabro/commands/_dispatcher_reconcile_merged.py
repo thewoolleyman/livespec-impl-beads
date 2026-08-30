@@ -13,6 +13,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from livespec_orchestrator_beads_fabro.commands._config import resolve_fabro_bin
+from livespec_orchestrator_beads_fabro.commands._dispatcher_check_suite_view import (
+    check_suite_refusal,
+    resolve_janitor_check_suite,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_command_common import (
     EXIT_FAILURE,
     EXIT_PRECONDITION_ERROR,
@@ -35,10 +39,6 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import (
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import (
     JournalFile,
     ShellCommandRunner,
-)
-from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_check_suite import (
-    check_suite_refusal,
-    resolve_janitor_check_suite,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_close import (
     emit_outcomes,

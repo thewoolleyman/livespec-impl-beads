@@ -16,6 +16,10 @@ from livespec_orchestrator_beads_fabro.commands._config import (
     resolve_fabro_factory,
 )
 from livespec_orchestrator_beads_fabro.commands._cross_repo import load_manifest
+from livespec_orchestrator_beads_fabro.commands._dispatcher_check_suite_view import (
+    check_suite_refusal,
+    resolve_janitor_check_suite,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import (
     invoker_from_args,
     require_invoker_refusal,
@@ -23,10 +27,6 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import (
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import (
     JournalFile,
     ShellCommandRunner,
-)
-from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_check_suite import (
-    check_suite_refusal,
-    resolve_janitor_check_suite,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_checks import run_janitor_checks
 from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_checks import (
