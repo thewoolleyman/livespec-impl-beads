@@ -597,11 +597,27 @@ and `df` settled the intended reclamation question: `-x` is correct when asking
 this mounted tree including other filesystems". Before believing either number,
 locate the difference with an independent instrument such as `df`/`findmnt`.
 
-**The `dependencies` array is ONE HETEROGENEOUS LIST that keys its target
-`depends_on_id`, and the majority of its rows are not blockers.** The target key
-is not `id`, `target`, or `to`, so every naive accessor yields `None` and a
-tenant of perfectly sound edges reads as a tenant of dangling ones. Worse, six
-edge types share the single array. Measured 2026-08-21 over all 261 dependency
+**The `dependencies` array is ONE HETEROGENEOUS LIST whose target key DEPENDS ON
+THE SURFACE THAT PRINTED IT, and the majority of its rows are not blockers.** On
+`bd list --json` a row keys its target `depends_on_id`, with the edge in `type`;
+it is not `target` or `to`, so a naive accessor yields `None` and a tenant of
+perfectly sound edges reads as a tenant of dangling ones. Worse, six edge types
+share the single array.
+
+**Do NOT read that as "the target key is never `id`" — this entry asserted exactly
+that until 2026-08-30, and the absolute form is what made it dangerous.** On
+`bd show <id> --json` the rows are a DIFFERENT SHAPE: each inlines the whole target
+record and keys it `id`, with the edge in `dependency_type`. So an accessor written
+from this catalogue's own prescription reaches for `depends_on_id` on a `show` row,
+gets `None`, and reports a live edge as dangling — the identical wrong conclusion
+this entry exists to prevent, produced by obeying it. Measured 2026-08-30 on this
+repo's tenant: all 500 dependency rows in `bd list --status all --json` carry
+`depends_on_id`+`type` and none carries `id`+`dependency_type`, while `bd-ib-dbzp`
+read through `bd show --json` carries `id`+`dependency_type` and neither
+`depends_on_id` nor `type`. Each reading is correct for its own surface; neither
+generalizes. The discriminator is the one this catalogue already prescribes for a
+surprising empty result — `sorted(row.keys())` before indexing, which settles it in
+one line. Measured 2026-08-21 over all 261 dependency
 rows in the `livespec-dev-tooling` tenant: `parent-child` 116, `blocks` 93,
 `relates-to` 26, `discovered-from` 23, `related` 2, `duplicates` 1 — so **168 of
 261 rows (64%) are NOT blockers**, and any filter treating the array as a
