@@ -75,6 +75,7 @@ failed outcome and a STRUCTURED reason, as a JSON object on the last line:
 
     {"outcome": "failed", "failure_reason": "<what is blocked; what you tried; what decision is needed>"}
 
-When the loop's budget exhausts, the graph parks the run at an in-loop
-human gate; your structured reason is what the operator reads first —
-make it actionable.
+When the loop's budget exhausts, the graph terminates the run at the
+`needs_human` node and rests the work-item at `blocked / needs-human` in
+the ledger; your structured reason is what the human reads first — make
+it actionable.

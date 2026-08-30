@@ -50,10 +50,12 @@ __all__: list[str] = [
     "fabro_escalation_from_payload",
 ]
 
-# The `escalate` node id in `.fabro/workflows/implement-work-item/workflow.fabro`.
-# Keep the two in lockstep: renaming the node there without renaming it here
-# silently restores the misleading human-gate wording.
-ESCALATION_NODE_ID = "escalate"
+# The `needs_human` terminal node id in
+# `.fabro/workflows/implement-work-item/workflow.fabro` (it replaced the
+# `escalate` hexagon under plan ledger-is-the-only-gate). Keep the two in
+# lockstep: renaming the node there without renaming it here silently loses
+# the engine-escalation rendering.
+ESCALATION_NODE_ID = "needs_human"
 
 
 @dataclass(frozen=True, kw_only=True)

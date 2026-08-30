@@ -104,5 +104,6 @@ a STRUCTURED reason, as a JSON object on the last line:
 
     {"outcome": "failed", "failure_reason": "<what is blocked; what you tried; what decision is needed>"}
 
-The graph routes a failed outcome to an in-loop human gate where an
-operator answers and routes the run back into the loop.
+The graph routes a failed outcome to a terminal `needs_human` node: the
+run preserves the tree on a run-scoped ref and ends, and the work-item
+rests in the ledger at `blocked / needs-human` until a human decides.

@@ -199,8 +199,11 @@ line:
 
     {"outcome": "failed", "failure_reason": "<what is blocked; what you tried; what decision is needed>"}
 
-The graph routes a failed outcome to an in-loop human gate where an
-operator answers and routes the run back into the loop. Reserve it for
+The graph routes a failed outcome to a terminal `needs_human` node: the
+run preserves your tree on a run-scoped ref and ends, and the work-item
+rests in the ledger at `blocked / needs-human` until a human decides
+(re-dispatch from the preserved ref, from scratch, or leave it). No run
+waits for that answer. Reserve it for
 genuine blockers — a failing check you can fix is YOUR job, not the
 operator's.
 

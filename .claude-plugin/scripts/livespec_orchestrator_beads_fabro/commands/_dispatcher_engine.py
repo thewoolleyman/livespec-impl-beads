@@ -23,12 +23,13 @@ cannot carry that rot, so a red there is a real signal.
 
 Three terminal states (livespec-impl-beads-4zl): `green` (merged,
 post-merge janitor green), `failed` (an expected failure at a named
-stage), and `blocked` — the run parked at the phase graph's in-loop
-human gate (Fabro's native blocked status; the foreground `fabro run`
-returns and the slot frees while a server-side engine holds the run).
-Blocked is NOT a failure: the item stays open, nothing is closed, and
-the human answers via `fabro attach <run-id>` (`fabro resume` only
-when the engine died) — the Dispatcher never auto-resumes.
+stage), and `blocked` — the phase graph's `needs_human` terminal fired
+(the run preserved its tree on a run-scoped ref, emitted the
+LIVESPEC_NEEDS_HUMAN sentinel and ended; plan ledger-is-the-only-gate,
+contracts.md "A factory run never awaits a human", v093). Blocked is NOT
+a failure: the item rests at `blocked / needs-human`, nothing is closed,
+and the human decides through the ledger's valves — no run waits and the
+Dispatcher never auto-resolves the decision.
 
 One refinement on `green` (livespec-impl-beads-cgd): when the merge
 is confirmed but the janitor CHECKOUT cannot be provisioned (worktree
@@ -233,9 +234,10 @@ class SynchronousFabroLauncher:
 class DispatchOutcome:
     """Terminal report for one dispatched work-item.
 
-    `status` is one of `green` / `failed` / `blocked` (blocked = the run
-    parked at the in-loop human gate; surfaced to the operator, never
-    treated as a failure, never auto-resumed).
+    `status` is one of `green` / `failed` / `blocked` (blocked = the run's
+    `needs_human` terminal fired and the item rests at blocked / needs-human
+    in the ledger; surfaced to a human, never treated as a failure, never
+    auto-resolved).
 
     `step` / `missing_integration_point` / `remedy` are the STRUCTURED half
     of a degraded post-merge outcome: the stable step identifier from the

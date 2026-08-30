@@ -1100,9 +1100,9 @@
     "heading": "## Scenario 103 — A needs-human outcome terminates the run and routes the decision to the ledger",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
+    "test": "tests.integration.test_workflow_needs_human_terminal_scenario103.test_dispatcher_maps_the_sentinel_onto_the_blocked_outcome",
     "work_item": "bd-ib-n77djm",
-    "reason": "Owned by plan epic bd-ib-n77djm (ledger-is-the-only-gate); bound to an INTEGRATION-tier test by slice S2 bd-ib-iqyekp (reconcile-runs terminal sentinel path) and S6 (workflow needs_human node)."
+    "reason": "Owned by plan epic bd-ib-n77djm (ledger-is-the-only-gate); bound to the INTEGRATION-tier DOT-parsing test shipped by S6 bd-ib-dgu3qg."
   },
   {
     "heading": "## Scenario 104 — An item closed by any route releases its non-terminal run",
