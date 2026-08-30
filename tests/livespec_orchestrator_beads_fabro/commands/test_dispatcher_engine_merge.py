@@ -29,6 +29,9 @@ def _plan(*, repo: Path) -> DispatchPlan:
         fabro_bin="fabro",
         janitor=None,
         janitor_checkout=repo / "janitor-co",
+        # A DECLARED janitor-core pin: an undeclared one degrades the post-merge
+        # flow before any of these cases is reached.
+        janitor_core_ref="master",
     )
 
 

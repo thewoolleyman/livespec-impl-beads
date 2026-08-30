@@ -15,7 +15,7 @@ helper's return value.
 from __future__ import annotations
 
 import importlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from livespec_orchestrator_beads_fabro.commands import _dispatcher_engine_janitor
@@ -24,6 +24,12 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     DispatchOutcome,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_janitor import post_merge
+from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_core_provisioning import (
+    FLEET_JANITOR_CORE_REPO_URL,
+    JANITOR_CORE_PINNED_KEY,
+    JANITOR_CORE_REPO_KEY,
+    UNRESOLVED_JANITOR_CORE,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     DispatchPlan,
     PrView,
@@ -42,6 +48,10 @@ def _plan(*, repo: Path) -> DispatchPlan:
         fabro_bin="fabro",
         janitor=None,
         janitor_checkout=repo / "janitor-co",
+        # The venue cases are about WHERE the janitor runs, so every one of them
+        # declares a janitor-core ref: an undeclared pin now degrades before the
+        # venue is ever resolved.
+        janitor_core_ref="master",
     )
 
 
@@ -237,3 +247,57 @@ def test_post_merge_venue_skips_the_containment_probe_when_no_merge_sha_is_known
     assert not [argv for argv in argvs if "merge-base" in argv]
     add = next(argv for argv in argvs if argv[3:5] == ["worktree", "add"])
     assert add[-1] == "origin/master"
+
+
+def test_post_merge_degrades_naming_the_undeclared_janitor_core_declaration(
+    tmp_path: Path,
+) -> None:
+    """An unresolved janitor-core pin degrades BEFORE anything is provisioned for it.
+
+    The plan carries the sentinel rather than a moving `master`, and the
+    degradation names the committed key the operator has to write -- where the
+    clone's own stderr would name a branch the repository never declared.
+    """
+    plan = replace(_plan(repo=tmp_path), janitor_core_ref=UNRESOLVED_JANITOR_CORE)
+    runner = Runner(queue=[_ok(), *[_ok() for _ in range(8)]])
+    journal = Journal()
+
+    outcome = post_merge(
+        outcome_type=DispatchOutcome,
+        plan=plan,
+        runner=runner,
+        journal=journal,
+        merged=_merged(),
+    )
+
+    assert (outcome.status, outcome.stage) == ("green", "janitor-env-degraded")
+    assert JANITOR_CORE_PINNED_KEY in outcome.detail
+    assert (
+        outcome.missing_integration_point
+        == "a declared livespec-core ref for the target repository"
+    )
+    assert outcome.remedy is not None
+    assert JANITOR_CORE_REPO_KEY.rsplit(".", maxsplit=1)[-1] in outcome.remedy
+    # Janitor-core provisioning is not a step of the closed vocabulary.
+    assert outcome.step is None
+    # Nothing is provisioned, and the venue is never even resolved.
+    assert [record["stage"] for record in journal.records] == ["pull-primary"]
+
+
+def test_post_merge_degrades_naming_an_unusable_core_repo_declaration(tmp_path: Path) -> None:
+    """A present-but-unusable `core_repo` refuses instead of sliding onto the fleet default."""
+    plan = replace(_plan(repo=tmp_path), janitor_core_repo_url=UNRESOLVED_JANITOR_CORE)
+    runner = Runner(queue=[_ok(), *[_ok() for _ in range(8)]])
+    journal = Journal()
+
+    outcome = post_merge(
+        outcome_type=DispatchOutcome,
+        plan=plan,
+        runner=runner,
+        journal=journal,
+        merged=_merged(),
+    )
+
+    assert (outcome.status, outcome.stage) == ("green", "janitor-env-degraded")
+    assert JANITOR_CORE_REPO_KEY in outcome.detail
+    assert FLEET_JANITOR_CORE_REPO_URL not in outcome.detail
