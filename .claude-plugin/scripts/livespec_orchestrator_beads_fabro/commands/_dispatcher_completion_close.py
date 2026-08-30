@@ -7,8 +7,10 @@ from pathlib import Path
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import utc_now_iso
+from livespec_orchestrator_beads_fabro.commands._dispatcher_lifecycle_writes import (
+    close_work_item_and_reconcile,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import store_config
-from livespec_orchestrator_beads_fabro.store import append_work_item
 from livespec_orchestrator_beads_fabro.types import AuditRecord, WorkItem
 
 __all__: list[str] = [
@@ -53,4 +55,4 @@ def close_dispatch_item(
         reason=reason,
         audit=audit,
     )
-    append_work_item(path=store_config(repo=repo), item=closed)
+    close_work_item_and_reconcile(path=store_config(repo=repo), item=closed)

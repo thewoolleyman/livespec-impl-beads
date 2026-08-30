@@ -5,10 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 from livespec_orchestrator_beads_fabro import store
-from livespec_orchestrator_beads_fabro._store_blocked_mutations import (
-    update_work_item_blocked_state,
-)
 from livespec_orchestrator_beads_fabro._store_cap_mutations import update_work_item_cap
+from livespec_orchestrator_beads_fabro.commands._dispatcher_lifecycle_writes import (
+    write_blocked_state_and_reconcile,
+    write_work_item_status_and_reconcile,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings import (
     ACCEPTANCE_REWORK_CAP_LABEL,
     MERGE_ON_REVIEW_CAP_LABEL,
@@ -78,7 +79,7 @@ def resolve_blocked_item(
             err="invalid-source-state",
             msg="resolve-blocked requires a blocked needs-human item.",
         )
-    update_work_item_blocked_state(
+    write_blocked_state_and_reconcile(
         path=config,
         item_id=item.id,
         status=target_status,
@@ -203,8 +204,8 @@ def move_item(
     Broad by design (`backlog`/`ready`/`blocked`) but ship-guarded:
     `done`, `acceptance`, and `pending-approval` are refused with a clear error,
     so no operator can force unverified work to `done` outside the
-    accept-from-acceptance path. Writes through the same `update_work_item_status`
-    seam the other valves use.
+    accept-from-acceptance path. Writes through the same lifecycle seam the
+    other valves use, so the move also reconciles the runs the item disowns.
     """
     if target_status not in _MOVE_ALLOWED:
         return valve_refusal(
@@ -218,7 +219,7 @@ def move_item(
                 "acceptance and pending-approval are entered only on their guarded paths."
             ),
         )
-    store.update_work_item_status(
+    write_work_item_status_and_reconcile(
         path=config,
         item_id=item.id,
         status=target_status,

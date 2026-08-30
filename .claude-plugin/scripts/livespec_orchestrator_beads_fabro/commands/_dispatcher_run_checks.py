@@ -41,6 +41,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_close import 
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_gate import run_ledger_gate
 from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_selection import ready_items
+from livespec_orchestrator_beads_fabro.commands._dispatcher_orphaned_run_check import (
+    orphaned_factory_run_findings,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_otel_wiring import parse_janitor
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import store_config
 from livespec_orchestrator_beads_fabro.commands._dispatcher_readiness_diagnostics import (
@@ -77,11 +80,22 @@ _PATH_SEPARATORS: tuple[str, ...] = tuple(sep for sep in (os.sep, os.altsep) if 
 
 
 def run_ledger_check(*, args: argparse.Namespace) -> int:
+    """Run the pure Ledger invariants, then the factory-inventory one.
+
+    `orphaned-factory-run` is appended here rather than inside
+    `run_ledger_checks` because that function is a PURE function of the rows,
+    and three other surfaces — the pre-dispatch gate, the pre-push conformance
+    gate, and the `status_conformance` dev-tooling check — call it precisely
+    for that. Surveying a factory from inside it would put a network round trip
+    on all three. This is the surface that owns the survey; a repo declaring no
+    factory still performs no I/O.
+    """
     project_root = Path(args.project_root) if args.project_root is not None else Path.cwd()
     items = load_items(repo=project_root)
     config = store_config(repo=project_root)
     comments_by_item = _load_comments_by_item(config=config, items=items)
     findings = run_ledger_checks(items=items, comments_by_item=comments_by_item)
+    findings.extend(orphaned_factory_run_findings(repo=project_root))
     return _emit_check_findings(findings=findings, as_json=args.as_json, label="ledger")
 
 

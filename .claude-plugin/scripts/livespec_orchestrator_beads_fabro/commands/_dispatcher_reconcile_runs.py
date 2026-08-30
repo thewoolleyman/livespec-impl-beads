@@ -88,6 +88,13 @@ class ReconcileInputs:
     journal: JournalWriter
     ledger: LedgerComments
     http: FabroHttpTransport = field(default_factory=UrllibFabroHttpTransport)
+    # Narrows the pass to runs attributed to ONE work-item. The default (None)
+    # is the whole-inventory sweep; a lifecycle-write hook sets it so closing
+    # item A can never reap item B's run as a side effect of A's disposition.
+    # It narrows what is ACTED ON, never what is classified: the join still
+    # sees every item's status, so a targeted pass and a sweep agree about
+    # every run they both look at.
+    only_work_item_id: str | None = None
 
 
 def reconcile_runs(
@@ -166,6 +173,8 @@ def _reconcile_one_factory(
         factory_server_url=str(factory.server),
     )
     for orphan in orphans:
+        if inputs.only_work_item_id is not None and orphan.work_item_id != inputs.only_work_item_id:
+            continue
         outcome = _reconcile_one_run(inputs=inputs, port=port, orphan=orphan, dry_run=dry_run)
         if isinstance(outcome, ReconcileError):
             errors.append(outcome)
