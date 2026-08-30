@@ -99,6 +99,7 @@ def test_real_post_merge_janitor_provisions_livespec_core(
         fabro_bin="fabro",
         janitor=None,
         janitor_checkout=janitor_checkout_path(repo=target, work_item_id="bd-ib-cyv"),
+        janitor_core_ref="master",
     )
     journal = _RecordingJournal()
     outcome = run_dispatch(
@@ -267,6 +268,7 @@ def _target_repo(*, tmp_path: Path) -> Path:
   "implementation": { "plugin": "livespec-orchestrator-beads-fabro" },
   "livespec-orchestrator-beads-fabro": {
     "format": "beads",
+    "compat": { "pinned": "master" },
     "connection": { "fake": false, "prefix": "bd-ib" }
   }
 }

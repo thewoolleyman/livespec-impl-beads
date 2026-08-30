@@ -42,6 +42,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_close import 
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_selection import (
     janitor_core_ref,
+    janitor_core_repo_url,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_otel_wiring import parse_janitor
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import journal_path
@@ -195,6 +196,7 @@ def reconcile_plan(*, repo: Path, item: WorkItem, janitor: tuple[str, ...] | Non
         janitor=janitor,
         janitor_checkout=janitor_reconcile_checkout_path(repo=repo, work_item_id=item.id),
         janitor_core_ref=janitor_core_ref(repo=repo),
+        janitor_core_repo_url=janitor_core_repo_url(repo=repo),
     )
 
 

@@ -18,6 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_journal import tail
 from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_recipe import (
     integration_point,
     remedy,
@@ -25,13 +26,21 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_re
 from livespec_orchestrator_beads_fabro.commands._dispatcher_step_ids import JANITOR_BOOTSTRAP
 
 if TYPE_CHECKING:
-    from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
+    from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
+        CommandResult,
+        DispatchOutcome,
+    )
     from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_recipe import (
         JanitorBootstrapRecipe,
     )
     from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import DispatchPlan, PrView
 
-__all__: list[str] = ["DegradedStep", "merged_degraded_for_plan", "merged_degraded_outcome"]
+__all__: list[str] = [
+    "DegradedStep",
+    "merged_degraded_for_plan",
+    "merged_degraded_outcome",
+    "step_from_result",
+]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -47,6 +56,21 @@ class DegradedStep:
     description: str
     reason: str
     step_id: str | None = None
+
+
+def step_from_result(
+    *, description: str, result: CommandResult, step_id: str | None = None
+) -> DegradedStep:
+    """One failed provisioning stage, named and reasoned, ready to be shaped.
+
+    Shared by every flow that turns a failed command into a degradation -- the
+    post-merge flow's own stages and the venue provisioning split out of it --
+    because the truncation a degradation reads is this module's concern, and two
+    copies of it are two answers to how much stderr an operator sees.
+    """
+    return DegradedStep(
+        description=description, reason=tail(text=result.stderr, limit=500), step_id=step_id
+    )
 
 
 def merged_degraded_for_plan(

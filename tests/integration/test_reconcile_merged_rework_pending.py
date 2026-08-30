@@ -109,6 +109,7 @@ def _repo(*, tmp_path: Path) -> Path:
     _ = (repo / ".livespec.jsonc").write_text(
         (
             '{"livespec-orchestrator-beads-fabro": {'
+            '"compat": {"pinned": "master"}, '
             '"connection": {"prefix": "bd-ib"}, '
             '"dispatcher": {"acceptance_mode": "ai-only"}'
             "}}"

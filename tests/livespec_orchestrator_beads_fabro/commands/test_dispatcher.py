@@ -213,7 +213,12 @@ def test_dispatcher_plan_decomposition_contract() -> None:
         "CODEX_AGENT_MODE_READ_ONLY",
         "CODEX_AGENT_MODE_WRITE",
         "CODEX_IMPLEMENTER_ADAPTER",
+        "FLEET_JANITOR_CORE_REPO_URL",
         "FleetMembers",
+        "JANITOR_CORE_PINNED_KEY",
+        "JANITOR_CORE_REPO_KEY",
+        "UNRESOLVED_JANITOR_CORE_REF_DEFECT",
+        "UNUSABLE_JANITOR_CORE_REPO_DEFECT",
         "codex_adapter",
         "janitor_argv_with_default",
         "janitor_bootstrap_argv",
@@ -221,6 +226,7 @@ def test_dispatcher_plan_decomposition_contract() -> None:
         "janitor_core_checkout_path",
         "janitor_core_clone_argv",
         "janitor_core_ref_from_config",
+        "janitor_core_repo_url_from_config",
         "janitor_reconcile_checkout_path",
         "janitor_trust_argv",
         "janitor_worktree_add_argv",
@@ -424,6 +430,10 @@ def _plan(*, repo: Path) -> DispatchPlan:
         fabro_bin="fabro",
         janitor=None,
         janitor_checkout=repo / "janitor-co",
+        # Declared, as every dispatched repository must: an undeclared
+        # `compat.pinned` resolves NO core ref and the janitor degrades rather
+        # than cloning a moving tip.
+        janitor_core_ref="master",
     )
 
 
@@ -1510,7 +1520,9 @@ def test_argv_builders_encode_family_discipline(tmp_path: Path) -> None:
             block={"janitor_bootstrap": {"recipe": "make install-hooks"}}
         )
     ) == ["make", "install-hooks"]
-    assert janitor_core_clone_argv(plan=plan) == [
+    assert janitor_core_clone_argv(
+        plan=plan, ref="master", repo_url="https://github.com/thewoolleyman/livespec.git"
+    ) == [
         "git",
         "clone",
         "--quiet",
@@ -1530,16 +1542,19 @@ def test_janitor_core_ref_from_config_reads_compat_pin(tmp_path: Path) -> None:
         )
         == "v1"
     )
-    assert janitor_core_ref_from_config(config_text="{}") == "master"
-    assert janitor_core_ref_from_config(config_text="not-jsonc") == "master"
-    assert janitor_core_ref_from_config(config_text="[]") == "master"
+    # An absent, unreadable, or empty pin resolves NO ref: the janitor degrades
+    # naming the missing declaration rather than cloning a moving master tip
+    # that can move under an in-flight dispatch.
+    assert janitor_core_ref_from_config(config_text="{}") is None
+    assert janitor_core_ref_from_config(config_text="not-jsonc") is None
+    assert janitor_core_ref_from_config(config_text="[]") is None
     assert (
         janitor_core_ref_from_config(
             config_text='{ "livespec-orchestrator-beads-fabro": { "compat": { "pinned": "" } } }'
         )
-        == "master"
+        is None
     )
-    assert dispatcher.janitor_core_ref(repo=tmp_path / "missing-config") == "master"
+    assert dispatcher.janitor_core_ref(repo=tmp_path / "missing-config") is None
 
 
 def test_parse_pr_view_rejects_unusable_shapes() -> None:

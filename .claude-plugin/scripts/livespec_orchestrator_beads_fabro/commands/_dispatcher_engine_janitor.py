@@ -17,28 +17,26 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_degraded imp
     DegradedStep,
     merged_degraded_for_plan,
     merged_degraded_outcome,
+    step_from_result,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_lock import (
     claim_janitor_lock,
     janitor_lock_path,
     release_janitor_lock,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_provision import (
+    provision_janitor_checkout,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     CORE_PLUGIN_ROOT_ENV_VAR,
     DispatchPlan,
     PrView,
-    janitor_bootstrap_argv,
-    janitor_core_clone_argv,
-    janitor_trust_argv,
-    janitor_worktree_add_argv,
     janitor_worktree_remove_argv,
     pull_primary_argv,
 )
-from livespec_orchestrator_beads_fabro.commands._dispatcher_step_ids import JANITOR_BOOTSTRAP
 
 if TYPE_CHECKING:
     from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
-        CommandResult,
         CommandRunner,
         DispatchOutcome,
         JournalWriter,
@@ -105,13 +103,13 @@ def _post_merge_locked(
             outcome_type=outcome_type,
             plan=plan,
             merged=merged,
-            step=_degraded_step(
+            step=step_from_result(
                 description=f"refreshing the primary checkout {plan.repo} via pull-primary",
                 result=pull,
             ),
             recipe=recipe,
         )
-    degraded = _provision_janitor_checkout(
+    degraded = provision_janitor_checkout(
         outcome_type=outcome_type,
         plan=plan,
         runner=runner,
@@ -168,103 +166,4 @@ def _post_merge_locked(
         pr_number=merged.number,
         merge_sha=merged.merge_sha,
         detail="merged, post-merge janitor green",
-    )
-
-
-def _provision_janitor_checkout(
-    *,
-    outcome_type: type[DispatchOutcome],
-    plan: DispatchPlan,
-    runner: CommandRunner,
-    journal: JournalWriter,
-    merged: PrView,
-    recipe: JanitorBootstrapRecipe,
-) -> DispatchOutcome | None:
-    if recipe.defect is not None:
-        # A present-but-unusable declaration resolves NO command, so the
-        # bootstrap stage would hand the runner an empty argv -- a crash, after
-        # the merge has already landed, where the design has a named degraded
-        # outcome. The pre-dispatch re-verification refuses on the same defect,
-        # but only once a degradation stands: on a FIRST dispatch this is the
-        # one place the defect is caught, so it is caught before anything is
-        # provisioned for a bootstrap that cannot run.
-        return merged_degraded_for_plan(
-            outcome_type=outcome_type,
-            plan=plan,
-            merged=merged,
-            step=DegradedStep(
-                description=(
-                    f"resolving the commit-refuse-hook install recipe to bootstrap in {plan.repo}"
-                ),
-                reason=recipe.defect,
-                step_id=JANITOR_BOOTSTRAP,
-            ),
-            recipe=recipe,
-        )
-    _ = run_stage(
-        runner=runner,
-        journal=journal,
-        plan=plan,
-        stage="janitor-checkout-preclean",
-        command=(janitor_worktree_remove_argv(plan=plan), plan.repo, _GIT_TIMEOUT_SECONDS, None),
-    )
-    ref = merged.merge_sha if merged.merge_sha is not None else "origin/master"
-    core_step = (
-        f"provisioning livespec core at {plan.janitor_core_checkout} (ref {plan.janitor_core_ref})"
-    )
-    steps = (
-        (
-            "janitor-checkout-add",
-            janitor_worktree_add_argv(plan=plan, ref=ref),
-            plan.repo,
-            f"provisioning the fresh janitor checkout at {plan.janitor_checkout} (ref {ref})",
-            None,
-        ),
-        (
-            "janitor-checkout-trust",
-            janitor_trust_argv(),
-            plan.janitor_checkout,
-            f"`mise trust` inside the janitor checkout {plan.janitor_checkout}",
-            None,
-        ),
-        (
-            "janitor-checkout-bootstrap",
-            janitor_bootstrap_argv(recipe=recipe),
-            plan.repo,
-            f"installing commit-refuse hooks via `{recipe.text}` in {plan.repo}",
-            JANITOR_BOOTSTRAP,
-        ),
-        (
-            "janitor-core-provision",
-            janitor_core_clone_argv(plan=plan),
-            plan.janitor_checkout,
-            core_step,
-            None,
-        ),
-    )
-    for stage, argv, cwd, step, step_id in steps:
-        result = run_stage(
-            runner=runner,
-            journal=journal,
-            plan=plan,
-            stage=stage,
-            command=(argv, cwd, _GIT_TIMEOUT_SECONDS, None),
-        )
-        if result.exit_code != 0:
-            return merged_degraded_for_plan(
-                outcome_type=outcome_type,
-                plan=plan,
-                merged=merged,
-                step=_degraded_step(description=step, result=result, step_id=step_id),
-                recipe=recipe,
-            )
-    return None
-
-
-def _degraded_step(
-    *, description: str, result: CommandResult, step_id: str | None = None
-) -> DegradedStep:
-    """One failed provisioning stage, named and reasoned, ready to be shaped."""
-    return DegradedStep(
-        description=description, reason=tail(text=result.stderr, limit=500), step_id=step_id
     )

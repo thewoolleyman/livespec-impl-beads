@@ -31,6 +31,7 @@ def _plan(*, repo: Path) -> DispatchPlan:
         fabro_bin="fabro",
         janitor=None,
         janitor_checkout=repo / "janitor-co",
+        janitor_core_ref="master",
     )
 
 

@@ -19,7 +19,10 @@ from returns.unsafe import unsafe_perform_io
 
 from livespec_orchestrator_beads_fabro.commands._acp_node_layers import AcpNodeResolution
 from livespec_orchestrator_beads_fabro.commands._config import FactoryTarget
-from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_selection import janitor_core_ref
+from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_selection import (
+    janitor_core_ref,
+    janitor_core_repo_url,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     build_plan,
     janitor_checkout_path,
@@ -84,6 +87,7 @@ def dispatch_plan_for_item(  # noqa: PLR0913 — kw-only plan resolver; each fie
         janitor=janitor,
         janitor_checkout=janitor_checkout_path(repo=repo, work_item_id=item.id),
         janitor_core_ref=janitor_core_ref(repo=repo),
+        janitor_core_repo_url=janitor_core_repo_url(repo=repo),
         # An unreadable `.livespec.jsonc` falls back to the documented
         # defaults, visibly and here rather than inside the reader.
         # `unsafe_perform_io` is required: `IOResult.value_or` returns

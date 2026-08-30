@@ -34,6 +34,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     janitor_core_ref_from_config,
+    janitor_core_repo_url_from_config,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_preserve_reference import (
     preserve_checkpointed_work_reference,
@@ -55,6 +56,7 @@ __all__: list[str] = [
     "candidates",
     "is_dispatch_candidate",
     "janitor_core_ref",
+    "janitor_core_repo_url",
     "post_run_dispositions",
     "prepare",
     "ready_items",
@@ -107,11 +109,26 @@ def candidates(
     return ranked
 
 
-def janitor_core_ref(*, repo: Path) -> str:
+def janitor_core_ref(*, repo: Path) -> str | None:
+    """The livespec-core ref `repo` declares, or None when it declares none."""
+    return janitor_core_ref_from_config(config_text=_livespec_config_text(repo=repo))
+
+
+def janitor_core_repo_url(*, repo: Path) -> str | None:
+    """The livespec-core repository `repo` declares; None when it declares one unusably."""
+    return janitor_core_repo_url_from_config(config_text=_livespec_config_text(repo=repo))
+
+
+def _livespec_config_text(*, repo: Path) -> str:
+    """`repo`'s committed configuration, or an empty object when it has none.
+
+    An absent file declares nothing, which each resolver answers in its own
+    terms -- no ref, and the fleet core repository -- rather than here.
+    """
     config = repo / ".livespec.jsonc"
     if not config.exists():
-        return janitor_core_ref_from_config(config_text="{}")
-    return janitor_core_ref_from_config(config_text=config.read_text(encoding="utf-8"))
+        return "{}"
+    return config.read_text(encoding="utf-8")
 
 
 def ready_items(*, items: list[WorkItem], repo: Path) -> list[WorkItem]:

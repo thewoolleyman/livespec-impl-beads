@@ -324,6 +324,7 @@ def _repo(*, tmp_path: Path) -> Path:
     repo.mkdir()
     config = {
         "livespec-orchestrator-beads-fabro": {
+            "compat": {"pinned": "master"},
             "connection": {"prefix": "bd-ib"},
             "dispatcher": {"acceptance_mode": "ai-only"},
         }

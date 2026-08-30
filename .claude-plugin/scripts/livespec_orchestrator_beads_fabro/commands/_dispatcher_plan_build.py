@@ -7,6 +7,7 @@ from pathlib import Path
 
 from livespec_orchestrator_beads_fabro.commands._acp_node_layers import AcpNodeResolution
 from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_argv import (
+    FLEET_JANITOR_CORE_REPO_URL,
     janitor_argv_with_default,
     janitor_core_checkout_path,
 )
@@ -23,8 +24,6 @@ __all__: list[str] = [
     "build_plan",
 ]
 
-_DEFAULT_JANITOR_CORE_REPO_URL = "https://github.com/thewoolleyman/livespec.git"
-_DEFAULT_JANITOR_CORE_REF = "master"
 _MERGE_ON_REVIEW_CAP_DISABLED_OUTCOME = "__merge_on_review_cap_disabled__"
 
 
@@ -57,8 +56,13 @@ class DispatchPlan:
     janitor: tuple[str, ...]
     janitor_checkout: Path
     janitor_core_checkout: Path
-    janitor_core_repo_url: str
-    janitor_core_ref: str
+    # The livespec-core clone's repository and ref, each as the governed
+    # repository DECLARES it (`_dispatcher_fabro_argv` owns the resolution).
+    # Either can be None, which is an UNRESOLVED declaration and not a value:
+    # the post-merge janitor degrades naming the key rather than provisioning
+    # core from a repository or a moving tip this repository never declared.
+    janitor_core_repo_url: str | None
+    janitor_core_ref: str | None
     review_fix_visit_cap: int
     merge_on_review_cap_outcome: str
     # Every ACP node's adapter, already resolved through the workflow /
@@ -94,14 +98,20 @@ def build_plan(  # noqa: PLR0913 — kw-only plan resolver; each field is an ind
     fabro_factory_dev_token: str | None = None,
     janitor: tuple[str, ...] | None,
     janitor_checkout: Path,
-    janitor_core_repo_url: str = _DEFAULT_JANITOR_CORE_REPO_URL,
-    janitor_core_ref: str = _DEFAULT_JANITOR_CORE_REF,
+    janitor_core_repo_url: str | None = FLEET_JANITOR_CORE_REPO_URL,
+    janitor_core_ref: str | None = None,
     review_fix_cap: int = DEFAULT_REVIEW_FIX_CAP,
     merge_on_review_cap: bool = DEFAULT_MERGE_ON_REVIEW_CAP,
     fabro_timeout_seconds: float = DEFAULT_FABRO_TIMEOUT_SECONDS,
     acp_nodes: AcpNodeResolution | None = None,
 ) -> DispatchPlan:
-    """Resolve the per-item dispatch plan (publish branch, argv config)."""
+    """Resolve the per-item dispatch plan (publish branch, argv config).
+
+    The two janitor-core parameters default ASYMMETRICALLY, which is the
+    ratified resolution rather than an oversight: an unsupplied core repository
+    is the fleet one, while an unsupplied ref is UNRESOLVED (`None`) because no
+    ref this repository did not declare is safe to clone.
+    """
     return DispatchPlan(
         repo=repo,
         work_item_id=work_item_id,

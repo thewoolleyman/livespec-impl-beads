@@ -24,6 +24,11 @@ __all__: list[str] = [
     "CODEX_AGENT_MODE_READ_ONLY",
     "CODEX_AGENT_MODE_WRITE",
     "CODEX_IMPLEMENTER_ADAPTER",
+    "FLEET_JANITOR_CORE_REPO_URL",
+    "JANITOR_CORE_PINNED_KEY",
+    "JANITOR_CORE_REPO_KEY",
+    "UNRESOLVED_JANITOR_CORE_REF_DEFECT",
+    "UNUSABLE_JANITOR_CORE_REPO_DEFECT",
     "FleetMembers",
     "codex_adapter",
     "janitor_argv_with_default",
@@ -32,6 +37,7 @@ __all__: list[str] = [
     "janitor_core_checkout_path",
     "janitor_core_clone_argv",
     "janitor_core_ref_from_config",
+    "janitor_core_repo_url_from_config",
     "janitor_reconcile_checkout_path",
     "janitor_trust_argv",
     "janitor_worktree_add_argv",
@@ -64,8 +70,32 @@ _DEFAULT_JANITOR: tuple[str, ...] = (
     "install-worktree-pack",
     "check",
 )
-_DEFAULT_JANITOR_CORE_REPO_URL = "https://github.com/thewoolleyman/livespec.git"
-_DEFAULT_JANITOR_CORE_REF = "master"
+# The fleet livespec-core repository: the DECLARED DEFAULT for a governed
+# repository that declares no `compat.core_repo` (`SPECIFICATION/contracts.md`,
+# the janitor-core provisioning resolution clause). It is PUBLIC because the
+# plan builder resolves the same default, and a second literal there is how the
+# two come to disagree about what "the fleet repository" is.
+FLEET_JANITOR_CORE_REPO_URL = "https://github.com/thewoolleyman/livespec.git"
+
+# The committed keys the janitor-core clone resolves from, spelled in full so
+# every unresolved-provisioning degradation names the key the operator has to go
+# and write rather than describing it.
+JANITOR_CORE_PINNED_KEY = "livespec-orchestrator-beads-fabro.compat.pinned"
+JANITOR_CORE_REPO_KEY = "livespec-orchestrator-beads-fabro.compat.core_repo"
+
+# What a janitor-core provisioning degradation READS as. Each names one half of
+# the resolution and the key that declares it: an absent pin is the repository
+# never having said which core it builds against, and a present-but-unusable
+# `core_repo` is a repository that HAS said, unreadably — completing that from
+# the fleet default would clone a core it has already said is not its own.
+UNRESOLVED_JANITOR_CORE_REF_DEFECT = (
+    f"no livespec-core ref is declared: `{JANITOR_CORE_PINNED_KEY}` is absent or unreadable, "
+    "and a moving `master`/`main` tip is never substituted for a missing declaration"
+)
+UNUSABLE_JANITOR_CORE_REPO_DEFECT = (
+    f"`{JANITOR_CORE_REPO_KEY}` is present but is not a non-empty repository URL; a present "
+    "declaration is never completed from the fleet livespec-core repository"
+)
 
 
 # The Codex ACP adapter command: the successor `@agentclientprotocol/codex-acp`
@@ -290,24 +320,66 @@ def janitor_reconcile_checkout_path(*, repo: Path, work_item_id: str) -> Path:
     return Path.home() / ".worktrees" / repo.name / f"janitor-reconcile-{work_item_id}"
 
 
-def janitor_core_ref_from_config(*, config_text: str) -> str:
-    """Resolve the livespec core ref pinned by the target repo config."""
+def janitor_core_ref_from_config(*, config_text: str) -> str | None:
+    """The livespec-core ref the target repo DECLARES, or None when it declares none.
+
+    None is the REFUSAL, not a fallback: an absent or unreadable
+    `compat.pinned` resolves no ref at all, and janitor-core provisioning
+    degrades naming the missing declaration rather than cloning a bare
+    `master`/`main` tip that can move under an in-flight dispatch
+    (`SPECIFICATION/contracts.md`, the janitor-core provisioning resolution
+    clause).
+
+    A DECLARED value is honored exactly as written, `master` included: that is
+    the bootstrap value the `compat` block already ratifies -- a ref the
+    repository explicitly chose, not an unstated default the Dispatcher imposed
+    on it. Only the SILENT default is forbidden.
+    """
+    compat = _compat_block(config_text=config_text)
+    if compat is None:
+        return None
+    pinned_raw: object = compat.get("pinned")
+    if not isinstance(pinned_raw, str) or pinned_raw.strip() == "":
+        return None
+    return pinned_raw.strip()
+
+
+def janitor_core_repo_url_from_config(*, config_text: str) -> str | None:
+    """The repository the janitor clones livespec-core from; None when unusable.
+
+    An ABSENT `compat.core_repo` is an ANSWER -- this repository provisions core
+    from the fleet repository -- so absence resolves `FLEET_JANITOR_CORE_REPO_URL`
+    rather than refusing. Presence is tested with `in` rather than a `get`
+    sentinel because a key written as JSON `null` is a present declaration that
+    names nothing.
+
+    A PRESENT but unusable declaration resolves nothing: an adopter that points
+    core provisioning at its own mirror has said the fleet repository is not its
+    core, and completing an unreadable declaration from that default would clone
+    the one repository it has already ruled out.
+    """
+    compat = _compat_block(config_text=config_text)
+    if compat is None or "core_repo" not in compat:
+        return FLEET_JANITOR_CORE_REPO_URL
+    declared: object = compat["core_repo"]
+    if not isinstance(declared, str) or declared.strip() == "":
+        return None
+    return declared.strip()
+
+
+def _compat_block(*, config_text: str) -> dict[str, object] | None:
+    """The target repo's `livespec-orchestrator-beads-fabro.compat` mapping, if readable."""
     parsed_raw = _jsonc.parse(text=config_text)
-    if isinstance(parsed_raw, _jsonc.JsoncFailure):
-        return _DEFAULT_JANITOR_CORE_REF
-    if not isinstance(parsed_raw, dict):
-        return _DEFAULT_JANITOR_CORE_REF
+    if isinstance(parsed_raw, _jsonc.JsoncFailure) or not isinstance(parsed_raw, dict):
+        return None
     parsed = cast("dict[str, object]", parsed_raw)
     plugin_raw: object = parsed.get("livespec-orchestrator-beads-fabro")
     if not isinstance(plugin_raw, dict):
-        return _DEFAULT_JANITOR_CORE_REF
+        return None
     compat_raw: object = cast("dict[str, object]", plugin_raw).get("compat")
     if not isinstance(compat_raw, dict):
-        return _DEFAULT_JANITOR_CORE_REF
-    pinned_raw: object = cast("dict[str, object]", compat_raw).get("pinned")
-    if not isinstance(pinned_raw, str) or pinned_raw.strip() == "":
-        return _DEFAULT_JANITOR_CORE_REF
-    return pinned_raw.strip()
+        return None
+    return cast("dict[str, object]", compat_raw)
 
 
 def pr_view_argv(*, plan: DispatchPlan) -> list[str]:
@@ -386,8 +458,16 @@ def janitor_worktree_remove_argv(*, plan: DispatchPlan) -> list[str]:
     ]
 
 
-def janitor_core_clone_argv(*, plan: DispatchPlan) -> list[str]:
-    """Clone livespec core inside the fresh janitor checkout."""
+def janitor_core_clone_argv(*, plan: DispatchPlan, ref: str, repo_url: str) -> list[str]:
+    """Clone livespec core inside the fresh janitor checkout.
+
+    The ref and repository are passed RESOLVED rather than read off the plan:
+    the plan carries each as `str | None` because a governed repository can
+    declare neither usably, and an argv builder that had to interpret that
+    absence would be the second place deciding what an unresolved declaration
+    means. The caller decides -- it degrades -- and hands this the two values it
+    proved.
+    """
     return [
         "git",
         "clone",
@@ -395,8 +475,8 @@ def janitor_core_clone_argv(*, plan: DispatchPlan) -> list[str]:
         "--depth",
         "1",
         "--branch",
-        plan.janitor_core_ref,
-        plan.janitor_core_repo_url,
+        ref,
+        repo_url,
         str(plan.janitor_core_checkout),
     ]
 
