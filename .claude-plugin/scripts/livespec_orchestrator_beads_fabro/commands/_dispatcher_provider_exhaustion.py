@@ -16,6 +16,7 @@ __all__: list[str] = [
     "ProviderExhaustionRecord",
     "active_provider_exhaustion",
     "dispatch_provider_exhaustion",
+    "provider_exhaustion_clearance_record",
     "provider_exhaustion_refusal",
     "record_provider_exhaustion_if_observed",
 ]
@@ -38,6 +39,10 @@ DISPATCH_PROVIDERS: tuple[str, ...] = ("anthropic", "codex")
 
 _RECORD_STAGE = "provider-exhaustion-observed"
 _REFUSAL_STAGE = "provider-exhaustion-refusal"
+# The operator's early-clearance line. It RETIRES the newest observation for
+# its provider instead of rewriting or deleting it: the journal is append-only
+# by construction, so what was observed and who overrode it both survive.
+_CLEARED_STAGE = "provider-exhaustion-cleared"
 _HOLD_INTERVAL = timedelta(minutes=15)
 
 
@@ -97,6 +102,23 @@ def record_provider_exhaustion_if_observed(
     )
 
 
+def provider_exhaustion_clearance_record(*, provider: str, reason: str) -> dict[str, object]:
+    """Build the appended line that retires one provider's newest observation.
+
+    The record carries only what the CLEARANCE itself asserts — the vendor and
+    the operator's stated reason. `at`, `invoker` and `invoker_source` are
+    stamped by the append layer, which is what makes "who cleared it, and
+    when" the same unforgeable claim on this record as on the observation it
+    retires.
+    """
+    return {
+        "stage": _CLEARED_STAGE,
+        "provider": provider,
+        "governing_condition": _GOVERNING_CONDITION,
+        "reason": reason,
+    }
+
+
 def active_provider_exhaustion(
     *,
     provider: str,
@@ -108,14 +130,22 @@ def active_provider_exhaustion(
     Selective by construction: a record naming another vendor is skipped, so a
     provider this dispatch holds no record for is never refused on another
     vendor's ceiling.
+
+    The walk is already newest-first, so the operator's early clearance costs
+    one branch: a `provider-exhaustion-cleared` line met BEFORE any observation
+    for this provider means the newest observation is already retired, and
+    nothing is held. Meeting it AFTER an unexpired observation is a clearance
+    an operator has since re-observed past, so it retires nothing.
     """
     now = _parse_journal_iso(text=now_iso)
     if journal_path is None or not journal_path.is_file():
         return None
     for record in reversed(_records(text=journal_path.read_text(encoding="utf-8"))):
-        parsed = _provider_record(record=record)
-        if parsed.provider != provider:
+        if record.get("provider") != provider:
             continue
+        if record.get("stage") == _CLEARED_STAGE:
+            return None
+        parsed = _provider_record(record=record)
         expiry = _parse_journal_iso(text=parsed.record_expires_at)
         if expiry > now:
             return parsed
@@ -200,7 +230,7 @@ def _records(*, text: str) -> list[dict[str, object]]:
     for line in text.splitlines():
         parsed_record = cast("dict[object, object]", json.loads(line))
         record = {str(key): value for key, value in parsed_record.items()}
-        if record.get("stage") == _RECORD_STAGE:
+        if record.get("stage") in {_RECORD_STAGE, _CLEARED_STAGE}:
             records.append(record)
     return records
 

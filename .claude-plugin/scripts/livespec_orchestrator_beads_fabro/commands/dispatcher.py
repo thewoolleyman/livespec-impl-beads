@@ -24,6 +24,9 @@ orchestrator-PRIVATE tooling: core's contract sees only the three
   dispatcher.py janitor-check [--repo <path>] [--json]
   dispatcher.py stale-run-sweep [--repo <path>] [--factory <name>]
                                  [--fabro-bin <path>] [--json]
+  dispatcher.py clear-provider-exhaustion --provider <name> --reason <text>
+                                          [--repo <path>] [--invoker <id>]
+                                          [--journal <path>]
   dispatcher.py reconcile-merged --repo <path> --item <id> [--invoker <id>] [--json]
   dispatcher.py probe --repo <path> --item <id> [common flags]
   dispatcher.py dispatch --repo <path> --item <id> [common flags]
@@ -59,6 +62,17 @@ assertions key only on the reserved identifier set
 delta REPORTED and never asserted. An attention or ledger source that cannot be
 read fails the probe with a source-unavailable outcome rather than reading the
 unread surface as clear.
+`clear-provider-exhaustion` is the operator's early-clearance valve for an
+observed provider-exhaustion record. An observed record otherwise retires only
+when its bounded expiry elapses or a successful dispatch against the same
+provider falsifies it, and the admission gate refuses the very dispatch that
+would falsify it — so an operator who has just restarted a self-hosted or free
+provider has no way to say so. This subcommand appends one
+`provider-exhaustion-cleared` line the admission scan reads as a retirement;
+it rewrites and deletes nothing. It refuses a blank `--reason` and refuses
+outright any invocation resolving to the unattributed invoker mark, so it stays
+a human act rather than becoming a second automatic-expiry path (see
+`_dispatcher_provider_exhaustion_clear`).
 `ledger-normalize` is the standalone self-heal surface: it reuses the
 dispatch-path status normalizer (`open` → `backlog`, `in_progress` →
 `active`; every other status is left for the status-conformance check)
@@ -253,6 +267,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_post_verdict import 
     reflector_oob_after_verdict,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_probe import run_probe_command
+from livespec_orchestrator_beads_fabro.commands._dispatcher_provider_exhaustion_clear import (
+    add_clear_provider_exhaustion_arguments,
+    run_clear_provider_exhaustion_command,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_merged import (
     run_reconcile_merged_command,
 )
@@ -300,6 +318,7 @@ __all__: list[str] = [
     "reflector_oob_after_verdict",
     "requested_items_preflight_error",
     "run_claude_cred_status",
+    "run_clear_provider_exhaustion_command",
     "run_codex_cred_refresh",
     "run_codex_cred_status",
     "run_id",
@@ -316,6 +335,7 @@ __all__: list[str] = [
 
 _SUBCOMMAND_HANDLERS: dict[str, Callable[..., int]] = {
     "claude-cred-status": run_claude_cred_status,
+    "clear-provider-exhaustion": run_clear_provider_exhaustion_command,
     "codex-cred-refresh": run_codex_cred_refresh,
     "codex-cred-status": run_codex_cred_status,
     "dispatch": run_dispatch_command,
@@ -339,25 +359,15 @@ def main(*, argv: list[str] | None = None) -> int:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="dispatcher")
     subparsers = parser.add_subparsers(dest="subcommand", required=True)
-    ledger = subparsers.add_parser("ledger-check")
-    _ = ledger.add_argument("--project-root", dest="project_root", default=None)
-    _ = ledger.add_argument("--json", dest="as_json", action="store_true")
-    norm = subparsers.add_parser("ledger-normalize")
-    _ = norm.add_argument("--project-root", dest="project_root", default=None)
-    _ = norm.add_argument("--json", dest="as_json", action="store_true")
-    _ = norm.add_argument("--dry-run", dest="dry_run", action="store_true")
-    # `--gate` is the always-run pre-push mode: auto-heal-loud — it heals the
-    # two safe transient remaps in place, prints each, and sets a fail-soft
-    # exit-code contract (0 clean/healed / 1 residual drift / 2 could-not-check).
-    # See `_dispatcher_ledger_gate.run_ledger_gate`.
-    _ = norm.add_argument("--gate", dest="gate", action="store_true")
+    _add_ledger_check(parser=subparsers.add_parser("ledger-check"))
+    _add_ledger_normalize(parser=subparsers.add_parser("ledger-normalize"))
     _add_codex_cred_refresh(parser=subparsers.add_parser("codex-cred-refresh"))
     _add_cred_status(parser=subparsers.add_parser("codex-cred-status"))
     _add_cred_status(parser=subparsers.add_parser("claude-cred-status"))
-    spec = subparsers.add_parser("spec-check")
-    _ = spec.add_argument("--project-root", dest="project_root", default=None)
-    _ = spec.add_argument("--spec-root", dest="spec_root", default=None)
-    _ = spec.add_argument("--json", dest="as_json", action="store_true")
+    add_clear_provider_exhaustion_arguments(
+        parser=subparsers.add_parser("clear-provider-exhaustion")
+    )
+    _add_spec_check(parser=subparsers.add_parser("spec-check"))
     _add_janitor_check(parser=subparsers.add_parser("janitor-check"))
     _add_stale_run_sweep(parser=subparsers.add_parser("stale-run-sweep"))
     _add_reconcile_merged(parser=subparsers.add_parser("reconcile-merged"))
@@ -372,6 +382,28 @@ def _build_parser() -> argparse.ArgumentParser:
     _ = loop.add_argument("--dry-run", dest="dry_run", action="store_true")
     _ = loop.add_argument("--item", dest="items", action="append", default=None)
     return parser
+
+
+def _add_ledger_check(*, parser: argparse.ArgumentParser) -> None:
+    _ = parser.add_argument("--project-root", dest="project_root", default=None)
+    _ = parser.add_argument("--json", dest="as_json", action="store_true")
+
+
+def _add_ledger_normalize(*, parser: argparse.ArgumentParser) -> None:
+    _ = parser.add_argument("--project-root", dest="project_root", default=None)
+    _ = parser.add_argument("--json", dest="as_json", action="store_true")
+    _ = parser.add_argument("--dry-run", dest="dry_run", action="store_true")
+    # `--gate` is the always-run pre-push mode: auto-heal-loud — it heals the
+    # two safe transient remaps in place, prints each, and sets a fail-soft
+    # exit-code contract (0 clean/healed / 1 residual drift / 2 could-not-check).
+    # See `_dispatcher_ledger_gate.run_ledger_gate`.
+    _ = parser.add_argument("--gate", dest="gate", action="store_true")
+
+
+def _add_spec_check(*, parser: argparse.ArgumentParser) -> None:
+    _ = parser.add_argument("--project-root", dest="project_root", default=None)
+    _ = parser.add_argument("--spec-root", dest="spec_root", default=None)
+    _ = parser.add_argument("--json", dest="as_json", action="store_true")
 
 
 def _add_codex_cred_refresh(*, parser: argparse.ArgumentParser) -> None:
