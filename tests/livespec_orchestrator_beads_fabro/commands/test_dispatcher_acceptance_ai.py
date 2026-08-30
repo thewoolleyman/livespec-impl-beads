@@ -846,3 +846,101 @@ def test_acceptance_pass_journals_a_declared_change_optional_classification(
         "classification": "change-optional",
         "declared_marker": "true",
     }
+
+
+# The three tests below share one item, one green outcome and one criteria set,
+# and vary ONLY the merged diff and the declared marker. That is deliberate: the
+# empty-diff refusal is a claim about those two inputs alone, and a control that
+# also varied the criteria could not show that the refusal — rather than an
+# unmet criterion — is what changed the verdict. The criteria are telemetry
+# satisfiable, so the empty-diff cases would BOTH reach PASS if the refusal did
+# not exist; the change-optional case proves they still do.
+_TELEMETRY_SATISFIABLE_CRITERIA = "The test suite passes green."
+
+
+def test_acceptance_pass_refuses_an_empty_merged_diff_for_a_change_implying_item(
+    tmp_path: Path,
+) -> None:
+    runner = _SequenceRunner(
+        results=[
+            CommandResult(exit_code=0, stdout="", stderr=""),
+            CommandResult(exit_code=0, stdout="", stderr=""),
+        ]
+    )
+
+    result = run_acceptance_pass(
+        repo=tmp_path,
+        item=_item(criteria=_TELEMETRY_SATISFIABLE_CRITERIA),
+        outcome=_outcome(),
+        runner=runner,
+    )
+
+    # A merge that changed zero files carries no evidence that any
+    # change-implying criterion is met, so the merged-diff leg is UNGRADEABLE
+    # and the verdict parks rather than judging.
+    assert result.verdict == "NEEDS_ATTENTION"
+    # Named explicitly because these are the two verdicts an empty diff must
+    # never reach: PASS would be manufactured from absent evidence, and
+    # NO_CHANGE_NEEDED needs the OBSERVED already-present-or-superseded route
+    # that "nothing changed in this merge" is not.
+    assert result.verdict not in {"PASS", "NO_CHANGE_NEEDED"}
+    assert result.absent_evidence == ("merged diff",)
+    assert result.classification.change_implying
+    assert result.diff_reason == "merged diff is empty"
+    record = result.journal_record(work_item_id="bd-ib-test", policy="ai-only")
+    assert record["verdict"] == "NEEDS_ATTENTION"
+    assert record["absent_evidence"] == ["merged diff"]
+
+
+def test_acceptance_pass_grades_a_change_optional_item_with_an_empty_merged_diff(
+    tmp_path: Path,
+) -> None:
+    runner = _SequenceRunner(
+        results=[
+            CommandResult(exit_code=0, stdout="", stderr=""),
+            CommandResult(exit_code=0, stdout="", stderr=""),
+        ]
+    )
+
+    result = run_acceptance_pass(
+        repo=tmp_path,
+        item=_item(criteria=_TELEMETRY_SATISFIABLE_CRITERIA),
+        outcome=_outcome(),
+        runner=runner,
+        raw_labels=("change-optional:true",),
+    )
+
+    # The declared exemption routes the identical empty diff to the item's
+    # normal grading path: the leg is present, the refusal never fires, and the
+    # criteria are judged on the evidence they actually have.
+    assert result.absent_evidence == ()
+    assert result.verdict == "PASS"
+    assert result.criteria == (
+        CriterionCheck(
+            text=_TELEMETRY_SATISFIABLE_CRITERIA,
+            passed=True,
+            reason="matched green dispatch telemetry",
+        ),
+    )
+
+
+def test_acceptance_pass_grades_a_change_implying_item_with_a_non_empty_merged_diff(
+    tmp_path: Path,
+) -> None:
+    diff = "diff --git a/x b/x\n+the test suite passes green\n"
+    runner = _Runner(result=CommandResult(exit_code=0, stdout=diff, stderr=""))
+
+    result = run_acceptance_pass(
+        repo=tmp_path,
+        item=_item(criteria=_TELEMETRY_SATISFIABLE_CRITERIA),
+        outcome=_outcome(),
+        runner=runner,
+    )
+
+    # The refusal is scoped to the EMPTY diff: a change-implying item whose
+    # merge changed files grades normally and PASS stays reachable.
+    assert result.verdict == "PASS"
+    assert result.absent_evidence == ()
+    assert result.classification.change_implying
+    assert result.merged_diff == diff
+    assert result.diff_reason == "pull request diff read"

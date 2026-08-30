@@ -123,6 +123,7 @@ def run_acceptance_pass(
     the item's labels fails closed rather than exempting it.
     """
     active_runner = ShellCommandRunner() if runner is None else runner
+    classification = change_classification(raw_labels=raw_labels)
     diff_result = read_merged_diff(repo=repo, outcome=outcome, runner=active_runner)
     telemetry = _telemetry_evidence(outcome=outcome)
     checks = criteria_checks(
@@ -130,7 +131,12 @@ def run_acceptance_pass(
         merged_diff=diff_result.merged_diff,
         telemetry_passed=telemetry.passed,
     )
-    absent = _absent_evidence(diff=diff_result, telemetry=telemetry, checks=checks)
+    absent = _absent_evidence(
+        diff=diff_result,
+        telemetry=telemetry,
+        checks=checks,
+        classification=classification,
+    )
     return AcceptancePassResult(
         verdict=_verdict(telemetry=telemetry, checks=checks, absent=absent),
         merged_diff=diff_result.merged_diff,
@@ -140,7 +146,7 @@ def run_acceptance_pass(
         telemetry_reason=telemetry.reason,
         criteria=checks,
         absent_evidence=absent,
-        classification=change_classification(raw_labels=raw_labels),
+        classification=classification,
     )
 
 
@@ -179,16 +185,41 @@ def _absent_evidence(
     diff: DiffResult,
     telemetry: _TelemetryEvidence,
     checks: tuple[CriterionCheck, ...],
+    classification: ChangeClassification,
 ) -> tuple[str, ...]:
     """Name every evidence leg the pass could not observe, in judging order."""
     legs: list[str] = []
     if not telemetry.observed:
         legs.append(_TELEMETRY_LEG)
-    if not diff.gradeable or diff.merged_diff is None:
+    if _merged_diff_leg_absent(diff=diff, classification=classification):
         legs.append(_MERGED_DIFF_LEG)
     if not checks:
         legs.append(_EFFECTIVE_CRITERIA_LEG)
     return tuple(legs)
+
+
+def _merged_diff_leg_absent(*, diff: DiffResult, classification: ChangeClassification) -> bool:
+    """Whether the merged-diff leg is unobservable or ungradeable for this item.
+
+    A merged diff that changes zero files is the one case the item's change
+    classification decides, per the empty-merged-diff refusal in the post-merge
+    acceptance evidence rule of `SPECIFICATION/contracts.md`. For a
+    CHANGE-IMPLYING item — the default, and the answer a missing or malformed
+    marker resolves to — the leg is
+    UNGRADEABLE: an empty diff carries no evidence that any change-implying
+    criterion is met, so grading it would manufacture a verdict out of absent
+    evidence, and naming the leg here is what makes the verdict NEEDS_ATTENTION
+    rather than PASS. A CHANGE-OPTIONAL item declared no-change-expected has an
+    OBSERVED diff that happens to change nothing, so its leg is present and the
+    item grades on its normal path.
+
+    Every other absent diff is classification-independent: a command that failed
+    or output that is not a patch was never read at all, and no declaration makes
+    an unread diff into evidence.
+    """
+    if diff.empty:
+        return classification.change_implying
+    return not diff.gradeable or diff.merged_diff is None
 
 
 def _verdict(
