@@ -1,151 +1,219 @@
-"""Tests for the reconciler's pure run-inventory-to-ledger join."""
+"""Tests for the classification of attributed runs into orphans and holds."""
 
 from __future__ import annotations
 
-import importlib
 import json
-from pathlib import Path
 
-from livespec_orchestrator_beads_fabro.commands._fabro_port_records import FabroRunSummary
-
-_MODULE_PATH = (
-    Path(".claude-plugin/scripts/livespec_orchestrator_beads_fabro/commands")
-    / "_dispatcher_reconcile_runs_join.py"
+from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_attribution import (
+    ORPHAN_REASON_ITEM_MISSING,
+    ORPHAN_REASON_ITEM_NOT_ACTIVE,
+    ORPHAN_REASON_SUPERSEDED_RUN,
+    FactoryRunInventory,
+    journaled_runs,
 )
-_MODULE_NAME = "livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_join"
+from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_grace import (
+    BLOCKED_HOLD_UNMEASURED,
+    BLOCKED_HOLD_WITHIN_GRACE,
+    ORPHAN_REASON_BLOCKED_PAST_GRACE,
+    BlockedRunGrace,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_join import (
+    blocked_grace_candidate_ids,
+    classify_blocked_holds,
+    classify_orphans,
+)
+from livespec_orchestrator_beads_fabro.commands._fabro_port_records import FabroRunSummary
 
 
 def test_blocked_run_whose_item_closed_is_an_orphan() -> None:
-    assert _MODULE_PATH.is_file()
-    module = importlib.import_module(_MODULE_NAME)
-
-    orphans = module.classify_orphans(
-        runs=[_run(run_id="01BLOCKED", work_item_id="bd-ib-closed", status_kind="blocked")],
-        item_statuses={"bd-ib-closed": "closed"},
-        journaled=module.journaled_runs(text=""),
-        id_prefix="bd-ib",
-        factory_name="hp",
-        factory_server_url="https://hp.example:32276",
+    orphans = classify_orphans(
+        inventory=_inventory(
+            runs=[_run(run_id="01BLOCKED", work_item_id="bd-ib-closed", status_kind="blocked")],
+            item_statuses={"bd-ib-closed": "closed"},
+        )
     )
 
     assert [(run.run_id, run.orphan_reason, run.status_kind) for run in orphans] == [
-        ("01BLOCKED", module.ORPHAN_REASON_ITEM_NOT_ACTIVE, "blocked")
+        ("01BLOCKED", ORPHAN_REASON_ITEM_NOT_ACTIVE, "blocked")
     ]
 
 
 def test_live_remote_run_is_not_an_orphan_with_nobody_watching() -> None:
-    module = importlib.import_module(_MODULE_NAME)
     journal = json.dumps({"stage": "fabro-run", "work_item_id": "bd-ib-live", "run_id": "01LIVE"})
 
-    orphans = module.classify_orphans(
-        runs=[_run(run_id="01LIVE", work_item_id="bd-ib-live", status_kind="running")],
-        item_statuses={"bd-ib-live": "active"},
-        journaled=module.journaled_runs(text=journal),
-        id_prefix="bd-ib",
-        factory_name="hp",
-        factory_server_url="https://hp.example:32276",
+    orphans = classify_orphans(
+        inventory=_inventory(
+            runs=[_run(run_id="01LIVE", work_item_id="bd-ib-live", status_kind="running")],
+            item_statuses={"bd-ib-live": "active"},
+            journal=journal,
+        )
     )
 
     assert orphans == ()
 
 
 def test_active_item_with_no_journaled_run_is_left_alone() -> None:
-    module = importlib.import_module(_MODULE_NAME)
-
-    orphans = module.classify_orphans(
-        runs=[_run(run_id="01LIVE", work_item_id="bd-ib-live", status_kind="running")],
-        item_statuses={"bd-ib-live": "active"},
-        journaled=module.journaled_runs(text=""),
-        id_prefix="bd-ib",
-        factory_name="hp",
-        factory_server_url="https://hp.example:32276",
+    orphans = classify_orphans(
+        inventory=_inventory(
+            runs=[_run(run_id="01LIVE", work_item_id="bd-ib-live", status_kind="running")],
+            item_statuses={"bd-ib-live": "active"},
+        )
     )
 
     assert orphans == ()
 
 
-def test_superseded_and_missing_and_terminal_and_foreign_runs() -> None:
-    module = importlib.import_module(_MODULE_NAME)
+def test_superseded_and_missing_runs_are_reported_with_their_own_reasons() -> None:
     journal = "\n".join(
         [
-            "not-json",
-            json.dumps(["not-a-mapping"]),
-            json.dumps({"stage": "dispatch-id", "work_item_id": "bd-ib-super"}),
-            json.dumps({"stage": "fabro-run", "run_id": "01ORPHANED"}),
-            json.dumps({"work_item_id": "bd-ib-super", "run_id": ""}),
             json.dumps({"work_item_id": "bd-ib-super", "fabro_run_id": "01OLD"}),
             json.dumps({"work_item_id": "bd-ib-super", "fabro_run_id": "01NEW"}),
         ]
     )
 
-    orphans = module.classify_orphans(
-        runs=[
-            _run(run_id="01OLD", work_item_id="bd-ib-super", status_kind="paused"),
-            _run(run_id="01NEW", work_item_id="bd-ib-super", status_kind="running"),
-            _run(run_id="01GONE", work_item_id="bd-ib-gone", status_kind="starting"),
-            _run(run_id="01DONE", work_item_id="bd-ib-super", status_kind="succeeded"),
-            _run(run_id="01FOREIGN", work_item_id="overseer-abc", status_kind="blocked"),
-            _run(run_id="01NOGOAL", work_item_id=None, status_kind="blocked"),
-        ],
-        item_statuses={"bd-ib-super": "active"},
-        journaled=module.journaled_runs(text=journal),
-        id_prefix="bd-ib",
-        factory_name="vps",
-        factory_server_url="https://vps.example:32276",
+    orphans = classify_orphans(
+        inventory=_inventory(
+            runs=[
+                _run(run_id="01OLD", work_item_id="bd-ib-super", status_kind="paused"),
+                _run(run_id="01NEW", work_item_id="bd-ib-super", status_kind="running"),
+                _run(run_id="01GONE", work_item_id="bd-ib-gone", status_kind="starting"),
+            ],
+            item_statuses={"bd-ib-super": "active"},
+            journal=journal,
+        )
     )
 
     assert [(run.run_id, run.orphan_reason) for run in orphans] == [
-        ("01OLD", module.ORPHAN_REASON_SUPERSEDED_RUN),
-        ("01GONE", module.ORPHAN_REASON_ITEM_MISSING),
+        ("01OLD", ORPHAN_REASON_SUPERSEDED_RUN),
+        ("01GONE", ORPHAN_REASON_ITEM_MISSING),
     ]
     assert orphans[1].work_item_status is None
-    assert orphans[0].factory_name == "vps"
+    assert orphans[0].factory_name == "hp"
 
 
-def test_journal_attribution_wins_over_the_goal_regex() -> None:
-    module = importlib.import_module(_MODULE_NAME)
-    journal = json.dumps({"work_item_id": "bd-ib-real", "run_id": "01RUN"})
+def test_a_parked_run_past_grace_is_an_orphan_carrying_its_measurement() -> None:
+    orphans = classify_orphans(
+        inventory=_inventory(
+            runs=[_run(run_id="01PARKED", work_item_id="bd-ib-live", status_kind="blocked")],
+            item_statuses={"bd-ib-live": "blocked"},
+        ),
+        grace=BlockedRunGrace(grace_seconds=1800, parked_seconds_by_run={"01PARKED": 1801.0}),
+    )
 
-    orphans = module.classify_orphans(
-        runs=[_run(run_id="01RUN", work_item_id="bd-ib-wrong", status_kind="running")],
-        item_statuses={"bd-ib-real": "closed", "bd-ib-wrong": "active"},
-        journaled=module.journaled_runs(text=journal),
+    assert [(run.run_id, run.orphan_reason) for run in orphans] == [
+        ("01PARKED", ORPHAN_REASON_BLOCKED_PAST_GRACE)
+    ]
+    assert (orphans[0].parked_seconds, orphans[0].grace_seconds) == (1801.0, 1800)
+
+
+def test_a_parked_run_inside_grace_is_held_rather_than_orphaned() -> None:
+    policy = BlockedRunGrace(
+        grace_seconds=1800,
+        parked_seconds_by_run={"01YOUNG": 300.0, "01UNKNOWN": None},
+    )
+    inventory = _inventory(
+        runs=[
+            _run(run_id="01YOUNG", work_item_id="bd-ib-live", status_kind="blocked"),
+            _run(run_id="01UNKNOWN", work_item_id="bd-ib-busy", status_kind="blocked"),
+        ],
+        item_statuses={"bd-ib-live": "blocked", "bd-ib-busy": "active"},
+    )
+
+    orphans = classify_orphans(inventory=inventory, grace=policy)
+    held = classify_blocked_holds(inventory=inventory, grace=policy)
+
+    assert orphans == ()
+    assert [(run.run_id, run.hold_reason, run.seconds_remaining) for run in held] == [
+        ("01YOUNG", BLOCKED_HOLD_WITHIN_GRACE, 1500.0),
+        ("01UNKNOWN", BLOCKED_HOLD_UNMEASURED, None),
+    ]
+    assert held[0].grace_seconds == 1800
+
+
+def test_a_zero_grace_disables_the_arm_and_restores_the_moot_question_reading() -> None:
+    disabled = BlockedRunGrace(grace_seconds=0, parked_seconds_by_run={})
+    inventory = _inventory(
+        runs=[_run(run_id="01PARKED", work_item_id="bd-ib-live", status_kind="blocked")],
+        item_statuses={"bd-ib-live": "blocked"},
+    )
+
+    orphans = classify_orphans(inventory=inventory, grace=disabled)
+    held = classify_blocked_holds(inventory=inventory, grace=disabled)
+
+    assert [(run.run_id, run.orphan_reason) for run in orphans] == [
+        ("01PARKED", ORPHAN_REASON_ITEM_NOT_ACTIVE)
+    ]
+    assert held == ()
+
+
+def test_a_superseded_parked_run_keeps_the_moot_reading_and_never_waits() -> None:
+    journal = json.dumps({"work_item_id": "bd-ib-live", "fabro_run_id": "01NEW"})
+    inventory = _inventory(
+        runs=[_run(run_id="01OLD", work_item_id="bd-ib-live", status_kind="blocked")],
+        item_statuses={"bd-ib-live": "active"},
+        journal=journal,
+    )
+
+    orphans = classify_orphans(
+        inventory=inventory,
+        grace=BlockedRunGrace(grace_seconds=1800, parked_seconds_by_run={"01OLD": 1.0}),
+    )
+
+    assert [(run.run_id, run.orphan_reason) for run in orphans] == [
+        ("01OLD", ORPHAN_REASON_SUPERSEDED_RUN)
+    ]
+    assert orphans[0].parked_seconds is None
+    assert blocked_grace_candidate_ids(inventory=inventory) == ()
+
+
+def test_only_a_blocked_run_with_a_live_item_is_worth_measuring() -> None:
+    candidates = blocked_grace_candidate_ids(
+        inventory=_inventory(
+            runs=[
+                _run(run_id="01PARKED", work_item_id="bd-ib-live", status_kind="blocked"),
+                _run(run_id="01BUSY", work_item_id="bd-ib-busy", status_kind="blocked"),
+                _run(run_id="01RUNNING", work_item_id="bd-ib-busy", status_kind="running"),
+                _run(run_id="01DONE", work_item_id="bd-ib-closed", status_kind="blocked"),
+                _run(run_id="01GONE", work_item_id="bd-ib-gone", status_kind="blocked"),
+            ],
+            item_statuses={
+                "bd-ib-live": "blocked",
+                "bd-ib-busy": "active",
+                "bd-ib-closed": "closed",
+            },
+        )
+    )
+
+    assert candidates == ("01PARKED", "01BUSY")
+
+
+def test_classification_without_a_grace_policy_is_the_moot_question_join() -> None:
+    inventory = _inventory(
+        runs=[_run(run_id="01PARKED", work_item_id="bd-ib-live", status_kind="blocked")],
+        item_statuses={"bd-ib-live": "blocked"},
+    )
+
+    orphans = classify_orphans(inventory=inventory)
+    held = classify_blocked_holds(inventory=inventory)
+
+    assert [run.orphan_reason for run in orphans] == [ORPHAN_REASON_ITEM_NOT_ACTIVE]
+    assert held == ()
+
+
+def _inventory(
+    *,
+    runs: list[FabroRunSummary],
+    item_statuses: dict[str, str],
+    journal: str = "",
+) -> FactoryRunInventory:
+    return FactoryRunInventory(
+        runs=runs,
+        item_statuses=item_statuses,
+        journaled=journaled_runs(text=journal),
         id_prefix="bd-ib",
         factory_name="hp",
         factory_server_url="https://hp.example:32276",
     )
-
-    assert [(run.work_item_id, run.orphan_reason) for run in orphans] == [
-        ("bd-ib-real", module.ORPHAN_REASON_ITEM_NOT_ACTIVE)
-    ]
-
-
-def test_read_journaled_runs_reads_a_file_and_tolerates_an_absent_one(tmp_path: Path) -> None:
-    module = importlib.import_module(_MODULE_NAME)
-    present = tmp_path / "journal.jsonl"
-    _ = present.write_text(
-        json.dumps({"work_item_id": "bd-ib-one", "run_id": "01ONE"}) + "\n",
-        encoding="utf-8",
-    )
-
-    read = module.read_journaled_runs(path=present)
-    absent = module.read_journaled_runs(path=tmp_path / "missing.jsonl")
-
-    assert read.newest_run_id_by_item == {"bd-ib-one": "01ONE"}
-    assert read.item_id_by_run == {"01ONE": "bd-ib-one"}
-    assert absent.newest_run_id_by_item == {}
-
-
-def test_every_non_terminal_status_kind_is_in_scope() -> None:
-    module = importlib.import_module(_MODULE_NAME)
-
-    assert set(module.NON_TERMINAL_STATUS_KINDS) == {
-        "blocked",
-        "paused",
-        "runnable",
-        "running",
-        "starting",
-    }
 
 
 def _run(*, run_id: str, work_item_id: str | None, status_kind: str) -> FabroRunSummary:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -14,11 +14,11 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import Comman
 from livespec_orchestrator_beads_fabro.commands._dispatcher_preserve_reference_body import (
     PRESERVE_POINTER_MARKER,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_attribution import (
+    journaled_runs,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_export import (
     ExportOutcome,
-)
-from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_join import (
-    journaled_runs,
 )
 from livespec_orchestrator_beads_fabro.commands._fabro_port_http import FabroHttpResult
 from livespec_orchestrator_beads_fabro.commands._fabro_port_types import FabroTarget
@@ -50,6 +50,7 @@ class _Runner:
     """One fake `fabro` CLI, keyed by the server the argv names."""
 
     ps_by_server: dict[str, str] = field(default_factory=dict)
+    inspect_by_run: dict[str, str] = field(default_factory=dict)
     failing_servers: frozenset[str] = frozenset()
     calls: list[list[str]] = field(default_factory=list)
 
@@ -69,6 +70,10 @@ class _Runner:
             if server in self.failing_servers:
                 return CommandResult(exit_code=7, stdout="", stderr="unreachable")
             return CommandResult(exit_code=0, stdout=self.ps_by_server.get(server, "[]"), stderr="")
+        if argv[1] == "inspect":
+            return CommandResult(
+                exit_code=0, stdout=self.inspect_by_run.get(argv[2], "[]"), stderr=""
+            )
         return CommandResult(exit_code=0, stdout="", stderr="")
 
 
@@ -128,6 +133,13 @@ class _Journal:
 
 @dataclass(kw_only=True)
 class _Ledger:
+    """A ledger fake that CAN record a write, so "no write" is a real finding.
+
+    The mutating verbs are here deliberately even though the reconciler's seam
+    is typed as comments-only: an assertion against a fake that could not have
+    recorded a status write proves nothing about whether one was attempted.
+    """
+
     comments: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     verbs: list[str] = field(default_factory=list)
 
@@ -138,6 +150,14 @@ class _Ledger:
     def add_comment(self, *, issue_id: str, body: str) -> None:
         self.verbs.append(f"add_comment:{issue_id}")
         self.comments.setdefault(issue_id, []).append({"id": f"c-{issue_id}", "text": body})
+
+    def update_issue(self, *, issue_id: str, **fields: object) -> None:
+        _ = fields
+        self.verbs.append(f"update_issue:{issue_id}")
+
+    def close_issue(self, *, issue_id: str, reason: str | None) -> None:
+        _ = reason
+        self.verbs.append(f"close_issue:{issue_id}")
 
 
 def test_a_closed_item_run_is_exported_then_terminated_and_journaled(tmp_path: Path) -> None:
@@ -400,6 +420,184 @@ def test_the_reconciler_is_handed_no_ledger_status_write_seam(tmp_path: Path) ->
     }
 
 
+def test_the_ledger_fake_would_record_a_status_write_if_one_were_attempted() -> None:
+    """The control for the untouched-item assertions below.
+
+    Asserting "no status write happened" against a fake that has no way to
+    record one proves nothing, so this establishes the instrument can return a
+    hit before the next test reads a miss as a finding.
+    """
+    ledger = _Ledger()
+
+    ledger.update_issue(issue_id="bd-ib-parked", status="ready")
+    ledger.close_issue(issue_id="bd-ib-parked", reason="done")
+
+    assert ledger.verbs == ["update_issue:bd-ib-parked", "close_issue:bd-ib-parked"]
+
+
+def test_a_parked_run_past_grace_is_abandoned_and_its_item_is_untouched(tmp_path: Path) -> None:
+    runner = _Runner(
+        ps_by_server={
+            _HP.server or "": _ps(run_id="01PARKED", kind="blocked", work_item_id="bd-ib-parked")
+        },
+        inspect_by_run={"01PARKED": json.dumps([{"status": {"kind": "blocked"}, "blocked_at": 0}])},
+    )
+    transport = _Transport()
+    journal = _Journal()
+    ledger = _Ledger()
+    item = _item(id="bd-ib-parked", status="blocked", blocked_reason="needs-human")
+    before = asdict(item)
+
+    summary = reconcile.reconcile_runs(
+        inputs=_inputs(
+            tmp_path=tmp_path,
+            runner=runner,
+            transport=transport,
+            journal=journal,
+            ledger=ledger,
+            items=[item],
+            now_epoch=1801.0,
+        ),
+        factories=[_HP],
+    )
+
+    assert [
+        (run.run_id, run.orphan_reason, run.termination_route) for run in summary.reconciled
+    ] == [("01PARKED", "blocked-past-grace", "questions-answer")]
+    assert summary.held == ()
+    # The export is read back before the run is touched, and the route is the
+    # interview Abandon answer rather than cancel.
+    assert ledger.verbs[0] == "list_comments:bd-ib-parked"
+    assert transport.calls[0].startswith("GET https://hp.example:32276/runs/01PARKED/questions")
+    assert any(call.startswith("POST") and "/answer" in call for call in transport.calls)
+    assert not any("/cancel" in call for call in transport.calls)
+    # The item is left exactly as it was, and no write verb was even reached.
+    assert asdict(item) == before
+    assert (item.status, item.blocked_reason) == ("blocked", "needs-human")
+    assert {verb.split(":", maxsplit=1)[0] for verb in ledger.verbs} == {
+        "list_comments",
+        "add_comment",
+    }
+    assert [record["stage"] for record in journal.written] == ["orphan-run-reconciled"]
+    assert (journal.written[0]["parked_seconds"], journal.written[0]["grace_seconds"]) == (
+        1801.0,
+        1800,
+    )
+
+
+def test_a_parked_run_inside_grace_is_projected_and_never_terminated(tmp_path: Path) -> None:
+    runner = _Runner(
+        ps_by_server={
+            _HP.server or "": _ps(run_id="01YOUNG", kind="blocked", work_item_id="bd-ib-parked")
+        },
+        inspect_by_run={"01YOUNG": json.dumps([{"blocked_at": "1970-01-01T00:00:00Z"}])},
+    )
+    transport = _Transport()
+    journal = _Journal()
+
+    summary = reconcile.reconcile_runs(
+        inputs=_inputs(
+            tmp_path=tmp_path,
+            runner=runner,
+            transport=transport,
+            journal=journal,
+            ledger=_Ledger(),
+            items=[_item(id="bd-ib-parked", status="blocked", blocked_reason="needs-human")],
+            now_epoch=300.0,
+        ),
+        factories=[_HP],
+    )
+
+    assert summary.reconciled == ()
+    assert [(run.run_id, run.hold_reason, run.seconds_remaining) for run in summary.held] == [
+        ("01YOUNG", "blocked-within-grace", 1500.0)
+    ]
+    assert transport.calls == []
+    assert journal.written == []
+    assert [call[1] for call in runner.calls] == ["ps", "inspect"]
+
+
+def test_a_parked_run_whose_park_cannot_be_measured_is_not_terminated(tmp_path: Path) -> None:
+    runner = _Runner(
+        ps_by_server={
+            _HP.server or "": _ps(run_id="01OPAQUE", kind="blocked", work_item_id="bd-ib-parked")
+        },
+        inspect_by_run={"01OPAQUE": json.dumps([{"status": {"kind": "blocked"}}])},
+    )
+    transport = _Transport()
+
+    summary = reconcile.reconcile_runs(
+        inputs=_inputs(
+            tmp_path=tmp_path,
+            runner=runner,
+            transport=transport,
+            journal=_Journal(),
+            ledger=_Ledger(),
+            items=[_item(id="bd-ib-parked", status="active")],
+            now_epoch=1_000_000.0,
+        ),
+        factories=[_HP],
+    )
+
+    assert summary.reconciled == ()
+    assert [(run.run_id, run.hold_reason, run.parked_seconds) for run in summary.held] == [
+        ("01OPAQUE", "blocked-park-unmeasured", None)
+    ]
+    assert transport.calls == []
+
+
+def test_a_zero_grace_inspects_nothing_and_holds_nothing(tmp_path: Path) -> None:
+    runner = _Runner(
+        ps_by_server={
+            _HP.server or "": _ps(run_id="01PARKED", kind="blocked", work_item_id="bd-ib-parked")
+        }
+    )
+
+    summary = reconcile.reconcile_runs(
+        inputs=_inputs(
+            tmp_path=tmp_path,
+            runner=runner,
+            transport=_Transport(),
+            journal=_Journal(),
+            ledger=_Ledger(),
+            items=[_item(id="bd-ib-parked", status="blocked", blocked_reason="needs-human")],
+            grace_seconds=0,
+        ),
+        factories=[_HP],
+    )
+
+    assert summary.held == ()
+    # With the arm off, the moot-question reading stands and terminates at once.
+    assert [run.orphan_reason for run in summary.reconciled] == ["item-not-active"]
+    # No `inspect` was spent: a disabled arm measures nothing.
+    assert [call[1] for call in runner.calls] == ["ps", "dump"]
+
+
+def test_the_wall_clock_is_read_when_no_instant_is_supplied(tmp_path: Path) -> None:
+    runner = _Runner(
+        ps_by_server={
+            _HP.server or "": _ps(run_id="01PARKED", kind="blocked", work_item_id="bd-ib-parked")
+        },
+        inspect_by_run={"01PARKED": json.dumps([{"blocked_at": 0}])},
+    )
+
+    summary = reconcile.reconcile_runs(
+        inputs=_inputs(
+            tmp_path=tmp_path,
+            runner=runner,
+            transport=_Transport(),
+            journal=_Journal(),
+            ledger=_Ledger(),
+            items=[_item(id="bd-ib-parked", status="active")],
+        ),
+        factories=[_HP],
+    )
+
+    # Measured against the real clock, a park dated at the epoch is far past
+    # any grace this repo would configure.
+    assert [run.orphan_reason for run in summary.reconciled] == ["blocked-past-grace"]
+
+
 def _inputs(
     *,
     tmp_path: Path,
@@ -408,6 +606,8 @@ def _inputs(
     journal: _Journal,
     ledger: _Ledger,
     items: list[WorkItem],
+    now_epoch: float | None = None,
+    grace_seconds: int = 1800,
 ) -> reconcile.ReconcileInputs:
     return reconcile.ReconcileInputs(
         repo=tmp_path,
@@ -419,6 +619,8 @@ def _inputs(
         journal=journal,
         ledger=ledger,
         http=transport,
+        blocked_run_grace_seconds=grace_seconds,
+        now_epoch=now_epoch,
     )
 
 
@@ -434,11 +636,12 @@ def _ps(*, run_id: str, kind: str, work_item_id: str = "bd-ib-orphan") -> str:
     )
 
 
-def _item(*, id: str, status: str) -> WorkItem:
+def _item(*, id: str, status: str, blocked_reason: str | None = None) -> WorkItem:
     return WorkItem(
         id=id,
         type="task",
         status=status,
+        blocked_reason=blocked_reason,  # pyright: ignore[reportArgumentType]
         title=id,
         description=id,
         origin="freeform",

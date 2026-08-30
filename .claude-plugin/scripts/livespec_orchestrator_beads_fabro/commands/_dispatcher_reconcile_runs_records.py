@@ -18,6 +18,12 @@ time — but the reconciled record of that pass is indistinguishable from a
 server that considered each route and declined it, so the degrade would read
 as the routes being unavailable rather than as this host never having
 presented a credential.
+
+A `blocked-past-grace` record carries two extra numbers — the measured park
+and the bound it passed. Every other orphan reason is a JOIN, reproducible
+from the ledger at any later time; this one is a MEASUREMENT taken once
+against a clock, and a record that omitted it would leave no way to tell a
+correct reap from a misread timestamp.
 """
 
 from __future__ import annotations
@@ -25,6 +31,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import JournalWriter
+from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_grace import HeldRun
 from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_join import OrphanRun
 from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_terminate import (
     TERMINATION_ROUTE_RM,
@@ -82,6 +89,8 @@ class ReconciledRun:
     termination_succeeded: bool
     termination_detail: str
     export_comment_id: str | None
+    parked_seconds: float | None = None
+    grace_seconds: int | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -98,11 +107,17 @@ class ReconcileError:
 
 @dataclass(frozen=True, kw_only=True)
 class ReconcileRunsSummary:
-    """One pass over every surveyed factory."""
+    """One pass over every surveyed factory.
+
+    `held` is a REPORT, never an act: the parked runs the grace arm is still
+    waiting on. It is a separate collection from `reconciled` so that nothing
+    downstream can hand a held run to the termination path by accident.
+    """
 
     reconciled: tuple[ReconciledRun, ...]
     errors: tuple[ReconcileError, ...]
     dry_run: bool
+    held: tuple[HeldRun, ...] = ()
 
 
 def reconciled_from(
@@ -128,6 +143,8 @@ def reconciled_from(
             else termination.detail
         ),
         export_comment_id=export_comment_id,
+        parked_seconds=orphan.parked_seconds,
+        grace_seconds=orphan.grace_seconds,
     )
 
 
@@ -146,6 +163,8 @@ def journal_reconciled(*, journal: JournalWriter, run: ReconciledRun) -> None:
         "termination_succeeded": run.termination_succeeded,
         "termination_detail": run.termination_detail,
         "export_comment_id": run.export_comment_id,
+        "parked_seconds": run.parked_seconds,
+        "grace_seconds": run.grace_seconds,
     }
     journal.append(record=record)
     if run.termination_route == TERMINATION_ROUTE_RM:

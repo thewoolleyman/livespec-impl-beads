@@ -17,10 +17,19 @@ Failure is per-factory and per-run. One unreachable factory journals an
 error and the survey continues on the rest, because the alternative — one
 outage suppressing reconciliation everywhere — is exactly the silent-hold
 failure this command exists to end.
+
+A run parked at a human gate whose item is still live has no moot question to
+release it, so it is governed instead by `dispatcher.blocked_run_grace_seconds`
+(`_dispatcher_reconcile_runs_grace.py`). Past the grace it becomes an orphan
+like any other and takes the same export-then-terminate path; inside it — or
+with a park nobody can measure — it is REPORTED as held and left running. The
+held set is carried separately from the reconciled set precisely so that
+"reported" can never become "terminated" by a later edit.
 """
 
 from __future__ import annotations
 
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -30,13 +39,24 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandRunner,
     JournalWriter,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_attribution import (
+    FactoryRunInventory,
+    JournaledRuns,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_export import (
     LedgerComments,
     export_orphan_reference,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_grace import (
+    DEFAULT_BLOCKED_RUN_GRACE_SECONDS,
+    BlockedRunGrace,
+    HeldRun,
+    parked_seconds_from_record,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_join import (
-    JournaledRuns,
     OrphanRun,
+    blocked_grace_candidate_ids,
+    classify_blocked_holds,
     classify_orphans,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_records import (
@@ -58,6 +78,7 @@ from livespec_orchestrator_beads_fabro.commands._fabro_port_http import (
     FabroHttpTransport,
     UrllibFabroHttpTransport,
 )
+from livespec_orchestrator_beads_fabro.commands._fabro_port_records import fabro_inspect_record
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
 __all__: list[str] = [
@@ -70,6 +91,7 @@ __all__: list[str] = [
 ]
 
 _PS_TIMEOUT_SECONDS = 60.0
+_INSPECT_TIMEOUT_SECONDS = 60.0
 _ERROR_NO_SERVER_URL = "factory-server-url-missing"
 _ERROR_PS_FAILED = "factory-ps-failed"
 _ERROR_EXPORT_FAILED = "export-not-verified"
@@ -77,7 +99,12 @@ _ERROR_EXPORT_FAILED = "export-not-verified"
 
 @dataclass(frozen=True, kw_only=True)
 class ReconcileInputs:
-    """Everything one reconciliation pass reads or writes through."""
+    """Everything one reconciliation pass reads or writes through.
+
+    `now_epoch` is a seam rather than a call site: the grace arm compares a
+    measured park against a configured bound, and a test that cannot say what
+    time it is can only assert the boundary by sleeping.
+    """
 
     repo: Path
     fabro_bin: str
@@ -88,6 +115,22 @@ class ReconcileInputs:
     journal: JournalWriter
     ledger: LedgerComments
     http: FabroHttpTransport = field(default_factory=UrllibFabroHttpTransport)
+    blocked_run_grace_seconds: int = DEFAULT_BLOCKED_RUN_GRACE_SECONDS
+    now_epoch: float | None = None
+
+
+@dataclass(kw_only=True)
+class _PassResults:
+    """What one pass has accumulated across every factory surveyed so far.
+
+    `held` rides beside `reconciled` rather than inside it: a held run is a
+    REPORT and a reconciled one is an ACT, and keeping them in one list is how
+    a later edit would come to terminate the first by iterating the second.
+    """
+
+    reconciled: list[ReconciledRun] = field(default_factory=list)
+    errors: list[ReconcileError] = field(default_factory=list)
+    held: list[HeldRun] = field(default_factory=list)
 
 
 def reconcile_runs(
@@ -98,11 +141,10 @@ def reconcile_runs(
 ) -> ReconcileRunsSummary:
     """Survey every factory, reconciling the orphans the ledger disowns."""
     item_statuses = {item.id: item.status for item in inputs.items}
-    reconciled: list[ReconciledRun] = []
-    errors: list[ReconcileError] = []
+    results = _PassResults()
     for factory in factories:
         if factory.server is None:
-            errors.append(
+            results.errors.append(
                 ReconcileError(
                     factory_name=factory.name,
                     factory_server_url=None,
@@ -121,16 +163,16 @@ def reconcile_runs(
             factory=factory,
             item_statuses=item_statuses,
             dry_run=dry_run,
-            reconciled=reconciled,
-            errors=errors,
+            results=results,
         )
     if not dry_run:
-        for error in errors:
+        for error in results.errors:
             journal_error(journal=inputs.journal, error=error)
     return ReconcileRunsSummary(
-        reconciled=tuple(reconciled),
-        errors=tuple(errors),
+        reconciled=tuple(results.reconciled),
+        errors=tuple(results.errors),
         dry_run=dry_run,
+        held=tuple(results.held),
     )
 
 
@@ -140,13 +182,12 @@ def _reconcile_one_factory(
     factory: FactoryTarget,
     item_statuses: dict[str, str],
     dry_run: bool,
-    reconciled: list[ReconciledRun],
-    errors: list[ReconcileError],
+    results: _PassResults,
 ) -> None:
     port = _port_for(inputs=inputs, factory=factory)
     ps = port.ps(timeout_seconds=_PS_TIMEOUT_SECONDS)
     if ps.command.exit_code != 0:
-        errors.append(
+        results.errors.append(
             ReconcileError(
                 factory_name=factory.name,
                 factory_server_url=factory.server,
@@ -157,7 +198,7 @@ def _reconcile_one_factory(
             )
         )
         return
-    orphans = classify_orphans(
+    inventory = FactoryRunInventory(
         runs=ps.runs,
         item_statuses=item_statuses,
         journaled=inputs.journaled,
@@ -165,12 +206,48 @@ def _reconcile_one_factory(
         factory_name=factory.name,
         factory_server_url=str(factory.server),
     )
+    grace = _measured_grace(inputs=inputs, port=port, inventory=inventory)
+    orphans = classify_orphans(inventory=inventory, grace=grace)
+    results.held.extend(classify_blocked_holds(inventory=inventory, grace=grace))
     for orphan in orphans:
         outcome = _reconcile_one_run(inputs=inputs, port=port, orphan=orphan, dry_run=dry_run)
         if isinstance(outcome, ReconcileError):
-            errors.append(outcome)
+            results.errors.append(outcome)
             continue
-        reconciled.append(outcome)
+        results.reconciled.append(outcome)
+
+
+def _measured_grace(
+    *,
+    inputs: ReconcileInputs,
+    port: FabroPort,
+    inventory: FactoryRunInventory,
+) -> BlockedRunGrace | None:
+    """Measure the park of every run the grace arm governs, or None when off.
+
+    A `blocked_run_grace_seconds` of `0` disables the arm outright: no run is
+    inspected, none is held, and classification falls back to the
+    moot-question join alone.
+    """
+    if inputs.blocked_run_grace_seconds <= 0:
+        return None
+    candidates = blocked_grace_candidate_ids(inventory=inventory)
+    now_epoch = time.time() if inputs.now_epoch is None else inputs.now_epoch
+    return BlockedRunGrace(
+        grace_seconds=inputs.blocked_run_grace_seconds,
+        parked_seconds_by_run={
+            run_id: _parked_seconds(port=port, run_id=run_id, now_epoch=now_epoch)
+            for run_id in candidates
+        },
+    )
+
+
+def _parked_seconds(*, port: FabroPort, run_id: str, now_epoch: float) -> float | None:
+    inspected = port.inspect(run_id=run_id, timeout_seconds=_INSPECT_TIMEOUT_SECONDS)
+    return parked_seconds_from_record(
+        record=fabro_inspect_record(payload=inspected.payload),
+        now_epoch=now_epoch,
+    )
 
 
 def _reconcile_one_run(

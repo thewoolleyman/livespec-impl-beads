@@ -193,6 +193,19 @@
       // its ratified default of 1 here, so any landing on the default branch since
       // the last completed drift coverage point surfaces the fact.
       "drift_capture_merge_threshold": 1,
+      // How long a Fabro run parked in a human-input-required state may hold a
+      // scheduler slot while its work-item is still live, per contracts.md
+      // §"A factory run never awaits a human". Past this bound the reconciler
+      // exports the run and answers its own Abandon option; the work-item is
+      // left exactly as it was, so the decision keeps waiting in the ledger.
+      // Left at its ratified default of 1800 here.
+      //
+      // NOT API-configurable, deliberately: lowering it makes the Dispatcher
+      // terminate parked runs sooner, so it is editable only by a committed
+      // change to this file. `0` disables the arm outright — no run is
+      // inspected and none is held — which is the escape hatch for a factory
+      // whose parked runs must be left strictly alone.
+      "blocked_run_grace_seconds": 1800,
       // Codex model pins for the factory's Codex ACP nodes (maintainer-directed
       // 2026-08-22, to hold steady-state Codex subscription burn under one
       // subscription). Omit this whole block to inherit the plugin's built-in
