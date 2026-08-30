@@ -43,7 +43,7 @@ def _claimed_diagnostics(*, requested_ids: set[str], items: list[WorkItem]) -> s
     details.append(
         " ".join(
             (
-                "Inspect the dispatch journal and stale-run-sweep for a stranded claim",
+                "Inspect the dispatch journal and reconcile-runs for a stranded claim",
                 "before checking dependencies.",
             )
         )
