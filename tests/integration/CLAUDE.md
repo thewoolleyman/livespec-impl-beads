@@ -25,6 +25,15 @@ a unit-tier test); its dotted node-id prefix `tests.integration` is in the
   `ai-only` policy instead of disposing of it. Only `run_dispatch` and the
   acceptance pass's `CommandRunner` are stood in; the verdict function, the
   disposition, and the ledger writes are production code.
+- `test_reconcile_runs_ledger_gate_scenarios.py` — binds
+  `SPECIFICATION/scenarios.md` Scenarios 104, 105 and 106: the run-inventory
+  reconciler driven end to end through `reconcile_runs`, over work-items
+  seeded and closed through the REAL store seam, a REAL preserve-by-reference
+  ledger comment, and a real on-disk `JournalFile`. Only the two seams that
+  leave the process — the `fabro` CLI and the factory's HTTP face — are stood
+  in; the HTTP stand-in snapshots the item's ledger comments at each call, so
+  the export-before-terminate ordering is OBSERVED rather than inferred from
+  the end state.
 
 Coverage rules: 100% line + branch on every covered module, as everywhere in
 this repo. Build state through the public store/client seam (or a small

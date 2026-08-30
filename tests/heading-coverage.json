@@ -1108,25 +1108,25 @@
     "heading": "## Scenario 104 — An item closed by any route releases its non-terminal run",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "work_item": "bd-ib-n77djm",
-    "reason": "Owned by plan epic bd-ib-n77djm (ledger-is-the-only-gate); bound to an INTEGRATION-tier test by slice S2 bd-ib-iqyekp (reconcile-runs orphan join and export-then-terminate)."
+    "test": "tests.integration.test_reconcile_runs_ledger_gate_scenarios.test_scenario104_an_item_that_left_active_releases_its_run",
+    "work_item": "bd-ib-zfed3a",
+    "reason": "Owned by plan epic bd-ib-n77djm (ledger-is-the-only-gate); bound to the INTEGRATION-tier reconcile-runs journey shipped by bd-ib-zfed3a (orphan join and export-then-terminate; the departed-item, matching-claim and superseded-run arms)."
   },
   {
     "heading": "## Scenario 105 — A parked run past its grace period is exported and abandoned, and its item is untouched",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "work_item": "bd-ib-n77djm",
-    "reason": "Owned by plan epic bd-ib-n77djm (ledger-is-the-only-gate); bound to an INTEGRATION-tier test by slice S5 (blocked_run_grace_seconds, after ratification)."
+    "test": "tests.integration.test_reconcile_runs_ledger_gate_scenarios.test_scenario105_a_park_past_grace_is_abandoned_and_the_item_is_untouched",
+    "work_item": "bd-ib-zfed3a",
+    "reason": "Owned by plan epic bd-ib-n77djm (ledger-is-the-only-gate); bound to the INTEGRATION-tier reconcile-runs journey shipped by bd-ib-zfed3a (blocked_run_grace_seconds; the past-grace Abandon-answer arm and the within-grace hold)."
   },
   {
     "heading": "## Scenario 106 — Reconciliation addresses every declared factory by its server target",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "work_item": "bd-ib-n77djm",
-    "reason": "Owned by plan epic bd-ib-n77djm (ledger-is-the-only-gate); bound to an INTEGRATION-tier test by slice S2 bd-ib-iqyekp (per-factory server-target discipline)."
+    "test": "tests.integration.test_reconcile_runs_ledger_gate_scenarios.test_scenario106_each_declared_factory_is_queried_by_its_own_server_target",
+    "work_item": "bd-ib-zfed3a",
+    "reason": "Owned by plan epic bd-ib-n77djm (ledger-is-the-only-gate); bound to the INTEGRATION-tier reconcile-runs journey shipped by bd-ib-zfed3a (per-factory server-target discipline; one unreachable factory journals an error while the other completes)."
   },
   {
     "heading": "## Scenario 107 — An adopter's declared merge strategy projects to both the argv and the prompt",
