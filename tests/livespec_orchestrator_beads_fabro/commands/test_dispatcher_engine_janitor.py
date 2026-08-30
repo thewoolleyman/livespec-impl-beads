@@ -69,6 +69,21 @@ def _err(*, stderr: str) -> CommandResult:
     return CommandResult(exit_code=1, stdout="", stderr=stderr)
 
 
+def _branch() -> CommandResult:
+    """What `git symbolic-ref --short refs/remotes/origin/HEAD` answers.
+
+    The venue resolution runs between pull-primary and the preclean, so every
+    queue that reaches provisioning names the default branch here and then
+    answers the merge-containment probe.
+    """
+    return CommandResult(exit_code=0, stdout="origin/master\n", stderr="")
+
+
+def _provisioning_queue() -> list[CommandResult]:
+    """pull-primary, the venue resolution, and every stage after it, all green."""
+    return [_ok(), _branch(), *[_ok() for _ in range(8)]]
+
+
 def _merged() -> PrView:
     return PrView(
         number=7,
@@ -82,7 +97,7 @@ def _merged() -> PrView:
 
 def test_post_merge_degraded_detail_truncates_long_checkout_error(tmp_path: Path) -> None:
     long_error = "prefix-" + ("x" * 600) + "-suffix"
-    runner = Runner(queue=[_ok(), _ok(), _err(stderr=long_error)])
+    runner = Runner(queue=[_ok(), _branch(), _ok(), _ok(), _err(stderr=long_error)])
 
     outcome = post_merge(
         outcome_type=DispatchOutcome,
@@ -142,7 +157,7 @@ def test_post_merge_degrades_on_a_defective_recipe_instead_of_running_an_empty_a
         encoding="utf-8",
     )
     plan = _plan(repo=tmp_path)
-    runner = Runner(queue=[_ok() for _ in range(8)])
+    runner = Runner(queue=_provisioning_queue())
     journal = Journal()
 
     outcome = post_merge(
@@ -234,7 +249,7 @@ def test_post_merge_reclaims_stale_pid_lock_before_preclean(tmp_path: Path) -> N
         '{"pid": 999999999, "started_at_epoch": 1.0, "work_item_id": "x-1"}',
         encoding="utf-8",
     )
-    runner = Runner(queue=[_ok() for _ in range(8)])
+    runner = Runner(queue=_provisioning_queue())
     journal = Journal()
 
     outcome = post_merge(
@@ -253,7 +268,7 @@ def test_post_merge_reclaims_stale_pid_lock_before_preclean(tmp_path: Path) -> N
 def test_post_merge_releases_lock_after_green(tmp_path: Path) -> None:
     plan = _plan(repo=tmp_path)
     lock = plan.janitor_checkout.with_name(f"{plan.janitor_checkout.name}.lock")
-    runner = Runner(queue=[_ok() for _ in range(8)])
+    runner = Runner(queue=_provisioning_queue())
     journal = Journal()
 
     outcome = post_merge(

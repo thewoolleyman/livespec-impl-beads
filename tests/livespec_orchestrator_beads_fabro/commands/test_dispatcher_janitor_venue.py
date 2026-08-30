@@ -1,0 +1,239 @@
+"""The post-merge / reconcile janitor VENUE: the merged default-branch tip.
+
+The venue is the target repository's default-branch tip that CONTAINS the
+item's merge, resolved through the ratified default-branch-resolution helper --
+never the item's historical merge sha. Pinning it to the merge sha deadlocks
+every item that merged before a janitor-environment fix landed, because each
+reconcile re-provisions a checkout from before the fix existed.
+
+Every behavioural case is driven through `post_merge`, the published entry
+point both the post-merge flow and the reconcile-merged valve call, so the
+assertions are about what the janitor actually provisions rather than about a
+helper's return value.
+"""
+
+from __future__ import annotations
+
+import importlib
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from livespec_orchestrator_beads_fabro.commands import _dispatcher_engine_janitor
+from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
+    CommandResult,
+    DispatchOutcome,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_janitor import post_merge
+from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
+    DispatchPlan,
+    PrView,
+    build_plan,
+)
+
+_MERGE_SHA = "16fe3ac"
+
+
+def _plan(*, repo: Path) -> DispatchPlan:
+    return build_plan(
+        repo=repo,
+        work_item_id="x-1",
+        workflow_toml=repo / "wf.toml",
+        goal_file=repo / "goal.md",
+        fabro_bin="fabro",
+        janitor=None,
+        janitor_checkout=repo / "janitor-co",
+    )
+
+
+@dataclass(kw_only=True)
+class Runner:
+    queue: list[CommandResult]
+    calls: list[tuple[list[str], Path]] = field(default_factory=list)
+
+    def run(
+        self,
+        *,
+        argv: list[str],
+        cwd: Path,
+        timeout_seconds: float,
+        env: dict[str, str] | None = None,
+    ) -> CommandResult:
+        _ = env
+        assert timeout_seconds > 0
+        self.calls.append((argv, cwd))
+        return self.queue.pop(0)
+
+
+@dataclass(kw_only=True)
+class Journal:
+    records: list[dict[str, object]] = field(default_factory=list)
+
+    def append(self, *, record: dict[str, object]) -> None:
+        self.records.append(record)
+
+
+def _ok() -> CommandResult:
+    return CommandResult(exit_code=0, stdout="", stderr="")
+
+
+def _err(*, stderr: str = "") -> CommandResult:
+    return CommandResult(exit_code=1, stdout="", stderr=stderr)
+
+
+def _branch(*, name: str = "main") -> CommandResult:
+    """What `git symbolic-ref --short refs/remotes/origin/HEAD` answers."""
+    return CommandResult(exit_code=0, stdout=f"origin/{name}\n", stderr="")
+
+
+def _merged(*, merge_sha: str | None = _MERGE_SHA) -> PrView:
+    return PrView(
+        number=7,
+        state="MERGED",
+        auto_merge_armed=True,
+        merge_state_status="CLEAN",
+        merge_sha=merge_sha,
+        terminal_required_check_failures=(),
+    )
+
+
+def test_janitor_venue_module_owns_provisioning_and_old_privates_are_gone() -> None:
+    module_path = (
+        Path(".claude-plugin/scripts/livespec_orchestrator_beads_fabro/commands")
+        / "_dispatcher_janitor_venue.py"
+    )
+    venue_public_names = {
+        "UNRESOLVED_VENUE",
+        "JanitorVenue",
+        "provision_janitor_checkout",
+        "resolve_janitor_venue",
+    }
+
+    assert module_path.is_file()
+    venue = importlib.import_module(
+        "livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_venue"
+    )
+    assert set(venue.__all__) == venue_public_names
+    for name in venue_public_names:
+        assert hasattr(venue, name)
+    # The provisioning moved out of the flow module wholesale, and the shaper
+    # both halves need is public on the degraded module rather than duplicated.
+    assert not hasattr(_dispatcher_engine_janitor, "_provision_janitor_checkout")
+    assert not hasattr(_dispatcher_engine_janitor, "_degraded_step")
+
+
+def test_post_merge_provisions_the_venue_at_the_merged_default_branch_tip(tmp_path: Path) -> None:
+    """The deadlock-cleared case: the venue is the tip, so a later fix is present.
+
+    An item merged before a janitor-environment fix landed is provisioned at the
+    CURRENT default-branch tip, which carries both its merge and the later fix --
+    where a venue pinned to the item's merge sha could only ever re-fail.
+    """
+    plan = _plan(repo=tmp_path)
+    runner = Runner(queue=[_ok(), _branch(), *[_ok() for _ in range(8)]])
+    journal = Journal()
+
+    outcome = post_merge(
+        outcome_type=DispatchOutcome,
+        plan=plan,
+        runner=runner,
+        journal=journal,
+        merged=_merged(),
+    )
+
+    assert (outcome.status, outcome.stage) == ("green", "done")
+    argvs = [argv for argv, _ in runner.calls]
+    assert [
+        "git",
+        "-C",
+        str(tmp_path),
+        "merge-base",
+        "--is-ancestor",
+        _MERGE_SHA,
+        "origin/main",
+    ] in argvs
+    add = next(argv for argv in argvs if argv[3:5] == ["worktree", "add"])
+    assert add[-1] == "origin/main"
+    # The merge sha is what the venue is PROVEN AGAINST, never what it is pinned
+    # to: it appears in the containment probe and nowhere else.
+    assert [argv for argv in argvs if _MERGE_SHA in argv] == [
+        ["git", "-C", str(tmp_path), "merge-base", "--is-ancestor", _MERGE_SHA, "origin/main"]
+    ]
+
+
+def test_post_merge_degrades_when_the_resolved_tip_does_not_contain_the_merge(
+    tmp_path: Path,
+) -> None:
+    plan = _plan(repo=tmp_path)
+    runner = Runner(queue=[_ok(), _branch(), _err(), *[_ok() for _ in range(8)]])
+    journal = Journal()
+
+    outcome = post_merge(
+        outcome_type=DispatchOutcome,
+        plan=plan,
+        runner=runner,
+        journal=journal,
+        merged=_merged(),
+    )
+
+    assert (outcome.status, outcome.stage) == ("green", "janitor-env-degraded")
+    assert "does NOT contain" in outcome.detail
+    assert (
+        outcome.missing_integration_point
+        == f"a origin/main tip containing the item's merge {_MERGE_SHA}"
+    )
+    assert outcome.remedy is not None
+    assert "re-run the reconcile" in outcome.remedy
+    # The venue is not a step of the closed vocabulary, so the degradation
+    # carries no step id and stands up no pre-dispatch refusal.
+    assert outcome.step is None
+    # Nothing is provisioned against a tip that cannot prove the merge landed.
+    assert [record["stage"] for record in journal.records] == ["pull-primary"]
+
+
+def test_post_merge_degrades_when_no_default_branch_can_be_resolved(tmp_path: Path) -> None:
+    plan = _plan(repo=tmp_path)
+    runner = Runner(queue=[_ok(), _err(), _err(), *[_ok() for _ in range(8)]])
+    journal = Journal()
+
+    outcome = post_merge(
+        outcome_type=DispatchOutcome,
+        plan=plan,
+        runner=runner,
+        journal=journal,
+        merged=_merged(),
+    )
+
+    assert (outcome.status, outcome.stage) == ("green", "janitor-env-degraded")
+    assert (
+        outcome.missing_integration_point == "a resolvable default branch for the target repository"
+    )
+    assert outcome.remedy is not None
+    assert "git remote set-head origin --auto" in outcome.remedy
+    assert [record["stage"] for record in journal.records] == ["pull-primary"]
+
+
+def test_post_merge_venue_skips_the_containment_probe_when_no_merge_sha_is_known(
+    tmp_path: Path,
+) -> None:
+    """No merge sha is nothing to confirm, not a degradation."""
+    plan = _plan(repo=tmp_path)
+    runner = Runner(queue=[_ok(), _branch(name="master"), *[_ok() for _ in range(8)]])
+    journal = Journal()
+
+    outcome = post_merge(
+        outcome_type=DispatchOutcome,
+        plan=plan,
+        runner=runner,
+        journal=journal,
+        merged=_merged(merge_sha=None),
+    )
+
+    assert (outcome.status, outcome.stage) == ("green", "done")
+    argvs = [argv for argv, _ in runner.calls]
+    # `origin/master` here is RESOLVED, not a literal fallback: the branch read
+    # happened, and it is the absence of a merge sha -- not of a default branch --
+    # that leaves the containment probe unmade.
+    assert ["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"] in argvs
+    assert not [argv for argv in argvs if "merge-base" in argv]
+    add = next(argv for argv in argvs if argv[3:5] == ["worktree", "add"])
+    assert add[-1] == "origin/master"

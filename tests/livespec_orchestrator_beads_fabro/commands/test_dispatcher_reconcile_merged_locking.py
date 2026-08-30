@@ -64,7 +64,12 @@ def test_reconcile_merged_allows_stale_dispatch_lock(
     append_work_item(path=_config(), item=item)
     _write_dispatch_lock(repo=repo, item_id=item.id, pid=999_999_999, started_at=1.0)
     runner = _Runner(
-        queue=[_ok(stdout=_pr_json(number=11, state="MERGED", sha="abc111"))] + [_ok()] * 8
+        queue=[
+            _ok(stdout=_pr_json(number=11, state="MERGED", sha="abc111")),
+            _ok(),
+            *_venue_resolution(),
+            *[_ok()] * 7,
+        ]
     )
     _patch_runner(monkeypatch=monkeypatch, runner=runner)
     monkeypatch.setattr(
@@ -90,7 +95,12 @@ def test_reconcile_merged_force_bypasses_live_dispatch_lock(
     append_work_item(path=_config(), item=item)
     _write_dispatch_lock(repo=repo, item_id=item.id, pid=os.getpid(), started_at=1.0)
     runner = _Runner(
-        queue=[_ok(stdout=_pr_json(number=12, state="MERGED", sha="abc222"))] + [_ok()] * 8
+        queue=[
+            _ok(stdout=_pr_json(number=12, state="MERGED", sha="abc222")),
+            _ok(),
+            *_venue_resolution(),
+            *[_ok()] * 7,
+        ]
     )
     _patch_runner(monkeypatch=monkeypatch, runner=runner)
     monkeypatch.setattr(
@@ -364,6 +374,13 @@ def _item(**overrides: object) -> WorkItem:
         acceptance_policy="ai-only",
     )
     return replace(base, **overrides)
+
+
+def _venue_resolution() -> list[CommandResult]:
+    """The two venue reads between pull-primary and the preclean: the reconcile
+    janitor provisions at the resolved default-branch TIP that contains the
+    merge, so it names the branch and then probes for merge containment."""
+    return [_ok(stdout="origin/master"), _ok()]
 
 
 def _ok(*, stdout: str = "") -> CommandResult:
