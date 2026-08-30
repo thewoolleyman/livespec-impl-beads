@@ -468,7 +468,9 @@ def test_a_parked_run_past_grace_is_abandoned_and_its_item_is_untouched(tmp_path
     # The export is read back before the run is touched, and the route is the
     # interview Abandon answer rather than cancel.
     assert ledger.verbs[0] == "list_comments:bd-ib-parked"
-    assert transport.calls[0].startswith("GET https://hp.example:32276/runs/01PARKED/questions")
+    assert transport.calls[0].startswith(
+        "GET https://hp.example:32276/api/v1/runs/01PARKED/questions"
+    )
     assert any(call.startswith("POST") and "/answer" in call for call in transport.calls)
     assert not any("/cancel" in call for call in transport.calls)
     # The item is left exactly as it was, and no write verb was even reached.
