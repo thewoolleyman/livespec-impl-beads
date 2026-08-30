@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.112.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.111.0...v0.112.0) (2026-08-30)
+
+
+### Features
+
+* **workflow:** retire the in-loop human gate — needs-human terminates at a needs_human node and routes to the ledger (bd-ib-dgu3qg) ([b4e140b](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/b4e140b45ced7d3e6c71a0a2fe152c14400aeafb))
+
 ## [0.111.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.110.0...v0.111.0) (2026-08-30)
 
 
