@@ -20,6 +20,10 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, TypedDict, cast
 
+from livespec_orchestrator_beads_fabro.commands._dispatcher_default_branch import (
+    resolve_default_branch,
+)
+
 if TYPE_CHECKING:
     # Deferred deliberately: the post-merge janitor's VENUE resolution reuses
     # `resolve_default_branch`, and `_dispatcher_engine` imports that janitor
@@ -39,6 +43,7 @@ __all__: list[str] = [
     "has_stored_credential",
     "job_records",
     "list_runs",
+    "resolve_default_branch",
     "run_id_of",
     "run_records",
     "view_run_jobs",

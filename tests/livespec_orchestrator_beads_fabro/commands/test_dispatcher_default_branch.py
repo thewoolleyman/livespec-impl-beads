@@ -13,6 +13,7 @@ from pathlib import Path
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import CommandResult
 
 _MODULE = "livespec_orchestrator_beads_fabro.commands._dispatcher_default_branch"
+_LOOKUPS_MODULE = "livespec_orchestrator_beads_fabro.commands._dispatcher_master_ci_lookups"
 _ORIGIN_HEAD_ARGV = ["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"]
 _REPO_VIEW_ARGV = [
     "gh",
@@ -55,6 +56,13 @@ def test_default_branch_module_exists_before_import() -> None:
         / "_dispatcher_default_branch.py"
     )
     assert module_path.is_file()
+
+
+def test_legacy_lookup_module_reexports_the_shared_default_branch_resolver() -> None:
+    default_branch_module = importlib.import_module(_MODULE)
+    lookup_module = importlib.import_module(_LOOKUPS_MODULE)
+
+    assert lookup_module.resolve_default_branch is default_branch_module.resolve_default_branch
 
 
 def test_git_route_answers_first_and_strips_the_remote_prefix(tmp_path: Path) -> None:
