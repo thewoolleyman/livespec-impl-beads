@@ -1127,5 +1127,21 @@
     "test": "TODO",
     "work_item": "bd-ib-n77djm",
     "reason": "Owned by plan epic bd-ib-n77djm (ledger-is-the-only-gate); bound to an INTEGRATION-tier test by slice S2 bd-ib-iqyekp (per-factory server-target discipline)."
+  },
+  {
+    "heading": "## Scenario 107 — An adopter's declared merge strategy projects to both the argv and the prompt",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "work_item": "bd-ib-vblnq2",
+    "reason": "Bound by plan typed-repo-integration-contract (epic bd-ib-vblnq2). merge_mode lands with C1 (schema field), C2 (argv projection), C3 (Defective/refusal), and C5-payload (pr.md prompt projection)."
+  },
+  {
+    "heading": "## Scenario 108 — A governed repository's commit-blocking hook honors the resolved sandbox-exemption marker",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "work_item": "bd-ib-vblnq2",
+    "reason": "Bound by plan typed-repo-integration-contract (epic bd-ib-vblnq2). sandbox_exempt_marker lands with C1 (schema field), C2 (resolve-once), C5-payload (prepare-step projection), and C6 (adopter-fixture commit-blocking hook honor plus non-honoring negative variant)."
   }
 ]
