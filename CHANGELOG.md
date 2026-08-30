@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.118.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.118.0...v0.118.1) (2026-08-30)
+
+
+### Bug Fixes
+
+* **dispatcher:** journal a reconcile-runs-pass record from the standalone command (bd-ib-gjfcor) ([dd73e4e](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/dd73e4ea2dade13e2102e94ef79a1ddb1f0f2a77))
+
 ## [0.118.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.117.0...v0.118.0) (2026-08-30)
 
 
