@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.112.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.112.0...v0.112.1) (2026-08-30)
+
+
+### Bug Fixes
+
+* **reconcile:** reach the real Fabro server over its own API (bd-ib-gzoayo) ([91053da](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/91053daf4bdacee15a5149b25cd10820d9cb6867))
+
 ## [0.112.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.111.0...v0.112.0) (2026-08-30)
 
 
