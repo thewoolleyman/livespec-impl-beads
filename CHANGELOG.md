@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.107.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.106.0...v0.107.0) (2026-08-30)
+
+
+### Features
+
+* **telemetry:** surface stall-watchdog cancellations as OTLP spans (bd-ib-o3cpko) ([ab930a4](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/ab930a41c1500105b2b683ee5f2e318801a0c0ad))
+
 ## [0.106.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.105.0...v0.106.0) (2026-08-30)
 
 
