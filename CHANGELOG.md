@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.106.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.105.0...v0.106.0) (2026-08-30)
+
+
+### Features
+
+* **watchdog:** journal a per-poll run-discovery record (bd-ib-n6cobe) ([e0abdaf](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/e0abdaf7be17f9c66bd2619c83a40d99714fd53c))
+
 ## [0.105.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.104.0...v0.105.0) (2026-08-30)
 
 
