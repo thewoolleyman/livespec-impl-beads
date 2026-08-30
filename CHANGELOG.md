@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.113.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.112.1...v0.113.0) (2026-08-30)
+
+
+### Features
+
+* **dispatcher:** couple lifecycle writes to run reconciliation and add the orphaned-factory-run invariant (bd-ib-nby2xp) ([c5405e5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/c5405e53418dfc76ed43d7b209c9a796e81c73f3))
+
 ## [0.112.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.112.0...v0.112.1) (2026-08-30)
 
 
