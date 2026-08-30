@@ -19,12 +19,18 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import TypedDict, cast
+from typing import TYPE_CHECKING, TypedDict, cast
 
-from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
-    CommandResult,
-    CommandRunner,
-)
+if TYPE_CHECKING:
+    # Deferred deliberately: the post-merge janitor's VENUE resolution reuses
+    # `resolve_default_branch`, and `_dispatcher_engine` imports that janitor
+    # slice at module scope. A runtime import of the engine here would close
+    # that ring and break the import, while these two names are only ever
+    # annotations.
+    from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
+        CommandResult,
+        CommandRunner,
+    )
 
 __all__: list[str] = [
     "UNKNOWN_RUN",

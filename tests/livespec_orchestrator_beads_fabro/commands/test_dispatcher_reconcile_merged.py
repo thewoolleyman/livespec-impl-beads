@@ -86,7 +86,12 @@ def test_reconcile_merged_active_item_runs_post_merge_janitor_then_accepts(
     item = _item(status="active", acceptance_policy="ai-only")
     append_work_item(path=_config(), item=item)
     runner = _Runner(
-        queue=[_ok(stdout=_pr_json(number=1381, state="MERGED", sha="0bd9ce1"))] + [_ok()] * 8
+        queue=[
+            _ok(stdout=_pr_json(number=1381, state="MERGED", sha="0bd9ce1")),
+            _ok(),
+            *_venue_resolution(),
+            *[_ok()] * 7,
+        ]
     )
     _patch_runner(monkeypatch=monkeypatch, runner=runner)
     monkeypatch.setattr(
@@ -157,7 +162,9 @@ def test_reconcile_merged_resolves_merged_pr_by_title_search(
         queue=[
             CommandResult(exit_code=1, stdout="", stderr="not found"),
             _ok(stdout=json.dumps([_list_pr(number=17, title=f"fix {item.id}", sha="abc777")])),
-            *[_ok() for _ in range(8)],
+            _ok(),
+            *_venue_resolution(),
+            *[_ok() for _ in range(7)],
         ]
     )
     _patch_runner(monkeypatch=monkeypatch, runner=runner)
@@ -189,7 +196,12 @@ def test_reconcile_merged_accepts_merge_verified_parked_items(
     item = _item(status=status)
     append_work_item(path=_config(), item=item)
     runner = _Runner(
-        queue=[_ok(stdout=_pr_json(number=1654, state="MERGED", sha="33b230b6"))] + [_ok()] * 8
+        queue=[
+            _ok(stdout=_pr_json(number=1654, state="MERGED", sha="33b230b6")),
+            _ok(),
+            *_venue_resolution(),
+            *[_ok()] * 7,
+        ]
     )
     _patch_runner(monkeypatch=monkeypatch, runner=runner)
     monkeypatch.setattr(
@@ -223,6 +235,7 @@ def test_reconcile_merged_janitor_red_leaves_item_active(
         queue=[
             _ok(stdout=_pr_json(number=9, state="MERGED", sha="badc0de")),
             _ok(),
+            *_venue_resolution(),
             _ok(),
             _ok(),
             _ok(),
@@ -284,7 +297,12 @@ def test_reconcile_merged_refuses_live_dispatch_lock_before_pr_resolution(
     item = _item(status="active")
     append_work_item(path=_config(), item=item)
     runner = _Runner(
-        queue=[_ok(stdout=_pr_json(number=9, state="MERGED", sha="badc0de"))] + [_ok()] * 8
+        queue=[
+            _ok(stdout=_pr_json(number=9, state="MERGED", sha="badc0de")),
+            _ok(),
+            *_venue_resolution(),
+            *[_ok()] * 7,
+        ]
     )
     _patch_runner(monkeypatch=monkeypatch, runner=runner)
     _write_dispatch_lock(
@@ -326,7 +344,12 @@ def test_reconcile_merged_proceeds_when_dispatch_lock_absent_or_stale(
             dispatch_id="dispatch-stale",
         )
     runner = _Runner(
-        queue=[_ok(stdout=_pr_json(number=10, state="MERGED", sha="abc010"))] + [_ok()] * 8
+        queue=[
+            _ok(stdout=_pr_json(number=10, state="MERGED", sha="abc010")),
+            _ok(),
+            *_venue_resolution(),
+            *[_ok()] * 7,
+        ]
     )
     _patch_runner(monkeypatch=monkeypatch, runner=runner)
     monkeypatch.setattr(
@@ -661,6 +684,13 @@ def _item(**overrides: object) -> WorkItem:
         acceptance_policy="ai-only",
     )
     return replace(base, **overrides)
+
+
+def _venue_resolution() -> list[CommandResult]:
+    """The two venue reads between pull-primary and the preclean: the reconcile
+    janitor provisions at the resolved default-branch TIP that contains the
+    merge, so it names the branch and then probes for merge containment."""
+    return [_ok(stdout="origin/master"), _ok()]
 
 
 def _ok(*, stdout: str = "") -> CommandResult:

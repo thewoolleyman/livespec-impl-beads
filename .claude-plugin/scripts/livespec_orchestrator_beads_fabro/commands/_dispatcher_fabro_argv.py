@@ -37,6 +37,7 @@ __all__: list[str] = [
     "janitor_core_ref_from_config",
     "janitor_reconcile_checkout_path",
     "janitor_trust_argv",
+    "janitor_venue_contains_merge_argv",
     "janitor_worktree_add_argv",
     "janitor_worktree_remove_argv",
     "parse_fleet_members",
@@ -335,8 +336,17 @@ def pull_primary_argv(*, plan: DispatchPlan) -> list[str]:
     ]
 
 
-def janitor_worktree_add_argv(*, plan: DispatchPlan, ref: str) -> list[str]:
-    """Provision the fresh detached janitor checkout at the merged ref.
+def janitor_worktree_add_argv(*, plan: DispatchPlan, tip: str) -> list[str]:
+    """Provision the fresh detached janitor checkout at the merged default-branch TIP.
+
+    `tip` is the resolved default-branch tip that CONTAINS the item's
+    merge, never the item's historical merge sha: a venue pinned to the
+    merge sha can never see a janitor-environment fix that landed after
+    that merge, so an item merged before the fix deadlocks. Resolving the
+    tip and confirming it carries the merge is
+    `_dispatcher_janitor_venue`'s job; this builder only names the ref it
+    was handed, which is why the parameter is `tip` rather than a
+    general-purpose `ref` a caller could pass a merge sha to.
 
     Plain `git` (no `mise exec`): worktree commands fire no hooks and
     need no pinned toolchain, and the checkout path is not yet
@@ -350,7 +360,27 @@ def janitor_worktree_add_argv(*, plan: DispatchPlan, ref: str) -> list[str]:
         "add",
         "--detach",
         str(plan.janitor_checkout),
-        ref,
+        tip,
+    ]
+
+
+def janitor_venue_contains_merge_argv(*, plan: DispatchPlan, tip: str, merge_sha: str) -> list[str]:
+    """Ask whether the resolved venue `tip` contains the item's merge.
+
+    Exit 0 means the merge is an ancestor of the tip (a commit is its own
+    ancestor, so a tip that IS the merge answers yes); any non-zero exit
+    is the venue failing to prove the item's work landed, which the venue
+    resolution reports as a degraded post-merge outcome rather than
+    provisioning there anyway.
+    """
+    return [
+        "git",
+        "-C",
+        str(plan.repo),
+        "merge-base",
+        "--is-ancestor",
+        merge_sha,
+        tip,
     ]
 
 

@@ -64,6 +64,12 @@ def _ok(stdout: str = "") -> CommandResult:
     return CommandResult(exit_code=0, stdout=stdout, stderr="")
 
 
+def _venue_resolution() -> list[CommandResult]:
+    """The two venue reads between pull-primary and the preclean: the default
+    branch naming itself, then the probe confirming its tip contains the merge."""
+    return [_ok(stdout="origin/master"), _ok()]
+
+
 def _err(stderr: str = "boom") -> CommandResult:
     return CommandResult(exit_code=1, stdout="", stderr=stderr)
 
@@ -162,7 +168,7 @@ def test_await_merge_fails_fast_on_terminal_required_check(tmp_path: Path) -> No
 
 
 def test_post_merge_runs_janitor_in_fresh_checkout(tmp_path: Path) -> None:
-    runner = Runner(queue=[_ok() for _ in range(8)])
+    runner = Runner(queue=[_ok(), *_venue_resolution(), *[_ok() for _ in range(7)]])
     merged = confirm_pr(
         plan=_plan(repo=tmp_path),
         runner=Runner(queue=[_ok(stdout=_pr_json(state="MERGED", sha="cafe06"))]),
@@ -215,7 +221,14 @@ def test_post_merge_runs_janitor_in_fresh_checkout(tmp_path: Path) -> None:
 
 
 def test_post_merge_degrades_when_checkout_provisioning_fails(tmp_path: Path) -> None:
-    runner = Runner(queue=[_ok(), _err(stderr="not a working tree"), _err(stderr="disk full")])
+    runner = Runner(
+        queue=[
+            _ok(),
+            *_venue_resolution(),
+            _err(stderr="not a working tree"),
+            _err(stderr="disk full"),
+        ]
+    )
     merged = confirm_pr(
         plan=_plan(repo=tmp_path),
         runner=Runner(queue=[_ok(stdout=_pr_json(state="MERGED", sha="cafe08"))]),

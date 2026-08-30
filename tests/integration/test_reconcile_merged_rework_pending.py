@@ -201,7 +201,13 @@ def test_unmarked_merged_item_still_reconciles_to_done(
     repo = _repo(tmp_path=tmp_path)
     item = _item(item_id="bd-ib-reconcile-plain")
     append_work_item(path=_config(), item=item)
-    runner = _Runner(queue=[_ok(stdout=_pr_json(number=1381, sha="0bd9ce1"))] + [_ok()] * 8)
+    # The merged-PR view, pull-primary, then the venue resolution -- the
+    # reconcile janitor provisions at the default-branch TIP naming itself here,
+    # not at the merge sha the PR view just reported -- and every stage after it.
+    runner = _Runner(
+        queue=[_ok(stdout=_pr_json(number=1381, sha="0bd9ce1")), _ok(), _ok(stdout="origin/master")]
+        + [_ok()] * 8
+    )
     _patch_runner(monkeypatch=monkeypatch, runner=runner)
     monkeypatch.setattr(
         _dispatcher_completion,

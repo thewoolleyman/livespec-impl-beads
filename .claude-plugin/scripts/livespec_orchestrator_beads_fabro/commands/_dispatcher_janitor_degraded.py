@@ -18,6 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_journal import tail
 from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_recipe import (
     integration_point,
     remedy,
@@ -25,13 +26,21 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_re
 from livespec_orchestrator_beads_fabro.commands._dispatcher_step_ids import JANITOR_BOOTSTRAP
 
 if TYPE_CHECKING:
-    from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
+    from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
+        CommandResult,
+        DispatchOutcome,
+    )
     from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_recipe import (
         JanitorBootstrapRecipe,
     )
     from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import DispatchPlan, PrView
 
-__all__: list[str] = ["DegradedStep", "merged_degraded_for_plan", "merged_degraded_outcome"]
+__all__: list[str] = [
+    "DegradedStep",
+    "degraded_step",
+    "merged_degraded_for_plan",
+    "merged_degraded_outcome",
+]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -42,11 +51,31 @@ class DegradedStep:
     closed step vocabulary -- a host-environment failure with no integration
     point an adopter could provide, and therefore nothing a later dispatch could
     re-verify or an adopter could clear.
+
+    `missing_point` and `remedy_text` are how a degradation OUTSIDE that closed
+    vocabulary still says what is missing and how to clear it. The janitor VENUE
+    is the case that needs them: the ratified venue clause requires a degraded
+    outcome carrying the missing point and the remedy, and states in the same
+    breath that the venue is not a new step of the closed set. Both halves hold
+    only if the two facts can travel without a step id -- carried here, they do,
+    and the persistence gate still ignores the outcome because its `step` is
+    None.
     """
 
     description: str
     reason: str
     step_id: str | None = None
+    missing_point: str | None = None
+    remedy_text: str | None = None
+
+
+def degraded_step(
+    *, description: str, result: CommandResult, step_id: str | None = None
+) -> DegradedStep:
+    """One failed provisioning stage, named and reasoned, ready to be shaped."""
+    return DegradedStep(
+        description=description, reason=tail(text=result.stderr, limit=500), step_id=step_id
+    )
 
 
 def merged_degraded_for_plan(
@@ -103,7 +132,7 @@ def merged_degraded_outcome(
         if janitor_argv is not None
         else ""
     )
-    degraded_step = step.step_id == JANITOR_BOOTSTRAP
+    bootstrap_step = step.step_id == JANITOR_BOOTSTRAP
     return outcome_type(
         work_item_id=work_item_id,
         status="green",
@@ -116,6 +145,8 @@ def merged_degraded_outcome(
             f"failure — the merge is confirmed on the remote.{remediation}"
         ),
         step=step.step_id,
-        missing_integration_point=integration_point(recipe=recipe) if degraded_step else None,
-        remedy=remedy(recipe=recipe) if degraded_step else None,
+        missing_integration_point=(
+            integration_point(recipe=recipe) if bootstrap_step else step.missing_point
+        ),
+        remedy=remedy(recipe=recipe) if bootstrap_step else step.remedy_text,
     )

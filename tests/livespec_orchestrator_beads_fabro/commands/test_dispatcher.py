@@ -115,6 +115,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     janitor_core_clone_argv,
     janitor_core_ref_from_config,
     janitor_trust_argv,
+    janitor_venue_contains_merge_argv,
     janitor_worktree_add_argv,
     janitor_worktree_remove_argv,
     parse_fleet_members,
@@ -226,6 +227,7 @@ def test_dispatcher_plan_decomposition_contract() -> None:
         "janitor_core_ref_from_config",
         "janitor_reconcile_checkout_path",
         "janitor_trust_argv",
+        "janitor_venue_contains_merge_argv",
         "janitor_worktree_add_argv",
         "janitor_worktree_remove_argv",
         "parse_fleet_members",
@@ -476,11 +478,18 @@ def _pr_association() -> CommandResult:
     return _ok(stdout=json.dumps([{"number": 7}]))
 
 
+def _venue_resolution() -> list[CommandResult]:
+    """The two venue reads between pull-primary and the preclean: the default
+    branch naming itself, then the probe confirming that its tip contains the
+    merge. The janitor venue is that resolved tip, never the item's merge sha."""
+    return [_ok(stdout="origin/master"), _ok()]
+
+
 def _post_merge_green_tail() -> list[CommandResult]:
-    """The eight all-green post-merge results: pull-primary, then the
-    janitor-checkout lifecycle (preclean, add, trust, bootstrap, core clone,
-    janitor run, remove)."""
-    return [_ok() for _ in range(8)]
+    """The ten all-green post-merge results: pull-primary, the venue
+    resolution, then the janitor-checkout lifecycle (preclean, add, trust,
+    bootstrap, core clone, janitor run, remove)."""
+    return [_ok(), *_venue_resolution(), *[_ok() for _ in range(7)]]
 
 
 def _err(stderr: str = "boom") -> CommandResult:
@@ -1481,7 +1490,8 @@ def test_argv_builders_encode_family_discipline(tmp_path: Path) -> None:
         "pull-primary",
         str(tmp_path),
     ]
-    assert janitor_worktree_add_argv(plan=plan, ref="cafe01") == [
+    # The venue is a resolved default-branch TIP, never the item's merge sha.
+    assert janitor_worktree_add_argv(plan=plan, tip="origin/main") == [
         "git",
         "-C",
         str(tmp_path),
@@ -1489,7 +1499,16 @@ def test_argv_builders_encode_family_discipline(tmp_path: Path) -> None:
         "add",
         "--detach",
         str(tmp_path / "janitor-co"),
+        "origin/main",
+    ]
+    assert janitor_venue_contains_merge_argv(plan=plan, tip="origin/main", merge_sha="cafe01") == [
+        "git",
+        "-C",
+        str(tmp_path),
+        "merge-base",
+        "--is-ancestor",
         "cafe01",
+        "origin/main",
     ]
     assert janitor_worktree_remove_argv(plan=plan) == [
         "git",
@@ -2393,6 +2412,7 @@ def test_engine_green_runs_janitor_in_fresh_checkout(tmp_path: Path) -> None:
             _ok(stdout=_pr_json(state="MERGED", sha="cafe01")),
             _pr_association(),
             _ok(),  # pull-primary
+            *_venue_resolution(),
             _ok(),  # janitor-checkout-preclean
             _ok(),  # janitor-checkout-add
             _ok(),  # janitor-checkout-trust
@@ -2428,7 +2448,25 @@ def test_engine_green_runs_janitor_in_fresh_checkout(tmp_path: Path) -> None:
         "janitor-checkout-remove",
     ]
     checkout = tmp_path / "janitor-co"
-    add_argv, add_cwd = runner.calls[6]
+    # The venue reads sit between pull-primary (4) and the preclean (7): the
+    # default branch names itself, then the merge-containment probe proves the
+    # tip carries `cafe01`. The checkout is added at that TIP, not at the sha.
+    assert runner.calls[5][0] == [
+        "git",
+        "symbolic-ref",
+        "--short",
+        "refs/remotes/origin/HEAD",
+    ]
+    assert runner.calls[6][0] == [
+        "git",
+        "-C",
+        str(tmp_path),
+        "merge-base",
+        "--is-ancestor",
+        "cafe01",
+        "origin/master",
+    ]
+    add_argv, add_cwd = runner.calls[8]
     assert add_argv == [
         "git",
         "-C",
@@ -2437,13 +2475,13 @@ def test_engine_green_runs_janitor_in_fresh_checkout(tmp_path: Path) -> None:
         "add",
         "--detach",
         str(checkout),
-        "cafe01",
+        "origin/master",
     ]
     assert add_cwd == tmp_path
     remove_argv = ["git", "-C", str(tmp_path), "worktree", "remove", "--force", str(checkout)]
-    assert runner.calls[5][0] == remove_argv
-    assert runner.calls[11][0] == remove_argv
-    assert runner.envs[10] == {
+    assert runner.calls[7][0] == remove_argv
+    assert runner.calls[13][0] == remove_argv
+    assert runner.envs[12] == {
         "LIVESPEC_CORE_PLUGIN_ROOT": str(checkout / ".livespec-core" / ".claude-plugin")
     }
 
@@ -2456,6 +2494,7 @@ def test_engine_fails_when_green_janitor_checkout_cleanup_fails(tmp_path: Path) 
             _ok(stdout=_pr_json(state="MERGED", sha="cafe01")),
             _pr_association(),
             _ok(),  # pull-primary
+            *_venue_resolution(),
             _ok(),  # janitor-checkout-preclean
             _ok(),  # janitor-checkout-add
             _ok(),  # janitor-checkout-trust
@@ -2764,7 +2803,9 @@ def test_engine_post_merge_failures_carry_merge_evidence(tmp_path: Path) -> None
                 _ok(stdout=_pr_json(armed=True)),
                 _ok(stdout=_pr_json(state="MERGED", sha="cafe05")),
                 _pr_association(),
-                *tail,
+                tail[0],
+                *_venue_resolution(),
+                *tail[1:],
             ]
         )
         outcome, _, _ = _dispatch(runner=runner, repo=tmp_path)
@@ -2799,6 +2840,7 @@ def test_engine_janitor_red_keeps_checkout_for_diagnosis(tmp_path: Path) -> None
             _ok(stdout=_pr_json(state="MERGED", sha="cafe05")),
             _pr_association(),
             _ok(),  # pull-primary
+            *_venue_resolution(),
             _ok(),  # janitor-checkout-preclean
             _ok(),  # janitor-checkout-add
             _ok(),  # janitor-checkout-trust
@@ -2816,7 +2858,7 @@ def test_engine_janitor_red_keeps_checkout_for_diagnosis(tmp_path: Path) -> None
     assert "2 failed, 1 passed" in outcome.detail
     # A red checkout is PRESERVED (no remove after the janitor ran):
     # the working tree is the diagnosis evidence.
-    assert len(runner.calls) == 11
+    assert len(runner.calls) == 13
     assert [record["stage"] for record in journal.records][-1] == "janitor-post-merge"
 
 
@@ -2828,6 +2870,7 @@ def test_engine_degrades_when_janitor_checkout_provisioning_fails(tmp_path: Path
             _ok(stdout=_pr_json(state="MERGED", sha="cafe08")),
             _pr_association(),
             _ok(),  # pull-primary
+            *_venue_resolution(),
             _err(stderr="not a working tree"),  # preclean (deliberately ignored)
             _err(stderr="disk full"),  # janitor-checkout-add
         ]
@@ -2840,7 +2883,7 @@ def test_engine_degrades_when_janitor_checkout_provisioning_fails(tmp_path: Path
     assert "mise exec -- just check" in outcome.detail
     assert "not a work-item failure" in outcome.detail
     # The janitor itself never ran: the dispatch ends at the failed add.
-    assert len(runner.calls) == 7
+    assert len(runner.calls) == 9
     assert [record["stage"] for record in journal.records][-1] == "janitor-checkout-add"
 
 
@@ -2852,6 +2895,7 @@ def test_engine_degrades_when_mise_trust_fails(tmp_path: Path) -> None:
             _ok(stdout=_pr_json(state="MERGED", sha="cafe09")),
             _pr_association(),
             _ok(),  # pull-primary
+            *_venue_resolution(),
             _ok(),  # janitor-checkout-preclean
             _ok(),  # janitor-checkout-add
             _err(stderr="config not trusted"),  # janitor-checkout-trust
@@ -2861,7 +2905,7 @@ def test_engine_degrades_when_mise_trust_fails(tmp_path: Path) -> None:
     assert (outcome.status, outcome.stage) == ("green", "janitor-env-degraded")
     assert "mise trust" in outcome.detail
     assert "config not trusted" in outcome.detail
-    trust_argv, trust_cwd = runner.calls[7]
+    trust_argv, trust_cwd = runner.calls[9]
     assert trust_argv == ["mise", "trust"]
     assert trust_cwd == tmp_path / "janitor-co"
 
@@ -2874,6 +2918,7 @@ def test_engine_degrades_when_janitor_bootstrap_fails(tmp_path: Path) -> None:
             _ok(stdout=_pr_json(state="MERGED", sha="cafeab")),
             _pr_association(),
             _ok(),  # pull-primary
+            *_venue_resolution(),
             _ok(),  # janitor-checkout-preclean
             _ok(),  # janitor-checkout-add
             _ok(),  # janitor-checkout-trust
@@ -2886,7 +2931,7 @@ def test_engine_degrades_when_janitor_bootstrap_fails(tmp_path: Path) -> None:
     assert "DID NOT RUN" in outcome.detail
     assert "no hook-install recipe" in outcome.detail
     assert "not a work-item failure" in outcome.detail
-    bootstrap_argv, bootstrap_cwd = runner.calls[8]
+    bootstrap_argv, bootstrap_cwd = runner.calls[10]
     assert bootstrap_argv == ["mise", "exec", "--", "just", "install-commit-refuse-hooks"]
     assert bootstrap_cwd == tmp_path  # runs in plan.repo, not janitor_checkout
     assert [record["stage"] for record in journal.records][-1] == "janitor-checkout-bootstrap"
@@ -2907,6 +2952,7 @@ def test_engine_degrades_when_janitor_core_provisioning_fails(tmp_path: Path) ->
             _ok(stdout=_pr_json(state="MERGED", sha="cafec0")),
             _pr_association(),
             _ok(),  # pull-primary
+            *_venue_resolution(),
             _ok(),  # janitor-checkout-preclean
             _ok(),  # janitor-checkout-add
             _ok(),  # janitor-checkout-trust
@@ -2923,19 +2969,21 @@ def test_engine_degrades_when_janitor_core_provisioning_fails(tmp_path: Path) ->
     # integration point for an adopter to provide carries no structured id, so
     # it cannot persist into a refusal the adopter has no way to clear.
     assert (outcome.step, outcome.missing_integration_point, outcome.remedy) == (None, None, None)
-    assert len(runner.calls) == 10
+    assert len(runner.calls) == 12
     assert [record["stage"] for record in journal.records][-1] == "janitor-core-provision"
 
 
-def test_engine_janitor_checkout_falls_back_to_origin_master_without_sha(
+def test_engine_janitor_checkout_uses_the_resolved_tip_without_a_merge_sha(
     tmp_path: Path,
 ) -> None:
+    """No merge sha is nothing to confirm, so the venue is the tip unprobed."""
     runner = _FakeRunner(
         queue=[
             _ok(),
             _ok(stdout=_pr_json(armed=True)),
             _ok(stdout=_pr_json(state="MERGED", sha=None)),
             _ok(),  # pull-primary
+            _ok(stdout="origin/master"),  # the resolved default branch
             _ok(),  # janitor-checkout-preclean
             _ok(),  # janitor-checkout-add
             _ok(),  # janitor-checkout-trust
@@ -2950,6 +2998,7 @@ def test_engine_janitor_checkout_falls_back_to_origin_master_without_sha(
     add_calls = [argv for argv, _ in runner.calls if "worktree" in argv and "add" in argv]
     assert len(add_calls) == 1
     assert add_calls[0][-1] == "origin/master"
+    assert not [argv for argv, _ in runner.calls if "merge-base" in argv]
 
 
 def test_engine_runs_configured_janitor_in_fresh_checkout(tmp_path: Path) -> None:
@@ -2960,6 +3009,7 @@ def test_engine_runs_configured_janitor_in_fresh_checkout(tmp_path: Path) -> Non
             _ok(stdout=_pr_json(state="MERGED", sha="cafe06")),
             _pr_association(),
             _ok(),  # pull-primary
+            *_venue_resolution(),
             _ok(),  # janitor-checkout-preclean
             _ok(),  # janitor-checkout-add
             _ok(),  # janitor-checkout-trust
