@@ -18,7 +18,19 @@ fi
 if [[ "$test_count" -eq 1 ]] && [[ "$impl_count" -eq 0 ]]; then
     echo ":: Red-mode shape detected: $test_staged"
     echo ":: skipping coverage gates and same-repo live TUI picker gate in pre-commit"
-    just check-skipping check-coverage check-per-file-coverage check-codex-skill-picker
+    # check-check-coverage-incremental belongs in this skip list even though it
+    # is vacuous on a FRESH branch: on a branch that already carries impl
+    # commits, its incremental scope includes those impl files, so it RUNS the
+    # branch's tests — the staged Red test among them. That test fails BY
+    # DESIGN, which is the whole point of a Red commit, so leaving the gate
+    # armed here refuses the ritual's own first step (work-item bd-ib-c4sfpr).
+    # No coverage is lost: the Green amend, pre-push, and CI each run the full
+    # aggregate on the final commit, which is the load-bearing net.
+    just check-skipping \
+        check-coverage \
+        check-per-file-coverage \
+        check-check-coverage-incremental \
+        check-codex-skill-picker
     exit $?
 fi
 head_msg=$(git log -1 --format=%B 2>/dev/null || true)
