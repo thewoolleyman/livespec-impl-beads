@@ -13,6 +13,11 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_reflection_spans imp
     join_ids,
     stage_summary,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_stall_telemetry import (
+    STALL_CAUSE_ZERO_OUTPUT,
+    STALL_STATUS,
+    StallSignal,
+)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -37,6 +42,7 @@ class Report:
     blocked_count: int
     green_streak: int
     findings: tuple[Finding, ...]
+    stalls: tuple[StallSignal, ...] = ()
 
 
 def test_summary_helpers_render_stable_strings() -> None:
@@ -89,3 +95,39 @@ def test_emit_spans_writes_pass_and_finding_children(tmp_path: Path) -> None:
     spans = resource["scopeSpans"][0]["spans"]
     assert [span["name"] for span in spans] == ["reflection.pass", "reflection.finding"]
     assert spans[1]["parentSpanId"] == spans[0]["spanId"]
+
+
+def test_emit_spans_writes_a_stall_child_naming_the_cancelled_run(tmp_path: Path) -> None:
+    """A watchdog cancellation ships its own span carrying run id + cause."""
+    spans_path = tmp_path / "otel" / "spans.jsonl"
+    emit_spans(
+        report=Report(
+            mode="observe",
+            item_count=1,
+            green_count=0,
+            failed_count=0,
+            blocked_count=0,
+            green_streak=0,
+            findings=(),
+            stalls=(
+                StallSignal(
+                    work_item_id="bd-a",
+                    run_id="01M1RUN",
+                    stage="fabro-run",
+                    cause=STALL_CAUSE_ZERO_OUTPUT,
+                ),
+            ),
+        ),
+        spans_path=spans_path,
+    )
+
+    spans_doc = json.loads(spans_path.read_text(encoding="utf-8").strip())
+    spans = spans_doc["resourceSpans"][0]["scopeSpans"][0]["spans"]
+    assert [span["name"] for span in spans] == ["reflection.pass", "reflection.stall"]
+    assert spans[1]["parentSpanId"] == spans[0]["spanId"]
+    stall_attrs = {a["key"]: a["value"] for a in spans[1]["attributes"]}
+    assert stall_attrs["fabro.run_id"] == {"stringValue": "01M1RUN"}
+    assert stall_attrs["livespec.stall.cause"] == {"stringValue": STALL_CAUSE_ZERO_OUTPUT}
+    assert stall_attrs["livespec.outcome"] == {"stringValue": STALL_STATUS}
+    pass_attrs = {a["key"]: a["value"] for a in spans[0]["attributes"]}
+    assert pass_attrs["livespec.reflection.stall_count"] == {"intValue": "1"}

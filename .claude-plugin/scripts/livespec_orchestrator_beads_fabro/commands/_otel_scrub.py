@@ -78,10 +78,18 @@ ATTRIBUTE_ALLOWLIST: frozenset[str] = frozenset(
         "livespec.reflection.blocked_count",
         "livespec.reflection.green_streak",
         "livespec.reflection.finding_count",
+        "livespec.reflection.stall_count",
         "livespec.reflection.finding.category",
         "livespec.reflection.finding.severity",
         "livespec.reflection.finding.count",
         "livespec.reflection.finding.subject",
+        # Stall-watchdog cancellation: the incident's own cause key. The rest
+        # of a `reflection.stall` span reuses the correlation / host-truth keys
+        # already named here (`work.item.id`, `fabro.run_id`, `livespec.stage`,
+        # `livespec.outcome`) so the incident joins its dispatch rather than
+        # landing in a private namespace. Bounded string scalar, forwarded
+        # through the same credential-shape scrub + truncation as the rest.
+        "livespec.stall.cause",
         # Dispatcher / stage host-truth scalars (ids, statuses, exit codes).
         "livespec.stage",
         "livespec.outcome",

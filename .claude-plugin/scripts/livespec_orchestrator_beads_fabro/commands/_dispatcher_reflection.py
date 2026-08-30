@@ -86,6 +86,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_reflection_spans imp
     join_ids,
     stage_summary,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_stall_telemetry import (
+    StallSignal,
+    stall_signals,
+)
 from livespec_orchestrator_beads_fabro.effects import AttemptFailure, attempt
 from livespec_orchestrator_beads_fabro.io import write_stderr
 
@@ -167,7 +171,16 @@ class ReflectionFinding:
 
 @dataclass(frozen=True, kw_only=True)
 class ReflectionReport:
-    """The mechanical scan result for one wave (no LLM)."""
+    """The mechanical scan result for one wave (no LLM).
+
+    `stalls` carries the wave's stall-watchdog cancellations as their own
+    typed signals rather than folding them into `findings`: a finding is a
+    wave-level cluster summary, while a stall must name the individual run
+    that was cancelled for the telemetry to be queryable at all. The
+    counters above deliberately do NOT absorb them — `green_count` /
+    `failed_count` / `blocked_count` keep their established meanings, and
+    a stalled item is visible through `stalls` plus its finding.
+    """
 
     mode: str
     item_count: int
@@ -176,6 +189,7 @@ class ReflectionReport:
     blocked_count: int
     green_streak: int
     findings: tuple[ReflectionFinding, ...]
+    stalls: tuple[StallSignal, ...]
 
 
 def reset_auto_trip() -> None:
@@ -209,12 +223,21 @@ def scan_outcomes(
     Pure function: classifies the verdict mix, derives the trailing
     green streak, and clusters the pass — timeouts (exit 124),
     retries (repeated stages per item), env-degraded janitor outcomes,
-    sizing warnings (bn4), and any blocked items — into stable-key
-    findings. `mode` is recorded on the report for the summary + spans.
+    sizing warnings (bn4), stall-watchdog cancellations, and any blocked
+    items — into stable-key findings. `mode` is recorded on the report for
+    the summary + spans.
+
+    The green / failed / blocked partition does NOT cover every status the
+    engine can report: a watchdog-confirmed `stalled-no-progress` outcome
+    falls outside all three, which is why it is derived separately (via
+    `stall_signals`) and carried on the report in its own right. Before
+    that it moved `item_count` and nothing else, so a stalled wave read as
+    a wave that reported nothing about the item it dispatched.
     """
     green = tuple(o for o in outcomes if o.status == "green")
     failed = tuple(o for o in outcomes if o.status == "failed")
     blocked = tuple(o for o in outcomes if o.status == "blocked")
+    stalls = stall_signals(outcomes=outcomes)
     findings: list[ReflectionFinding] = []
 
     degraded = tuple(o for o in green if o.stage == "janitor-env-degraded")
@@ -243,6 +266,18 @@ def scan_outcomes(
                 severity="warn",
                 count=len(blocked),
                 subject="items parked at the in-loop human gate (need an operator)",
+            )
+        )
+    if stalls:
+        findings.append(
+            ReflectionFinding(
+                category="stall-watchdog-cancel",
+                severity="critical",
+                count=len(stalls),
+                subject=(
+                    "stall-watchdog cancelled zero-progress runs for: "
+                    f"{join_ids(ids=tuple(stall.work_item_id for stall in stalls))}"
+                ),
             )
         )
 
@@ -295,6 +330,7 @@ def scan_outcomes(
         blocked_count=len(blocked),
         green_streak=trailing_green_streak(outcomes=outcomes),
         findings=tuple(findings),
+        stalls=stalls,
     )
 
 
