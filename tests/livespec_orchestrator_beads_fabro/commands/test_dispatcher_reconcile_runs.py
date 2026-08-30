@@ -400,6 +400,39 @@ def test_the_reconciler_is_handed_no_ledger_status_write_seam(tmp_path: Path) ->
     }
 
 
+def test_a_targeted_pass_leaves_every_other_items_orphan_alone(tmp_path: Path) -> None:
+    """`only_work_item_id` narrows what is ACTED ON, not what is classified."""
+    runner = _Runner(
+        ps_by_server={
+            _HP.server or "": json.dumps(
+                [
+                    _run(run_id="01MINE", kind="blocked", work_item_id="bd-ib-mine"),
+                    _run(run_id="01THEIRS", kind="blocked", work_item_id="bd-ib-theirs"),
+                ]
+            )
+        }
+    )
+
+    summary = reconcile.reconcile_runs(
+        inputs=_inputs(
+            tmp_path=tmp_path,
+            runner=runner,
+            transport=_Transport(),
+            journal=_Journal(),
+            ledger=_Ledger(),
+            items=[
+                _item(id="bd-ib-mine", status="closed"),
+                _item(id="bd-ib-theirs", status="closed"),
+            ],
+            only_work_item_id="bd-ib-mine",
+        ),
+        factories=[_HP],
+    )
+
+    assert [run.run_id for run in summary.reconciled] == ["01MINE"]
+    assert summary.errors == ()
+
+
 def _inputs(
     *,
     tmp_path: Path,
@@ -408,12 +441,14 @@ def _inputs(
     journal: _Journal,
     ledger: _Ledger,
     items: list[WorkItem],
+    only_work_item_id: str | None = None,
 ) -> reconcile.ReconcileInputs:
     return reconcile.ReconcileInputs(
         repo=tmp_path,
         fabro_bin="fabro",
         id_prefix="bd-ib",
         items=items,
+        only_work_item_id=only_work_item_id,
         journaled=journaled_runs(text=""),
         runner=runner,
         journal=journal,
@@ -423,15 +458,15 @@ def _inputs(
 
 
 def _ps(*, run_id: str, kind: str, work_item_id: str = "bd-ib-orphan") -> str:
-    return json.dumps(
-        [
-            {
-                "run_id": run_id,
-                "goal": f"Work-item: {work_item_id}\nRepo: /tmp/repo",
-                "status": {"kind": kind},
-            }
-        ]
-    )
+    return json.dumps([_run(run_id=run_id, kind=kind, work_item_id=work_item_id)])
+
+
+def _run(*, run_id: str, kind: str, work_item_id: str) -> dict[str, Any]:
+    return {
+        "run_id": run_id,
+        "goal": f"Work-item: {work_item_id}\nRepo: /tmp/repo",
+        "status": {"kind": kind},
+    }
 
 
 def _item(*, id: str, status: str) -> WorkItem:

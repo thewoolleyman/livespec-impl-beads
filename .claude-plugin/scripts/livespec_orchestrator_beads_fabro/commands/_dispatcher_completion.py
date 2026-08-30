@@ -38,6 +38,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_host_only_refusal im
     host_only_refusal,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
+from livespec_orchestrator_beads_fabro.commands._dispatcher_lifecycle_writes import (
+    write_work_item_status_and_reconcile,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import store_config
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     is_non_convergence_outcome,
@@ -104,7 +107,7 @@ def complete_and_accept(
 
     """
     config = store_config(repo=repo)
-    update_work_item_status(path=config, item_id=item.id, status="acceptance")
+    write_work_item_status_and_reconcile(path=config, item_id=item.id, status="acceptance")
     journal.append(record={"stage": "ledger-complete", "work_item_id": item.id})
     # An unreadable `.livespec.jsonc` falls back to the documented default
     # policy, visibly and here rather than inside the reader.

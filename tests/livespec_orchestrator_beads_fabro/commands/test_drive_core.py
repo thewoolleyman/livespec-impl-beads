@@ -112,8 +112,10 @@ def _install_valve_store(
         item_id: str,
         status: str,
         assignee: str | None = None,
+        clear_assignee: bool = False,
     ) -> None:
         assert path is config
+        _ = clear_assignee
         updates.append({"item_id": item_id, "status": status, "assignee": assignee})
 
     def fake_update_work_item_rework_pending(

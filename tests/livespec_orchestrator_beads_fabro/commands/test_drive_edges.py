@@ -102,8 +102,10 @@ def _install_valve_store(
         item_id: str,
         status: str,
         assignee: str | None = None,
+        clear_assignee: bool = False,
     ) -> None:
         assert path is config
+        _ = clear_assignee
         updates.append((item_id, status, assignee))
 
     monkeypatch.setattr(drive_valves, "resolve_store_config", fake_resolve_store_config)

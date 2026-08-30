@@ -150,7 +150,9 @@ def test_ai_auto_accept_path_journals_governing_setting(
     journal = _MemoryJournal()
     item = _item(acceptance_policy="ai-only")
     monkeypatch.setattr(_dispatcher_completion, "store_config", lambda **_: tmp_path)
-    monkeypatch.setattr(_dispatcher_completion, "update_work_item_status", lambda **_: None)
+    monkeypatch.setattr(
+        _dispatcher_completion, "write_work_item_status_and_reconcile", lambda **_: None
+    )
     monkeypatch.setattr(_dispatcher_completion, "close_dispatch_item", lambda **_: None)
     monkeypatch.setattr(_dispatcher_completion, "read_dispatch_labels", lambda **_: ())
     monkeypatch.setattr(

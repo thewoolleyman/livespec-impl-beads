@@ -18,6 +18,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import (
     default_invoker_identity,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
+from livespec_orchestrator_beads_fabro.commands._dispatcher_lifecycle_writes import (
+    write_work_item_status_and_reconcile,
+)
 from livespec_orchestrator_beads_fabro.commands._drive_policy_valves import (
     CAP_ACTION_VERBS,
     move_item,
@@ -206,7 +209,7 @@ def _approve_item(
 def _accept_item(*, config: StoreConfig, item: WorkItem, action_id: str) -> dict[str, Any]:
     if item.status != "acceptance":
         return invalid_source_state(aid=action_id, item=item, expected="acceptance")
-    store.update_work_item_status(path=config, item_id=item.id, status="done")
+    write_work_item_status_and_reconcile(path=config, item_id=item.id, status="done")
     return valve_success(
         aid=action_id,
         wid=item.id,
