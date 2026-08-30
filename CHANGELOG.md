@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.110.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.109.0...v0.110.0) (2026-08-30)
+
+
+### Features
+
+* **dispatcher:** shared run-to-item attribution helper (bd-ib-qvy7sv) ([35ecad1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/35ecad162d21e17836daaa54cada25789109a3af))
+* **dispatcher:** stamp the Fabro run id and factory onto the work-item (bd-ib-qvy7sv) ([fc535ee](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/fc535eec978b23e2ce8a4c9bf262ce4d9a53485c))
+
+
+### Bug Fixes
+
+* **dispatcher:** name the resolved factory in every blocked-run recovery command (bd-ib-qvy7sv) ([dd3d8a3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/dd3d8a35f420f36d48807b6c14ea0936ab8aa14c))
+
 ## [0.109.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.108.0...v0.109.0) (2026-08-30)
 
 
