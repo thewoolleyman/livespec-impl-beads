@@ -13,6 +13,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_argv import (
 from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_check_suite import (
     resolve_janitor_check_suite,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_core_provisioning import (
+    FLEET_JANITOR_CORE_REPO_URL,
+    UNRESOLVED_JANITOR_CORE,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings import (
     DEFAULT_MERGE_ON_REVIEW_CAP,
     DEFAULT_REVIEW_FIX_CAP,
@@ -26,8 +30,6 @@ __all__: list[str] = [
     "build_plan",
 ]
 
-_DEFAULT_JANITOR_CORE_REPO_URL = "https://github.com/thewoolleyman/livespec.git"
-_DEFAULT_JANITOR_CORE_REF = "master"
 _MERGE_ON_REVIEW_CAP_DISABLED_OUTCOME = "__merge_on_review_cap_disabled__"
 
 
@@ -97,8 +99,12 @@ def build_plan(  # noqa: PLR0913 — kw-only plan resolver; each field is an ind
     fabro_factory_dev_token: str | None = None,
     janitor: tuple[str, ...] | None,
     janitor_checkout: Path,
-    janitor_core_repo_url: str = _DEFAULT_JANITOR_CORE_REPO_URL,
-    janitor_core_ref: str = _DEFAULT_JANITOR_CORE_REF,
+    # The clone repository has a fleet default because an ABSENT `core_repo`
+    # declaration is a complete answer; the REF has none, so an unresolved pin
+    # arrives here as the sentinel and the post-merge provisioning degrades
+    # naming the key rather than cloning a moving branch tip.
+    janitor_core_repo_url: str = FLEET_JANITOR_CORE_REPO_URL,
+    janitor_core_ref: str = UNRESOLVED_JANITOR_CORE,
     review_fix_cap: int = DEFAULT_REVIEW_FIX_CAP,
     merge_on_review_cap: bool = DEFAULT_MERGE_ON_REVIEW_CAP,
     fabro_timeout_seconds: float = DEFAULT_FABRO_TIMEOUT_SECONDS,

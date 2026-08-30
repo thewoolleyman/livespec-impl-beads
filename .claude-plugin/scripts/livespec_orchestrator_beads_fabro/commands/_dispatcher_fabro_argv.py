@@ -10,6 +10,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from livespec_orchestrator_beads_fabro.commands import _jsonc
+from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_core_provisioning import (
+    resolve_janitor_core_provisioning,
+)
 
 if TYPE_CHECKING:
     from livespec_orchestrator_beads_fabro.commands._codex_model_tiers import CodexModelTier
@@ -35,6 +38,7 @@ __all__: list[str] = [
     "janitor_core_checkout_path",
     "janitor_core_clone_argv",
     "janitor_core_ref_from_config",
+    "janitor_core_repo_url_from_config",
     "janitor_reconcile_checkout_path",
     "janitor_trust_argv",
     "janitor_venue_contains_merge_argv",
@@ -46,9 +50,6 @@ __all__: list[str] = [
     "pr_view_argv",
     "pull_primary_argv",
 ]
-
-_DEFAULT_JANITOR_CORE_REPO_URL = "https://github.com/thewoolleyman/livespec.git"
-_DEFAULT_JANITOR_CORE_REF = "master"
 
 
 # The Codex ACP adapter command: the successor `@agentclientprotocol/codex-acp`
@@ -279,23 +280,25 @@ def janitor_reconcile_checkout_path(*, repo: Path, work_item_id: str) -> Path:
 
 
 def janitor_core_ref_from_config(*, config_text: str) -> str:
-    """Resolve the livespec core ref pinned by the target repo config."""
-    parsed_raw = _jsonc.parse(text=config_text)
-    if isinstance(parsed_raw, _jsonc.JsoncFailure):
-        return _DEFAULT_JANITOR_CORE_REF
-    if not isinstance(parsed_raw, dict):
-        return _DEFAULT_JANITOR_CORE_REF
-    parsed = cast("dict[str, object]", parsed_raw)
-    plugin_raw: object = parsed.get("livespec-orchestrator-beads-fabro")
-    if not isinstance(plugin_raw, dict):
-        return _DEFAULT_JANITOR_CORE_REF
-    compat_raw: object = cast("dict[str, object]", plugin_raw).get("compat")
-    if not isinstance(compat_raw, dict):
-        return _DEFAULT_JANITOR_CORE_REF
-    pinned_raw: object = cast("dict[str, object]", compat_raw).get("pinned")
-    if not isinstance(pinned_raw, str) or pinned_raw.strip() == "":
-        return _DEFAULT_JANITOR_CORE_REF
-    return pinned_raw.strip()
+    """The livespec-core ref the target repo DECLARES, or the unresolved sentinel.
+
+    A missing or unreadable `compat.pinned` no longer answers `master`: the
+    janitor-core-provisioning-resolution clause forbids substituting a moving
+    branch tip for a declaration, so absence resolves to
+    `UNRESOLVED_JANITOR_CORE` and the post-merge provisioning degrades naming
+    the key. A DECLARED value is honored verbatim, `master` included.
+    """
+    return resolve_janitor_core_provisioning(config_text=config_text).ref
+
+
+def janitor_core_repo_url_from_config(*, config_text: str) -> str:
+    """The livespec-core clone repository the target repo declares.
+
+    `compat.core_repo` is optional, so an ABSENT key resolves to the fleet
+    livespec core; a present-but-unusable one resolves to the sentinel and
+    refuses rather than sliding onto that default.
+    """
+    return resolve_janitor_core_provisioning(config_text=config_text).repo_url
 
 
 def pr_view_argv(*, plan: DispatchPlan) -> list[str]:

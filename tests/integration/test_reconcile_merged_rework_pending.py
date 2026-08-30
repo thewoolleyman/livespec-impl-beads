@@ -110,6 +110,10 @@ def _repo(*, tmp_path: Path) -> Path:
         (
             '{"livespec-orchestrator-beads-fabro": {'
             '"connection": {"prefix": "bd-ib"}, '
+            # A governed repository DECLARES the livespec core its janitor
+            # provisions; an undeclared pin degrades the post-merge flow before
+            # the reconcile valve's janitor can run.
+            '"compat": {"pinned": "master"}, '
             '"dispatcher": {"acceptance_mode": "ai-only"}'
             "}}"
         ),

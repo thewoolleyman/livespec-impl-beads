@@ -98,6 +98,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_check_suite 
     janitor_check_suite_from_block,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_checks import run_janitor_checks
+from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_core_provisioning import (
+    FLEET_JANITOR_CORE_REPO_URL,
+    UNRESOLVED_JANITOR_CORE,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_checks import (
     LedgerFinding,
     run_ledger_checks,
@@ -114,6 +118,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     janitor_checkout_path,
     janitor_core_clone_argv,
     janitor_core_ref_from_config,
+    janitor_core_repo_url_from_config,
     janitor_trust_argv,
     janitor_venue_contains_merge_argv,
     janitor_worktree_add_argv,
@@ -225,6 +230,7 @@ def test_dispatcher_plan_decomposition_contract() -> None:
         "janitor_core_checkout_path",
         "janitor_core_clone_argv",
         "janitor_core_ref_from_config",
+        "janitor_core_repo_url_from_config",
         "janitor_reconcile_checkout_path",
         "janitor_trust_argv",
         "janitor_venue_contains_merge_argv",
@@ -429,6 +435,9 @@ def _plan(*, repo: Path) -> DispatchPlan:
         fabro_bin="fabro",
         janitor=None,
         janitor_checkout=repo / "janitor-co",
+        # A DECLARED pin, because an undeclared one now degrades the post-merge
+        # provisioning before the janitor is reached -- which is its own case.
+        janitor_core_ref="master",
     )
 
 
@@ -1549,22 +1558,30 @@ def test_argv_builders_encode_family_discipline(tmp_path: Path) -> None:
 
 
 def test_janitor_core_ref_from_config_reads_compat_pin(tmp_path: Path) -> None:
+    """A declared pin is honored; an undeclared one resolves to the unresolved sentinel.
+
+    The `master` these arms used to answer is exactly the silent moving-tip
+    default the janitor-core-provisioning-resolution clause forbids.
+    """
     assert (
         janitor_core_ref_from_config(
             config_text='{ "livespec-orchestrator-beads-fabro": { "compat": { "pinned": "v1" } } }'
         )
         == "v1"
     )
-    assert janitor_core_ref_from_config(config_text="{}") == "master"
-    assert janitor_core_ref_from_config(config_text="not-jsonc") == "master"
-    assert janitor_core_ref_from_config(config_text="[]") == "master"
+    assert janitor_core_ref_from_config(config_text="{}") == UNRESOLVED_JANITOR_CORE
+    assert janitor_core_ref_from_config(config_text="not-jsonc") == UNRESOLVED_JANITOR_CORE
+    assert janitor_core_ref_from_config(config_text="[]") == UNRESOLVED_JANITOR_CORE
     assert (
         janitor_core_ref_from_config(
             config_text='{ "livespec-orchestrator-beads-fabro": { "compat": { "pinned": "" } } }'
         )
-        == "master"
+        == UNRESOLVED_JANITOR_CORE
     )
-    assert dispatcher.janitor_core_ref(repo=tmp_path / "missing-config") == "master"
+    assert dispatcher.janitor_core_ref(repo=tmp_path / "missing-config") == UNRESOLVED_JANITOR_CORE
+    # The clone repository keeps a fleet default, because an ABSENT `core_repo`
+    # is a complete answer where an absent pin is not.
+    assert janitor_core_repo_url_from_config(config_text="{}") == FLEET_JANITOR_CORE_REPO_URL
 
 
 def test_parse_pr_view_rejects_unusable_shapes() -> None:

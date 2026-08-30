@@ -335,6 +335,9 @@ def _repo(*, tmp_path: Path) -> Path:
     config = {
         "livespec-orchestrator-beads-fabro": {
             "connection": {"prefix": "bd-ib"},
+            # The governed repository DECLARES the livespec core its janitor
+            # provisions; an undeclared pin degrades post-merge provisioning.
+            "compat": {"pinned": "master"},
             "dispatcher": {"acceptance_mode": "ai-only"},
         }
     }

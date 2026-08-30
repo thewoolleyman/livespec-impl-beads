@@ -37,6 +37,9 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_journal import run_stage
+from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_core_provisioning import (
+    janitor_core_provisioning_defect,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_degraded import (
     DegradedStep,
     degraded_step,
@@ -81,6 +84,14 @@ _VENUE_TIMEOUT_SECONDS = 30.0
 # is a ref we guessed at, and prose naming `origin/master` would tell an adopter
 # on `main` that we looked for a branch they do not have.
 UNRESOLVED_VENUE = "<unresolved>"
+
+_UNRESOLVED_CORE_REMEDY = (
+    "declare the livespec core this repository is governed against in its committed "
+    "`.livespec.jsonc` -- `livespec-orchestrator-beads-fabro.compat.pinned` names the ref the "
+    "janitor clones (a release tag, or `master` where that is genuinely the repository's own "
+    "choice), and the OPTIONAL `compat.core_repo` names the clone repository, which resolves to "
+    "the fleet livespec core when it is absent"
+)
 
 _UNRESOLVED_BRANCH_REMEDY = (
     "give the target repository a resolvable default branch on this host -- "
@@ -160,6 +171,21 @@ def provision_janitor_checkout(
             ),
             recipe=recipe,
         )
+    core_defect = janitor_core_provisioning_defect(
+        ref=plan.janitor_core_ref, repo_url=plan.janitor_core_repo_url
+    )
+    if core_defect is not None:
+        # Caught on the same principle as the recipe defect above, and one step
+        # earlier than the clone would fail: an unresolved ref reaches `git
+        # clone --branch` as a sentinel, whose stderr would name a branch the
+        # repository never declared instead of the declaration it is missing.
+        return merged_degraded_for_plan(
+            outcome_type=outcome_type,
+            plan=plan,
+            merged=merged,
+            step=_unresolved_core_step(plan=plan, defect=core_defect),
+            recipe=recipe,
+        )
     # Resolved BEFORE the preclean, on the same principle as the recipe defect
     # above: a venue that cannot be named, or that cannot be shown to carry the
     # item's merge, degrades with nothing provisioned for it.
@@ -232,6 +258,18 @@ def provision_janitor_checkout(
                 recipe=recipe,
             )
     return None
+
+
+def _unresolved_core_step(*, plan: DispatchPlan, defect: str) -> DegradedStep:
+    """No livespec core could be named, so there is nothing to provision the clone from."""
+    return DegradedStep(
+        description=(
+            f"resolving the livespec-core clone to provision at {plan.janitor_core_checkout}"
+        ),
+        reason=defect,
+        missing_point="a declared livespec-core ref for the target repository",
+        remedy_text=_UNRESOLVED_CORE_REMEDY,
+    )
 
 
 def _unresolved_branch_step(*, plan: DispatchPlan) -> DegradedStep:
