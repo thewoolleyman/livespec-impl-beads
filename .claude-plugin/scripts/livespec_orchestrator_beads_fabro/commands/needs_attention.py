@@ -40,6 +40,9 @@ from livespec_orchestrator_beads_fabro.commands._needs_attention_envelope import
 from livespec_orchestrator_beads_fabro.commands._needs_attention_handoffs import (
     plans,
 )
+from livespec_orchestrator_beads_fabro.commands._needs_attention_orphan_runs import (
+    orphan_run_items,
+)
 from livespec_orchestrator_beads_fabro.commands._needs_attention_ready_aging import (
     ReadyAgingContext,
     ReadyAgingSeams,
@@ -163,6 +166,11 @@ def build_attention(
             + host_only_items(project_root=project_root, repo=repo_name, items=materialized)
             + stranded_dispatch_items(project_root=project_root, repo=repo_name, items=materialized)
             + capacity_items(project_root=project_root, repo=repo_name, items=materialized)
+            # A run the ledger disowns holds a factory scheduler slot, and no
+            # surface keyed on THIS repo's records can see it: the projection is
+            # the reconciler's own dry run, so the lane and the remedy it prints
+            # can never disagree about what an orphan is.
+            + orphan_run_items(project_root=project_root, repo=repo_name, items=materialized)
             # Detection recency is a REPOSITORY property computed from the
             # completed coverage records on the committed anchor. Neither fact
             # invokes a detector: both are surfaced triggers naming the skill.
