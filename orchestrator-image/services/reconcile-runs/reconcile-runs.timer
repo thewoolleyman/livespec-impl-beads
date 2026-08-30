@@ -1,0 +1,23 @@
+# Fires `reconcile-runs.service` every 10 minutes.
+#
+# `OnUnitActiveSec` rather than `OnCalendar`: the interval that matters is the
+# gap since the LAST pass, not a wall-clock grid, and a pass that overruns must
+# push the next one out rather than stacking a second survey on top of it.
+#
+# `Persistent=true` so a host that was down over one or more intervals runs a
+# catch-up pass on boot instead of silently skipping them — a machine that was
+# off is exactly the machine most likely to have left runs behind.
+
+[Unit]
+Description=Run livespec reconcile-runs every 10 minutes
+Documentation=https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=10min
+AccuracySec=1min
+Persistent=true
+Unit=reconcile-runs.service
+
+[Install]
+WantedBy=timers.target
