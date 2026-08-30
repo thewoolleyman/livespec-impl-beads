@@ -1,0 +1,36 @@
+# livespec `reconcile-runs` — host timer unit TEMPLATE.
+#
+# The dispatch path already reconciles once per `dispatch` and once per `loop`
+# tick. This timer covers the interval NOTHING dispatches: a host whose queue
+# has drained still holds every orphaned Fabro run it launched, and an orphan
+# holds a scheduler slot until something looks. Reconciliation is an inventory
+# question, so it has to be asked on a clock and not only on demand.
+#
+# `@PLUGIN_ROOT@`, `@PRIMARY_REPO@` and `@RUN_AS_USER@` are substituted by
+# `install.sh` in this directory. Do NOT install this file verbatim.
+#
+# The ExecStart runs THROUGH the project's env wrapper. That is load-bearing,
+# not decoration: `bd` reads the tenant password from a bare
+# `BEADS_DOLT_PASSWORD` that only the wrapper injects, so a bare invocation
+# fails with "Access denied" / "no beads database found" and reads as a missing
+# tenant rather than as a missing credential. `install.sh` refuses to install
+# a unit whose wrapper is not an executable file on this host.
+
+[Unit]
+Description=livespec reconcile-runs — reconcile factory run inventory against the ledger
+Documentation=https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=@RUN_AS_USER@
+WorkingDirectory=@PRIMARY_REPO@
+ExecStart=/usr/local/bin/with-livespec-env.sh -- /usr/bin/python3 @PLUGIN_ROOT@/scripts/bin/dispatcher.py reconcile-runs --repo @PRIMARY_REPO@ --invoker timer:reconcile-runs --json
+# One pass surveys every declared factory over the network; the reconciler's own
+# per-factory `fabro ps` timeout is 60s, so this bounds the whole pass rather
+# than any single call.
+TimeoutStartSec=600
+# A failed pass is not an incident: the next tick asks the same question again,
+# and a restart storm against an unreachable factory would be pure noise.
+Restart=no
