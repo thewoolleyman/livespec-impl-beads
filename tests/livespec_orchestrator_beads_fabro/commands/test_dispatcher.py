@@ -732,14 +732,17 @@ def test_dispatch_gate_auto_normalizes_beads_native_open(
     records = [json.loads(line) for line in journal.read_text(encoding="utf-8").splitlines()]
     # The normalization note now routes through the append layer, so it carries
     # the stamped envelope (`at` + the resolved invoker) alongside its payload.
-    # BOTH pre-dispatch steps journal their pass ahead of it: the preamble runs
-    # ahead of the ledger gate, and a pass is a sanctioned journaled outcome.
-    assert [record["stage"] for record in records[:3]] == [
+    # ALL THREE pre-dispatch steps journal their pass ahead of it: both step-gate
+    # preflights and the automatic reconciliation pass run inside the preamble,
+    # which is ahead of the ledger gate, and each pass is a sanctioned journaled
+    # outcome.
+    assert [record["stage"] for record in records[:4]] == [
         "source-checkout-origin-reachability",
         "master-ci-preflight",
+        "reconcile-runs-pass",
         "status-normalization",
     ]
-    assert records[2]["normalized"] == [
+    assert records[3]["normalized"] == [
         {
             "from": "open",
             "item_id": "native-open",
@@ -747,11 +750,11 @@ def test_dispatch_gate_auto_normalizes_beads_native_open(
             "to": "backlog",
         }
     ]
-    assert records[2]["at"]
-    assert records[2]["invoker"]
-    assert records[2]["invoker_source"] in {"flag", "env", "fallback"}
-    assert records[3]["stage"] == "ledger-check"
-    assert records[3]["findings"] == [
+    assert records[3]["at"]
+    assert records[3]["invoker"]
+    assert records[3]["invoker_source"] in {"flag", "env", "fallback"}
+    assert records[4]["stage"] == "ledger-check"
+    assert records[4]["findings"] == [
         {
             "check": "status-conformance",
             "item_id": "bad-hooked",
@@ -4119,9 +4122,13 @@ def test_dispatch_green_closes_item_and_journals(
     # then the run_turn telemetry assertion journals the absence/presence
     # signal for reflection to scan, then the mechanical reflection stage at
     # the default `observe` lever (work-item 29f.2).
+    # `reconcile-runs-pass` closes the preamble: reconciliation runs after both
+    # step-gate preflights and before admission, and it records its pass even
+    # when there is no declared factory to survey.
     assert stages == [
         "source-checkout-origin-reachability",
         "master-ci-preflight",
+        "reconcile-runs-pass",
         "ledger-admit",
         "node-timeouts",
         "acp-nodes",

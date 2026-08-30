@@ -49,6 +49,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import store_c
 from livespec_orchestrator_beads_fabro.commands._dispatcher_readiness_diagnostics import (
     not_ready_requested_items_error,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_pass import (
+    reconcile_runs_pass,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_rework_admission import (
     rework_redispatch_eligible_ids,
 )
@@ -289,6 +292,12 @@ def dispatch_preamble(
     the refusal cannot itself leave a half-performed act or an unattributed
     record behind (the journal invoker attribution contract in contracts.md).
 
+    Because this is the head of every `dispatch` AND of every `loop` iteration
+    (`_start_loop` calls it before the loop selects any candidate), the single
+    reconciliation pass at the end of it is BOTH "once per loop tick before
+    selection" and "once before admission". A second call in the loop command
+    would survey the same inventory twice for one answer.
+
     The closed step set's whole pre-dispatch discipline -- both preflights,
     their committed waivers, and the cross-dispatch persistence of a degraded
     post-merge outcome -- runs LAST, as one call into `_dispatcher_step_gate`.
@@ -321,6 +330,12 @@ def dispatch_preamble(
     if step_refusal is not None:
         _ = write_stderr(text=step_refusal)
         return None, _EXIT_PRECONDITION_ERROR
+    # Reconciliation runs LAST, after every refusal above, so a refused
+    # invocation keeps its zero-side-effect guarantee. It is not a refusal
+    # itself and cannot become one: `reconcile_runs_pass` absorbs its own
+    # failures into a journal record and returns, because an unsurveyable
+    # factory says nothing about whether this item may be dispatched.
+    _ = reconcile_runs_pass(args=args, repo=repo)
     return janitor, None
 
 
