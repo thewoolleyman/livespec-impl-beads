@@ -10,17 +10,17 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from livespec_orchestrator_beads_fabro.commands import _jsonc
-from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_core_provisioning import (
+from livespec_orchestrator_beads_fabro.commands._dispatcher_core_provisioning_view import (
     resolve_janitor_core_provisioning,
 )
 
 if TYPE_CHECKING:
     from livespec_orchestrator_beads_fabro.commands._codex_model_tiers import CodexModelTier
-    from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_recipe import (
-        JanitorBootstrapRecipe,
-    )
-    from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_check_suite import (
+    from livespec_orchestrator_beads_fabro.commands._dispatcher_check_suite_view import (
         JanitorCheckSuite,
+    )
+    from livespec_orchestrator_beads_fabro.commands._dispatcher_hook_install_recipe import (
+        JanitorBootstrapRecipe,
     )
     from livespec_orchestrator_beads_fabro.commands._dispatcher_plan_build import DispatchPlan
 

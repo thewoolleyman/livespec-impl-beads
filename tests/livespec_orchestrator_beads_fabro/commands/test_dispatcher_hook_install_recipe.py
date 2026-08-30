@@ -1,6 +1,6 @@
 """Focused tests for the declared janitor-bootstrap recipe and its resolution.
 
-Covers `_dispatcher_janitor_bootstrap_recipe`: the committed
+Covers `_dispatcher_hook_install_recipe`: the committed
 `dispatcher.janitor_bootstrap` reader, the fleet default convention an ABSENT
 key falls back to, the defects a PRESENT key can carry (which never slide onto
 the convention), and the operator-facing prose every unresolvable-recipe
@@ -14,7 +14,7 @@ from inspect import signature
 from pathlib import Path
 
 import pytest
-from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_recipe import (
+from livespec_orchestrator_beads_fabro.commands._dispatcher_hook_install_recipe import (
     DECLARED_RESOLUTION,
     DEFAULT_RECIPE,
     DEFAULT_RESOLUTION,
@@ -76,7 +76,7 @@ def test_a_declared_recipe_is_split_with_shell_quoting_honoured() -> None:
         pytest.param({"recipe": 7}, "not a non-empty string", id="non-string-recipe"),
         pytest.param({"recipe": "   "}, "not a non-empty string", id="blank-recipe"),
         pytest.param({"recipe": "sh -c 'unbalanced"}, "does not parse", id="unbalanced-quote"),
-        pytest.param({"recipe": "''"}, "does not parse", id="no-tokens"),
+        pytest.param({"recipe": "''"}, "names no program", id="no-tokens"),
     ],
 )
 def test_a_present_but_unusable_declaration_is_a_defect_not_a_fallback(

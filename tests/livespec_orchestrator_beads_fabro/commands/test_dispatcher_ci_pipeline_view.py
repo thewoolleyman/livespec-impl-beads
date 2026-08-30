@@ -13,9 +13,9 @@ from typing import Any, Protocol, cast
 
 _MODULE_PATH = (
     Path(".claude-plugin/scripts/livespec_orchestrator_beads_fabro/commands")
-    / "_dispatcher_master_ci_pipeline.py"
+    / "_dispatcher_ci_pipeline_view.py"
 )
-_MODULE_NAME = "livespec_orchestrator_beads_fabro.commands._dispatcher_master_ci_pipeline"
+_MODULE_NAME = "livespec_orchestrator_beads_fabro.commands._dispatcher_ci_pipeline_view"
 
 
 class _Pipeline(Protocol):

@@ -9,7 +9,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_journal impor
     run_stage,
     tail,
 )
-from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_recipe import (
+from livespec_orchestrator_beads_fabro.commands._dispatcher_hook_install_recipe import (
     JanitorBootstrapRecipe,
     resolve_janitor_bootstrap_recipe,
 )

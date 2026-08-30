@@ -94,6 +94,19 @@ Private helper modules (underscore-prefixed) carry shared plumbing:
   in-memory `index: dict[str, WorkItem]`); callers (`next`,
   `list-work-items`, the Dispatcher) import them from there.
 - `_jsonc.py` — JSONC parsing for `.livespec.jsonc`.
+- `_dispatcher_integration_schema.py` / `_dispatcher_integration_defaults.py` /
+  `_dispatcher_integration_declaration.py` /
+  `_dispatcher_integration_resolver.py` — the typed repository-integration
+  contract. `_schema` holds the CLOSED field set and the
+  `RepoIntegrationContract` dataclass, `_defaults` holds every fleet default
+  the resolver can return, `_declaration` reads a governed repo's declaration,
+  and `_resolver` is the ONE generic resolver returning
+  `Declared | FleetDefault | Defective`. Adding a schema field means the
+  obligation was RATIFIED first; do NOT add one for an unratified expectation.
+  The per-family modules (`_dispatcher_ci_pipeline_view`,
+  `_dispatcher_check_suite_view`, `_dispatcher_core_provisioning_view`,
+  `_dispatcher_hook_install_recipe`) are PROJECTIONS of that resolution — they
+  shape it for one consumer and MUST NOT re-derive it from configuration.
 
 Rules an agent editing this tree must follow:
 

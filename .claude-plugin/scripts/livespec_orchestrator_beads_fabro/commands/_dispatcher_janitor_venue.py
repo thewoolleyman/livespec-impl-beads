@@ -36,17 +36,26 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_journal import run_stage
-from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_core_provisioning import (
+from livespec_orchestrator_beads_fabro.commands._dispatcher_core_provisioning_view import (
     janitor_core_provisioning_defect,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_default_branch import (
+    resolve_default_branch,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_journal import run_stage
+from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_resolver import (
+    Defective,
+    resolve_integration_field,
+    resolved_name,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_schema import (
+    DEFAULT_BRANCH_FIELD,
+    DEFAULT_BRANCH_KEY,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_degraded import (
     DegradedStep,
     degraded_step,
     merged_degraded_for_plan,
-)
-from livespec_orchestrator_beads_fabro.commands._dispatcher_master_ci_lookups import (
-    resolve_default_branch,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     janitor_bootstrap_argv,
@@ -64,7 +73,7 @@ if TYPE_CHECKING:
         DispatchOutcome,
         JournalWriter,
     )
-    from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_recipe import (
+    from livespec_orchestrator_beads_fabro.commands._dispatcher_hook_install_recipe import (
         JanitorBootstrapRecipe,
     )
     from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import DispatchPlan, PrView
@@ -124,11 +133,22 @@ def resolve_janitor_venue(
 
     A `merge_sha` of None is not a degradation: the caller has no merge to
     confirm, so the tip is the venue with nothing left to prove about it.
+
+    The branch is read as the contract's DEFAULT-BRANCH FIELD rather than as a
+    bare probe result: the repository's own git/forge state is what declares it,
+    and running that declaration through the one generic resolver is what makes
+    a silent probe the same REQUIRED-field refusal every other unresolvable
+    point earns, instead of a local `is None` convention this venue happens to
+    keep.
     """
-    branch = resolve_default_branch(repo=plan.repo, runner=runner)
-    if branch is None:
+    probed = resolve_default_branch(repo=plan.repo, runner=runner)
+    branch = resolve_integration_field(
+        field=DEFAULT_BRANCH_FIELD,
+        declaration={} if probed is None else {DEFAULT_BRANCH_KEY: probed},
+    )
+    if isinstance(branch, Defective):
         return JanitorVenue(ref=UNRESOLVED_VENUE, defect=_unresolved_branch_step(plan=plan))
-    tip = f"origin/{branch}"
+    tip = f"origin/{resolved_name(resolution=branch)}"
     if merge_sha is None:
         return JanitorVenue(ref=tip)
     contains = runner.run(

@@ -15,9 +15,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import Comman
 
 _MODULE_PATH = (
     Path(".claude-plugin/scripts/livespec_orchestrator_beads_fabro/commands")
-    / "_dispatcher_master_ci_preflight.py"
+    / "_dispatcher_ci_preflight.py"
 )
-_MODULE_NAME = "livespec_orchestrator_beads_fabro.commands._dispatcher_master_ci_preflight"
+_MODULE_NAME = "livespec_orchestrator_beads_fabro.commands._dispatcher_ci_preflight"
 _EXIT_PRECONDITION_ERROR = 3
 _RED_CONCLUSIONS = (
     "failure",

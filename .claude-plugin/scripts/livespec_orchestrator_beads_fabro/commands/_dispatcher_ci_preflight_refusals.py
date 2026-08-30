@@ -1,6 +1,6 @@
 """How a master-CI preflight outcome READS: its operator text and its journal record.
 
-Split out of `_dispatcher_master_ci_preflight` along the cohesion seam between
+Split out of `_dispatcher_ci_preflight` along the cohesion seam between
 DECIDING an outcome -- the lookups and the classification, which stay there --
 and SAYING it, which is all this module does.
 
@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from livespec_orchestrator_beads_fabro.commands._dispatcher_master_ci_pipeline import (
+from livespec_orchestrator_beads_fabro.commands._dispatcher_ci_pipeline_view import (
     MASTER_CI_KEY,
     MasterCiPipeline,
     pipeline_resolution_sentence,

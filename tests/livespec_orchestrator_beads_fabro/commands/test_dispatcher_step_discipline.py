@@ -16,13 +16,14 @@ from pathlib import Path
 import pytest
 from livespec_orchestrator_beads_fabro.commands import _dispatcher_step_gate
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import CommandResult
-from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import invoker_from_args
-from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_recipe import (
+from livespec_orchestrator_beads_fabro.commands._dispatcher_hook_install_recipe import (
     JANITOR_BOOTSTRAP_KEY,
+    hook_install_recipe_present,
     integration_point,
     janitor_bootstrap_recipe_from_block,
     remedy,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import invoker_from_args
 from livespec_orchestrator_beads_fabro.commands._dispatcher_step_gate import (
     step_discipline_refusal,
 )
@@ -31,9 +32,6 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_step_ids import (
     MASTER_CI,
     SOURCE_CHECKOUT,
     STEP_IDS,
-)
-from livespec_orchestrator_beads_fabro.commands._dispatcher_step_janitor_bootstrap import (
-    hook_install_recipe_present,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_step_persistence import (
     clearing_record,

@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_journal import tail
-from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_recipe import (
+from livespec_orchestrator_beads_fabro.commands._dispatcher_hook_install_recipe import (
     integration_point,
     remedy,
 )
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
         CommandResult,
         DispatchOutcome,
     )
-    from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_recipe import (
+    from livespec_orchestrator_beads_fabro.commands._dispatcher_hook_install_recipe import (
         JanitorBootstrapRecipe,
     )
     from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import DispatchPlan, PrView

@@ -6,16 +6,16 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from livespec_orchestrator_beads_fabro.commands._acp_node_layers import AcpNodeResolution
+from livespec_orchestrator_beads_fabro.commands._dispatcher_check_suite_view import (
+    resolve_janitor_check_suite,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_argv import (
     janitor_argv,
     janitor_core_checkout_path,
 )
-from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_check_suite import (
-    resolve_janitor_check_suite,
-)
-from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_core_provisioning import (
-    FLEET_JANITOR_CORE_REPO_URL,
-    UNRESOLVED_JANITOR_CORE,
+from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_defaults import (
+    FLEET_CORE_REPO_URL,
+    UNRESOLVED_NAME,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings import (
     DEFAULT_MERGE_ON_REVIEW_CAP,
@@ -103,8 +103,8 @@ def build_plan(  # noqa: PLR0913 — kw-only plan resolver; each field is an ind
     # declaration is a complete answer; the REF has none, so an unresolved pin
     # arrives here as the sentinel and the post-merge provisioning degrades
     # naming the key rather than cloning a moving branch tip.
-    janitor_core_repo_url: str = FLEET_JANITOR_CORE_REPO_URL,
-    janitor_core_ref: str = UNRESOLVED_JANITOR_CORE,
+    janitor_core_repo_url: str = FLEET_CORE_REPO_URL,
+    janitor_core_ref: str = UNRESOLVED_NAME,
     review_fix_cap: int = DEFAULT_REVIEW_FIX_CAP,
     merge_on_review_cap: bool = DEFAULT_MERGE_ON_REVIEW_CAP,
     fabro_timeout_seconds: float = DEFAULT_FABRO_TIMEOUT_SECONDS,

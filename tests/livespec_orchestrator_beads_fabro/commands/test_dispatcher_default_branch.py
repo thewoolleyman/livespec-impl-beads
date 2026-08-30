@@ -13,7 +13,7 @@ from pathlib import Path
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import CommandResult
 
 _MODULE = "livespec_orchestrator_beads_fabro.commands._dispatcher_default_branch"
-_LOOKUPS_MODULE = "livespec_orchestrator_beads_fabro.commands._dispatcher_master_ci_lookups"
+_LOOKUPS_MODULE = "livespec_orchestrator_beads_fabro.commands._dispatcher_ci_preflight_lookups"
 _ORIGIN_HEAD_ARGV = ["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"]
 _REPO_VIEW_ARGV = [
     "gh",
