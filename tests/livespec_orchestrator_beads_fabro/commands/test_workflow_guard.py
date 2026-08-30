@@ -26,7 +26,7 @@ class StubRunner:
         return self.result
 
 
-def test_main_writes_success_to_stdout(
+def test_main_writes_non_failing_outcome_to_stdout(
     *,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -41,7 +41,9 @@ def test_main_writes_success_to_stdout(
 
     captured = capsys.readouterr()
     assert exit_code == 0
-    assert captured.out == "No .github/workflows/ changes detected.\n"
+    # The vacuous-match outcome is VISIBLE on the operator surface — an exit 0
+    # alone cannot say whether anything was observed.
+    assert captured.out.startswith("vacuous-match: ")
     assert captured.err == ""
 
 
