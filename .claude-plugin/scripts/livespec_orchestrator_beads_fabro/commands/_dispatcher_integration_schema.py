@@ -150,6 +150,15 @@ class IntegrationField:
     defaulting the missing half would prove part of a pipeline the repository
     never named. Where it is None -- `dispatcher.janitor.check_suite` -- a
     present parent that omits the child is a genuine absence and falls back.
+
+    `declared_in_config` says whether this point is one a repository ANSWERS in
+    its committed declaration. It is True for every field an adopter writes and
+    False for the default branch alone, whose declaration is the repository
+    itself. The pre-dispatch schema-validation pass grades a DECLARATION, so it
+    grades exactly the fields carrying True: refusing there on an unprobed
+    branch would send an operator to fix a committed key that does not exist,
+    and the branch's own two-route resolution already refuses at the seam that
+    probes it.
     """
 
     attribute: str
@@ -161,6 +170,7 @@ class IntegrationField:
     admitted: tuple[str, ...] = ()
     venue: str | None = None
     parent_key: str | None = None
+    declared_in_config: bool = True
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -277,6 +287,7 @@ DEFAULT_BRANCH_FIELD = IntegrationField(
     path=DEFAULT_BRANCH_KEY,
     shape=SHAPE_NAME,
     required=True,
+    declared_in_config=False,
 )
 
 MERGE_MODE_FIELD = IntegrationField(

@@ -107,6 +107,13 @@ Private helper modules (underscore-prefixed) carry shared plumbing:
   `_dispatcher_check_suite_view`, `_dispatcher_core_provisioning_view`,
   `_dispatcher_hook_install_recipe`) are PROJECTIONS of that resolution — they
   shape it for one consumer and MUST NOT re-derive it from configuration.
+  `_dispatcher_integration_validation` is the PRE-DISPATCH pass over that
+  schema: it grades a governed repository's declaration against the schema
+  version the executing build requires and refuses (exit 3, journaled)
+  enumerating every `Defective` point in ONE message. It grades what the
+  repository WROTE, never what it left unwritten — an absence is what a field
+  added by a LATER build looks like in an EARLIER repository, so refusing on one
+  would strand items already mid-pipeline.
   `_dispatcher_integration_projection` carries the projections that cross into
   a run — the `fabro run --input` pairs, the prompt variables, the prepare-step
   parameters — plus the dispatch record's contract projection and the `gh pr
