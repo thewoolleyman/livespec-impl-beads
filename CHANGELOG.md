@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.115.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.114.0...v0.115.0) (2026-08-30)
+
+
+### Features
+
+* **dispatcher:** retire the eight per-key resolver modules onto the generic integration-contract resolver (bd-ib-oahwsi) ([a85a944](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/a85a944bb105c52405a877487f22e6ca4c5a5633))
+* **dispatcher:** typed RepoIntegrationContract schema and generic Declared|FleetDefault|Defective resolver (bd-ib-oahwsi) ([741b102](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/741b102d7db6c6d2fba53b97a33dc035f59a0e06))
+
 ## [0.114.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.113.0...v0.114.0) (2026-08-30)
 
 
