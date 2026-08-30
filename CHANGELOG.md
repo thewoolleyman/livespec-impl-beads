@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.108.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.107.0...v0.108.0) (2026-08-30)
+
+
+### Features
+
+* **dispatcher:** declared janitor-core provisioning (bd-ib-qx4wmo) ([f246498](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/f246498c93aa8913d73943450231ca78bc330f6a))
+
 ## [0.107.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.106.0...v0.107.0) (2026-08-30)
 
 
