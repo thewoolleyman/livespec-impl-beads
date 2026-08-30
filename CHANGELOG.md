@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.101.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.100.0...v0.101.0) (2026-08-30)
+
+
+### Features
+
+* a file-scoped check matching zero files reports vacuous-match ([d00ae84](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/d00ae844177650bb9b1b14951680eae03c6bbd98))
+
 ## [0.100.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.99.0...v0.100.0) (2026-08-30)
 
 
