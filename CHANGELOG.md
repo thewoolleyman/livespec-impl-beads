@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.105.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.104.0...v0.105.0) (2026-08-30)
+
+
+### Features
+
+* **needs-attention:** name the empty-diff leg on a zero-change acceptance park (bd-ib-fkpkmv) ([1d2b6e7](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/1d2b6e7f493d7c4a7bafb0858e8241afe3f7e9f9))
+
 ## [0.104.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.103.0...v0.104.0) (2026-08-30)
 
 
