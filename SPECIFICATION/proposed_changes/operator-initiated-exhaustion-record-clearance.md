@@ -58,6 +58,26 @@ heading to the tests that already exercise the behaviour
 (`tests/livespec_orchestrator_beads_fabro/commands/test_dispatcher_provider_exhaustion_clear.py`
 and `..._clearance_scan.py`).
 
+AMENDMENT TO THE NEIGHBOURING CLAUSE, and it is REQUIRED rather than optional. Adding a
+third retirement route without touching **An exhaustion record is falsifiable by a dispatch
+outcome.** would leave the ratified spec contradicting itself in two places, because that
+clause currently asserts exclusivity in both a signal sense and a scope sense:
+
+- "The one signal the Dispatcher trusts is a dispatch outcome" — after this change an
+  operator clearance is a second trusted signal. Amend to scope the exclusivity to what it
+  was actually written about, provider self-reports: "Of the signals a PROVIDER offers about
+  its own availability, the Dispatcher trusts none; the one signal it trusts is a dispatch
+  outcome."
+- "this rule governs its RETIREMENT" — after this change that rule governs only the
+  observation-driven half. Amend to "this rule governs retirement BY OBSERVATION; an
+  operator-initiated clearance is governed by the clause below."
+
+Both edits are narrowing clarifications: they preserve the clause's whole intent, which is
+that a provider's own claim about its future availability is never authoritative, and they
+remove only the accidental exclusivity over a route that clause was not written to consider.
+Neither weakens the falsification rule, and a successful dispatch MUST still retire an
+unexpired record immediately.
+
 CLAUSE, proposed text:
 
 **An operator may retire an exhaustion record early.** Bounded expiry and dispatch-outcome
