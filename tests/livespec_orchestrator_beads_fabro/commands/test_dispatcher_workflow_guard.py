@@ -6,10 +6,11 @@ import importlib
 from pathlib import Path
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import CommandResult
-from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_argv import (
-    janitor_argv_with_default,
-)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_argv import janitor_argv
 from livespec_orchestrator_beads_fabro.commands._dispatcher_goal import render_goal
+from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_check_suite import (
+    janitor_check_suite_from_block,
+)
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
 
@@ -129,7 +130,7 @@ def test_workflow_guard_reports_git_diff_failure(tmp_path: Path) -> None:
 
 
 def test_default_janitor_runs_workflow_guard_before_full_check() -> None:
-    assert janitor_argv_with_default(janitor=None) == (
+    assert janitor_argv(check_suite=janitor_check_suite_from_block(block={}, janitor=None)) == (
         "mise",
         "exec",
         "--",

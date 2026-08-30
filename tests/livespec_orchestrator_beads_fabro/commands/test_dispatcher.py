@@ -94,6 +94,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_io import (
 from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_recipe import (
     janitor_bootstrap_recipe_from_block,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_check_suite import (
+    janitor_check_suite_from_block,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_checks import run_janitor_checks
 from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_checks import (
     LedgerFinding,
@@ -106,7 +109,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     SiblingClones,
     build_plan,
     item_sizing_warnings,
-    janitor_argv_with_default,
+    janitor_argv,
     janitor_bootstrap_argv,
     janitor_checkout_path,
     janitor_core_clone_argv,
@@ -215,7 +218,7 @@ def test_dispatcher_plan_decomposition_contract() -> None:
         "CODEX_IMPLEMENTER_ADAPTER",
         "FleetMembers",
         "codex_adapter",
-        "janitor_argv_with_default",
+        "janitor_argv",
         "janitor_bootstrap_argv",
         "janitor_checkout_path",
         "janitor_core_checkout_path",
@@ -1248,9 +1251,12 @@ def test_dispatch_logs_into_dev_token_factory_before_fabro_run(tmp_path: Path) -
     ]
 
 
-def test_janitor_argv_with_default_passthrough_and_empty() -> None:
-    assert janitor_argv_with_default(janitor=("echo", "hi")) == ("echo", "hi")
-    assert janitor_argv_with_default(janitor=()) == (
+def test_janitor_argv_is_the_resolved_check_suite_verbatim() -> None:
+    """The builder imposes nothing of its own: the resolved command IS the argv."""
+    assert janitor_argv(
+        check_suite=janitor_check_suite_from_block(block={}, janitor=("echo", "hi"))
+    ) == ("echo", "hi")
+    assert janitor_argv(check_suite=janitor_check_suite_from_block(block={}, janitor=())) == (
         "mise",
         "exec",
         "--",
@@ -1275,7 +1281,7 @@ def test_default_janitor_provisions_the_worktree_pack_before_checks() -> None:
     assertion must become TRUE, not skipped. `install-worktree-pack` therefore
     precedes `check`, and presence enforcement is left untouched.
     """
-    argv = janitor_argv_with_default(janitor=())
+    argv = janitor_argv(check_suite=janitor_check_suite_from_block(block={}, janitor=()))
     assert (
         "install-worktree-pack" in argv
     ), f"the default janitor must materialize the gitignored pack; got {argv!r}"

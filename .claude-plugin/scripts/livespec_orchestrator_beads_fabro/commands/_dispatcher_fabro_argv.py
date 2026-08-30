@@ -16,6 +16,9 @@ if TYPE_CHECKING:
     from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_bootstrap_recipe import (
         JanitorBootstrapRecipe,
     )
+    from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_check_suite import (
+        JanitorCheckSuite,
+    )
     from livespec_orchestrator_beads_fabro.commands._dispatcher_plan_build import DispatchPlan
 
 __all__: list[str] = [
@@ -26,7 +29,7 @@ __all__: list[str] = [
     "CODEX_IMPLEMENTER_ADAPTER",
     "FleetMembers",
     "codex_adapter",
-    "janitor_argv_with_default",
+    "janitor_argv",
     "janitor_bootstrap_argv",
     "janitor_checkout_path",
     "janitor_core_checkout_path",
@@ -43,27 +46,6 @@ __all__: list[str] = [
     "pull_primary_argv",
 ]
 
-# `install-worktree-pack` PRECEDES `check` because the janitor checkout is a
-# fresh worktree that never ran `just bootstrap`, and the worktree-discipline
-# pack is gitignored — so it is absent there by construction. Since
-# livespec-dev-tooling v0.54.24 an absent pack is a FAIL by default, which reds
-# the janitor's own `just check` on a fully conformant repo (observed on the
-# `bd-ib-hvuhxp` reconcile: PR #1018 merged green, then reconcile-merged failed
-# at janitor-post-merge with worktree_pack_absent and stranded the claim).
-#
-# The janitor is a normal worktree-equivalent, NOT a declared sandbox, so this
-# PROVISIONS the pack rather than exempting the venue: the asserted property
-# becomes TRUE instead of skipped. Presence enforcement stays intact and no
-# second `livespec.sandboxExempt` marker is introduced.
-_DEFAULT_JANITOR: tuple[str, ...] = (
-    "mise",
-    "exec",
-    "--",
-    "just",
-    "check-no-workflow-edits",
-    "install-worktree-pack",
-    "check",
-)
 _DEFAULT_JANITOR_CORE_REPO_URL = "https://github.com/thewoolleyman/livespec.git"
 _DEFAULT_JANITOR_CORE_REF = "master"
 
@@ -257,11 +239,16 @@ def _parse_member_repo(*, member_raw: object) -> str | None:
     return repo_raw
 
 
-def janitor_argv_with_default(*, janitor: tuple[str, ...] | None) -> tuple[str, ...]:
-    """Return the configured janitor argv, defaulting to `mise exec -- just check`."""
-    if janitor is None or len(janitor) == 0:
-        return _DEFAULT_JANITOR
-    return janitor
+def janitor_argv(*, check_suite: JanitorCheckSuite) -> tuple[str, ...]:
+    """The post-merge janitor's argv: the resolved check-suite, invoked VERBATIM.
+
+    The check-suite is DECLARED (`dispatcher.janitor.check_suite`) with the
+    fleet convention as its default, so this builder no longer names one and,
+    just as importantly, no longer prepends a wrapper of its own: presuming our
+    `mise exec --` invocation of every adopter's command is the defect the
+    janitor check-suite resolution clause retires.
+    """
+    return check_suite.command
 
 
 def janitor_checkout_path(*, repo: Path, work_item_id: str) -> Path:
