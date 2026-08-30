@@ -58,6 +58,10 @@ from livespec_orchestrator_beads_fabro.commands._fabro_port_http import (
     FabroHttpTransport,
     UrllibFabroHttpTransport,
 )
+from livespec_orchestrator_beads_fabro.commands._run_attribution import (
+    GOAL_TEXT_ONLY,
+    RunAttribution,
+)
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
 __all__: list[str] = [
@@ -87,6 +91,10 @@ class ReconcileInputs:
     runner: CommandRunner
     journal: JournalWriter
     ledger: LedgerComments
+    # The run-to-item evidence this repo has recorded. Defaulted to the
+    # regex-only value so a caller that cannot reach the ledger still reconciles
+    # rather than refusing; the join composes it with the journal index.
+    attribution: RunAttribution = GOAL_TEXT_ONLY
     http: FabroHttpTransport = field(default_factory=UrllibFabroHttpTransport)
     # Narrows the pass to runs attributed to ONE work-item. The default (None)
     # is the whole-inventory sweep; a lifecycle-write hook sets it so closing
@@ -171,6 +179,7 @@ def _reconcile_one_factory(
         id_prefix=inputs.id_prefix,
         factory_name=factory.name,
         factory_server_url=str(factory.server),
+        attribution=inputs.attribution,
     )
     for orphan in orphans:
         if inputs.only_work_item_id is not None and orphan.work_item_id != inputs.only_work_item_id:

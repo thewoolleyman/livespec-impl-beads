@@ -22,6 +22,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_join 
 )
 from livespec_orchestrator_beads_fabro.commands._fabro_port_http import FabroHttpResult
 from livespec_orchestrator_beads_fabro.commands._fabro_port_types import FabroTarget
+from livespec_orchestrator_beads_fabro.commands._run_attribution import (
+    GOAL_TEXT_ONLY,
+    RunAttribution,
+)
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
 _HP_DEV_TOKEN_VALUE = "hp-fixture-dev-token"
@@ -379,6 +383,37 @@ def test_an_unverified_export_leaves_the_run_untouched(
     assert [record["stage"] for record in journal.written] == ["orphan-run-reconcile-error"]
 
 
+def test_the_ledger_attribution_reaches_the_join_and_spares_a_stamped_run(tmp_path: Path) -> None:
+    """`ReconcileInputs.attribution` is threaded to the join, not merely stored.
+
+    The run's goal text names `bd-ib-orphan`, which is `closed` — the shape the
+    regex-only join reconciles. The ledger stamps the same run onto the ACTIVE
+    `bd-ib-live`, so nothing may be terminated.
+    """
+    runner = _Runner(ps_by_server={_HP.server or "": _ps(run_id="01ORPHAN", kind="running")})
+    journal = _Journal()
+
+    summary = reconcile.reconcile_runs(
+        inputs=_inputs(
+            tmp_path=tmp_path,
+            runner=runner,
+            transport=_Transport(),
+            journal=journal,
+            ledger=_Ledger(),
+            items=[
+                _item(id="bd-ib-orphan", status="closed"),
+                _item(id="bd-ib-live", status="active"),
+            ],
+            attribution=RunAttribution(metadata_run_ids={"01ORPHAN": "bd-ib-live"}),
+        ),
+        factories=[_HP],
+    )
+
+    assert summary.reconciled == ()
+    assert summary.errors == ()
+    assert journal.written == []
+
+
 def test_the_reconciler_is_handed_no_ledger_status_write_seam(tmp_path: Path) -> None:
     ledger = _Ledger()
 
@@ -442,6 +477,7 @@ def _inputs(
     ledger: _Ledger,
     items: list[WorkItem],
     only_work_item_id: str | None = None,
+    attribution: RunAttribution = GOAL_TEXT_ONLY,
 ) -> reconcile.ReconcileInputs:
     return reconcile.ReconcileInputs(
         repo=tmp_path,
@@ -453,6 +489,7 @@ def _inputs(
         runner=runner,
         journal=journal,
         ledger=ledger,
+        attribution=attribution,
         http=transport,
     )
 

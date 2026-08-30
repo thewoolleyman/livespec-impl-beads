@@ -9,10 +9,20 @@ run is never an orphan, even when no dispatcher process is watching it. A
 remote run outlives the process that launched it, so "no local process is
 watching" is a statement about this host, never about the work.
 
-Attribution prefers the JOURNAL to the goal text. The goal regex parses
-prose the run itself carries; the journal is what this repo recorded when
-it launched the run, and it is the only surface that can tell a superseded
-run from the run a live claim actually belongs to.
+Attribution runs through the shared `RunAttribution` precedence — ledger
+metadata, then the journal, then the goal text. The goal regex parses prose
+the run itself carries, so a goal-template edit silently breaks it; the
+journal is what this repo recorded when it launched the run; the ledger
+stamp is what the ledger itself names. Ordering them here rather than
+locally is what keeps a run the LEDGER puts on an ACTIVE item off the
+orphan list even when its goal text names a closed one — the case the
+regex alone gets wrong, and gets wrong in the direction of terminating live
+work.
+
+The caller's attribution is composed with THIS pass's journal index rather
+than replacing it: the reconciler reads the journal for the supersession
+arm regardless, and that reading is the freshest run-to-item evidence the
+pass has. Composing keeps the metadata leg on top of both.
 
 Runs whose attributed work-item id does not carry this tenant's id prefix
 are OUT OF SCOPE entirely. The family factories are shared — a dozen
@@ -34,6 +44,10 @@ from pathlib import Path
 from typing import Any, cast
 
 from livespec_orchestrator_beads_fabro.commands._fabro_port_records import FabroRunSummary
+from livespec_orchestrator_beads_fabro.commands._run_attribution import (
+    GOAL_TEXT_ONLY,
+    RunAttribution,
+)
 from livespec_orchestrator_beads_fabro.effects import (
     AttemptFailure,
     JsonParseFailure,
@@ -127,7 +141,7 @@ def read_journaled_runs(*, path: Path) -> JournaledRuns:
     return journaled_runs(text=read)
 
 
-def classify_orphans(
+def classify_orphans(  # noqa: PLR0913 — the join's whole evidence surface: the run inventory, the ledger statuses, the journal index, the tenant scope, the two factory identity fields the orphan record carries, and the attribution precedence. Each is an independent input, so bundling any two would invent a grouping the join does not have.
     *,
     runs: Sequence[FabroRunSummary],
     item_statuses: Mapping[str, str],
@@ -135,11 +149,19 @@ def classify_orphans(
     id_prefix: str,
     factory_name: str,
     factory_server_url: str,
+    attribution: RunAttribution = GOAL_TEXT_ONLY,
 ) -> tuple[OrphanRun, ...]:
-    """Return the orphans among one factory's runs, leaving every other run."""
+    """Return the orphans among one factory's runs, leaving every other run.
+
+    `attribution` defaults to the regex-only value, which is a legitimate
+    answer rather than a degraded one: a caller with no ledger to hand still
+    resolves through the same precedence, so the day it gains one the stronger
+    leg wins with no edit here.
+    """
+    resolved = _resolved_attribution(attribution=attribution, journaled=journaled)
     orphans: list[OrphanRun] = []
     for run in runs:
-        work_item_id = _attributed_item_id(run=run, journaled=journaled, id_prefix=id_prefix)
+        work_item_id = _attributed_item_id(run=run, attribution=resolved, id_prefix=id_prefix)
         if run.status_kind not in NON_TERMINAL_STATUS_KINDS or work_item_id is None:
             continue
         work_item_status = item_statuses.get(work_item_id)
@@ -165,13 +187,24 @@ def classify_orphans(
     return tuple(orphans)
 
 
+def _resolved_attribution(
+    *,
+    attribution: RunAttribution,
+    journaled: JournaledRuns,
+) -> RunAttribution:
+    return RunAttribution(
+        metadata_run_ids=attribution.metadata_run_ids,
+        journal_run_ids={**attribution.journal_run_ids, **journaled.item_id_by_run},
+    )
+
+
 def _attributed_item_id(
     *,
     run: FabroRunSummary,
-    journaled: JournaledRuns,
+    attribution: RunAttribution,
     id_prefix: str,
 ) -> str | None:
-    attributed = journaled.item_id_by_run.get(run.run_id, run.work_item_id)
+    attributed = attribution.work_item_id_for(run=run)
     if attributed is None or not attributed.startswith(f"{id_prefix}-"):
         return None
     return attributed

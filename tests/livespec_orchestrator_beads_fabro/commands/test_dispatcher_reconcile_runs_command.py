@@ -14,6 +14,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_recor
     ReconcileError,
     ReconcileRunsSummary,
 )
+from livespec_orchestrator_beads_fabro.commands._run_attribution import RunAttribution
 from livespec_orchestrator_beads_fabro.commands.dispatcher import main
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
@@ -51,6 +52,11 @@ def test_reconcile_runs_emits_a_json_projection_and_wires_every_input(
     assert inputs["repo"] == tmp_path
     assert inputs["journal_path"] == tmp_path / "tmp" / "fabro-dispatch-journal.jsonl"
     assert inputs["invoker"] == "agent:test"
+    # The ledger stamp leg reaches the reconciler rather than the join falling
+    # back to the goal-text regex: the attribution handed in is the one
+    # `repo_run_attribution` built for THIS repo.
+    assert calls["attribution_repo"] == tmp_path
+    assert inputs["metadata_run_ids"] == {"01STAMPED": "bd-ib-stamped"}
 
 
 def test_the_stale_run_sweep_alias_resolves_to_the_same_handler(
@@ -166,6 +172,10 @@ def _stub(
         calls["fabro_bin_cwd"] = cwd
         return "resolved-fabro"
 
+    def _attribution(*, repo: Path) -> RunAttribution:
+        calls["attribution_repo"] = repo
+        return RunAttribution(metadata_run_ids={"01STAMPED": "bd-ib-stamped"})
+
     def _reconcile(*, inputs: Any, factories: Any, dry_run: bool) -> ReconcileRunsSummary:
         calls["inputs"] = {
             "repo": inputs.repo,
@@ -173,6 +183,7 @@ def _stub(
             "id_prefix": inputs.id_prefix,
             "journal_path": inputs.journal.path,
             "invoker": inputs.journal.identity.invoker,
+            "metadata_run_ids": dict(inputs.attribution.metadata_run_ids),
         }
         calls["factory_targets"] = factories
         calls["dry_run"] = dry_run
@@ -184,6 +195,7 @@ def _stub(
     monkeypatch.setattr(cli, "reconcile_factory_targets", _factories)
     monkeypatch.setattr(cli, "resolve_fabro_bin", _fabro_bin)
     monkeypatch.setattr(cli, "reconcile_runs", _reconcile)
+    monkeypatch.setattr(cli, "repo_run_attribution", _attribution)
     return calls
 
 
