@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.120.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.119.0...v0.120.0) (2026-08-30)
+
+
+### Features
+
+* **dispatcher:** validate the declaration against the build's schema version before dispatch (bd-ib-6nbduv) ([b80532a](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/b80532a65afd319210a82163f6990fc698fcfebe))
+
 ## [0.119.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.118.1...v0.119.0) (2026-08-30)
 
 
