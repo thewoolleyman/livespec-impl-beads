@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.114.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.113.0...v0.114.0) (2026-08-30)
+
+
+### Features
+
+* **dispatcher:** reconcile every factory automatically on the dispatch path ([6d6e32e](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/6d6e32e2c6d6c3256fdbcdaa2b25342abfb77794))
+* **dispatcher:** route the reconciler's orphan join through RunAttribution ([09027d4](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/09027d4b99966456738bba04ffce30ccde3ad134))
+* **needs-attention:** surface orphaned factory runs from the reconciler's dry run ([5203641](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/5203641909f61c23f3234d2954f74f143849adb6))
+
 ## [0.113.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.112.1...v0.113.0) (2026-08-30)
 
 
