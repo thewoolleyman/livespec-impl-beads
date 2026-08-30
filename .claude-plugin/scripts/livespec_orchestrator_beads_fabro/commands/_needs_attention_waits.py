@@ -41,12 +41,7 @@ def acceptance_wait_summary(
     park = _latest_record(project_root=project_root, item_id=item.id, stage="acceptance-parked")
     if _str_field(record=park, key="acceptance_verdict") != _NEEDS_ATTENTION_VERDICT:
         return default_summary
-    evidence = _latest_record(
-        project_root=project_root,
-        item_id=item.id,
-        stage="acceptance-ai-pass",
-    )
-    absent = _absent_evidence_legs(record=evidence)
+    absent = _absent_evidence_legs(project_root=project_root, item_id=item.id, park=park)
     return (
         f"{default_summary}; NEEDS_ATTENTION acceptance park "
         f"with absent evidence: {', '.join(absent)}. "
@@ -228,7 +223,59 @@ def _json_object(*, line: str) -> dict[str, Any] | None:
     return cast("dict[str, Any]", loaded)
 
 
-def _absent_evidence_legs(*, record: dict[str, Any] | None) -> tuple[str, ...]:
+def _absent_evidence_legs(
+    *,
+    project_root: Path,
+    item_id: str,
+    park: dict[str, Any] | None,
+) -> tuple[str, ...]:
+    """Name the legs the acceptance pass could not observe, the empty diff included.
+
+    The park record's OWN `absent_evidence` is authoritative whenever it carries
+    one. The pass names its legs knowing the item's change classification, so a
+    zero-change merged run arrives here ALREADY named as the empty-diff
+    merged-diff leg — which is exactly what this composition's summary must name,
+    per the parked-acceptance arity and distinguishability rule of
+    `SPECIFICATION/contracts.md` — while a declared change-optional item, whose empty
+    merged diff IS observed evidence, arrives with no merged-diff leg named at
+    all. Re-deriving either answer here would put a second copy of the
+    classification rule in a module that cannot even see the item's labels, and
+    two copies of one rule are how the two surfaces come to disagree about the
+    same item.
+
+    The per-leg `observed` derivation is the FALLBACK, and only that: this
+    composition shipped two days before the park record carried a named list, so
+    a park record from that window has the per-leg observations and nothing else.
+    Naming those beats naming nothing, but it cannot distinguish an empty merged
+    diff from an unreadable one, because the record it reads does not say.
+    """
+    recorded = _recorded_absent_evidence(record=park)
+    if recorded is not None:
+        return recorded
+    return _observed_leg_names(
+        record=_latest_record(
+            project_root=project_root,
+            item_id=item_id,
+            stage="acceptance-ai-pass",
+        )
+    )
+
+
+def _recorded_absent_evidence(*, record: dict[str, Any] | None) -> tuple[str, ...] | None:
+    """The legs the park record names itself, or `None` when it names none.
+
+    An `absent_evidence` that is missing, is not a list, or is empty names
+    nothing: a NEEDS_ATTENTION park always has at least one absent leg, so an
+    empty list is a malformed record rather than a park with nothing absent.
+    """
+    listed = cast("dict[str, Any]", record).get("absent_evidence")
+    if not isinstance(listed, list) or not listed:
+        return None
+    legs = cast("list[Any]", listed)
+    return tuple(str(leg) for leg in legs)
+
+
+def _observed_leg_names(*, record: dict[str, Any] | None) -> tuple[str, ...]:
     acceptance_record = cast("dict[str, Any]", record)
     absent = [
         name

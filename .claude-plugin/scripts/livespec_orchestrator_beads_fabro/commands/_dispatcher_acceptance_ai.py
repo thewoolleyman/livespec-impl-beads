@@ -41,6 +41,7 @@ _GREEN_STATUS = "green"
 _OBSERVED_FAILING_STATUS = "failed"
 _TELEMETRY_LEG = "telemetry"
 _MERGED_DIFF_LEG = "merged diff"
+_EMPTY_MERGED_DIFF_LEG = "empty merged diff"
 _EFFECTIVE_CRITERIA_LEG = "effective criteria"
 
 
@@ -192,7 +193,16 @@ def _absent_evidence(
     if not telemetry.observed:
         legs.append(_TELEMETRY_LEG)
     if _merged_diff_leg_absent(diff=diff, classification=classification):
-        legs.append(_MERGED_DIFF_LEG)
+        # An absent merged-diff leg is named for the OBSERVATION that produced
+        # it. A merge READ as changing zero files is named as the empty-diff
+        # leg; a diff that was never read keeps the plain name. Both park the
+        # item, and the name is the only thing downstream can tell them apart
+        # by — the parked-acceptance attention item's summary names the
+        # empty-diff leg from here, per the parked-acceptance arity and
+        # distinguishability rule of `SPECIFICATION/contracts.md`, so a
+        # zero-change merge surfaces as itself rather than as a diff nobody
+        # could read.
+        legs.append(_EMPTY_MERGED_DIFF_LEG if diff.empty else _MERGED_DIFF_LEG)
     if not checks:
         legs.append(_EFFECTIVE_CRITERIA_LEG)
     return tuple(legs)

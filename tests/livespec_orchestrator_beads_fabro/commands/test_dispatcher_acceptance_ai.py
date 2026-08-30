@@ -884,12 +884,16 @@ def test_acceptance_pass_refuses_an_empty_merged_diff_for_a_change_implying_item
     # NO_CHANGE_NEEDED needs the OBSERVED already-present-or-superseded route
     # that "nothing changed in this merge" is not.
     assert result.verdict not in {"PASS", "NO_CHANGE_NEEDED"}
-    assert result.absent_evidence == ("merged diff",)
+    # Named as the EMPTY-DIFF leg, not as a plain absent merged diff: the
+    # attention composition that surfaces this park reads the leg NAME to tell a
+    # merge that delivered nothing from a diff nobody could read, and only this
+    # record says which happened.
+    assert result.absent_evidence == ("empty merged diff",)
     assert result.classification.change_implying
     assert result.diff_reason == "merged diff is empty"
     record = result.journal_record(work_item_id="bd-ib-test", policy="ai-only")
     assert record["verdict"] == "NEEDS_ATTENTION"
-    assert record["absent_evidence"] == ["merged diff"]
+    assert record["absent_evidence"] == ["empty merged diff"]
 
 
 def test_acceptance_pass_grades_a_change_optional_item_with_an_empty_merged_diff(
