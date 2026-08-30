@@ -19,8 +19,10 @@ in a declared workflow name that slid onto the convention would admit the
 dispatch on an unrelated pipeline's green, which is indistinguishable at the
 call site from the repository's own pipeline passing.
 
-WHAT is looked up comes from `_dispatcher_master_ci_pipeline`; the git and forge
-reads come from `_dispatcher_master_ci_lookups`; HOW an outcome reads comes from
+WHAT is looked up comes from `_dispatcher_master_ci_pipeline`; the branch comes
+from the shared `_dispatcher_default_branch` resolution every dispatch-path
+stage uses; the forge reads come from `_dispatcher_master_ci_lookups`; HOW an
+outcome reads comes from
 `_dispatcher_master_ci_refusals`. This module is the classifier between them.
 WHERE an outcome is journaled is none of the four: the pre-dispatch step gate
 owns one journal handle and appends every step's record through it.
@@ -31,6 +33,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import cast
 
+from livespec_orchestrator_beads_fabro.commands._dispatcher_default_branch import (
+    resolve_default_branch,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandResult,
     CommandRunner,
@@ -43,7 +48,6 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_master_ci_lookups im
     has_stored_credential,
     job_records,
     list_runs,
-    resolve_default_branch,
     run_id_of,
     run_records,
     view_run_jobs,

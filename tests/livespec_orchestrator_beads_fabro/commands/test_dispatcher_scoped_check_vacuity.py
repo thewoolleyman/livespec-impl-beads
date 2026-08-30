@@ -17,7 +17,17 @@ _VACUITY_MODULE = "livespec_orchestrator_beads_fabro.commands._dispatcher_scoped
 _GUARD_MODULE = "livespec_orchestrator_beads_fabro.commands._dispatcher_workflow_guard"
 
 
+_ORIGIN_HEAD_ARGV = ["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"]
+
+
 class RecordingRunner:
+    """Answers the guard's default-branch read separately from its diff read.
+
+    The guard resolves the target's default branch before it asks for a diff,
+    so one canned result for every call would hand the diff's own output back
+    as the branch name.
+    """
+
     def __init__(self, *, result: CommandResult) -> None:
         self.result = result
         self.calls: list[tuple[list[str], Path]] = []
@@ -33,6 +43,8 @@ class RecordingRunner:
     ) -> CommandResult:
         _ = (timeout_seconds, env, stdin)
         self.calls.append((argv, cwd))
+        if argv == _ORIGIN_HEAD_ARGV:
+            return CommandResult(exit_code=0, stdout="origin/master\n", stderr="")
         return self.result
 
 
