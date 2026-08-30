@@ -21,8 +21,12 @@ from pathlib import Path
 import pytest
 from livespec_orchestrator_beads_fabro._beads_client import FakeBeadsClient, make_beads_client
 from livespec_orchestrator_beads_fabro.commands._dispatcher_effective_criteria import (
+    CHANGE_IMPLYING_CLASSIFICATION,
+    CHANGE_OPTIONAL_CLASSIFICATION,
+    CHANGE_OPTIONAL_LABEL,
     CRITERIA_FIELD_SOURCE,
     DESCRIPTION_EXIT_CRITERIA_SOURCE,
+    change_classification,
     effective_criteria,
     pre_dispatch_criteria_refusal,
     ungradeable_criteria_refusal,
@@ -213,6 +217,76 @@ def test_effective_criteria_projects_the_parse_for_a_display_and_a_journal() -> 
         "source": CRITERIA_FIELD_SOURCE,
         "gradeable_assertions": 2,
         "gradeable": True,
+    }
+
+
+# --- the change-implying default and the change-optional escape hatch -------
+
+
+def test_gradeable_criteria_classify_as_change_implying_by_default() -> None:
+    # The default: a gradeable criteria set with NO marker is presumed to
+    # require file changes, which is what the empty-diff refusal consumes.
+    resolved = effective_criteria(item=_item(acceptance_criteria=_TWO_ASSERTIONS))
+
+    classification = change_classification()
+
+    assert resolved.gradeable
+    assert classification.classification == CHANGE_IMPLYING_CLASSIFICATION
+    assert classification.change_implying
+    assert classification.declared_marker is None
+
+
+def test_a_declared_change_optional_marker_is_the_one_exemption() -> None:
+    # The exemption, and the ONLY one: the item declares it explicitly.
+    classification = change_classification(raw_labels=(f"{CHANGE_OPTIONAL_LABEL}true",))
+
+    assert classification.classification == CHANGE_OPTIONAL_CLASSIFICATION
+    assert not classification.change_implying
+    assert classification.declared_marker == "true"
+
+
+def test_an_unrelated_label_set_does_not_exempt_an_item() -> None:
+    classification = change_classification(raw_labels=("rework:pending", "acceptance:ai-only"))
+
+    assert classification.classification == CHANGE_IMPLYING_CLASSIFICATION
+    assert classification.declared_marker is None
+
+
+@pytest.mark.parametrize(
+    ("labels", "expected_marker"),
+    [
+        pytest.param((f"{CHANGE_OPTIONAL_LABEL}maybe",), "maybe", id="malformed-value"),
+        pytest.param((f"{CHANGE_OPTIONAL_LABEL}yes",), "yes", id="unknown-value"),
+        pytest.param((f"{CHANGE_OPTIONAL_LABEL}false",), "false", id="negated-value"),
+        pytest.param((CHANGE_OPTIONAL_LABEL,), "", id="empty-value"),
+        pytest.param(("change-optional",), None, id="valueless-marker"),
+        pytest.param((), None, id="absent-marker"),
+    ],
+)
+def test_a_malformed_or_absent_marker_fails_closed_to_change_implying(
+    labels: tuple[str, ...],
+    expected_marker: str | None,
+) -> None:
+    # Fail-closed is the whole point: an unreadable marker resolves toward
+    # REFUSING an empty diff, never toward accepting one, so a mistyped marker
+    # can never silently exempt an item.
+    classification = change_classification(raw_labels=labels)
+
+    assert classification.classification == CHANGE_IMPLYING_CLASSIFICATION
+    assert classification.classification != CHANGE_OPTIONAL_CLASSIFICATION
+    assert classification.declared_marker == expected_marker
+
+
+def test_the_classification_projects_the_record_the_acceptance_journal_carries() -> None:
+    # The raw marker rides along so a mistyped declaration is distinguishable
+    # from an absent one, which the classification value alone cannot show.
+    assert change_classification(raw_labels=(f"{CHANGE_OPTIONAL_LABEL}nope",)).as_record() == {
+        "classification": CHANGE_IMPLYING_CLASSIFICATION,
+        "declared_marker": "nope",
+    }
+    assert change_classification().as_record() == {
+        "classification": CHANGE_IMPLYING_CLASSIFICATION,
+        "declared_marker": None,
     }
 
 

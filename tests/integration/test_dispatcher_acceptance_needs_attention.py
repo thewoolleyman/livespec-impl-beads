@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import json
 import tempfile
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -208,11 +208,19 @@ def _acceptance_pass_over(
     """
     runner = _StubRunner(stdout=stdout)
 
-    def _call(*, repo: Path, item: WorkItem, outcome: DispatchOutcome) -> AcceptancePassResult:
+    def _call(
+        *,
+        repo: Path,
+        item: WorkItem,
+        outcome: DispatchOutcome,
+        raw_labels: Sequence[str] = (),
+    ) -> AcceptancePassResult:
         judged = (
             replace(item, acceptance_criteria=None) if criteria_removed_after_dispatch else item
         )
-        return run_acceptance_pass(repo=repo, item=judged, outcome=outcome, runner=runner)
+        return run_acceptance_pass(
+            repo=repo, item=judged, outcome=outcome, runner=runner, raw_labels=raw_labels
+        )
 
     return _call
 

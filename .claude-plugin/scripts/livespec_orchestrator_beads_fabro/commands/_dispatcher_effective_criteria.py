@@ -30,6 +30,14 @@ The two walls share `ungradeable_criteria_refusal` deliberately. An item that
 the approve valve refuses and an item the pre-dispatch gate refuses are the
 same item failing the same test, and a second copy of that test is how the two
 gates drift into disagreeing about what "ungradeable" means.
+
+`change_classification` lives here for the same reason. The spec's
+change-implying/change-optional split is a property OF the resolved criteria —
+a gradeable criteria set is presumed to require file changes — so it belongs
+beside the resolution rather than inside the one consumer that reads it today.
+It is deliberately a two-value classification with the DEFAULT on the refusing
+side: an item is change-implying unless it explicitly DECLARES otherwise, and
+a marker nobody can read is not a declaration.
 """
 
 from __future__ import annotations
@@ -55,9 +63,14 @@ if TYPE_CHECKING:
     from livespec_orchestrator_beads_fabro.types import WorkItem
 
 __all__: list[str] = [
+    "CHANGE_IMPLYING_CLASSIFICATION",
+    "CHANGE_OPTIONAL_CLASSIFICATION",
+    "CHANGE_OPTIONAL_LABEL",
     "CRITERIA_FIELD_SOURCE",
     "DESCRIPTION_EXIT_CRITERIA_SOURCE",
+    "ChangeClassification",
     "EffectiveCriteria",
+    "change_classification",
     "effective_criteria",
     "pre_dispatch_criteria_refusal",
     "ungradeable_criteria_refusal",
@@ -65,6 +78,12 @@ __all__: list[str] = [
 
 CRITERIA_FIELD_SOURCE = "criteria-field"
 DESCRIPTION_EXIT_CRITERIA_SOURCE = "description-exit-criteria"
+CHANGE_IMPLYING_CLASSIFICATION = "change-implying"
+CHANGE_OPTIONAL_CLASSIFICATION = "change-optional"
+# The declared marker is a raw ledger label, deliberately DISTINCT from the
+# item's `acceptance_policy`: `human-only` says who judges the item, not
+# whether the item is expected to change any files.
+CHANGE_OPTIONAL_LABEL = "change-optional:"
 
 # The two effective `acceptance_policy` values under which a machine grades the
 # item. `human-only` is deliberately outside the walls: a human judgement call
@@ -72,6 +91,9 @@ DESCRIPTION_EXIT_CRITERIA_SOURCE = "description-exit-criteria"
 _AI_DISPOSITIVE_POLICIES = frozenset({"ai-only", "ai-then-human"})
 _EXIT_CRITERIA_TITLE = "exit criteria"
 _HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
+# The ONE marker value that DECLARES the exemption. Anything else — a typo, an
+# empty value, `yes`, `1` — is a marker value the classification cannot honour.
+_DECLARED_CHANGE_OPTIONAL_VALUE = "true"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -101,6 +123,63 @@ class EffectiveCriteria:
             "gradeable_assertions": len(self.assertions),
             "gradeable": self.gradeable,
         }
+
+
+@dataclass(frozen=True, kw_only=True)
+class ChangeClassification:
+    """Whether an item's gradeable criteria are presumed to require file changes.
+
+    Exactly two values, because the empty-diff refusal the spec builds on this
+    is a two-way branch: `change-implying` (the default AND the fail-closed
+    answer) or `change-optional` (the one declared exemption).
+
+    `declared_marker` carries the raw marker value that was READ, which is the
+    only thing that separates "no marker was present" from "a marker was
+    present and could not be honoured". Both classify identically — that is the
+    fail-closed rule — so without the recorded value an operator who mistypes
+    the marker sees an item behaving exactly as if they had never declared it,
+    with nothing anywhere saying why.
+    """
+
+    classification: str
+    declared_marker: str | None
+
+    @property
+    def change_implying(self) -> bool:
+        """Whether an empty merged diff is ungradeable for this item."""
+        return self.classification == CHANGE_IMPLYING_CLASSIFICATION
+
+    def as_record(self) -> dict[str, object]:
+        """The projection the acceptance pass journals as the classification used."""
+        return {
+            "classification": self.classification,
+            "declared_marker": self.declared_marker,
+        }
+
+
+def change_classification(*, raw_labels: Sequence[str] = ()) -> ChangeClassification:
+    """Classify change-implying by default; change-optional only when declared.
+
+    An item with a non-empty gradeable effective-criteria set is presumed to
+    require file changes, so it classifies as change-implying and the empty-diff
+    refusal applies to it. The ONLY exemption is an item explicitly declared
+    change-optional through the `change-optional:true` ledger marker.
+
+    Everything else fails CLOSED, toward refusing an empty diff rather than
+    accepting one: an absent marker classifies change-implying, and so does a
+    malformed or unknown marker value. Fail-open here would be the expensive
+    direction — a mistyped marker would silently exempt an item from the very
+    refusal that catches a merge which delivered nothing, and the exemption
+    would look identical to a deliberate one.
+    """
+    marker = _change_optional_marker(raw_labels=raw_labels)
+    if marker == _DECLARED_CHANGE_OPTIONAL_VALUE:
+        return ChangeClassification(
+            classification=CHANGE_OPTIONAL_CLASSIFICATION, declared_marker=marker
+        )
+    return ChangeClassification(
+        classification=CHANGE_IMPLYING_CLASSIFICATION, declared_marker=marker
+    )
 
 
 def effective_criteria(*, item: WorkItem) -> EffectiveCriteria:
@@ -179,6 +258,14 @@ def _is_ai_dispositive(*, item: WorkItem, cwd: Path) -> bool:
         effective_acceptance_policy(item=item, cwd=cwd).value_or(DEFAULT_ACCEPTANCE_POLICY)
     )
     return policy in _AI_DISPOSITIVE_POLICIES
+
+
+def _change_optional_marker(*, raw_labels: Sequence[str]) -> str | None:
+    """The raw value of the declared change-optional marker, or `None` if absent."""
+    for label in raw_labels:
+        if label.startswith(CHANGE_OPTIONAL_LABEL):
+            return label[len(CHANGE_OPTIONAL_LABEL) :]
+    return None
 
 
 def _description_exit_criteria(*, description: str) -> str | None:

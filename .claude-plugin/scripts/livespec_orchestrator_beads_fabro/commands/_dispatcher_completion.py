@@ -27,6 +27,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_completion_close imp
     close_dispatch_item,
     no_change_needed_reason,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_credentials import (
+    read_dispatch_labels,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_decision_journal import (
     auto_disposition_journal_record,
 )
@@ -110,7 +113,16 @@ def complete_and_accept(
     policy = unsafe_perform_io(
         effective_acceptance_policy(item=item, cwd=repo).value_or(DEFAULT_ACCEPTANCE_POLICY)
     )
-    acceptance_pass = run_acceptance_pass(repo=repo, item=item, outcome=outcome)
+    # The item's declared ledger markers carry the change-optional exemption.
+    # An unreadable label set is NOT a declaration, so it fails closed to the
+    # empty marker set and the pass classifies the item change-implying.
+    labels = read_dispatch_labels(repo=repo, item=item)
+    acceptance_pass = run_acceptance_pass(
+        repo=repo,
+        item=item,
+        outcome=outcome,
+        raw_labels=() if isinstance(labels, str) else labels,
+    )
     journal.append(record=acceptance_pass.journal_record(work_item_id=item.id, policy=policy))
     decision = acceptance_decision(policy=policy)
     if acceptance_pass.verdict == NEEDS_ATTENTION_VERDICT:

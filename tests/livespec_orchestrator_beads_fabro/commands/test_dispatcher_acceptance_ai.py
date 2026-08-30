@@ -799,3 +799,50 @@ def test_acceptance_pass_needs_attention_when_telemetry_leg_is_unobservable(
         "reason": "merged PR number unavailable",
     }
     assert record["absent_evidence"] == ["telemetry"]
+
+
+def test_acceptance_pass_journals_the_change_implying_classification_it_used(
+    tmp_path: Path,
+) -> None:
+    runner = _Runner(
+        result=CommandResult(exit_code=0, stdout="diff --git a/x b/x\n+verdict\n", stderr="")
+    )
+
+    result = run_acceptance_pass(
+        repo=tmp_path,
+        item=_item(criteria="verdict is journaled"),
+        outcome=_outcome(),
+        runner=runner,
+    )
+
+    assert result.classification.change_implying
+    record = result.journal_record(work_item_id="bd-ib-test", policy="ai-only")
+    assert record["change_classification"] == {
+        "classification": "change-implying",
+        "declared_marker": None,
+    }
+
+
+def test_acceptance_pass_journals_a_declared_change_optional_classification(
+    tmp_path: Path,
+) -> None:
+    runner = _Runner(
+        result=CommandResult(exit_code=0, stdout="diff --git a/x b/x\n+verdict\n", stderr="")
+    )
+
+    result = run_acceptance_pass(
+        repo=tmp_path,
+        item=_item(criteria="verdict is journaled"),
+        outcome=_outcome(),
+        runner=runner,
+        raw_labels=("change-optional:true",),
+    )
+
+    # Nothing is silently exempted: the declared exemption is journaled as the
+    # classification the pass USED, not merely honoured behind the verdict.
+    assert not result.classification.change_implying
+    record = result.journal_record(work_item_id="bd-ib-test", policy="ai-only")
+    assert record["change_classification"] == {
+        "classification": "change-optional",
+        "declared_marker": "true",
+    }
