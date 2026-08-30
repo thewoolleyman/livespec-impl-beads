@@ -1033,7 +1033,7 @@
     "reason": "Bound by bd-ib-yyz52u to the INTEGRATION-tier dispatcher journey the scenario describes: a real dispatch-admission preflight through _dispatcher_loop_selection.prepare, with only the git ls-remote CommandRunner stood in, asserting that a release published after session start does not refuse the dispatch and that the non-blocking dispatcher-currency-staleness fact surfaces the lag through the real build_attention composition. The same module carries the scenario's other two cases - the below-floor fail-closed refusal naming the committed dispatcher.minimum_release floor, and unobservable currency recorded under its own undetermined stage while dispatch proceeds. A unit-tier test cannot discharge it: the no-refusal claims are about the admission path going on to load work, which only the composed preflight can show."
   },
   {
-    "heading": "## Scenario 96 — Each governed-repo integration point resolves from a committed declaration or the fleet default",
+    "heading": "## Scenario 96 — Each governed-repo integration point resolves from a committed declaration, with a fleet default only where one exists",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
     "test": "TODO",
@@ -1063,5 +1063,37 @@
     "test": "TODO",
     "work_item": "bd-ib-xmom",
     "reason": "Ratified with the empty-diff-acceptance-integrity revision (plan epic bd-ib-xmom). For a change-implying item an empty merged diff resolves the merged-diff leg ungradeable and the acceptance pass returns NEEDS_ATTENTION (never PASS, never NO_CHANGE_NEEDED) parking one attention item whose summary names the empty-diff leg; a file-scoped check matching zero files reports a distinct vacuous-match outcome a gate counts toward neither passing nor failing; a real-change merge still grades normally; and a declared change-optional item with an empty diff is not misclassified. Awaits the integration-tier binding test delivered by the four impl_followups children (acceptance-empty-diff-refusal, scoped-check-vacuous-match, dispatcher-empty-diff-composition, change-implying-criteria-default); real test ID to follow."
+  },
+  {
+    "heading": "## Scenario 100 — The repository integration contract resolves once and projects identically to every seam",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "work_item": "bd-ib-6pshji",
+    "reason": "Owned by plan epic bd-ib-6pshji; bound to an INTEGRATION-tier test of the integration-contract-schema and resolved-contract-projection followups, exercising resolve-once journaling, identical host and in-sandbox projection, Defective with no default substitution, and the seam-equivalence check."
+  },
+  {
+    "heading": "## Scenario 101 — A schema-version mismatch refuses pre-dispatch with every defective point enumerated",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "work_item": "bd-ib-6pshji",
+    "reason": "Owned by plan epic bd-ib-6pshji; bound to an INTEGRATION-tier test of the schema-validation-pass followup, exercising the complete enumerated pre-dispatch refusal on a contract-version mismatch and non-stranding of an already-admitted item."
+  },
+  {
+    "heading": "## Scenario 102 — Members-and-adopters-identical is a failing test",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "work_item": "bd-ib-6pshji",
+    "reason": "Owned by plan epic bd-ib-6pshji; bound to an INTEGRATION-tier test of the adopter-member-fixtures and fleet-toolchain-literal-ban followups, exercising the adopter fixture passing with zero fleet tooling, the member fixture on defaults, and a reintroduced literal failing the gate."
+  },
+  {
+    "heading": "## Governed-repository integration constraints",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "constraints.md",
+    "test": "TODO",
+    "work_item": "bd-ib-6pshji",
+    "reason": "Owned by plan epic bd-ib-6pshji; bound to the adopter-member-fixtures and fleet-toolchain-literal-ban followups (integration-tier fixture parametrization and the check-no-fleet-toolchain-literals gate)."
   }
 ]
