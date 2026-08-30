@@ -23,6 +23,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFil
 from livespec_orchestrator_beads_fabro.commands._dispatcher_reflection_journal import (
     read_journal_records,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_stall_telemetry import (
+    STALL_CAUSE_ZERO_OUTPUT,
+    STALL_STATUS,
+)
 
 # The scrub + attribute discipline lives in the SHARED `_otel_scrub` module
 # (29f E1 single source of truth); the reflection emitter consumes it. The
@@ -218,6 +222,32 @@ def test_scan_dedupes_repeated_sizing_and_timeout_ids() -> None:
     assert timeout.count == 1
 
 
+def test_scan_clusters_a_stall_watchdog_cancellation() -> None:
+    """A stalled outcome is no longer invisible to the verdict partition."""
+    outcomes = (
+        _outcome(work_item_id="a-1"),
+        _outcome(
+            work_item_id="b-2",
+            status=STALL_STATUS,
+            stage="fabro-run",
+            pr_number=None,
+            merge_sha=None,
+            detail="run 01M1RUN made no progress for the full stall window",
+        ),
+    )
+
+    report = reflection.scan_outcomes(outcomes=outcomes, records=(), mode="observe")
+
+    finding = next(f for f in report.findings if f.category == "stall-watchdog-cancel")
+    assert finding.severity == "critical"
+    assert finding.count == 1
+    assert "b-2" in finding.subject
+    assert [stall.work_item_id for stall in report.stalls] == ["b-2"]
+    # The green/failed/blocked counters keep their established meanings —
+    # the stall is carried alongside them, never folded into one of them.
+    assert (report.green_count, report.failed_count, report.blocked_count) == (1, 0, 0)
+
+
 def test_trailing_green_streak_stops_at_first_non_green() -> None:
     outcomes = (
         _outcome(work_item_id="a-1", status="failed", stage="fabro-run"),
@@ -271,6 +301,47 @@ def test_reflect_observe_writes_record_summary_and_spans(
     assert names == ["reflection.pass", "reflection.finding"]
     # The finding span is a child of the pass span.
     assert spans[1]["parentSpanId"] == spans[0]["spanId"]
+
+
+def test_reflect_emits_a_stall_span_for_a_watchdog_cancelled_run(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A watchdog-cancel outcome reaches the OTLP spans file, run id and all.
+
+    This is the whole point of the signal: the incident becomes queryable
+    from telemetry instead of being reconstructed from the journal.
+    """
+    monkeypatch.setenv("LIVESPEC_REFLECTION", "observe")
+    journal_path = tmp_path / "journal.jsonl"
+    spans_path = tmp_path / "spans.jsonl"
+    stalled = DispatchOutcome(
+        work_item_id="b-2",
+        status=STALL_STATUS,
+        stage="fabro-run",
+        pr_number=None,
+        merge_sha=None,
+        detail="run 01M1RUN made no progress for the full stall window",
+        fabro_run_id="01M1RUN",
+    )
+
+    reflection.reflect(
+        outcomes=[stalled],
+        journal=JournalFile(path=journal_path),
+        journal_path=journal_path,
+        spans_path=spans_path,
+    )
+
+    spans_doc = json.loads(spans_path.read_text(encoding="utf-8").strip())
+    spans = spans_doc["resourceSpans"][0]["scopeSpans"][0]["spans"]
+    stall_span = next(span for span in spans if span["name"] == "reflection.stall")
+    attrs = {a["key"]: a["value"]["stringValue"] for a in stall_span["attributes"]}
+    assert attrs["work.item.id"] == "b-2"
+    assert attrs["fabro.run_id"] == "01M1RUN"
+    assert attrs["livespec.outcome"] == STALL_STATUS
+    assert attrs["livespec.stall.cause"] == STALL_CAUSE_ZERO_OUTPUT
+    assert "stall-watchdog cancelled zero-progress runs for: b-2" in capsys.readouterr().err
 
 
 def test_reflect_observe_no_findings_summary(

@@ -8,6 +8,10 @@ import time
 from pathlib import Path
 from typing import Protocol
 
+from livespec_orchestrator_beads_fabro.commands._dispatcher_stall_telemetry import (
+    StallSignal,
+    stall_attributes,
+)
 from livespec_orchestrator_beads_fabro.commands._otel_scrub import attr as _attr
 from livespec_orchestrator_beads_fabro.io import write_stderr
 
@@ -66,6 +70,9 @@ class ReportLike(Protocol):
     @property
     def findings(self) -> tuple[FindingLike, ...]: ...
 
+    @property
+    def stalls(self) -> tuple[StallSignal, ...]: ...
+
 
 def stage_summary(*, outcomes: tuple[OutcomeLike, ...]) -> str:
     return ", ".join(sorted({o.stage for o in outcomes}))
@@ -95,7 +102,15 @@ def emit_summary(*, report: ReportLike) -> None:
 
 
 def emit_spans(*, report: ReportLike, spans_path: Path) -> None:
-    """Append OTLP/HTTP JSON spans for the reflection pass to the spans file."""
+    """Append OTLP/HTTP JSON spans for the reflection pass to the spans file.
+
+    Two kinds of child span hang off the pass: one `reflection.finding`
+    per clustered finding, and one `reflection.stall` per stall-watchdog
+    cancellation. The stall child is separate from the finding child
+    because it carries the incident's OWN identity — which run was
+    cancelled, and why — rather than a wave-level cluster summary, which
+    is what makes a zero-output stall queryable instead of reconstructed.
+    """
     now_ns = time.time_ns()
     pass_attrs: dict[str, object] = {
         "livespec.reflection.mode": report.mode,
@@ -105,6 +120,7 @@ def emit_spans(*, report: ReportLike, spans_path: Path) -> None:
         "livespec.reflection.blocked_count": report.blocked_count,
         "livespec.reflection.green_streak": report.green_streak,
         "livespec.reflection.finding_count": len(report.findings),
+        "livespec.reflection.stall_count": len(report.stalls),
     }
     pass_span = _build_span(
         name="reflection.pass",
@@ -127,6 +143,17 @@ def emit_spans(*, report: ReportLike, spans_path: Path) -> None:
                 name="reflection.finding",
                 span_id=f"reflection-finding-{index}",
                 attrs=finding_attrs,
+                parent_id="reflection-pass",
+                start_ns=now_ns,
+                end_ns=now_ns,
+            )
+        )
+    for index, stall in enumerate(report.stalls):
+        spans.append(
+            _build_span(
+                name="reflection.stall",
+                span_id=f"reflection-stall-{index}",
+                attrs=stall_attributes(signal=stall),
                 parent_id="reflection-pass",
                 start_ns=now_ns,
                 end_ns=now_ns,

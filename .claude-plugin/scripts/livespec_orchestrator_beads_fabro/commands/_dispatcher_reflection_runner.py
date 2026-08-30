@@ -15,6 +15,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_reflection_spans imp
     emit_spans,
     emit_summary,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_stall_telemetry import StallSignal
 
 __all__: list[str] = ["RunReflectionConfig", "run_reflection"]
 
@@ -64,6 +65,9 @@ class ReportLike(Protocol):
 
     @property
     def findings(self) -> tuple[FindingLike, ...]: ...
+
+    @property
+    def stalls(self) -> tuple[StallSignal, ...]: ...
 
 
 class JournalWriterLike(Protocol):
