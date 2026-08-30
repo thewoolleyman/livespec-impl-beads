@@ -65,6 +65,35 @@ Current checks:
   change for different reasons: this one owns the scope, the allow-lists and the
   controls, while the sibling private helper
   `_fleet_toolchain_literals_matcher.py` owns what counts as a literal at all.
+- `seam_equivalence.py` — the CI half of SPECIFICATION/contracts.md
+  §"Repository integration contract", clause "Typed workflow inputs and the
+  seam-equivalence check". Scans the committed `implement-work-item` payload —
+  the graph, the run config and every node prompt — for `{{ inputs.<name> }}`
+  tokens and asserts three things about the INTEGRATION subset of them: the
+  referenced set equals the set the Dispatcher renders from the
+  `ResolvedIntegrationContract` in both directions; the rendered names and the
+  schema's projectable fields are one vocabulary (same set, and the same word
+  per field, which is what makes the two sets comparable at all); and every
+  token sits in a position the pinned fabro build expands. The rendered-position
+  allowlist is EVIDENCE-BASED and fail-closed — `acp.command`, edge `condition`,
+  a `[[run.prepare.steps]]` `script`, and a prompt body — because a templated
+  duration attribute leaves the node with NO timeout and reports nothing. The
+  equality excludes the six ACP adapter inputs and the two review/cap policy
+  inputs, and that exclusion is checked rather than assumed: the three families
+  must be pairwise disjoint and must cover every input the payload declares. It
+  reports an ABSENCE over a payload that references no integration token yet, so
+  it carries two positive controls — a discovery control asserting the scan of
+  the real payload still returns the adapter tokens that ARE there, and a matcher
+  control over `fixtures/seam_equivalence_control.fabro.txt`, whose tokens sit in
+  a `timeout`, a `stall_timeout` and a comment — and refuses to report a clean
+  payload when either fails. Three modules, because the three concerns change
+  for different reasons: this one owns the payload reading, the composition and
+  the controls; the sibling private `_seam_equivalence_scan.py` owns where a
+  token may sit and which positions the pinned engine expands, and carries the
+  evidence behind that allowlist; the sibling private
+  `_seam_equivalence_findings.py` owns the three input families and what each
+  disagreement is called, and takes only sets so the rules are readable and
+  testable with no payload on disk.
 - `work_item_state_invariants.py` — the beads-private work-item-state
   doctor check (SPECIFICATION/contracts.md §"Work-item beads-issue
   mapping" invariants block; L1a slice S6). Walks every materialized

@@ -1,0 +1,48 @@
+// POSITIVE CONTROL for seam_equivalence — this graph MUST produce findings.
+//
+// Not a dispatched payload. It is stored with a `.fabro.txt` suffix so no
+// workflow-drift guard, packaging step or `fabro validate` treats it as a real
+// graph, while the check still reads and parses it through the SAME
+// `graph_occurrences` path it uses on the committed payload.
+//
+// The committed payload references NO integration token today, so a clean
+// report on it is indistinguishable from a scanner that cannot match anything.
+// This fixture is what makes the difference observable: every token below sits
+// in a position the pinned fabro build does not expand, so if the check reports
+// nothing here its clean report on the real payload means nothing.
+//
+// The comment two lines below deliberately carries a template opener, which the
+// payload's own header records as breaking the graph render. It is safe here
+// precisely because this file is never rendered.
+//
+// A token in a comment: {{ inputs.default_branch }}
+digraph SeamEquivalenceControl {
+    graph [
+        goal="A control graph, never dispatched"
+        stall_timeout="{{ inputs.merge_mode }}"
+    ]
+
+    start [shape=Mdiamond, label="Start"]
+
+    // A duration attribute: the pinned build types a quoted duration at parse
+    // time and its template expansion never re-types a rendered string, so this
+    // node would end up with NO timeout and report nothing about it.
+    janitor [
+        label="Janitor"
+        shape=parallelogram
+        timeout="{{ inputs.sandbox_check_suite }}"
+        script="mise exec -- just check"
+    ]
+
+    // A rendered position, present so the fixture also proves the allowlist
+    // ADMITS what it is supposed to admit rather than reporting everything.
+    implement [
+        label="Implement"
+        backend="acp"
+        acp.command="{{ inputs.prepare_toolchain_mise }}"
+        timeout="1800s"
+    ]
+
+    start -> implement
+    implement -> janitor
+}

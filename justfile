@@ -420,6 +420,7 @@ check:
         check-codex-skill-picker
         check-no-fleet-pat-dispatch-surface
         check-spec-governance-default-block
+        check-seam-equivalence
         check-no-workflow-edits
         check-fresh-clone-setup
         check-doctor-static
@@ -709,6 +710,22 @@ check-pi-plugin-structure:
 # not a copied or justfile-pinned checker.
 check-spec-governance-default-block:
     uv run python dev-tooling/check-spec-governance-default-block.py
+
+# `check-seam-equivalence` — the CI half of SPECIFICATION/contracts.md
+# §"Repository integration contract", clause "Typed workflow inputs and the
+# seam-equivalence check". Asserts, over the committed `implement-work-item`
+# payload, that the set of integration `inputs.*` tokens the workflow
+# references equals the set the Dispatcher renders from the
+# ResolvedIntegrationContract in BOTH directions, that both agree with the
+# schema's projectable fields, and that every such token sits in a position the
+# pinned fabro build actually expands — a templated duration attribute leaves
+# the node with no timeout and reports nothing, so the question is answered
+# statically rather than by a production dispatch. Scoped to the integration
+# subset: the six ACP adapter inputs and the two review/cap policy inputs are
+# excluded, and that exclusion is itself checked for disjointness and coverage.
+# Pure-filesystem (no beads / no store / no network).
+check-seam-equivalence:
+    uv run python dev-tooling/checks/seam_equivalence.py
 
 # livespec core's doctor STATIC phase (reference-discipline + out-of-band
 # invariants) against THIS repo's SPECIFICATION/ tree, wired fleet-wide per
