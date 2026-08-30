@@ -1,4 +1,4 @@
-"""One reconciliation pass on the dispatch path, and the record it leaves.
+"""One reconciliation pass on the dispatch path, and the record every pass leaves.
 
 `reconcile-runs` was operator-invoked only, which made the invariant it
 enforces depend on somebody remembering to enforce it. This module is the
@@ -23,17 +23,30 @@ journal record and the dispatch proceeds.
 Fail-open is how a blind spot hides, so the pass ALWAYS journals, including
 when it found nothing. A silent pass and a pass that found nothing are
 otherwise the same absence, and only one of them means the wiring works.
+
+The WIRING above is this module's alone; the RECORD is not. The standalone
+`reconcile-runs` command builds its own inputs — it honours `--factory`,
+`--dry-run` and `--fabro-bin` — so it cannot route through
+`reconcile_runs_pass`, and the host timer invokes THAT command rather than
+this pass. A record only the dispatch path wrote would therefore leave every
+timer tick invisible, which is the same absence one level out.
+`reconcile_pass_summary` and `journal_reconcile_pass` are public for exactly
+that reason: both entry points leave the same record, so the journal can be
+surveyed without knowing which one asked.
 """
 
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 from returns.unsafe import unsafe_perform_io
 
 from livespec_orchestrator_beads_fabro._beads_client import make_beads_client
+from livespec_orchestrator_beads_fabro.commands._config import FactoryTarget
+from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import JournalWriter
 from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import invoker_from_args
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import (
     JournalFile,
@@ -73,6 +86,8 @@ from livespec_orchestrator_beads_fabro.errors import (
 __all__: list[str] = [
     "JOURNAL_STAGE_RECONCILE_RUNS",
     "ReconcilePassSummary",
+    "journal_reconcile_pass",
+    "reconcile_pass_summary",
     "reconcile_runs_pass",
 ]
 
@@ -101,15 +116,26 @@ _NOTHING_SURVEYED = ReconcileRunsSummary(reconciled=(), errors=(), dry_run=False
 
 @dataclass(frozen=True, kw_only=True)
 class ReconcilePassSummary:
-    """What one wired reconciliation pass surveyed, found, and could not do.
+    """What one reconciliation pass surveyed, found, and could not do.
 
     `orphans_found` counts every orphan the join produced, whether or not it
     was successfully reconciled; `orphans_reconciled` counts only the ones
     whose termination actually landed. Reporting one number for both would
     make a factory that refuses every cancel read as a clean pass.
+
+    `factory_names` carries what `factories_surveyed` merely counts. The count
+    on its own cannot say WHICH inventory was taken, so a host that quietly
+    stops resolving one of its two declared factories keeps reporting a number
+    that looks like a healthy pass until somebody notices it changed.
+
+    `dry_run` is on the record because a dry pass reconciles nothing by
+    design. Without the flag its record is byte-identical to a live pass that
+    found nothing, and the two mean opposite things about the inventory.
     """
 
     factories_surveyed: int
+    factory_names: tuple[str, ...]
+    dry_run: bool
     orphans_found: int
     orphans_reconciled: int
     errors: int
@@ -127,17 +153,46 @@ def reconcile_runs_pass(*, args: argparse.Namespace, repo: Path) -> ReconcilePas
         exceptions=_RECOVERABLE,
     )
     summary = _failed_pass(outcome=outcome) if isinstance(outcome, AttemptFailure) else outcome
+    journal_reconcile_pass(journal=journal, summary=summary)
+    return summary
+
+
+def reconcile_pass_summary(
+    *,
+    factories: Sequence[FactoryTarget],
+    summary: ReconcileRunsSummary,
+) -> ReconcilePassSummary:
+    """Fold one reconciliation's result into the record a pass leaves."""
+    # An error naming a run IS an orphan the join found and the pass could not
+    # dispose of; an error naming no run is a factory-level failure and no
+    # orphan at all. Counting them alike would inflate the orphan census with
+    # unreachable factories.
+    unreconciled = sum(1 for error in summary.errors if error.run_id is not None)
+    return ReconcilePassSummary(
+        factories_surveyed=len(factories),
+        factory_names=tuple(factory.name for factory in factories),
+        dry_run=summary.dry_run,
+        orphans_found=len(summary.reconciled) + unreconciled,
+        orphans_reconciled=sum(1 for run in summary.reconciled if run.termination_succeeded),
+        errors=len(summary.errors),
+        failure_detail=None,
+    )
+
+
+def journal_reconcile_pass(*, journal: JournalWriter, summary: ReconcilePassSummary) -> None:
+    """Append the one record that says this pass happened at all."""
     journal.append(
         record={
             "stage": JOURNAL_STAGE_RECONCILE_RUNS,
+            "dry_run": summary.dry_run,
             "factories_surveyed": summary.factories_surveyed,
+            "factory_names": list(summary.factory_names),
             "orphans_found": summary.orphans_found,
             "orphans_reconciled": summary.orphans_reconciled,
             "errors": summary.errors,
             "failure_detail": summary.failure_detail,
         }
     )
-    return summary
 
 
 def _survey(
@@ -152,7 +207,7 @@ def _survey(
         # and the beads client below would be pure cost. Short-circuiting here
         # keeps an unconfigured repo's dispatch path free of a tenant round-trip
         # it can do nothing with.
-        return _pass_summary(factories_surveyed=0, summary=_NOTHING_SURVEYED)
+        return reconcile_pass_summary(factories=(), summary=_NOTHING_SURVEYED)
     store = store_config(repo=repo)
     summary = reconcile_runs(
         inputs=ReconcileInputs(
@@ -174,31 +229,14 @@ def _survey(
         factories=factories,
         dry_run=False,
     )
-    return _pass_summary(factories_surveyed=len(factories), summary=summary)
-
-
-def _pass_summary(
-    *,
-    factories_surveyed: int,
-    summary: ReconcileRunsSummary,
-) -> ReconcilePassSummary:
-    # An error naming a run IS an orphan the join found and the pass could not
-    # dispose of; an error naming no run is a factory-level failure and no
-    # orphan at all. Counting them alike would inflate the orphan census with
-    # unreachable factories.
-    unreconciled = sum(1 for error in summary.errors if error.run_id is not None)
-    return ReconcilePassSummary(
-        factories_surveyed=factories_surveyed,
-        orphans_found=len(summary.reconciled) + unreconciled,
-        orphans_reconciled=sum(1 for run in summary.reconciled if run.termination_succeeded),
-        errors=len(summary.errors),
-        failure_detail=None,
-    )
+    return reconcile_pass_summary(factories=factories, summary=summary)
 
 
 def _failed_pass(*, outcome: AttemptFailure) -> ReconcilePassSummary:
     return ReconcilePassSummary(
         factories_surveyed=0,
+        factory_names=(),
+        dry_run=False,
         orphans_found=0,
         orphans_reconciled=0,
         errors=1,

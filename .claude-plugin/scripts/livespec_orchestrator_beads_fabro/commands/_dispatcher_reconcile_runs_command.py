@@ -16,6 +16,24 @@ grace arm is still HOLDING, each with the seconds it has left. A hold that
 nothing renders is indistinguishable from a run nobody is watching, which is
 the failure the grace arm exists to bound, so the held lane is emitted on
 every run — dry or not.
+
+`--dry-run --json` is the read-only projection over the FACTORY: it emits the
+orphan set and performs no export, no termination, and no per-run journal
+write, so a caller can render "orphaned factory runs" without the survey
+itself being an act.
+
+Every invocation nonetheless leaves ONE `reconcile-runs-pass` record, through
+the same `journal_reconcile_pass` the dispatch path's wired pass writes
+through — a dry run included, flagged as one. This command is what the host
+timer invokes, so a record written only by the dispatch path leaves every tick
+of that timer invisible: a pass that surveyed both factories and found nothing
+is then byte-identical to a unit that never started, which is precisely the
+absence the record exists to rule out.
+
+For the same reason a pass that surveyed NO factory is a failure and not a
+clean sweep. An unresolvable factories table, an unreadable config, or a
+`--factory` naming nobody all reconcile nothing, and "nothing to reconcile"
+and "nothing was looked at" are the same empty output with opposite meanings.
 """
 
 from __future__ import annotations
@@ -53,6 +71,11 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_grace
 from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_inputs import (
     ReconcileInputs,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_runs_pass import (
+    ReconcilePassSummary,
+    journal_reconcile_pass,
+    reconcile_pass_summary,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_run_stamp import (
     repo_run_attribution,
 )
@@ -60,12 +83,21 @@ from livespec_orchestrator_beads_fabro.io import write_stdout
 
 __all__: list[str] = ["run_reconcile_runs_command"]
 
+_NO_FACTORY_LINE = (
+    "ERROR   (none)  no-factory-surveyed: this pass surveyed no factory, so it "
+    "reconciled nothing and observed nothing\n"
+)
+
 
 def run_reconcile_runs_command(*, args: argparse.Namespace) -> int:
     """Reconcile every configured factory, or report why one could not be."""
     repo = Path(args.repo) if args.repo is not None else Path.cwd()
     store = store_config(repo=repo)
-    journal = journal_path(args=args, repo=repo)
+    journal = JournalFile(
+        path=journal_path(args=args, repo=repo),
+        identity=invoker_from_args(args=args),
+    )
+    factories = reconcile_factory_targets(repo=repo, factory=args.factory)
     summary = reconcile_runs(
         inputs=ReconcileInputs(
             repo=repo,
@@ -74,9 +106,9 @@ def run_reconcile_runs_command(*, args: argparse.Namespace) -> int:
             ),
             id_prefix=store.prefix,
             items=load_items(repo=repo),
-            journaled=read_journaled_runs(path=journal),
+            journaled=read_journaled_runs(path=journal.path),
             runner=ShellCommandRunner(),
-            journal=JournalFile(path=journal, identity=invoker_from_args(args=args)),
+            journal=journal,
             ledger=make_beads_client(config=store),
             attribution=repo_run_attribution(repo=repo),
             blocked_run_grace_seconds=unsafe_perform_io(
@@ -85,28 +117,46 @@ def run_reconcile_runs_command(*, args: argparse.Namespace) -> int:
                 )
             ),
         ),
-        factories=reconcile_factory_targets(repo=repo, factory=args.factory),
+        factories=factories,
         dry_run=args.dry_run,
     )
-    _emit(summary=summary, as_json=args.as_json)
-    return 1 if _has_failure(summary=summary) else 0
+    record = reconcile_pass_summary(factories=factories, summary=summary)
+    journal_reconcile_pass(journal=journal, summary=record)
+    _emit(summary=summary, record=record, as_json=args.as_json)
+    return 1 if _has_failure(summary=summary, record=record) else 0
 
 
-def _has_failure(*, summary: ReconcileRunsSummary) -> bool:
+def _has_failure(*, summary: ReconcileRunsSummary, record: ReconcilePassSummary) -> bool:
+    if record.factories_surveyed == 0:
+        return True
     if summary.errors:
         return True
     return any(not run.termination_succeeded for run in summary.reconciled)
 
 
-def _emit(*, summary: ReconcileRunsSummary, as_json: bool) -> None:
+def _emit(
+    *,
+    summary: ReconcileRunsSummary,
+    record: ReconcilePassSummary,
+    as_json: bool,
+) -> None:
     if as_json:
         payload = {
             "dry_run": summary.dry_run,
             "errors": [asdict(error) for error in summary.errors],
             "held": [asdict(run) for run in summary.held],
+            "factories_surveyed": record.factories_surveyed,
+            "factory_names": list(record.factory_names),
             "reconciled": [asdict(run) for run in summary.reconciled],
         }
         _ = write_stdout(text=json.dumps(payload, indent=2, sort_keys=True) + "\n")
+        return
+    if record.factories_surveyed == 0:
+        # Returning here rather than falling through to the orphan lines below
+        # is not an optimisation: with nothing surveyed both loops are empty by
+        # construction, and the "(no orphaned fabro runs found)" line they lead
+        # to is the exact false reassurance this branch exists to withhold.
+        _ = write_stdout(text=_NO_FACTORY_LINE)
         return
     for error in summary.errors:
         _ = write_stdout(text=f"ERROR   {error.factory_name}  {error.reason}: {error.detail}\n")

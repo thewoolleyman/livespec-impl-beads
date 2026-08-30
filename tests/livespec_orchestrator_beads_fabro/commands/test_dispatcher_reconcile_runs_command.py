@@ -19,6 +19,9 @@ from livespec_orchestrator_beads_fabro.commands._run_attribution import RunAttri
 from livespec_orchestrator_beads_fabro.commands.dispatcher import main
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
+_HP = FactoryTarget(name="hp", server="https://hp.example:32276", dev_token=None)
+_VPS = FactoryTarget(name="vps", server="https://vps.example:32276", dev_token=None)
+
 
 def test_reconcile_runs_emits_a_json_projection_and_wires_every_input(
     *,
@@ -46,6 +49,10 @@ def test_reconcile_runs_emits_a_json_projection_and_wires_every_input(
     assert payload["dry_run"] is False
     assert payload["reconciled"][0]["run_id"] == "01ORPHAN"
     assert payload["reconciled"][0]["orphan_reason"] == "item-not-active"
+    # The NAMES, not only the count: a pass that reached one of two declared
+    # factories reports the same three keys as a healthy one without them.
+    assert payload["factories_surveyed"] == 2
+    assert payload["factory_names"] == ["hp", "vps"]
     assert calls["factories"] == (tmp_path, None)
     inputs = calls["inputs"]
     assert isinstance(inputs, dict)
@@ -73,6 +80,110 @@ def test_the_stale_run_sweep_alias_resolves_to_the_same_handler(
     assert exit_code == 0
     assert capsys.readouterr().out == "(no orphaned fabro runs found)\n"
     assert calls["factories"] == (tmp_path, "hp")
+
+
+def test_every_invocation_leaves_exactly_one_pass_record_carrying_its_invoker(
+    *,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The timer invokes THIS command, so its ticks are visible only here."""
+    _ = _stub(monkeypatch=monkeypatch, summary=_summary(reconciled=(_run(),)))
+    journal = tmp_path / "journal.jsonl"
+
+    exit_code = main(
+        argv=[
+            "reconcile-runs",
+            "--repo",
+            str(tmp_path),
+            "--journal",
+            str(journal),
+            "--invoker",
+            "timer:reconcile-runs",
+        ]
+    )
+    _ = capsys.readouterr()
+
+    records = _pass_records(journal=journal)
+    assert exit_code == 0
+    assert len(records) == 1
+    # The asserted identity, not the `unattributed:<user>@<host>` mark: a timer
+    # tick that resolves to the fallback cannot be told from a hand invocation.
+    assert records[0]["invoker"] == "timer:reconcile-runs"
+    assert records[0]["invoker_source"] == "flag"
+    assert _unstamped(record=records[0]) == {
+        "stage": "reconcile-runs-pass",
+        "dry_run": False,
+        "factories_surveyed": 2,
+        "factory_names": ["hp", "vps"],
+        "orphans_found": 1,
+        "orphans_reconciled": 1,
+        "errors": 0,
+        "failure_detail": None,
+    }
+
+
+def test_a_dry_run_leaves_a_pass_record_too_and_says_it_was_dry(
+    *,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A dry pass reconciles nothing by design; unflagged it reads as a live one."""
+    _ = _stub(monkeypatch=monkeypatch, summary=_summary(dry_run=True), factories=(_HP,))
+    journal = tmp_path / "journal.jsonl"
+
+    exit_code = main(
+        argv=["reconcile-runs", "--repo", str(tmp_path), "--journal", str(journal), "--dry-run"]
+    )
+    _ = capsys.readouterr()
+
+    records = _pass_records(journal=journal)
+    assert exit_code == 0
+    assert len(records) == 1
+    assert records[0]["dry_run"] is True
+    assert records[0]["factory_names"] == ["hp"]
+
+
+def test_a_pass_that_surveyed_no_factory_journals_zero_and_refuses_to_read_clean(
+    *,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Nothing-to-reconcile and nothing-was-looked-at are the same empty output."""
+    _ = _stub(monkeypatch=monkeypatch, summary=_summary(), factories=())
+    journal = tmp_path / "journal.jsonl"
+
+    exit_code = main(argv=["reconcile-runs", "--repo", str(tmp_path), "--journal", str(journal)])
+    output = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert output == (
+        "ERROR   (none)  no-factory-surveyed: this pass surveyed no factory, so it "
+        "reconciled nothing and observed nothing\n"
+    )
+    records = _pass_records(journal=journal)
+    assert len(records) == 1
+    assert records[0]["factories_surveyed"] == 0
+    assert records[0]["factory_names"] == []
+
+
+def test_a_zero_factory_json_projection_reports_the_empty_survey(
+    *,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _ = _stub(monkeypatch=monkeypatch, summary=_summary(), factories=())
+
+    exit_code = main(argv=["reconcile-runs", "--repo", str(tmp_path), "--json"])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert payload["factories_surveyed"] == 0
+    assert payload["factory_names"] == []
 
 
 def test_a_dry_run_reaches_the_reconciler_as_a_dry_run(
@@ -228,6 +339,7 @@ def _stub(
     *,
     monkeypatch: pytest.MonkeyPatch,
     summary: ReconcileRunsSummary,
+    factories: tuple[FactoryTarget, ...] = (_HP, _VPS),
 ) -> dict[str, object]:
     calls: dict[str, object] = {}
 
@@ -241,7 +353,7 @@ def _stub(
 
     def _factories(*, repo: Path, factory: str | None = None) -> tuple[FactoryTarget, ...]:
         calls["factories"] = (repo, factory)
-        return ()
+        return factories
 
     def _fabro_bin(*, cwd: Path) -> str:
         calls["fabro_bin_cwd"] = cwd
@@ -292,6 +404,16 @@ def _held() -> HeldRun:
         seconds_remaining=1500.0,
         grace_seconds=1800,
     )
+
+def _pass_records(*, journal: Path) -> list[dict[str, Any]]:
+    lines = journal.read_text(encoding="utf-8").splitlines()
+    records = [json.loads(line) for line in lines]
+    return [record for record in records if record.get("stage") == "reconcile-runs-pass"]
+
+
+def _unstamped(*, record: dict[str, Any]) -> dict[str, Any]:
+    stamped = {"at", "invoker", "invoker_source"}
+    return {key: value for key, value in record.items() if key not in stamped}
 
 
 def _summary(
