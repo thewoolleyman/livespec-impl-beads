@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from livespec_orchestrator_beads_fabro.commands._fabro_port_http import (
+    FabroHttpPort,
+    FabroHttpTransport,
+    UrllibFabroHttpTransport,
+)
 from livespec_orchestrator_beads_fabro.commands._fabro_port_records import (
     FabroFailureDetail,
     FabroRunSummary,
@@ -34,6 +39,7 @@ __all__: list[str] = [
     "FabroCommandResult",
     "FabroEventsResult",
     "FabroFailureDetail",
+    "FabroHttpPort",
     "FabroInspectResult",
     "FabroJsonResult",
     "FabroPort",
@@ -55,12 +61,18 @@ class FabroPort:
     already depends on. The client binary and factory target are constructor
     data, so an upgrade-candidate binary is tested by constructing another
     port with a different `fabro_bin`.
+
+    Most verbs shell out through `runner`; the interview-answer and cancel
+    verbs go over `http` instead, because the pinned CLI exposes neither
+    non-interactively. Both seams read the SAME `target`, so a port can only
+    ever act on the factory it was constructed for.
     """
 
     fabro_bin: str
     target: FabroTarget
     runner: FabroRunner
     cwd: Path
+    http: FabroHttpTransport = field(default_factory=UrllibFabroHttpTransport)
 
     def run(
         self,
@@ -169,6 +181,17 @@ class FabroPort:
             timeout_seconds=timeout_seconds,
         )
         return FabroCommandResult(command=command)
+
+    def server_api(self) -> FabroHttpPort:
+        """This same factory's server-API face: `questions` / `answer` / `cancel`.
+
+        Those three verbs sit beside `rm` rather than inside it because the
+        pinned CLI exposes none of them non-interactively, so they speak HTTP.
+        The face is built from THIS port's own `target`, so it cannot reach a
+        factory this port was not constructed for — the whole reason the
+        reconciler goes through the port at all.
+        """
+        return FabroHttpPort(target=self.target, transport=self.http)
 
     def top_level_server_parse_probe(
         self,
