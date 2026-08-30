@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.116.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.115.0...v0.116.0) (2026-08-30)
+
+
+### Features
+
+* bound the slot hold for a parked run whose work-item is still live ([93dc544](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/93dc544b9a89eb3d8317efb8b8775724f28f1437))
+
 ## [0.115.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.114.0...v0.115.0) (2026-08-30)
 
 
