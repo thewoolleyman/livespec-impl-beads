@@ -26,6 +26,10 @@ from livespec_orchestrator_beads_fabro.commands._config import dispatcher_block
 from livespec_orchestrator_beads_fabro.commands._dispatcher_ci_pipeline_view import (
     resolve_master_ci_pipeline,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_default_branch import (
+    ORIGIN_HEAD_ARGV,
+    REPO_VIEW_ARGV,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandResult,
     DispatchOutcome,
@@ -48,6 +52,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_defaults
     RELEASE_REPOSITORY_MASTER_REF,
     RELEASE_REPOSITORY_RELEASE_REF,
     RELEASE_REPOSITORY_URL,
+    UNRESOLVED_NAME,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_projection import (
     CONTRACT_INPUT_NAMES,
@@ -70,6 +75,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     DispatchPlan,
     PrView,
     build_plan,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_probe_wiring import (
+    resolve_default_branch as probe_default_branch,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_merged_pr import (
     merged_pr_list_argv,
@@ -363,6 +371,36 @@ def test_the_source_preflight_dry_run_targets_the_resolved_branch(
 
 
 @over_both_fixtures
+def test_the_probe_wiring_seam_reads_the_shared_resolution_and_never_names_a_branch(
+    governed: GovernedRepo,
+) -> None:
+    """Seam: the loop probe's default-branch read, which used to carry its own probe.
+
+    Two arms on one seam, because the converted site answers two questions and a
+    regression in either is silent. The RESOLVING arm proves the probe reaches the
+    SHARED two-route resolver rather than a private `git symbolic-ref` of its own:
+    the runner is asked the ratified `ORIGIN_HEAD_ARGV`, in the fixture's own
+    checkout, and answers the branch NEITHER `master` NOR `main` that both
+    fixtures probe as -- so a surviving constant cannot pass by agreeing. The
+    SILENT arm proves the retired fallback stayed retired: both routes answer
+    nothing, and the probe returns the same unresolved sentinel the resolved
+    contract renders for an unresolvable required field rather than substituting a
+    branch name the repository never chose.
+    """
+    probed = _TwoRoute(origin_head=f"origin/{PROBED_DEFAULT_BRANCH}\n", repo_view="")
+    silent = _TwoRoute(origin_head="\n", repo_view="\n")
+
+    resolved = probe_default_branch(repo=governed.root, runner=probed)
+    unresolved = probe_default_branch(repo=governed.root, runner=silent)
+
+    assert resolved == PROBED_DEFAULT_BRANCH
+    assert probed.calls == [(list(ORIGIN_HEAD_ARGV), governed.root)]
+    assert unresolved == UNRESOLVED_NAME
+    assert unresolved not in {PROBED_DEFAULT_BRANCH, "master", "main"}
+    assert [argv for argv, _ in silent.calls] == [list(ORIGIN_HEAD_ARGV), list(REPO_VIEW_ARGV)]
+
+
+@over_both_fixtures
 def test_the_currency_gate_probes_this_plugin_and_never_a_governed_repository(
     governed: GovernedRepo,
 ) -> None:
@@ -440,6 +478,33 @@ class _DetachedHead:
         if tail[:1] == ("rev-parse",):
             return CommandResult(exit_code=0, stdout="abc123\n", stderr="")
         return CommandResult(exit_code=1, stdout="", stderr="unreachable\n")
+
+
+@dataclass(kw_only=True)
+class _TwoRoute:
+    """A checkout answering each ratified default-branch route with a canned stdout.
+
+    Both routes exit 0, so an EMPTY answer is silence rather than a failure -- the
+    stricter input, since a resolver that treated a clean-but-empty read as an
+    answer would return the empty string instead of falling through.
+    """
+
+    origin_head: str
+    repo_view: str
+    calls: list[tuple[list[str], Path]] = field(default_factory=list)
+
+    def run(
+        self,
+        *,
+        argv: list[str],
+        cwd: Path,
+        timeout_seconds: float,
+        env: dict[str, str] | None = None,
+    ) -> CommandResult:
+        _ = (timeout_seconds, env)
+        self.calls.append((argv, cwd))
+        answered = self.origin_head if tuple(argv) == ORIGIN_HEAD_ARGV else self.repo_view
+        return CommandResult(exit_code=0, stdout=answered, stderr="")
 
 
 def _plan(*, governed: GovernedRepo) -> DispatchPlan:
