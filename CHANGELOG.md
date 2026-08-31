@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.124.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.124.0...v0.124.1) (2026-08-31)
+
+
+### Bug Fixes
+
+* **checks:** the doc-only target parse ignores comments (bd-ib-vblnq2.8) ([acaf0ed](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/acaf0ed2bd954d7ca95d329dee78dc3ea8f92c9e))
+
 ## [0.124.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.123.0...v0.124.0) (2026-08-31)
 
 
