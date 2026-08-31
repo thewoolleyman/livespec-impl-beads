@@ -84,7 +84,7 @@ RUN curl -fsSL "https://astral.sh/uv/${UV_VERSION}/install.sh" \
  && rm -f /tmp/uv-install.sh \
  && /usr/local/bin/uv --version
 
-# --- bd (beads CLI), pinned v1.1.2 behind the lifecycle guard. The official
+# --- bd (beads CLI), pinned v1.2.2 behind the lifecycle guard. The official
 #     release TARBALL is content-pinned by sha256; the extracted binary is
 #     re-verified and installed as the guard's private delegate at bd-real.
 #
@@ -101,9 +101,9 @@ RUN curl -fsSL "https://astral.sh/uv/${UV_VERSION}/install.sh" \
 #     docs/RECOVERY-1.2.1.md at tag v1.2.2 and upgrade EVERY clone first --
 #     a leftover v1.2.1 binary silently re-migrates. See AGENTS.md
 #     "Beads runtime prerequisites". ---
-ENV BD_VERSION=1.1.2 \
-    BD_TARBALL_SHA256=a72d71ed374955dc9f83a0f90b54bd7b6a0016709dd1676ae2e368651ed401c2 \
-    BD_BINARY_SHA256=6d767629e90560506d0ea3de9823aef48386414f5425d8853e2ae3312cad9a82
+ENV BD_VERSION=1.2.2 \
+    BD_TARBALL_SHA256=8140098a51d3b81d5548d1c5e6db1a2d9930e5d141efe2a4bff7d079c4d321e8 \
+    BD_BINARY_SHA256=54fc0e0581ce4c5487a5b242f0a4f34af1ef09cf056e164a1af63a6ec7aa1e0e
 RUN curl -fsSL -o /tmp/beads.tar.gz \
         "https://github.com/gastownhall/beads/releases/download/v${BD_VERSION}/beads_${BD_VERSION}_linux_amd64.tar.gz" \
  && echo "${BD_TARBALL_SHA256}  /tmp/beads.tar.gz" | sha256sum -c - \
