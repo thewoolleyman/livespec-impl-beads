@@ -4126,6 +4126,11 @@ def test_dispatch_green_closes_item_and_journals(
     # `reconcile-runs-pass` closes the preamble: reconciliation runs after both
     # step-gate preflights and before admission, and it records its pass even
     # when there is no declared factory to survey.
+    # `conformance-premise-undeclared` sits between the plan build and the
+    # correlation id: this fixture's `.livespec.jsonc` declares none of the three
+    # `dispatcher.conformance.*` premises, so each resolves to the fleet-default
+    # no-op and the Dispatcher says so once. It is informational — the dispatch
+    # runs to `green` with the record present.
     assert stages == [
         "source-checkout-origin-reachability",
         "master-ci-preflight",
@@ -4133,6 +4138,7 @@ def test_dispatch_green_closes_item_and_journals(
         "ledger-admit",
         "node-timeouts",
         "acp-nodes",
+        "conformance-premise-undeclared",
         "dispatch-id",
         "ledger-complete",
         "acceptance-ai-pass",

@@ -9,9 +9,12 @@ descriptors -- including the two arms a per-key default table cannot express: a
 REQUIRED field whose absence refuses rather than substituting a value, and a
 declared parent block that makes its own halves required.
 
-Every case reaches the schema through `_module()`, which asserts the module FILE
+Every case reaches its module through `_module()`, which asserts the module FILE
 exists before importing it, so a slice that has not landed yet fails on a genuine
-assertion rather than on an unimportable module.
+assertion rather than on an unimportable module. There are five: the CLOSED FIELD
+SET, the DESCRIPTOR TYPE its members are instances of, the fleet DEFAULTS they
+resolve to, the DECLARATION reader, and the RESOLVER plus the CONTRACT assembly
+that reads a whole repository through it.
 """
 
 from __future__ import annotations
@@ -28,6 +31,8 @@ _DEFAULTS_PATH = _COMMANDS / "_dispatcher_integration_defaults.py"
 _SCHEMA_PATH = _COMMANDS / "_dispatcher_integration_schema.py"
 _DECLARATION_PATH = _COMMANDS / "_dispatcher_integration_declaration.py"
 _RESOLVER_PATH = _COMMANDS / "_dispatcher_integration_resolver.py"
+_FIELD_PATH = _COMMANDS / "_dispatcher_integration_field.py"
+_CONTRACT_PATH = _COMMANDS / "_dispatcher_integration_contract.py"
 
 
 def _module(*, path: Path, name: str) -> ModuleType:
@@ -51,11 +56,19 @@ def _resolver() -> ModuleType:
     return _module(path=_RESOLVER_PATH, name="_dispatcher_integration_resolver")
 
 
+def _field_type() -> ModuleType:
+    return _module(path=_FIELD_PATH, name="_dispatcher_integration_field")
+
+
+def _contract() -> ModuleType:
+    return _module(path=_CONTRACT_PATH, name="_dispatcher_integration_contract")
+
+
 def test_the_schema_is_versioned_and_its_contract_dataclass_is_keyword_only() -> None:
     """One versioned schema: an explicit version constant and a kw_only contract."""
     schema = _schema()
     assert isinstance(schema.INTEGRATION_CONTRACT_SCHEMA_VERSION, int)
-    contract_type = schema.RepoIntegrationContract
+    contract_type = _contract().RepoIntegrationContract
     assert contract_type.__dataclass_params__.frozen is True
     parameters = list(inspect.signature(contract_type).parameters.values())
     assert parameters
@@ -76,20 +89,23 @@ def test_the_contract_enumerates_every_ratified_integration_point() -> None:
         "core_pinned_ref",
         "prepare_toolchain_mise",
         "prepare_toolchain_lefthook",
+        "conformance_hook_install",
+        "conformance_verify_commit_refuse_hook",
+        "conformance_verify_plugin_resolution",
         "default_branch",
         "merge_mode",
         "sandbox_exempt_marker",
     }
-    annotations = schema.RepoIntegrationContract.__annotations__
+    annotations = _contract().RepoIntegrationContract.__annotations__
     assert set(annotations) == attributes | {"schema_version"}
 
 
 def test_every_command_shaped_field_is_typed_as_argv_tokens_not_a_shell_string() -> None:
     """Commands are argv arrays: the split happens once, in the schema's own type."""
     schema = _schema()
-    annotations = schema.RepoIntegrationContract.__annotations__
+    annotations = _contract().RepoIntegrationContract.__annotations__
     command_shaped = [
-        field for field in schema.INTEGRATION_FIELDS if field.shape == schema.SHAPE_ARGV
+        field for field in schema.INTEGRATION_FIELDS if field.shape == _field_type().SHAPE_ARGV
     ]
     assert command_shaped
     for field in command_shaped:
@@ -102,8 +118,8 @@ def test_the_check_suite_carries_venue_as_an_explicit_schema_dimension() -> None
     by_attribute = {field.attribute: field for field in schema.INTEGRATION_FIELDS}
     host = by_attribute["janitor_check_suite"]
     sandbox = by_attribute["sandbox_check_suite"]
-    assert host.venue == schema.VENUE_HOST_JANITOR
-    assert sandbox.venue == schema.VENUE_IN_SANDBOX_GATE
+    assert host.venue == _field_type().VENUE_HOST_JANITOR
+    assert sandbox.venue == _field_type().VENUE_IN_SANDBOX_GATE
     assert host.path == sandbox.path == schema.JANITOR_CHECK_SUITE_KEY
     assert host.fleet_default != sandbox.fleet_default
 
@@ -132,6 +148,155 @@ def test_the_toolchain_no_op_arm_is_an_explicit_fleet_default_value() -> None:
         field=schema.PREPARE_TOOLCHAIN_LEFTHOOK_FIELD, declaration={}
     )
     assert lefthook.value == defaults.TOOLCHAIN_NO_OP
+
+
+def _conformance(*, premise: str, value: object) -> dict[str, object]:
+    """A declaration writing ONE conformance premise, nested exactly as the key reads."""
+    return {"dispatcher": {"conformance": {premise: value}}}
+
+
+def test_the_three_conformance_premises_are_declared_under_their_own_keys() -> None:
+    """Each prepare-step premise is its own committed key, spelled as a refusal quotes it."""
+    schema = _schema()
+    keys = {field.attribute: field.key for field in schema.CONFORMANCE_FIELDS}
+    assert keys == {
+        "conformance_hook_install": "dispatcher.conformance.hook_install",
+        "conformance_verify_commit_refuse_hook": (
+            "dispatcher.conformance.verify_commit_refuse_hook"
+        ),
+        "conformance_verify_plugin_resolution": ("dispatcher.conformance.verify_plugin_resolution"),
+    }
+    # Every one is a member of the closed field set, not a second set beside it.
+    assert set(schema.CONFORMANCE_FIELDS) <= set(schema.INTEGRATION_FIELDS)
+    for field in schema.CONFORMANCE_FIELDS:
+        assert field.shape == _field_type().SHAPE_CONFORMANCE
+        assert field.admitted == _defaults().CONFORMANCE_MODES
+
+
+def test_the_conformance_mode_enumeration_is_closed_and_self_describing() -> None:
+    """Three modes, each NAMING what it is rather than ranking a tier or a level."""
+    defaults = _defaults()
+    assert defaults.CONFORMANCE_MODES == (
+        "no_op",
+        "shell_argv",
+        "internal_livespec_dev_tooling",
+    )
+
+
+def test_an_absent_conformance_premise_resolves_to_the_fleet_default_no_op() -> None:
+    """Absence is what the dispatch-time warning fires on -- and it runs nothing."""
+    resolver = _resolver()
+    defaults = _defaults()
+    for field in _schema().CONFORMANCE_FIELDS:
+        resolution = _resolver().resolve_integration_field(field=field, declaration={})
+        assert isinstance(resolution, resolver.FleetDefault)
+        assert resolution.value == defaults.CONFORMANCE_NO_OP
+
+
+def test_an_explicit_no_op_resolves_to_declared_carrying_the_same_empty_argv() -> None:
+    """The adopter CHOSE the skip, so the arm differs even though the value cannot."""
+    resolver = _resolver()
+    schema = _schema()
+    resolution = _resolver().resolve_integration_field(
+        field=schema.CONFORMANCE_HOOK_INSTALL_FIELD,
+        declaration=_conformance(premise="hook_install", value={"mode": "no_op"}),
+    )
+    assert isinstance(resolution, resolver.Declared)
+    assert resolution.value == _defaults().CONFORMANCE_NO_OP
+
+
+def test_a_shell_argv_conformance_premise_carries_the_adopters_command_verbatim() -> None:
+    """The sandbox runs what the adopter wrote, as an argv array or as a shell string."""
+    resolver = _resolver()
+    schema = _schema()
+    declared = _resolver().resolve_integration_field(
+        field=schema.CONFORMANCE_VERIFY_PLUGIN_RESOLUTION_FIELD,
+        declaration=_conformance(
+            premise="verify_plugin_resolution",
+            value={"mode": "shell_argv", "argv": ["make", "verify plugins"]},
+        ),
+    )
+    assert isinstance(declared, resolver.Declared)
+    assert declared.value == ("make", "verify plugins")
+
+
+def test_a_shell_argv_premise_without_a_usable_argv_is_defective_naming_the_key() -> None:
+    """Declaring a command and then naming none resolves nothing; it never falls back."""
+    resolver = _resolver()
+    schema = _schema()
+    for argv in (None, [], "", ["", "check"]):
+        value: dict[str, object] = {"mode": "shell_argv"}
+        if argv is not None:
+            value["argv"] = argv
+        resolution = _resolver().resolve_integration_field(
+            field=schema.CONFORMANCE_HOOK_INSTALL_FIELD,
+            declaration=_conformance(premise="hook_install", value=value),
+        )
+        assert isinstance(resolution, resolver.Defective)
+        assert resolution.key == schema.CONFORMANCE_HOOK_INSTALL_KEY
+
+
+def test_the_internal_mode_renders_the_invocation_the_defaults_module_holds() -> None:
+    """The one place a fleet invocation may be spelled is the fleet-defaults module."""
+    resolver = _resolver()
+    schema = _schema()
+    defaults = _defaults()
+    expected = {
+        schema.CONFORMANCE_HOOK_INSTALL_FIELD: defaults.CONFORMANCE_HOOK_INSTALL_INTERNAL_ARGV,
+        schema.CONFORMANCE_VERIFY_COMMIT_REFUSE_HOOK_FIELD: (
+            defaults.CONFORMANCE_VERIFY_COMMIT_REFUSE_HOOK_INTERNAL_ARGV
+        ),
+        schema.CONFORMANCE_VERIFY_PLUGIN_RESOLUTION_FIELD: (
+            defaults.CONFORMANCE_VERIFY_PLUGIN_RESOLUTION_INTERNAL_ARGV
+        ),
+    }
+    for field, argv in expected.items():
+        premise = field.key.rsplit(".", 1)[-1]
+        resolution = _resolver().resolve_integration_field(
+            field=field,
+            declaration=_conformance(
+                premise=premise, value={"mode": "internal_livespec_dev_tooling"}
+            ),
+        )
+        assert isinstance(resolution, resolver.Declared)
+        assert resolution.value == argv
+        assert field.internal_argv == argv
+
+
+def test_a_conformance_premise_outside_the_closed_enumeration_is_defective() -> None:
+    """A mode nobody ratified, or a value that is no mapping at all, resolves nothing."""
+    resolver = _resolver()
+    schema = _schema()
+    for value in ("no_op", 7, None, {}, {"mode": "tier_two"}, {"mode": 3}):
+        resolution = _resolver().resolve_integration_field(
+            field=schema.CONFORMANCE_VERIFY_COMMIT_REFUSE_HOOK_FIELD,
+            declaration=_conformance(premise="verify_commit_refuse_hook", value=value),
+        )
+        assert isinstance(resolution, resolver.Defective)
+        assert resolution.key == schema.CONFORMANCE_VERIFY_COMMIT_REFUSE_HOOK_KEY
+        for mode in _defaults().CONFORMANCE_MODES:
+            assert f"`{mode}`" in resolution.reason
+
+
+def test_a_mode_that_takes_no_argv_refuses_a_declaration_that_supplies_one() -> None:
+    """A premise cannot both name a fleet invocation and hand one of its own."""
+    resolver = _resolver()
+    schema = _schema()
+    for mode in ("no_op", "internal_livespec_dev_tooling"):
+        resolution = _resolver().resolve_integration_field(
+            field=schema.CONFORMANCE_HOOK_INSTALL_FIELD,
+            declaration=_conformance(
+                premise="hook_install", value={"mode": mode, "argv": ["make", "hooks"]}
+            ),
+        )
+        assert isinstance(resolution, resolver.Defective)
+        assert resolution.key == schema.CONFORMANCE_HOOK_INSTALL_KEY
+        assert "argv" in resolution.reason
+
+
+def test_the_schema_version_constant_is_unchanged_by_the_conformance_fields() -> None:
+    """These fields complete a field set the ratified version already assumed."""
+    assert _schema().INTEGRATION_CONTRACT_SCHEMA_VERSION == 1
 
 
 def test_a_declared_usable_key_resolves_to_declared() -> None:
@@ -315,12 +480,11 @@ def test_the_sandbox_exempt_marker_is_closed_to_the_one_fleet_value() -> None:
 def test_an_optional_field_missing_its_schema_default_resolves_to_the_sentinel() -> None:
     """A schema bug never leaks None into a value position a caller would run."""
     resolver = _resolver()
-    schema = _schema()
-    broken = schema.IntegrationField(
+    broken = _field_type().IntegrationField(
         attribute="broken",
         key="dispatcher.broken",
         path="dispatcher.broken",
-        shape=schema.SHAPE_NAME,
+        shape=_field_type().SHAPE_NAME,
     )
     resolution = _resolver().resolve_integration_field(field=broken, declaration={})
     assert isinstance(resolution, resolver.FleetDefault)
@@ -329,10 +493,9 @@ def test_an_optional_field_missing_its_schema_default_resolves_to_the_sentinel()
 
 def test_the_whole_contract_resolves_once_carrying_every_defect_together() -> None:
     """The validation pass enumerates EVERY unresolved point, not the first."""
-    resolver = _resolver()
     schema = _schema()
     defaults = _defaults()
-    resolved = resolver.resolve_integration_contract(declaration={})
+    resolved = _contract().resolve_integration_contract(declaration={})
     assert resolved.contract.schema_version == schema.INTEGRATION_CONTRACT_SCHEMA_VERSION
     assert resolved.contract.janitor_check_suite == defaults.JANITOR_CHECK_SUITE_DEFAULT
     assert resolved.contract.sandbox_check_suite == defaults.SANDBOX_CHECK_SUITE_DEFAULT
@@ -350,7 +513,6 @@ def test_the_whole_contract_resolves_once_carrying_every_defect_together() -> No
 
 def test_a_fully_declared_repository_resolves_with_no_defects() -> None:
     """Every point answered by the repository, and nothing left for the fleet to supply."""
-    resolver = _resolver()
     declaration: dict[str, object] = {
         "default_branch": "main",
         "compat": {"pinned": "v1.2.3", "core_repo": "https://example.test/core.git"},
@@ -363,7 +525,7 @@ def test_a_fully_declared_repository_resolves_with_no_defects() -> None:
             "sandbox_exempt_marker": "livespec.sandboxExempt",
         },
     }
-    resolved = resolver.resolve_integration_contract(declaration=declaration)
+    resolved = _contract().resolve_integration_contract(declaration=declaration)
     assert resolved.defects == ()
     assert resolved.contract.janitor_check_suite == ("make", "ci")
     assert resolved.contract.sandbox_check_suite == ("make", "ci")

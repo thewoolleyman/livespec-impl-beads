@@ -28,16 +28,16 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_argv import (
     janitor_argv,
     janitor_core_checkout_path,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_contract import (
+    ResolvedIntegrationContract,
+    resolve_integration_contract,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_declaration import (
     declaration_from_config_text,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_projection import (
     contract_run_inputs,
     contract_workflow_inputs,
-)
-from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_resolver import (
-    ResolvedIntegrationContract,
-    resolve_integration_contract,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_schema import (
     DEFAULT_BRANCH_KEY,

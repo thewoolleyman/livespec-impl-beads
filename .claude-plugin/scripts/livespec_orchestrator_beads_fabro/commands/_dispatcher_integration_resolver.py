@@ -28,6 +28,13 @@ somebody remembered to write a default.
 PRESENCE IS TESTED WITH MEMBERSHIP, NEVER WITH A `get` SENTINEL. A key written as
 JSON `null` is a PRESENT declaration that names nothing; reading it as absent is
 exactly the fallback this refuses.
+
+IT RESOLVES ONE POINT AND KNOWS OF NO OTHERS. Assembling the closed field set into
+a repository's whole contract lives in `_dispatcher_integration_contract`, which
+imports this module and is not imported back. That direction is what keeps the
+resolver GENERIC: it cannot come to depend on which fields exist, so a newly
+ratified obligation is an edit to the schema and to that assembly and never a
+special case here.
 """
 
 from __future__ import annotations
@@ -35,32 +42,20 @@ from __future__ import annotations
 import shlex
 from collections.abc import Mapping
 from dataclasses import dataclass
-from types import MappingProxyType
 from typing import cast
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_defaults import (
+    CONFORMANCE_MODE_INTERNAL,
+    CONFORMANCE_MODE_SHELL_ARGV,
+    CONFORMANCE_NO_OP,
     UNRESOLVED_ARGV,
     UNRESOLVED_NAME,
 )
-from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_schema import (
-    CORE_PINNED_REF_FIELD,
-    CORE_REPO_URL_FIELD,
-    DEFAULT_BRANCH_FIELD,
-    INTEGRATION_CONTRACT_SCHEMA_VERSION,
-    INTEGRATION_FIELDS,
-    JANITOR_BOOTSTRAP_RECIPE_FIELD,
-    JANITOR_CHECK_SUITE_FIELD,
-    MASTER_CI_JOB_FIELD,
-    MASTER_CI_WORKFLOW_FIELD,
-    MERGE_MODE_FIELD,
-    PREPARE_TOOLCHAIN_LEFTHOOK_FIELD,
-    PREPARE_TOOLCHAIN_MISE_FIELD,
-    SANDBOX_CHECK_SUITE_FIELD,
-    SANDBOX_EXEMPT_MARKER_FIELD,
+from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_field import (
     SHAPE_ARGV,
+    SHAPE_CONFORMANCE,
     SHAPE_ENUM,
     IntegrationField,
-    RepoIntegrationContract,
 )
 from livespec_orchestrator_beads_fabro.effects import AttemptFailure, attempt
 
@@ -70,10 +65,8 @@ __all__: list[str] = [
     "FleetDefault",
     "IntegrationResolution",
     "IntegrationValue",
-    "ResolvedIntegrationContract",
     "declaration_carries",
     "is_declared",
-    "resolve_integration_contract",
     "resolve_integration_field",
     "resolved_argv",
     "resolved_name",
@@ -123,31 +116,6 @@ IntegrationResolution = Declared | FleetDefault | Defective
 
 
 @dataclass(frozen=True, kw_only=True)
-class ResolvedIntegrationContract:
-    """One repository's whole contract, resolved once, with every defect together.
-
-    `defects` carries EVERY unresolved point rather than the first, because the
-    ratified validation pass refuses enumerating all of them in one message: an
-    adopter that has declared nothing learns the whole list in one refusal
-    instead of one dispatch at a time.
-
-    `resolutions` carries the per-field ARM the resolver took, keyed by the
-    schema field's attribute. It exists because `contract` carries only VALUES,
-    and a value cannot say whether the repository declared it: a repository is
-    free to declare exactly the fleet convention, so `Declared` and
-    `FleetDefault` can hold identical bytes. A seam whose behaviour turns on
-    that distinction -- the host janitor, whose per-invocation `--janitor`
-    override is scoped to a repository that declared no check-suite -- would
-    otherwise have to re-resolve the field to find out, which is the
-    re-derivation the resolve-once rule exists to forbid.
-    """
-
-    contract: RepoIntegrationContract
-    defects: tuple[Defective, ...]
-    resolutions: Mapping[str, IntegrationResolution]
-
-
-@dataclass(frozen=True, kw_only=True)
 class _Lookup:
     """What walking one dotted path found: a value, an absence, or a blocked ancestor.
 
@@ -177,51 +145,6 @@ def resolve_integration_field(
     if not found.present:
         return _absent(field=field, declaration=declaration)
     return _usable(field=field, raw=found.value)
-
-
-def resolve_integration_contract(
-    *, declaration: Mapping[str, object]
-) -> ResolvedIntegrationContract:
-    """Resolve the WHOLE closed field set once, keeping every defect together.
-
-    This is the "resolve once, project everywhere" object: a seam that needs an
-    integration value reads it off the frozen contract instead of re-deriving it
-    from configuration, because re-deriving at a later point is how the dispatch
-    record and the run come to disagree.
-    """
-    resolved = {
-        field.attribute: resolve_integration_field(field=field, declaration=declaration)
-        for field in INTEGRATION_FIELDS
-    }
-    contract = RepoIntegrationContract(
-        schema_version=INTEGRATION_CONTRACT_SCHEMA_VERSION,
-        master_ci_workflow=resolved_name(resolution=resolved[MASTER_CI_WORKFLOW_FIELD.attribute]),
-        master_ci_job=resolved_name(resolution=resolved[MASTER_CI_JOB_FIELD.attribute]),
-        janitor_check_suite=resolved_argv(resolution=resolved[JANITOR_CHECK_SUITE_FIELD.attribute]),
-        sandbox_check_suite=resolved_argv(resolution=resolved[SANDBOX_CHECK_SUITE_FIELD.attribute]),
-        janitor_bootstrap_recipe=resolved_argv(
-            resolution=resolved[JANITOR_BOOTSTRAP_RECIPE_FIELD.attribute]
-        ),
-        core_repo_url=resolved_name(resolution=resolved[CORE_REPO_URL_FIELD.attribute]),
-        core_pinned_ref=resolved_name(resolution=resolved[CORE_PINNED_REF_FIELD.attribute]),
-        prepare_toolchain_mise=resolved_argv(
-            resolution=resolved[PREPARE_TOOLCHAIN_MISE_FIELD.attribute]
-        ),
-        prepare_toolchain_lefthook=resolved_argv(
-            resolution=resolved[PREPARE_TOOLCHAIN_LEFTHOOK_FIELD.attribute]
-        ),
-        default_branch=resolved_name(resolution=resolved[DEFAULT_BRANCH_FIELD.attribute]),
-        merge_mode=resolved_name(resolution=resolved[MERGE_MODE_FIELD.attribute]),
-        sandbox_exempt_marker=resolved_name(
-            resolution=resolved[SANDBOX_EXEMPT_MARKER_FIELD.attribute]
-        ),
-    )
-    defects = tuple(
-        resolution for resolution in resolved.values() if isinstance(resolution, Defective)
-    )
-    return ResolvedIntegrationContract(
-        contract=contract, defects=defects, resolutions=MappingProxyType(resolved)
-    )
 
 
 def declaration_carries(*, field: IntegrationField, declaration: Mapping[str, object]) -> bool:
@@ -336,7 +259,52 @@ def _usable(*, field: IntegrationField, raw: object) -> IntegrationResolution:
         return _usable_argv(field=field, raw=raw)
     if field.shape == SHAPE_ENUM:
         return _usable_enum(field=field, raw=raw)
+    if field.shape == SHAPE_CONFORMANCE:
+        return _usable_conformance(field=field, raw=raw)
     return _usable_name(field=field, raw=raw)
+
+
+def _usable_conformance(*, field: IntegrationField, raw: object) -> IntegrationResolution:
+    """Grade a conformance premise: a mapping naming one mode of the closed set.
+
+    The MODE, not the argv, is what the declaration is graded on, because two of
+    the three modes carry no argv at all and one of those two -- the explicit
+    no-op -- is a real answer rather than an omission. A bare command-shaped
+    field could not tell "run nothing, deliberately" from "nothing written here".
+    """
+    declared = _conformance_declaration(raw=raw)
+    mode = declared.get("mode")
+    if not isinstance(mode, str) or mode not in field.admitted:
+        return Defective(key=field.key, reason=_conformance_mode_reason(field=field, raw=raw))
+    argv = declared.get("argv")
+    if mode == CONFORMANCE_MODE_SHELL_ARGV:
+        return _usable_argv(field=field, raw=argv if argv is not None else "")
+    if argv is not None:
+        return Defective(
+            key=field.key,
+            reason=f"`{field.key}` names mode `{mode}`, which accepts no `argv` of its own",
+        )
+    value = field.internal_argv if mode == CONFORMANCE_MODE_INTERNAL else CONFORMANCE_NO_OP
+    return Declared(key=field.key, value=value)
+
+
+def _conformance_declaration(*, raw: object) -> dict[str, object]:
+    """A conformance declaration as a mapping; the empty one where it is not one at all.
+
+    An empty mapping names no mode, so a value that is not a mapping earns the
+    SAME defect as a mapping naming a mode nobody ratified -- both are a present
+    declaration this schema cannot read, and the refusal quotes what was written.
+    """
+    return cast("dict[str, object]", raw) if isinstance(raw, dict) else {}
+
+
+def _conformance_mode_reason(*, field: IntegrationField, raw: object) -> str:
+    """Why this declaration names no admitted mode, listing the whole closed set."""
+    admitted = " or ".join(f"`{value}`" for value in field.admitted)
+    return (
+        f"`{field.key}` is present but is not a mapping naming one of the admitted modes "
+        f"{admitted}; got {raw!r}"
+    )
 
 
 def _usable_name(*, field: IntegrationField, raw: object) -> IntegrationResolution:

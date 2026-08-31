@@ -94,15 +94,28 @@ Private helper modules (underscore-prefixed) carry shared plumbing:
   in-memory `index: dict[str, WorkItem]`); callers (`next`,
   `list-work-items`, the Dispatcher) import them from there.
 - `_jsonc.py` — JSONC parsing for `.livespec.jsonc`.
-- `_dispatcher_integration_schema.py` / `_dispatcher_integration_defaults.py` /
+- `_dispatcher_integration_schema.py` / `_dispatcher_integration_field.py` /
+  `_dispatcher_integration_defaults.py` /
   `_dispatcher_integration_declaration.py` /
-  `_dispatcher_integration_resolver.py` — the typed repository-integration
-  contract. `_schema` holds the CLOSED field set and the
-  `RepoIntegrationContract` dataclass, `_defaults` holds every fleet default
-  the resolver can return, `_declaration` reads a governed repo's declaration,
-  and `_resolver` is the ONE generic resolver returning
-  `Declared | FleetDefault | Defective`. Adding a schema field means the
-  obligation was RATIFIED first; do NOT add one for an unratified expectation.
+  `_dispatcher_integration_resolver.py` /
+  `_dispatcher_integration_contract.py` — the typed repository-integration
+  contract. `_schema` holds the CLOSED field set, `_field` holds the
+  `IntegrationField` DESCRIPTOR TYPE plus the shape and venue dimensions,
+  `_defaults` holds every fleet default the resolver can return, `_declaration`
+  reads a governed repo's declaration, `_resolver` is the ONE generic resolver
+  returning `Declared | FleetDefault | Defective` for ONE point, and `_contract`
+  assembles the whole closed set into the frozen `RepoIntegrationContract` /
+  `ResolvedIntegrationContract`. The dependency direction is load-bearing:
+  `_field` imports none of the others and `_resolver` imports no field
+  constants, which is what keeps the resolver generic and lets a per-family
+  field group exist without the closed set importing it back. Adding a schema
+  field means the obligation was RATIFIED first; do NOT add one for an
+  unratified expectation.
+  `_dispatcher_conformance_premises` owns the DISPATCH-TIME NOTICE for the three
+  `dispatcher.conformance.*` premises: an ABSENT premise resolves to the same
+  empty argv as an explicitly declared `no_op`, so it warns off the resolution
+  ARM (never the value), names each key and all three modes, and never refuses
+  the dispatch.
   The per-family modules (`_dispatcher_ci_pipeline_view`,
   `_dispatcher_check_suite_view`, `_dispatcher_core_provisioning_view`,
   `_dispatcher_hook_install_recipe`) are PROJECTIONS of that resolution — they

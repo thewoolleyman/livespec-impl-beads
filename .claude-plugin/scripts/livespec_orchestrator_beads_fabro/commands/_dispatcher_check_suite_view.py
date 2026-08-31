@@ -46,6 +46,10 @@ from pathlib import Path
 from typing import Any
 
 from livespec_orchestrator_beads_fabro.commands._config import dispatcher_block
+from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_contract import (
+    ResolvedIntegrationContract,
+    resolve_integration_contract,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_declaration import (
     declaration_from_dispatcher_block,
 )
@@ -56,8 +60,6 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_defaults
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_resolver import (
     Declared,
     Defective,
-    ResolvedIntegrationContract,
-    resolve_integration_contract,
     resolved_argv,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_schema import (

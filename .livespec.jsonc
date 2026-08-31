@@ -172,6 +172,29 @@
       "wip_cap": 10,
       "acceptance_mode": "ai-only",
       "default_factory": "hp",
+      // The three DISPATCH-TIME BASELINE CONFORMANCE premises the factory
+      // sandbox's prepare chain establishes: installing the commit-refuse
+      // Mechanism, and the two Verifiers proving the hook and the plugin
+      // resolution are actually there. Each is a typed integration point with a
+      // CLOSED mode enumeration — "no_op" (the sandbox skips the step),
+      // "shell_argv" (an "argv" array beside the mode, run verbatim), or
+      // "internal_livespec_dev_tooling" (this fleet's own invocation, rendered
+      // from the plugin's fleet-defaults module).
+      //
+      // THIS repository is a fleet member and does carry that tooling, so it
+      // declares the internal mode for all three and its resolved values are the
+      // committed workflow.toml prepare steps. Note what the mode costs even
+      // here: it is UNSUPPORTED and may be unreliable, and it couples this
+      // repository to the livespec-dev-tooling package. An adopter that carries
+      // none of this fleet's tooling declares "no_op" instead — explicitly, so
+      // the skip is a recorded choice rather than a silent degrade, which is
+      // exactly what leaving these keys absent would be (and what the
+      // Dispatcher's dispatch-time warning says out loud).
+      "conformance": {
+        "hook_install": { "mode": "internal_livespec_dev_tooling" },
+        "verify_commit_refuse_hook": { "mode": "internal_livespec_dev_tooling" },
+        "verify_plugin_resolution": { "mode": "internal_livespec_dev_tooling" }
+      },
       // Detection-coverage anchor: the ledger item the two detection skills
       // (capture-impl-gaps, capture-spec-drift) append their attributed ATTEMPT
       // and all-or-nothing COMPLETED-coverage records to, per contracts.md
