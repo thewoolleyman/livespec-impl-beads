@@ -421,6 +421,7 @@ check:
         check-no-fleet-pat-dispatch-surface
         check-spec-governance-default-block
         check-seam-equivalence
+        check-ci-wires-repo-local-gates
         check-no-workflow-edits
         check-fresh-clone-setup
         check-doctor-static
@@ -726,6 +727,14 @@ check-spec-governance-default-block:
 # Pure-filesystem (no beads / no store / no network).
 check-seam-equivalence:
     uv run python dev-tooling/checks/seam_equivalence.py
+
+# The two repo-local integration gates above are ratified as running in CI
+# and on pre-push, but ci.yml enumerates its batches by hand and a
+# payload-only push takes the doc-only pre-push path; this guard fails when
+# either gate (or the guard itself) is absent from the CI metadata batch or
+# the doc-only target list. Pure-filesystem.
+check-ci-wires-repo-local-gates:
+    uv run python dev-tooling/checks/ci_wires_repo_local_gates.py
 
 # livespec core's doctor STATIC phase (reference-discipline + out-of-band
 # invariants) against THIS repo's SPECIFICATION/ tree, wired fleet-wide per

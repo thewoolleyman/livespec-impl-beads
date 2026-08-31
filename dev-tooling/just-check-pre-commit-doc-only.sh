@@ -11,6 +11,12 @@ targets=(
     check-vendor-manifest
     check-no-direct-tool-invocation
     check-check-tools
+    # The integration-contract gates over the workflow payload (workflow.toml,
+    # workflow.fabro, prompts/*.md): a payload-only push has zero .py changes
+    # and therefore takes THIS path, so the gates must be here to run at all.
+    check-no-fleet-toolchain-literals
+    check-seam-equivalence
+    check-ci-wires-repo-local-gates
 )
 authored_unowned_heading_coverage_todo() {
     uv run python - <<'PY'
