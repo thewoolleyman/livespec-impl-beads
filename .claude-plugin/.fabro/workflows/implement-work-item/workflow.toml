@@ -13,7 +13,7 @@
 # The sandbox clone is the secondary-worktree EQUIVALENT under the
 # family discipline: the prepare steps below provision it exactly like
 # `just bootstrap` EXCEPT that the commit-refuse wrapper's refuse branch
-# is DECLARED EXEMPT here so the Red-Green-Replay lefthook gates run on
+# is DECLARED EXEMPT here so the Red-Green-Replay hook-manager gates run on
 # every in-sandbox commit. The sandbox is a fresh FULL clone, so under
 # the structural commit-refuse mechanism (livespec-zs22.7.3: refuse when
 # git-dir == git-common-dir) it reads structurally as a primary checkout
@@ -197,6 +197,47 @@ review_fix_visit_cap = 4
 # effective merge_on_review_cap escape hatch is true for the item.
 merge_on_review_cap_outcome = "__merge_on_review_cap_disabled__"
 
+# INTEGRATION-CONTRACT INPUTS — the typed workflow inputs of
+# SPECIFICATION/contracts.md §"Repository integration contract" (the
+# typed-workflow-inputs clause). Each is ONE field of the governed repository's
+# `RepoIntegrationContract`, resolved exactly once by the Dispatcher at
+# plan-build time on the host and rendered here as `fabro run --input
+# <name>=<value>`; this run config, the graph, and the node prompts all read
+# the SAME `inputs.<name>` token, which is what makes them projections of one
+# resolved object rather than three restatements of it. The set below is the
+# projection's closed `CONTRACT_INPUT_NAMES`, and the `check-seam-equivalence`
+# gate asserts — statically, in both directions — that these declarations, the
+# tokens the payload references, and the Dispatcher's rendered inputs are
+# identical and that every token sits where the pinned engine renders it.
+#
+# THE DEFAULTS CARRY NO FLEET-TOOLCHAIN PREMISE — none of the tokens the
+# `check-no-fleet-toolchain-literals` gate bans appears here, because that
+# gate scans this file. Three kinds of default follow from that. The
+# toolchain and conformance inputs default to the ratified explicit NO-OP
+# (the empty string: the prepare step it templates runs nothing).
+# `sandbox_check_suite`, the one input a run cannot do without, defaults to a
+# command that FAILS LOUDLY naming the input, so a bare `fabro run` of this
+# file can never pass its janitor gate vacuously. The three non-toolchain
+# inputs — `sandbox_exempt_marker`, `default_branch`, `merge_mode` — default
+# to the same values the plugin's fleet-defaults module resolves, because
+# those values are not fleet tooling. A default is only ever SEEN by a bare
+# `fabro run` of this file without the Dispatcher: a DISPATCHED run receives
+# every value below from the resolved contract, because the Dispatcher
+# renders every input this table declares.
+#
+# Command-shaped values arrive as ONE shell word-list (`shlex.join` of the
+# contract's argv), which is why every prepare step that reads one re-tokenizes
+# it with `set --` rather than quoting it.
+sandbox_check_suite = "sh -c 'echo LIVESPEC_INPUT_NOT_RENDERED: sandbox_check_suite was not supplied by the Dispatcher >&2; exit 1'"
+prepare_toolchain_mise = ""
+prepare_toolchain_lefthook = ""
+conformance_hook_install = ""
+conformance_verify_commit_refuse_hook = ""
+conformance_verify_plugin_resolution = ""
+sandbox_exempt_marker = "livespec.sandboxExempt"
+default_branch = "master"
+merge_mode = "rebase"
+
 [run.environment]
 id = "livespec-ci"
 
@@ -204,8 +245,9 @@ id = "livespec-ci"
 provider = "docker"
 
 [environments.livespec-ci.image]
-# GHCR-published family sandbox image (mise + uv + just + lefthook +
-# node/ACP adapter + gh; Dockerfile in livespec-dev-tooling). Published
+# GHCR-published family sandbox image (the fleet toolchain — version
+# manager, uv, recipe runner, hook manager — plus node/ACP adapter + gh;
+# Dockerfile in livespec-dev-tooling). Published
 # by dev-tooling PR #111 (2026-06-12) to
 # ghcr.io/thewoolleyman/livespec-fabro-sandbox. Since the layered-image
 # split this consumer pulls the `python-agent` layer (base tools + uv +
@@ -235,7 +277,7 @@ provider = "docker"
 # layer once set, but it is ALSO why the one-time migration off the bare
 # `python-` prefix had to be made by hand: the fan-out preserves whatever prefix
 # it finds, so it would have kept this pin on the slim CI image forever. The producer-side lockstep gate
-# (livespec_dev_tooling.fabro_image_pin_lockstep) guards the Dockerfile ARG pins
+# (the shared dev-tooling package's `fabro_image_pin_lockstep` check) guards the Dockerfile ARG pins
 # in livespec-dev-tooling and does not run in consumer repos.
 #
 # HOST-LOCAL STEP: if ~/.fabro/environments/livespec-ci.toml exists on
@@ -298,77 +340,59 @@ enabled = false
 
 # --- Prepare steps: provision the clone as the secondary-worktree
 # --- equivalent (Architecture C "RGR steeling", minus primaryPath).
+#
+# EVERY TOOLCHAIN AND CONFORMANCE PREMISE BELOW IS A PROJECTION, NOT A
+# LITERAL. The command each step runs arrives as an `inputs.<name>` value the
+# Dispatcher rendered from the governed repository's resolved integration
+# contract (SPECIFICATION/contracts.md §"Repository integration contract"; the
+# fleet-member values live in this repo's `.livespec.jsonc` and the plugin's
+# fleet-defaults module, never here). A premise the repository does not carry
+# resolves to the ratified explicit NO-OP — the empty word-list — and the step
+# then runs nothing, by construction rather than by a silent skip
+# (contracts.md §"Factory-sandbox toolchain disposition").
+#
+# THE `set --` IDIOM. A command-shaped input crosses the sandbox boundary as
+# one shell word-list (`shlex.join` of the contract's argv). `set -- <list>`
+# has the shell re-tokenize it back into the exact argv, `test $# -eq 0`
+# makes the empty no-op a clean exit rather than a syntax error, and `"$@"`
+# runs the argv with its quoting intact. No step quotes the token itself,
+# because the value may legitimately carry quotes of its own.
 
 [[run.prepare.steps]]
 # Fabro's sandbox clone is hardcoded shallow (GIT_CLONE_DEPTH=10, no
-# config knob in v0.254.0); the RGR range checks and `just check` diff
-# origin/master..HEAD, which needs the master merge-base present.
-script = "livespec-step-timer fetch-unshallow -- git fetch --unshallow --quiet"
+# config knob in v0.254.0); the RGR range checks and the check suite diff
+# the default branch..HEAD, which needs the default-branch merge-base present.
+script = "git fetch --unshallow --quiet"
 
 [[run.prepare.steps]]
-# `mise install` resolves the aqua-backed pins in .mise.toml (today
-# `shellcheck`) through api.github.com. It runs ANONYMOUSLY, on purpose:
-# the GitHub credential is SCRUBBED from this one step's environment.
-#
-# WHY (work-item bd-ib-bic7hb, root-caused 2026-07-26 by live capture
-# inside this very sandbox image): the Dispatcher's run-config overlay
-# projects an ephemeral App INSTALLATION token as GITHUB_TOKEN, and
-# mise's aqua backend picks that variable up automatically. That silently
-# enlists a third-party PUBLIC-repo metadata fetch as a consumer of the
-# factory's own App-installation credit — a single 5000/hr primary
-# rate-limit bucket shared with every `gh`, janitor and merge-poll call
-# the fleet makes. When that bucket empties, mise gets
-#
-#   403 {"message": "API rate limit exceeded for installation ID ..."}
-#   x-ratelimit-limit: 5000  x-ratelimit-remaining: 0  x-ratelimit-used: 5000
-#
-# the prepare step exits 1, and the run dies before ANY agent work while
-# the admitted work-item is left stranded in `active`. Measured: two
-# dispatches of bd-ib-pme57n died this way (2026-07-26 20:02:42Z and
-# 20:05:17Z), and the cause was reproduced at 20:27:16Z — in the same
-# sandbox, in the same second, the ANONYMOUS request for the same URL
-# returned 200 while the credentialed one returned 403.
-#
-# Anonymous is the right posture, not a workaround: this fetch reads
-# public release metadata only, so it needs no credential at all, and
-# the anonymous bucket it lands in (60/hr per egress IP) is one this
-# step touches ~2-3 times per dispatch. Scrubbing the credential
-# DECOUPLES tool resolution from factory credit entirely.
-#
-# GH_TOKEN and GITHUB_API_TOKEN are scrubbed alongside GITHUB_TOKEN
-# because mise accepts any of the three; scrubbing only the one the
-# overlay happens to set today would regress the moment another is
-# introduced. The scrub is scoped to this single command — every later
-# step, and every agent node, still sees the full credential
-# environment.
-#
-# The durable prevention (pre-bake the aqua-backed tools into the sandbox
-# image so setup makes no api.github.com call at all) remains open on
-# bd-ib-bic7hb; it needs a family image rebuild and is blocked behind
-# bd-ib-dwv.
-script = "livespec-step-timer mise-install -- sh -c 'mise trust && env -u GITHUB_TOKEN -u GH_TOKEN -u GITHUB_API_TOKEN mise install --quiet'"
+# Toolchain premise #1 — the version-manager install (the version-manager
+# arm of `dispatcher.prepare_toolchain`). This repository declares it in
+# `.livespec.jsonc`, where the rationale for its anonymous, credential-scrubbed
+# form lives beside the command (work-item bd-ib-bic7hb); an adopter without a
+# version manager declares nothing and the step is the ratified no-op.
+script = "set -- {{ inputs.prepare_toolchain_mise }}; test $# -eq 0 || \"$@\""
 
 [[run.prepare.steps]]
-script = "livespec-step-timer uv-sync -- uv sync --all-groups"
+script = "uv sync --all-groups"
 
 [[run.prepare.steps]]
-script = "livespec-step-timer lefthook-install -- uv run lefthook install"
+# Toolchain premise #2 — the hook-manager install (the hook-manager arm of
+# `dispatcher.prepare_toolchain`); no-op for an adopter without one.
+script = "set -- {{ inputs.prepare_toolchain_lefthook }}; test $# -eq 0 || \"$@\""
 
 [[run.prepare.steps]]
-# Install the canonical STRUCTURAL commit-refuse hook at pre-commit,
-# pre-push AND commit-msg via the livespec-dev-tooling installer module.
-# FAMILY-UNIFORM: the canonical body ships in the wheel as
-# `livespec_dev_tooling.install_commit_refuse_hooks.CANONICAL_HOOK_BODY`
-# (no per-repo vendored `.sh` to derive or glob for), so every dispatched
-# sandbox installs the identical body the same way — this replaces the
-# old data-driven `cp dev-tooling/<hook>.sh` derivation. The prior
-# `uv sync --all-groups` step has already installed `livespec_dev_tooling`
-# into the sandbox venv, so `uv run` resolves the module. The installer
-# satisfies the content-based primary_checkout_commit_refuse_hook_installed
-# check, and the structural body's lefthook delegation fires the
-# Red-Green-Replay gates on every in-sandbox commit (the refuse branch is
-# skipped by the sandboxExempt marker set in the next step).
-script = "livespec-step-timer commit-refuse-install -- uv run python -m livespec_dev_tooling.install_commit_refuse_hooks"
+# Dispatch-time baseline conformance gate — the MECHANISM (Conformance
+# Pattern concern #1 Worktree-discipline): install the canonical STRUCTURAL
+# commit-refuse hook at pre-commit, pre-push AND commit-msg. Field
+# `dispatcher.conformance.hook_install`: `internal_livespec_dev_tooling`
+# renders the shared dev-tooling installer module (whose FAMILY-UNIFORM
+# canonical body ships in that wheel, so every dispatched sandbox installs
+# the identical body the same way; the prior `uv sync --all-groups` step put
+# the package in the sandbox venv), `shell_argv` runs the adopter's own
+# installer, and `no_op` skips the step. The structural body's hook-manager
+# delegation fires the Red-Green-Replay gates on every in-sandbox commit (the
+# refuse branch is skipped by the exemption marker set in the next step).
+script = "set -- {{ inputs.conformance_hook_install }}; test $# -eq 0 || \"$@\""
 
 [[run.prepare.steps]]
 # Declare the sandbox EXEMPT from the commit-refuse refuse branch
@@ -376,34 +400,36 @@ script = "livespec-step-timer commit-refuse-install -- uv run python -m livespec
 # Exemption slot). The sandbox is a fresh FULL clone — structurally a
 # primary checkout — so the structural commit-refuse hook would refuse
 # its in-sandbox Red-Green-Replay commits. This explicit, declared marker
-# (read by the hook body via `git config --get livespec.sandboxExempt`)
-# skips the refuse branch so commits proceed; the lefthook delegation in
-# the hook body still fires the RGR gates. Set UNCONDITIONALLY and
-# backward-compatible: the legacy livespec.primaryPath-based body never
-# reads this key, so it is a harmless no-op until each repo migrates to
-# the structural body. Local config only — never leaves the ephemeral
-# sandbox (pushes carry refs, not config).
-script = "livespec-step-timer sandbox-exempt -- git config livespec.sandboxExempt true"
+# (read by the hook body via `git config --get <marker>`) skips the refuse
+# branch so commits proceed; the hook-manager delegation in the hook body
+# still fires the RGR gates. The marker NAME is the resolved
+# `dispatcher.sandbox_exempt_marker` field (contracts.md §"Dispatch-time
+# baseline conformance gate"), projected here rather than spelled. Set
+# UNCONDITIONALLY and backward-compatible: the legacy livespec.primaryPath-
+# based body never reads this key, so it is a harmless no-op until each repo
+# migrates to the structural body. Local config only — never leaves the
+# ephemeral sandbox (pushes carry refs, not config).
+script = "git config {{ inputs.sandbox_exempt_marker }} true"
 
 [[run.prepare.steps]]
 # Dispatch-time baseline conformance gate — Verifier #1 (Conformance
-# Pattern concern #1 Worktree-discipline). After the canonical
-# commit-refuse hook is installed and the sandbox is declared exempt
-# above, assert the hook is ACTUALLY present at the primary's shared
-# .git/hooks via the SHARED livespec-dev-tooling Verifier (reused, not
-# re-implemented; the earlier `uv sync --all-groups` step installed
-# `livespec_dev_tooling` into the sandbox venv). A non-zero exit aborts
-# the run before any work is driven — the gate makes every dispatched
-# sandbox conformant by construction. Codified in SPECIFICATION/
-# contracts.md §"Dispatch-time baseline conformance gate".
-script = "livespec-step-timer verify-commit-refuse-hook -- uv run python -m livespec_dev_tooling.checks.primary_checkout_commit_refuse_hook_installed"
+# Pattern concern #1 Worktree-discipline). After the Mechanism is installed
+# and the sandbox is declared exempt above, assert the hook is ACTUALLY
+# present at the primary's shared .git/hooks. Field
+# `dispatcher.conformance.verify_commit_refuse_hook`: the internal mode
+# renders the SHARED livespec-dev-tooling Verifier (reused, not
+# re-implemented — the same Verifier the commit-time and fleet-time tiers
+# run). A non-zero exit aborts the run before any work is driven — the gate
+# makes every dispatched sandbox conformant by construction. Codified in
+# SPECIFICATION/contracts.md §"Dispatch-time baseline conformance gate".
+script = "set -- {{ inputs.conformance_verify_commit_refuse_hook }}; test $# -eq 0 || \"$@\""
 
 [[run.prepare.steps]]
 # Dispatch-time baseline conformance gate — Verifier #2 (Conformance
-# Pattern concern #2 cross-harness plugin-resolution). Declaration-
-# integrity (mock) mode: reads the dispatched repo's optional
-# .livespec.jsonc `harnesses` declaration and fail-closes on a malformed
-# one. A non-zero exit aborts the run. Same SHARED Verifier the
-# commit-time and fleet-time tiers run — enforcement-in-depth, one
-# Verifier layered across the tiers.
-script = "livespec-step-timer verify-plugin-resolution -- uv run python -m livespec_dev_tooling.checks.plugin_resolution"
+# Pattern concern #2 cross-harness plugin-resolution), field
+# `dispatcher.conformance.verify_plugin_resolution`. In the internal mode
+# this is the shared Verifier's declaration-integrity (mock) mode: it reads
+# the dispatched repo's optional .livespec.jsonc `harnesses` declaration and
+# fail-closes on a malformed one. A non-zero exit aborts the run.
+# Enforcement-in-depth: one Verifier layered across the tiers.
+script = "set -- {{ inputs.conformance_verify_plugin_resolution }}; test $# -eq 0 || \"$@\""

@@ -5,11 +5,11 @@
 // graph, while the check still reads and parses it through the SAME
 // `graph_occurrences` path it uses on the committed payload.
 //
-// The committed payload references NO integration token today, so a clean
-// report on it is indistinguishable from a scanner that cannot match anything.
-// This fixture is what makes the difference observable: every token below sits
-// in a position the pinned fabro build does not expand, so if the check reports
-// nothing here its clean report on the real payload means nothing.
+// A clean report on the committed payload is indistinguishable from a scanner
+// that cannot match anything. This fixture is what makes the difference
+// observable: every token below sits in a position the pinned fabro build does
+// not expand, so if the check reports nothing here its clean report on the real
+// payload means nothing.
 //
 // The comment two lines below deliberately carries a template opener, which the
 // payload's own header records as breaking the graph render. It is safe here
@@ -26,12 +26,15 @@ digraph SeamEquivalenceControl {
 
     // A duration attribute: the pinned build types a quoted duration at parse
     // time and its template expansion never re-types a rendered string, so this
-    // node would end up with NO timeout and report nothing about it.
+    // node would end up with NO timeout and report nothing about it. The
+    // `script` beside it is a RENDERED position (maintainer-confirmed
+    // 2026-08-31), so its token must NOT be reported -- the fixture proves the
+    // scan discriminates attributes on one node, not nodes.
     janitor [
         label="Janitor"
         shape=parallelogram
         timeout="{{ inputs.sandbox_check_suite }}"
-        script="mise exec -- just check"
+        script="{{ inputs.sandbox_check_suite }}"
     ]
 
     // A rendered position, present so the fixture also proves the allowlist

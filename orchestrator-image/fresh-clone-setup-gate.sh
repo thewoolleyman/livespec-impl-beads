@@ -23,6 +23,19 @@
 # `workflow.toml` rather than duplicated here, so a new or reordered setup step
 # is picked up automatically instead of silently escaping the gate.
 #
+# HOW A STEP IS READ SINCE THE TYPED-WORKFLOW-INPUTS CARRIER (C5-payload, plan
+# bd-ib-vblnq2). The committed prepare steps no longer spell the conformance
+# commands: each reads an `inputs.<name>` token that the Dispatcher renders
+# from the governed repository's RESOLVED integration contract
+# (SPECIFICATION/contracts.md §"Repository integration contract"). This gate
+# therefore does what the Dispatcher does — it resolves THIS repository's
+# contract from its own `.livespec.jsonc` through the plugin's own resolver and
+# projection, substitutes the rendered value for every token, and replays the
+# resulting command. Rendering through the same code path the dispatch uses is
+# what keeps the gate honest: a step is replayed exactly as a sandbox would run
+# it, and a token the projection cannot render fails loudly here instead of
+# reaching a dispatch as a literal.
+#
 # WHAT IT DELIBERATELY DOES NOT DO. It does not `uv sync` the throwaway clone:
 # the property under test is that the tree is UN-BOOTSTRAPPED, not that the venv
 # is fresh, and a per-run sync would add minutes and a network dependency for no
@@ -41,12 +54,14 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$HERE/.." && pwd)"
 WORKFLOW="$REPO_ROOT/.claude-plugin/.fabro/workflows/implement-work-item/workflow.toml"
+CONFIG="$REPO_ROOT/.livespec.jsonc"
 
 # The steps this gate replays: everything in the prepare graph that installs or
 # verifies livespec conformance, plus the declared sandbox-exemption marker the
-# verifiers read. Selecting by CONTENT (not by hardcoded step names) is what
-# makes a newly added verifier step gated automatically.
-_SELECT='livespec_dev_tooling|livespec\.sandboxExempt'
+# verifiers read. Selecting by CONTENT — the integration-contract token each
+# step reads, not a hardcoded step name — is what makes a newly added
+# conformance premise gated automatically.
+_SELECT='inputs\.(conformance_[a-z_]+|sandbox_exempt_marker)'
 # A format change or a wholesale step removal must fail LOUDLY rather than
 # silently reduce this gate to a no-op. Today the workflow carries four matching
 # steps (hook install, exemption marker, verifier #1, verifier #2).
@@ -55,6 +70,7 @@ _MIN_STEPS=3
 fail() { echo ":: fresh-clone-setup-gate: FAIL — $*" >&2; exit 1; }
 
 [ -f "$WORKFLOW" ] || fail "workflow not found at $WORKFLOW"
+[ -f "$CONFIG" ] || fail "integration-contract declaration not found at $CONFIG"
 
 # The interpreter the pinned dev-tooling is installed into. `uv run` in the
 # throwaway clone would resolve THAT clone's project, so resolve it here, once,
@@ -72,21 +88,56 @@ if [ -z "${PY:-}" ] || [ ! -x "$PY" ]; then
        the exact failure mode it exists to close."
 fi
 
-# Extract `script = "..."` values in file order, keep the conformance ones, and
-# strip the `livespec-step-timer <label> --` timing wrapper so the bare command
-# remains.
+# Render the conformance steps exactly as a dispatch would: select each
+# `script = "..."` line that reads a conformance token, resolve this
+# repository's contract, substitute every `inputs.<name>` token with the value
+# the Dispatcher's projection renders, and unescape the TOML basic-string
+# quoting so the bare shell command remains. One rendered command per line; a
+# token the projection does not render is a hard failure, never a literal.
 mapfile -t STEPS < <(
-    grep '^script = "' "$WORKFLOW" \
-        | sed 's/^script = "//; s/"$//' \
-        | grep -E "$_SELECT" \
-        | sed -E 's/^livespec-step-timer [A-Za-z0-9._-]+ -- //'
+    "$PY" - "$WORKFLOW" "$CONFIG" "$_SELECT" "$REPO_ROOT" <<'PYRENDER'
+import re
+import sys
+from pathlib import Path
+
+workflow, config, select, repo_root = sys.argv[1:5]
+scripts = Path(repo_root) / ".claude-plugin" / "scripts"
+sys.path[:0] = [str(scripts), str(scripts / "_vendor")]
+
+from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_projection import (
+    contract_prompt_variables,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_plan_build import (
+    resolve_repo_integration_contract,
+)
+
+resolved = resolve_repo_integration_contract(
+    config_text=Path(config).read_text(encoding="utf-8"), default_branch=None
+)
+values = contract_prompt_variables(resolved=resolved)
+token = re.compile(r"\{\{\s*inputs\.(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*\}\}")
+selector = re.compile(select)
+for line in Path(workflow).read_text(encoding="utf-8").splitlines():
+    if not line.startswith('script = "') or selector.search(line) is None:
+        continue
+    body = line[len('script = "') : -1].replace('\\"', '"')
+    rendered = token.sub(lambda match: values[match.group("name")], body)
+    sys.stdout.write(rendered + "\n")
+PYRENDER
 )
 
 if [ "${#STEPS[@]}" -lt "$_MIN_STEPS" ]; then
     fail "found ${#STEPS[@]} conformance setup step(s) in workflow.toml, expected >= $_MIN_STEPS.
-       Either the \`script = \"...\"\` format changed or setup steps were removed.
+       Either the \`script = \"...\"\` format changed, the steps stopped reading
+       their integration-contract tokens, or setup steps were removed.
        This gate must never silently degrade to a no-op — fix the selector or the workflow."
 fi
+
+for step in "${STEPS[@]}"; do
+    case "$step" in
+        *'{{'*) fail "a conformance setup step still carries an unrendered token: $step" ;;
+    esac
+done
 
 CLONE="$(mktemp -d -t fresh-clone-setup-gate.XXXXXX)"
 cleanup() { rm -rf "$CLONE"; }

@@ -16,6 +16,12 @@ accepted only where the pinned fabro build is KNOWN to expand it:
 - a graph node's `acp.command` -- the form the fabro enemy-unit-tier asserts on
   every ACP node, and the one every live dispatch exercises;
 - a graph edge's `condition` -- the form the review/cap guards already ride;
+- a script node's `script` -- a plain string attribute on both sides of the
+  engine, like `acp.command` and unlike the typed `timeout` below. Admitted on
+  the maintainer's confirmation of 2026-08-31 (recorded on plan epic
+  bd-ib-vblnq2 while landing C5-payload, bd-ib-b7xpzl) that the pinned 0.254.0
+  build expands `inputs.*` in a parallelogram node's `script`; the payload's
+  janitor gate and dead-implementer breaker ride it;
 - a `[[run.prepare.steps]]` `script` in the run config, and a node prompt body:
   the two other sandbox-side consumers the resolve-once-project-everywhere
   clause names, both of which read `inputs.<name>`.
@@ -49,7 +55,7 @@ __all__: list[str] = [
 
 # Graph attributes the pinned engine expands. See the module docstring for the
 # evidence behind each, and for why everything absent from this set is reported.
-GRAPH_RENDERED_ATTRIBUTES: frozenset[str] = frozenset({"acp.command", "condition"})
+GRAPH_RENDERED_ATTRIBUTES: frozenset[str] = frozenset({"acp.command", "condition", "script"})
 
 PREPARE_STEP_POSITION = "run.prepare.steps.script"
 PROMPT_BODY_POSITION = "prompt-body"

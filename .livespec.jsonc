@@ -195,6 +195,46 @@
         "verify_commit_refuse_hook": { "mode": "internal_livespec_dev_tooling" },
         "verify_plugin_resolution": { "mode": "internal_livespec_dev_tooling" }
       },
+      // The two TOOLCHAIN premises the sandbox prepare chain establishes
+      // before the conformance gate above — fields
+      // `dispatcher.prepare_toolchain.mise` (the version-manager install) and
+      // `dispatcher.prepare_toolchain.lefthook` (the hook-manager install).
+      // Each is an argv the Dispatcher resolves ONCE and renders into the
+      // workflow payload's prepare steps as `inputs.prepare_toolchain_*`; the
+      // committed payload spells NO fleet tool of its own (the
+      // fleet-toolchain literal ban scans it), so the fleet member's actual
+      // commands live HERE. An adopter without either tool declares nothing
+      // and the step resolves to the ratified explicit no-op.
+      //
+      // WHY THE VERSION-MANAGER INSTALL IS ANONYMOUS (work-item bd-ib-bic7hb,
+      // root-caused 2026-07-26 by live capture inside the sandbox image):
+      // `mise install` resolves the aqua-backed pins in .mise.toml through
+      // api.github.com, and its aqua backend automatically picks up
+      // GITHUB_TOKEN (or GH_TOKEN / GITHUB_API_TOKEN) when one is present.
+      // The Dispatcher's run-config overlay projects an ephemeral App
+      // INSTALLATION token as GITHUB_TOKEN, so leaving it in scope silently
+      // made a third-party PUBLIC-repo metadata fetch a consumer of the
+      // factory's own App-installation credit — one 5000/hr primary
+      // rate-limit bucket shared with every `gh`, janitor and merge-poll
+      // call the fleet makes. When it emptied, mise got
+      //   403 {"message": "API rate limit exceeded for installation ID ..."}
+      // the prepare step exited 1, and the run died before ANY agent work
+      // while the admitted work-item was left stranded in `active` (two
+      // dispatches of bd-ib-pme57n, 2026-07-26 20:02:42Z and 20:05:17Z; in
+      // the same sandbox and the same second, the ANONYMOUS request for the
+      // same URL returned 200 while the credentialed one returned 403).
+      // Anonymous is the right posture, not a workaround: the fetch reads
+      // public release metadata only, so it needs no credential at all, and
+      // the anonymous bucket (60/hr per egress IP) is touched ~2-3 times per
+      // dispatch. All three variable names are scrubbed because mise accepts
+      // any of them; the scrub is scoped to this ONE command — every later
+      // step, and every agent node, still sees the full credential
+      // environment. The durable prevention (pre-bake the aqua-backed tools
+      // into the sandbox image) remains open on bd-ib-bic7hb behind bd-ib-dwv.
+      "prepare_toolchain": {
+        "mise": ["sh", "-c", "mise trust && env -u GITHUB_TOKEN -u GH_TOKEN -u GITHUB_API_TOKEN mise install --quiet"],
+        "lefthook": ["uv", "run", "lefthook", "install"]
+      },
       // Detection-coverage anchor: the ledger item the two detection skills
       // (capture-impl-gaps, capture-spec-drift) append their attributed ATTEMPT
       // and all-or-nothing COMPLETED-coverage records to, per contracts.md

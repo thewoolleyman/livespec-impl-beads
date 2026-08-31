@@ -8,7 +8,7 @@
 
 You are in an ISOLATED Fabro sandbox clone of the repo, already checked
 out on a Fabro-managed run branch (verify: `git rev-parse --abbrev-ref
-HEAD` — it is NOT master). This clone is the secondary-worktree
+HEAD` — it is NOT `{{ inputs.default_branch }}`). This clone is the secondary-worktree
 EQUIVALENT under the family discipline: every rule below applies
 unchanged. Do NOT create or switch branches; commit on the current
 branch. Do all work inside this clone.
@@ -23,10 +23,11 @@ constraints.
 - NEVER pass `--no-verify` to any git command. If a hook fails, fix the
   cause; if you cannot, report the hook output verbatim and end with
   the needs-human protocol below.
-- Always run git write operations through mise so the hooks fire:
-  `mise exec -- git add ...`, `mise exec -- git commit ...`.
-- NEVER run `git checkout master`, never run `git config core.bare
-  true`, never force-push a SHARED or PROTECTED ref (master, release
+- Git write operations (`git add ...`, `git commit ...`) fire the
+  repository's installed hooks — the sandbox's prepare chain installed
+  them and the hook body resolves its own tooling. Let them fire.
+- NEVER run `git checkout {{ inputs.default_branch }}`, never run `git config core.bare
+  true`, never force-push a SHARED or PROTECTED ref ({{ inputs.default_branch }}, release
   branches, any ref someone else is building on). Rewriting THIS run's
   own unmerged, unpublished work (e.g. reshaping commits into the
   Red→Green shape to fix RGR-shape failures before the PR stage
@@ -38,8 +39,8 @@ constraints.
   to satisfy the assignment and its acceptance criteria.
 - ACCEPTANCE-CRITERIA SCOPE — downstream review is NOT yours to run.
   Satisfy only the acceptance conditions you can verify YOURSELF in this
-  sandbox: the code/behavior change, its tests, and a green `mise exec --
-  just check`. An acceptance line that names a DOWNSTREAM gate — an
+  sandbox: the code/behavior change, its tests, and a green run of the
+  repository's check suite (`{{ inputs.sandbox_check_suite }}`). An acceptance line that names a DOWNSTREAM gate — an
   "independent"/"external"/"adversarial" reviewer, a separate NO-BLOCKERS
   review "before acceptance", a human sign-off, a ratification step — is
   handled AFTER this stage by a later `review` node and by the external
@@ -61,10 +62,10 @@ to enforce, never by hiding the violation from its detector. A green
 tree obtained by evasion is a FAILED outcome, not a success.
 Specifically FORBIDDEN:
 
-- Forking or repointing a shared `livespec_dev_tooling` check to a
-  weaker local copy; editing `dev-tooling/checks/**` or changing a
-  `check-*` justfile recipe to invoke anything other than the pinned
-  `python -m livespec_dev_tooling.checks.<module>`.
+- Forking or repointing a shared, externally-owned check (the fleet's
+  dev-tooling Verifiers the prepare chain installed) to a weaker local copy;
+  editing `dev-tooling/checks/**` or changing a `check-*` justfile recipe to
+  invoke anything other than the pinned shared check module.
 - Rewriting a banned call into a form the matcher doesn't recognize but
   that does the same thing (e.g. `sys.stdout.write`/`sys.stderr.write`
   → `.buffer.write`).
@@ -176,7 +177,7 @@ mechanical line-count cut, a re-export shim, or an exemption.
      yet, so `is_file()` fails as a genuine assertion; at Green it passes.
      This is the established pattern the prior decomposition slices used —
      follow it verbatim for any "extract to a new module" change.
-2. **Green amend.** Stage the impl, `mise exec -- git commit --amend`.
+2. **Green amend.** Stage the impl, `git commit --amend`.
    The hook re-runs the SAME test (now passing) and records
    `TDD-Green-*` trailers. Test-file bytes MUST be byte-identical
    across Red→Green; to change the test, author a fresh Red.
@@ -213,11 +214,11 @@ operator's.
    the change.
 2. Implement it via the ritual above, in as few cohesive commits as the
    work naturally splits into (test+impl land atomically in one commit).
-3. Run the repo's check suite yourself (`mise exec -- just check`) and
+3. Run the repo's check suite yourself (`{{ inputs.sandbox_check_suite }}`) and
    fix what it surfaces — a later janitor stage re-runs it as a hard
    gate, so hand it a green tree. Green must be earned honestly — see
    the HONEST checks rule above; a check-vs-legitimate-pattern conflict
    is a needs-human `failed` outcome, not something to evade.
 4. In your final reply, summarize what you changed, list the commits
-   (`git log --oneline origin/master..HEAD`), and report any deviation
+   (`git log --oneline origin/{{ inputs.default_branch }}..HEAD`), and report any deviation
    or hook output verbatim.

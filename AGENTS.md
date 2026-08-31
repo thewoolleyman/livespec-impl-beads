@@ -1318,6 +1318,25 @@ it there; the bullets below are what this repo was missing.
     deleted with that mutex by `bd-ib-vmve.2` in `0eeca13`. The principle is
     recorded because fail-open checks recur, not because that gauge still
     exists.)
+- **Never label an option set as numbered tiers or levels; each enumeration
+  value names what it IS** (maintainer-declared 2026-08-31). The
+  `RepoIntegrationContract` conformance premises are the canonical instance:
+  their mode enumeration is `no_op`, `shell_argv`, and
+  `internal_livespec_dev_tooling` — never "tier 0/1/2" — and those names are
+  used identically in the config discriminator, the dispatch-time warning,
+  and every document that describes them. Any option that couples an adopter
+  to livespec's internal dev-tooling MUST be labeled, on the surface that
+  offers it, as introducing a dependency on livespec internal tooling that is
+  UNSUPPORTED and may be unreliable. **Why:** a numbered tier carries no
+  meaning to an adopter reading a dispatch warning, while a self-describing
+  value tells them what they are choosing; and without the caveat the
+  shared-package option reads as the recommended one when it is the one this
+  fleet does not support for anyone else. **How to apply:** pick descriptive
+  snake_case values for any adopter-facing enum, make the warning text
+  enumerate them by name with one line each, and attach the unsupported caveat
+  to every `internal_*` option. (Context: the conformance-premise fields were
+  first drafted as "tiers"; the maintainer rejected the label and ruled the
+  three names and the caveat while landing plan `bd-ib-vblnq2`.)
 
 ## Verification discipline (repo-additive)
 

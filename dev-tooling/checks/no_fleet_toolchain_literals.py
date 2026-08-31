@@ -19,23 +19,25 @@ build.
 This module owns the SCOPE and the POLICY; the sibling matcher module owns what
 counts as a literal in the first place.
 
-TWO ALLOW-LISTS, BOTH MEASURED AND BOTH SELF-RETIRING. Neither is an exemption
-in the "this is fine" sense; each names work already sliced under the
+ONE ALLOW-LIST, MEASURED AND SELF-RETIRING. It is not an exemption in the
+"this is fine" sense; it names work already sliced under the
 typed-repository-integration-contract plan epic:
 
-- `PAYLOAD_ALLOWLIST` covers the workflow payload and the prompt files. Their
-  conversion is carrier C5-payload, which edits the shipped workflow tree and is
-  therefore ATTENDED; this gate lands ahead of it so the dispatcher-package scope
-  is gated now rather than after. C5-payload DELETES this list.
 - `MEASURED_EXEMPTIONS` names the dispatcher-package sites that still resolve a
   fleet premise from a constant. Each was measured, not guessed, and each is a
   ratified-conversion follow-up rather than a judgement that the site is correct.
 
-A STALE ENTRY IN EITHER LIST IS A FAILURE, which is what makes those deletions
-mechanical rather than remembered: the moment C5-payload converts a payload file,
-its allow-list entry stops matching and this check fails until the entry is
-removed. An allow-list that can only be removed by hand is an allow-list that
-outlives its reason.
+THE PAYLOAD HAS NO ALLOW-LIST. The workflow payload and the prompt files are
+scanned in full: the typed-workflow-inputs carrier (C5-payload) converted every
+fleet premise they carried into an `inputs.<name>` projection of the resolved
+integration contract and deleted the list that had excused them while that
+conversion was pending. A fleet literal reintroduced into the payload is a
+finding, exactly as one in the package is.
+
+A STALE ENTRY IN THE LIST IS A FAILURE, which is what makes those deletions
+mechanical rather than remembered: the moment a site is converted, its entry
+stops matching and this check fails until the entry is removed. An allow-list
+that can only be removed by hand is an allow-list that outlives its reason.
 
 FOUR POSITIVE CONTROLS, because this check reports an ABSENCE for a living. A
 broken pattern or a mis-scoped glob would make it permanently green while printing
@@ -89,7 +91,6 @@ __all__: list[str] = [
     "DISCOVERY_ANCHORS",
     "FLEET_DEFAULTS_MODULE",
     "MEASURED_EXEMPTIONS",
-    "PAYLOAD_ALLOWLIST",
     "SCHEMA_MODULE",
     "control_failures",
     "main",
@@ -143,22 +144,6 @@ MEASURED_EXEMPTIONS: frozenset[tuple[str, str]] = frozenset(
     }
 )
 
-# Repo-relative payload and prompt files whose conversion is carrier
-# C5-payload. THAT CARRIER DELETES THIS LIST; a converted file that stays
-# listed fails the staleness control below.
-_PAYLOAD_ROOT = ".claude-plugin/.fabro/workflows/implement-work-item"
-PAYLOAD_ALLOWLIST: frozenset[str] = frozenset(
-    {
-        f"{_PAYLOAD_ROOT}/prompts/fix.md",
-        f"{_PAYLOAD_ROOT}/prompts/implement.md",
-        f"{_PAYLOAD_ROOT}/prompts/pr.md",
-        f"{_PAYLOAD_ROOT}/prompts/review-fix.md",
-        f"{_PAYLOAD_ROOT}/prompts/review.md",
-        f"{_PAYLOAD_ROOT}/workflow.fabro",
-        f"{_PAYLOAD_ROOT}/workflow.toml",
-    }
-)
-
 _PACKAGE_RELPATH = ".claude-plugin/scripts/livespec_orchestrator_beads_fabro"
 _PAYLOAD_RELPATH = ".claude-plugin/.fabro/workflows"
 _FIXTURE_RELPATH = "dev-tooling/checks/fixtures/fleet_toolchain_literal_control.py.txt"
@@ -189,7 +174,7 @@ def package_findings(*, repo_root: Path) -> list[Finding]:
 
 
 def payload_findings(*, repo_root: Path) -> list[Finding]:
-    """Every literal in the workflow payload, the allow-list NOT applied."""
+    """Every literal in the workflow payload; nothing excuses one there."""
     findings: list[Finding] = []
     for path in payload_paths(repo_root=repo_root):
         findings.extend(
@@ -202,18 +187,13 @@ def payload_findings(*, repo_root: Path) -> list[Finding]:
 
 
 def unexempted_findings(*, repo_root: Path) -> list[Finding]:
-    """Every literal neither allow-list excuses."""
+    """Every literal the measured exemptions do not excuse, plus every payload literal."""
     package = [
         finding
         for finding in package_findings(repo_root=repo_root)
         if (finding.relpath, finding.literal) not in MEASURED_EXEMPTIONS
     ]
-    payload = [
-        finding
-        for finding in payload_findings(repo_root=repo_root)
-        if finding.relpath not in PAYLOAD_ALLOWLIST
-    ]
-    return package + payload
+    return package + payload_findings(repo_root=repo_root)
 
 
 def stale_exemptions(*, repo_root: Path) -> list[str]:
@@ -221,18 +201,11 @@ def stale_exemptions(*, repo_root: Path) -> list[str]:
     measured = {
         (finding.relpath, finding.literal) for finding in package_findings(repo_root=repo_root)
     }
-    stale = [
+    return [
         f"measured exemption {entry} matches no literal; the site is converted, so delete it"
         for entry in sorted(MEASURED_EXEMPTIONS)
         if entry not in measured
     ]
-    carried = {finding.relpath for finding in payload_findings(repo_root=repo_root)}
-    stale.extend(
-        f"payload allow-list entry {relpath} carries no literal; C5-payload converted it, delete it"
-        for relpath in sorted(PAYLOAD_ALLOWLIST)
-        if relpath not in carried
-    )
-    return stale
 
 
 def _designates_defaults(*, source: str) -> bool:

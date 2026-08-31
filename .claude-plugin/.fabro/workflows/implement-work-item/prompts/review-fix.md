@@ -22,13 +22,13 @@ adjudication authority in this stage.
    reclassify it as rejected here.
 4. Honor every rule from the implement stage: no `--no-verify` (if a hook
    fails, fix the cause or end with the needs-human protocol below,
-   reporting its output verbatim); `mise exec -- git ...` for all git
-   writes; Red-Green-Replay for any product `.py` change (a test-file
+   reporting its output verbatim); plain `git` for all git writes (the
+   installed hooks fire on their own); Red-Green-Replay for any product `.py` change (a test-file
    change means a fresh Red commit, never an edit under an existing
    Green); commit trailer `Co-Authored-By: Claude Fable 5
    <noreply@anthropic.com>`; never create or switch branches, never touch
    `.beads/` or `core.bare`.
-5. Re-run `mise exec -- just check` yourself until it is green — the
+5. Re-run the repository's check suite (`{{ inputs.sandbox_check_suite }}`) yourself until it is green — the
    janitor re-validates this clone after this stage.
 6. In your final reply, summarize each ACCEPTED finding as
    `FIXED — <what you changed>`. Mention rejected findings only to say
@@ -43,10 +43,10 @@ is where such dodges have been authored under pressure from a
 `[BLOCKING]` finding; resolving a finding by evasion is itself a
 failure. Specifically FORBIDDEN:
 
-- Forking or repointing a shared `livespec_dev_tooling` check to a
-  weaker local copy; editing `dev-tooling/checks/**` or changing a
-  `check-*` justfile recipe to invoke anything other than the pinned
-  `python -m livespec_dev_tooling.checks.<module>`.
+- Forking or repointing a shared, externally-owned check (the fleet's
+  dev-tooling Verifiers the prepare chain installed) to a weaker local copy;
+  editing `dev-tooling/checks/**` or changing a `check-*` justfile recipe to
+  invoke anything other than the pinned shared check module.
 - Rewriting a banned call into a form the matcher doesn't recognize but
   that does the same thing (e.g. `sys.stdout.write`/`sys.stderr.write`
   -> `.buffer.write`).

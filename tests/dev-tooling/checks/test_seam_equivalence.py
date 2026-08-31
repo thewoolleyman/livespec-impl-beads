@@ -1,11 +1,12 @@
 """Tests for the integration-input seam-equivalence guard.
 
-The guard reports an ABSENCE, and it does so over a payload that references no
-integration token yet, so a broken scanner would print exactly what a conformant
-payload prints. These tests therefore carry the two controls the work-item makes
-non-optional plus a NEGATIVE CONTROL per direction of the equality: every
-assertion below is made against a payload seeded on disk and read back through
-the check's own scan path, never against the return value of a write call.
+The guard reports an ABSENCE, so a broken scanner would print exactly what a
+conformant payload prints. These tests therefore carry the two controls the
+work-item makes non-optional plus a NEGATIVE CONTROL per direction of the
+equality: every assertion below is made against a payload seeded on disk and
+read back through the check's own scan path, never against the return value of
+a write call. Since C5-payload the committed payload references every
+integration input, so the equality is also exercised for real.
 """
 
 from __future__ import annotations
@@ -23,8 +24,8 @@ _CHECK_PATH = _REPO_ROOT / "dev-tooling" / "checks" / "seam_equivalence.py"
 
 # A run config carrying one token per position class: a prepare-step script
 # (rendered), an input default (not rendered), and a comment (no attribute at
-# all). Written here rather than derived from the payload because the committed
-# payload deliberately carries none of them yet.
+# all). Written here rather than derived from the payload so the position rules
+# are asserted in isolation from whatever the committed payload carries.
 _RUN_CONFIG = """
 [run.inputs]
 sandbox_check_suite = "{{ inputs.sandbox_check_suite }}"
@@ -149,20 +150,21 @@ def test_declaring_an_integration_input_no_position_reads_fails_the_payload(
     tmp_path: Path,
 ) -> None:
     payload = _seed_repo(repo_root=tmp_path, check=check)
-    run_config = payload / "workflow.toml"
-    _ = run_config.write_text(
-        run_config.read_text(encoding="utf-8").replace(
-            "[run.inputs]", '[run.inputs]\nmerge_mode = "rebase"', 1
-        ),
+    prompt = payload / "prompts" / "pr.md"
+    # `merge_mode` stays DECLARED in `[run.inputs]`; its one reading position
+    # (the publish prompt's merge-method flag) is put back to a literal.
+    _ = prompt.write_text(
+        prompt.read_text(encoding="utf-8").replace("--{{ inputs.merge_mode }}", "--rebase", 1),
         encoding="utf-8",
     )
 
     # Prove the edit landed by reading the persisted payload back, then prove
-    # the Dispatcher would now render the input the graph never reads.
-    assert 'merge_mode = "rebase"' in run_config.read_text(encoding="utf-8")
+    # the Dispatcher would still render the input no position reads any more.
+    assert "inputs.merge_mode" not in prompt.read_text(encoding="utf-8")
     assert "merge_mode" in check.rendered_input_names(repo_root=tmp_path)
     findings = check.payload_findings(repo_root=tmp_path)
     assert [finding.kind for finding in findings] == ["rendered-input-without-token"]
+    assert findings[0].subject == "merge_mode"
 
 
 # ---------------------------------------------------------------------------
@@ -195,12 +197,63 @@ def test_a_token_outside_any_attribute_value_is_reported(
 
 
 def test_the_allowlisted_graph_positions_are_admitted(scan: ModuleType, rules: ModuleType) -> None:
-    admitted = 'a [ acp.command="{{ inputs.merge_mode }}" ]\nb -> c [ condition="{{ inputs.default_branch }}" ]'
+    admitted = (
+        'a [ acp.command="{{ inputs.merge_mode }}" ]\n'
+        'b -> c [ condition="{{ inputs.default_branch }}" ]\n'
+        'd [ shape=parallelogram script="{{ inputs.sandbox_check_suite }}" ]'
+    )
 
     occurrences = scan.graph_occurrences(text=admitted, venue="graph")
 
     assert {occurrence.position for occurrence in occurrences} == scan.GRAPH_RENDERED_ATTRIBUTES
     assert rules.position_findings(occurrences=occurrences) == []
+
+
+def test_a_script_node_is_a_rendered_position_and_a_timeout_beside_it_is_not(
+    scan: ModuleType,
+    rules: ModuleType,
+) -> None:
+    """Node `script` renders (maintainer-confirmed 2026-08-31 for pinned fabro 0.254.0).
+
+    The payload's janitor gate and dead-implementer breaker template their
+    check suite and default branch into a parallelogram node's `script`, so the
+    scan must admit that attribute -- and must keep refusing the typed `timeout`
+    on the SAME node, because widening one attribute is evidence about that
+    attribute alone.
+    """
+    graph = (
+        "janitor [\n"
+        "    shape=parallelogram\n"
+        '    timeout="{{ inputs.merge_mode }}"\n'
+        '    script="{{ inputs.sandbox_check_suite }}"\n'
+        "]"
+    )
+
+    occurrences = scan.graph_occurrences(text=graph, venue="graph")
+
+    assert "script" in scan.GRAPH_RENDERED_ATTRIBUTES
+    assert [(occurrence.position, occurrence.rendered) for occurrence in occurrences] == [
+        ("timeout", False),
+        ("script", True),
+    ]
+    assert [finding.subject for finding in rules.position_findings(occurrences=occurrences)] == [
+        "merge_mode"
+    ]
+
+
+def test_the_committed_payload_references_every_integration_input(
+    check: ModuleType,
+    scan: ModuleType,
+    rules: ModuleType,
+) -> None:
+    """The equality is no longer vacuous: every projectable field has a real token."""
+    occurrences = check.payload_occurrences(repo_root=_REPO_ROOT)
+
+    referenced = rules.referenced_integration_inputs(occurrences=occurrences)
+    assert referenced == rules.SCHEMA_PROJECTABLE_INPUTS
+    assert referenced == check.rendered_input_names(repo_root=_REPO_ROOT)
+    positions = {occurrence.position for occurrence in occurrences if occurrence.name in referenced}
+    assert positions >= {"script", scan.PREPARE_STEP_POSITION, scan.PROMPT_BODY_POSITION}
 
 
 def test_only_a_prepare_step_script_renders_in_the_run_config(
@@ -254,9 +307,11 @@ def test_a_token_in_a_non_rendered_graph_position_fails_the_payload(
     )
     monkeypatch.chdir(tmp_path)
 
-    assert '"{{ inputs.sandbox_check_suite }}"' in graph.read_text(encoding="utf-8")
+    assert 'timeout="{{ inputs.sandbox_check_suite }}"' in graph.read_text(encoding="utf-8")
+    # The input is declared and rendered (the janitor script still reads it),
+    # so the ONLY disagreement is the typed attribute the engine will not expand.
     kinds = {finding.kind for finding in check.payload_findings(repo_root=tmp_path)}
-    assert kinds == {"non-rendered-position", "token-without-rendered-input"}
+    assert kinds == {"non-rendered-position"}
     assert check.main() == 1
 
 

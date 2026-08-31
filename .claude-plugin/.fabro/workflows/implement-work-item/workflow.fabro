@@ -5,8 +5,9 @@
 // architecture"). One run consumes ONE ready work-item and produces one
 // merged-or-failed implementation attempt:
 //
-//   implement (Red-Green-Replay) -> janitor hard gate (`mise exec --
-//   just check`, bounded fix loop) -> Claude review gate (blocking by default,
+//   implement (Red-Green-Replay) -> janitor hard gate (the repository's
+//   declared check suite, rendered from `inputs.sandbox_check_suite`;
+//   bounded fix loop) -> Claude review gate (blocking by default,
 //   merge-on-cap only via explicit escape hatch; work-item bd-ib-egms32) -> PR + rebase auto-merge
 //   arming, with a `needs_human` TERMINAL node (plan
 //   ledger-is-the-only-gate, epic bd-ib-n77djm; contracts.md "A factory
@@ -109,23 +110,34 @@ digraph ImplementWorkItem {
     // implementation has a diff and proceeds normally; a protocol-dead
     // implementer that left the tree byte-identical emits the sentinel
     // the Dispatcher journals from the failed `fabro-run` stage detail.
+    // The dispatch base is the governed repository's DEFAULT BRANCH,
+    // rendered from `inputs.default_branch` (the integration contract's
+    // resolved field), never a spelled branch name: an adopter whose
+    // default branch is not this fleet's gets the same breaker.
     implementation_diff [
         label="Check implementer changed tree"
         shape=parallelogram
         timeout="1800s"
-        script="git diff --quiet origin/master...HEAD; status=$?; if test \"$status\" -eq 0; then echo 'LIVESPEC_DEAD_IMPLEMENTER: implementer terminated without changing the worktree relative to dispatch base origin/master...HEAD; stop before janitor/review/disposition' >&2; exit 1; fi; if test \"$status\" -eq 1; then exit 0; fi; echo 'LIVESPEC_DEAD_IMPLEMENTER_CHECK_FAILED: git diff against origin/master...HEAD failed; fail closed before review' >&2; exit \"$status\""
+        script="git diff --quiet origin/{{ inputs.default_branch }}...HEAD; status=$?; if test \"$status\" -eq 0; then echo 'LIVESPEC_DEAD_IMPLEMENTER: implementer terminated without changing the worktree relative to dispatch base origin/{{ inputs.default_branch }}...HEAD; stop before janitor/review/disposition' >&2; exit 1; fi; if test \"$status\" -eq 1; then exit 0; fi; echo 'LIVESPEC_DEAD_IMPLEMENTER_CHECK_FAILED: git diff against origin/{{ inputs.default_branch }}...HEAD failed; fail closed before review' >&2; exit \"$status\""
     ]
 
-    // Janitor hard gate: workflow-file drift is refused before `just
-    // check`, and a non-zero guard or `just check` MUST prevent the PR
-    // stage (livespec non-functional-requirements.md §"Orchestrator-
-    // internal Dispatcher guidance"). Script outcome routes the edges:
-    // exit 0 -> succeeded -> pr; non-zero -> failed -> fix loop.
+    // Janitor hard gate: the governed repository's IN-SANDBOX check
+    // suite, rendered from `inputs.sandbox_check_suite` — the resolved
+    // `dispatcher.janitor.check_suite` field at its in-sandbox-gate venue
+    // (SPECIFICATION/contracts.md §"Repository integration contract").
+    // This fleet's default suite refuses workflow-file drift before the
+    // rest of its checks, and a non-zero suite MUST prevent the PR stage
+    // (livespec non-functional-requirements.md §"Orchestrator-internal
+    // Dispatcher guidance"). Script outcome routes the edges: exit 0 ->
+    // succeeded -> pr; non-zero -> failed -> fix loop. A node `script`
+    // is a rendered position for the pinned build (maintainer-confirmed
+    // 2026-08-31; dev-tooling/checks/_seam_equivalence_scan.py records
+    // the evidence), unlike the typed `timeout` above.
     janitor [
-        label="Janitor: just check"
+        label="Janitor: declared check suite"
         shape=parallelogram
         timeout="1800s"
-        script="mise exec -- just check-no-workflow-edits check"
+        script="{{ inputs.sandbox_check_suite }}"
     ]
 
     fix [

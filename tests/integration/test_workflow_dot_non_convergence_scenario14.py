@@ -98,7 +98,7 @@ def test_dead_implementer_gate_checks_for_a_dispatch_base_diff() -> None:
     assert node_block is not None
     body = node_block.group("body")
 
-    assert "git diff --quiet origin/master...HEAD" in body
+    assert "git diff --quiet origin/{{ inputs.default_branch }}...HEAD" in body
     assert "LIVESPEC_DEAD_IMPLEMENTER" in body
     assert re.search(r"\bdead_implementer\s*\[", text) is not None
 
