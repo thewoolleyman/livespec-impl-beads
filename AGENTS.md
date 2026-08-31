@@ -235,7 +235,16 @@ against a shared tenant strands that tenant for every client in the family —
 currently **14 live tenants**. v1.2.1 is marked prerelease rather than
 withdrawn, so it is **still downloadable**: this is a live hazard, not history.
 The current stable is **v1.2.2**, which is a recovery release re-issuing the
-tested 1.1 line. If a database has already been migrated to v65, do NOT
+tested 1.1 line. **This host's `/usr/local/bin/bd-real` was cut over to v1.2.2
+on 2026-08-31 and every family tenant is at schema v53** (receipt:
+`plan/beads-v1-1-2-upgrade/research/cutover-receipt-2026-08-31.md`). Two facts
+from that cutover that bite any future upgrade: `bd migrate --dry-run` is NOT a
+preview — a v1.2.x binary migrates an older store ON OPEN, before printing
+"Version matches" — so probe an un-migrated tenant only through mysql, never
+through any `bd` verb; and a fleet pause must stop the ROOT system timer
+`reconcile-runs.timer` (`systemctl list-timers --all`, system AND user manager),
+which reads this repo's ledger every ten minutes and auto-migrated this tenant
+mid-cutover. If a database has already been migrated to v65, do NOT
 improvise: roll the schema cursor back per upstream's `docs/RECOVERY-1.2.1.md`
 (at tag v1.2.2), use `BD_IGNORE_SCHEMA_SKEW=1` only as a stopgap, and upgrade
 **every** clone before recovering — a leftover v1.2.1 binary silently

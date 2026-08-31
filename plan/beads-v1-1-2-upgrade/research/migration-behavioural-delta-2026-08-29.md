@@ -100,7 +100,7 @@ v1.2.2 is now verified behaviourally, not merely trusted at source level.
   the load-bearing ones and both matched.
 - This is a synthetic isolated fixture, not any family tenant. It proves the
   migration CODE behaves identically across the two binaries; the live cutover
-  still gets its own pre-flight (`preflight-probe.sh`) against the real tenant
+  still gets its own pre-flight (`bd-guard/test/preflight-probe.sh`) against the real tenant
   at cutover time, which remains point-in-time by design.
 
 ## Guard compliance (ten standing isolated-run guards)

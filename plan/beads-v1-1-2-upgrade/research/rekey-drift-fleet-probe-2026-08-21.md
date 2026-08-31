@@ -215,7 +215,7 @@ window, immediately before the migration, and treat a non-clean result as a
 stop.** That converts the hazard from an unbounded unknown discovered afterwards
 in a log nobody reads into a checked precondition.
 
-**The probe is committed beside this note as `preflight-probe.sh`** — an earlier
+**The probe is committed as `bd-guard/test/preflight-probe.sh`** (it lived beside this note until the 2026-08-31 cutover, then moved so the plan archive would not take it) — an earlier
 draft of this paragraph left the scripts in session scratch and said they were
 "small enough to re-author", which is exactly how a recommended control quietly
 fails to exist. It also folds in the schema-version assertion and the
