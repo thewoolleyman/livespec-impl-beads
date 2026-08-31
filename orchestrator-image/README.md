@@ -18,7 +18,7 @@ credential is injected at `docker run` time.
 
 | File | Purpose |
 |---|---|
-| `Dockerfile` | `ubuntu:24.04` base (glibc 2.39 — the fabro v0.254.0 hard floor) + inner `docker.io` + content-pinned Beads v1.1.2 installed as `/usr/local/bin/bd-real` behind the tracked lifecycle guard at `/usr/local/bin/bd` / `dolt` v2.1.4 + `uv` + `gh` + `mise` + `libatomic1` + the COPYed pinned `fabro` binary; `VOLUME /var/lib/docker`; `EXPOSE 32276`. |
+| `Dockerfile` | `ubuntu:24.04` base (glibc 2.39 — the fabro v0.254.0 hard floor) + inner `docker.io` + content-pinned Beads v1.2.2 installed as `/usr/local/bin/bd-real` behind the tracked lifecycle guard at `/usr/local/bin/bd` / `dolt` v2.1.4 + `uv` + `gh` + `mise` + `libatomic1` + the COPYed pinned `fabro` binary; `VOLUME /var/lib/docker`; `EXPOSE 32276`. |
 | `orchestrator-entrypoint.sh` | Supervisor: start dockerd → wait for socket → provision headless fabro (gh auth with a minted App token + hand-written settings with the native GitHub App integration + dev-token server credentials, listening on `0.0.0.0:32276`) → exec the dispatcher (or a passed command). |
 | `build-and-verify.sh` | Stages the fabro binary, builds the image, runs the privileged container with an ext4-backed volume + injected secrets, and runs tier-1 verification. |
 | `tier2-dispatch-proof.sh` | Runs the W7 Tier-2 proof: one explicit shadow dispatch from inside the container against a tiny ready item, with redacted logs and inner-daemon evidence. **Bind-mounts the host impl-beads checkout** — it is a proof runner, not the real-work substrate. |
@@ -56,8 +56,8 @@ privileged container with an ext4-backed `/var/lib/docker` volume + the
 host-loopback web-UI port, and asserts: inner storage driver is overlay-based
 (not vfs), `fabro version`/`fabro doctor` run with the server reachable + GitHub
 configured, the web UI answers on the published port, `LIVESPEC_BD_PATH` points
-at the lifecycle guard, `/usr/local/bin/bd-real` has the pinned v1.1.2 binary
-hash, both guarded and direct version probes report v1.1.2, and an ephemeral
+at the lifecycle guard, `/usr/local/bin/bd-real` has the pinned v1.2.2 binary
+hash, both guarded and direct version probes report v1.2.2, and an ephemeral
 in-container Dolt + `bd` round-trip succeeds. All probe output is redacted /
 status-only; no secret is printed. The container + volume + staged build-context
 payloads are cleaned up on exit.

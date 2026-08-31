@@ -273,7 +273,7 @@ just check-bd-guard      # shellcheck (if present) + the hermetic harness
 bash bd-guard/test/run-tests.sh
 ```
 
-Official v1.1.2 candidate qualification, still without host installation:
+Official v1.2.2 candidate qualification, still without host installation:
 
 ```sh
 just check-bd-guard-candidate
@@ -281,7 +281,7 @@ just check-bd-guard-candidate
 bash bd-guard/test/run-v1-1-2-candidate-tests.sh
 ```
 
-The candidate harness downloads the official Linux amd64 v1.1.2 release into a
+The candidate harness downloads the official Linux amd64 v1.2.2 release into a
 temporary directory, verifies the fixed O1 tarball SHA-256, the upstream
 checksum file, the recorded SPDX hash, the extracted-binary hash, and the exact
 candidate version string, then points `LIVESPEC_BD_REAL` at that temporary
@@ -291,7 +291,7 @@ temporary `HOME` and `XDG_CONFIG_HOME`, and never copies anything to
 Fabro server. The candidate leg proves passthrough streams, TTY/foreground
 behavior, JSON read surfaces, lifecycle warn/fail behavior, create-id
 normalization and exclusions, and OTLP fail-open behavior against the real
-v1.1.2 binary.
+v1.2.2 binary.
 
 The harness points `LIVESPEC_BD_REAL` at a generated stub that records its exact
 argv, emits controlled stdout/stderr, and exits with a controlled code, then

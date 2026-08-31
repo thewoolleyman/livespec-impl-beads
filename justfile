@@ -663,7 +663,7 @@ check-no-fleet-toolchain-literals:
 check-bd-guard:
     bash dev-tooling/just-check-bd-guard.sh
 
-# `check-bd-guard-candidate` — explicit Beads v1.1.2 qualification leg. It
+# `check-bd-guard-candidate` — explicit Beads v1.2.2 qualification leg. It
 # downloads the official Linux amd64 release into a temporary directory, verifies
 # upstream and derived hashes, then runs the tracked guard with LIVESPEC_BD_REAL
 # pointed at that temporary binary. All repositories, config, and Dolt data are

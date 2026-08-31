@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # run-v1-1-2-candidate-tests.sh - qualify the tracked bd guard against the
-# official Beads v1.1.2 Linux amd64 binary without installing it.
+# official Beads v1.2.2 Linux amd64 binary without installing it.
 #
 # The harness downloads the release into a temporary directory, verifies the
 # immutable O1 tarball, SPDX, extracted-binary, and version evidence, then runs
@@ -21,14 +21,14 @@ set -euo pipefail
 # This harness never contacts a production tenant, but the prohibition is
 # recorded here because this is one of the two places the version is pinned.
 # See AGENTS.md "Beads runtime prerequisites".
-VERSION="1.1.2"
+VERSION="1.2.2"
 RELEASE_BASE="https://github.com/gastownhall/beads/releases/download/v${VERSION}"
 TARBALL="beads_${VERSION}_linux_amd64.tar.gz"
 SPDX="beads-v${VERSION}.spdx.json"
-EXPECTED_TARBALL_SHA="a72d71ed374955dc9f83a0f90b54bd7b6a0016709dd1676ae2e368651ed401c2"
-EXPECTED_BIN_SHA="6d767629e90560506d0ea3de9823aef48386414f5425d8853e2ae3312cad9a82"
-EXPECTED_SPDX_SHA="b05ca7f525f05e50691a4329b13aa87f10bc93160fe8d4d1ca371867701b58e6"
-EXPECTED_VERSION="bd version 1.1.2 (20e493e56: HEAD@20e493e569c9)"
+EXPECTED_TARBALL_SHA="8140098a51d3b81d5548d1c5e6db1a2d9930e5d141efe2a4bff7d079c4d321e8"
+EXPECTED_BIN_SHA="54fc0e0581ce4c5487a5b242f0a4f34af1ef09cf056e164a1af63a6ec7aa1e0e"
+EXPECTED_SPDX_SHA="117f89c22d3562029521b67f1bfcfa7a173513a8cd2c63edf09541dae5d60197"
+EXPECTED_VERSION="bd version 1.2.2 (6c124203e: HEAD@6c124203e771)"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd -P)"
 WRAPPER="${SCRIPT_DIR}/../bd-guard.sh"

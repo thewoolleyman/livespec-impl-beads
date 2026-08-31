@@ -38,16 +38,16 @@ def test_build_and_verify_asserts_the_container_github_cli_version() -> None:
     assert 'test "$version" = "$GH_VERSION"' in script
 
 
-def test_beads_is_pinned_to_guarded_v1_1_2_layout() -> None:
+def test_beads_is_pinned_to_guarded_v1_2_2_layout() -> None:
     dockerfile = _DOCKERFILE.read_text(encoding="utf-8")
 
-    assert "ENV BD_VERSION=1.1.2 \\" in dockerfile
+    assert "ENV BD_VERSION=1.2.2 \\" in dockerfile
     assert (
-        "BD_TARBALL_SHA256=a72d71ed374955dc9f83a0f90b54bd7b6a0016709dd1676ae2e368651ed401c2 \\"
+        "BD_TARBALL_SHA256=8140098a51d3b81d5548d1c5e6db1a2d9930e5d141efe2a4bff7d079c4d321e8 \\"
         in dockerfile
     )
     assert (
-        "BD_BINARY_SHA256=6d767629e90560506d0ea3de9823aef48386414f5425d8853e2ae3312cad9a82"
+        "BD_BINARY_SHA256=54fc0e0581ce4c5487a5b242f0a4f34af1ef09cf056e164a1af63a6ec7aa1e0e"
         in dockerfile
     )
     assert "install -m 0755 /tmp/bd /usr/local/bin/bd-real" in dockerfile
