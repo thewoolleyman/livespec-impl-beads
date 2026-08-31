@@ -54,6 +54,29 @@ a unit-tier test); its dotted node-id prefix `tests.integration` is in the
   refuses-without-the-marker control and a deliberately non-honoring adopter
   variant that must fail.
 
+- `test_seam_equivalence_contract_inputs_scenario100.py`,
+  `test_schema_validation_refusal_scenario101.py` and
+  `test_merge_mode_projection_scenario107.py` — bind
+  `SPECIFICATION/scenarios.md` Scenarios 100, 101 and 107, each over BOTH
+  governed-repository fixtures. The first loads the shipped
+  `check-seam-equivalence` gate by path and runs it over throwaway repositories
+  holding the REAL committed payload beside a fixture's declaration, one seeded
+  per ratified disagreement (a token with no rendered input, a rendered input no
+  position reads, a token where the pinned engine does not expand it), with the
+  unseeded repository as the positive control that the gate can report clean.
+  The second drives the REAL `dispatcher.main(argv=["dispatch", ...])` CLI over a
+  fixture declaration carrying two unusable points and asserts the pre-dispatch
+  precondition exit code, one message enumerating both committed keys, and a
+  journal holding that refusal and nothing else; its control is the same
+  invocation on the pristine declaration, discriminated by journal STAGE because
+  every pre-dispatch precondition error shares one exit code. The third rewrites
+  `dispatcher.merge_mode` inside each fixture's own declaration to reach all
+  three resolver arms and reads each answer back off the auto-merge argv the
+  dispatch would spawn. All three inject their variations into the COMMITTED
+  fixture declarations rather than hand-writing a third repository, so the two
+  legs stay the member's fleet-default posture and the adopter's fully-declared
+  one.
+
 Coverage rules: 100% line + branch on every covered module, as everywhere in
 this repo. Build state through the public store/client seam (or a small
 read-only stub for shapes the fake's public surface never produces); never read
