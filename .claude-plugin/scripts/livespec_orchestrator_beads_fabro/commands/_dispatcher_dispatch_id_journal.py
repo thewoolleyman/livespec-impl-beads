@@ -16,11 +16,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_contract import (
+    ResolvedIntegrationContract,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_projection import (
     integration_contract_journal_record,
-)
-from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_resolver import (
-    ResolvedIntegrationContract,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
 

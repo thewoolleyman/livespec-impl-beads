@@ -31,6 +31,14 @@ a silent adopter degradation indistinguishable from a configuration nobody wrote
 from __future__ import annotations
 
 __all__: list[str] = [
+    "CONFORMANCE_HOOK_INSTALL_INTERNAL_ARGV",
+    "CONFORMANCE_MODES",
+    "CONFORMANCE_MODE_INTERNAL",
+    "CONFORMANCE_MODE_NO_OP",
+    "CONFORMANCE_MODE_SHELL_ARGV",
+    "CONFORMANCE_NO_OP",
+    "CONFORMANCE_VERIFY_COMMIT_REFUSE_HOOK_INTERNAL_ARGV",
+    "CONFORMANCE_VERIFY_PLUGIN_RESOLUTION_INTERNAL_ARGV",
     "FLEET_CORE_REPO_URL",
     "JANITOR_BOOTSTRAP_RECIPE_DEFAULT",
     "JANITOR_CHECK_SUITE_DEFAULT",
@@ -112,6 +120,58 @@ FLEET_CORE_REPO_URL = "https://github.com/thewoolleyman/livespec.git"
 # repository that carries no such premise. Never an absent key -- see the module
 # docstring for why the distinction is the whole point of the field existing.
 TOOLCHAIN_NO_OP: tuple[str, ...] = ()
+
+# The CLOSED mode enumeration of a dispatch-time conformance premise. Each value
+# NAMES WHAT IT IS rather than ranking a tier or a level, so a reader of one
+# refusal or one warning learns the option's meaning from the option itself:
+# `no_op` skips the step, `shell_argv` runs the adopter's own command verbatim,
+# and `internal_livespec_dev_tooling` renders this fleet's own invocation.
+CONFORMANCE_MODE_NO_OP = "no_op"
+CONFORMANCE_MODE_SHELL_ARGV = "shell_argv"
+CONFORMANCE_MODE_INTERNAL = "internal_livespec_dev_tooling"
+CONFORMANCE_MODES: tuple[str, ...] = (
+    CONFORMANCE_MODE_NO_OP,
+    CONFORMANCE_MODE_SHELL_ARGV,
+    CONFORMANCE_MODE_INTERNAL,
+)
+
+# The explicit no-op VALUE a conformance premise resolves to. Spelled separately
+# from `TOOLCHAIN_NO_OP` even though the two are the same empty argv, because
+# they answer different premises and one of them changing must not silently
+# change the other -- and because an ABSENT conformance premise additionally
+# earns the dispatch-time warning, which is a distinction the value alone
+# cannot carry.
+CONFORMANCE_NO_OP: tuple[str, ...] = ()
+
+# The three fleet invocations `internal_livespec_dev_tooling` renders, one per
+# conformance premise: install the commit-refuse Mechanism, then run each of the
+# two Verifiers. This module is the ONLY place in the dispatcher package these
+# may be spelled -- the whole point of the mode is that an adopter who does NOT
+# carry this fleet's tooling never inherits them by silence. They are the
+# committed prepare steps with the fleet step-timer wrapper deliberately
+# dropped: the wrapper is a fleet premise of its own, and a repository declaring
+# this mode is asking for the invocation, not for our instrumentation.
+CONFORMANCE_HOOK_INSTALL_INTERNAL_ARGV: tuple[str, ...] = (
+    "uv",
+    "run",
+    "python",
+    "-m",
+    "livespec_dev_tooling.install_commit_refuse_hooks",
+)
+CONFORMANCE_VERIFY_COMMIT_REFUSE_HOOK_INTERNAL_ARGV: tuple[str, ...] = (
+    "uv",
+    "run",
+    "python",
+    "-m",
+    "livespec_dev_tooling.checks.primary_checkout_commit_refuse_hook_installed",
+)
+CONFORMANCE_VERIFY_PLUGIN_RESOLUTION_INTERNAL_ARGV: tuple[str, ...] = (
+    "uv",
+    "run",
+    "python",
+    "-m",
+    "livespec_dev_tooling.checks.plugin_resolution",
+)
 
 # The closed value space of `dispatcher.merge_mode`, and the member default. A
 # true merge commit is NOT admitted: acceptance's fallback merged-diff read and

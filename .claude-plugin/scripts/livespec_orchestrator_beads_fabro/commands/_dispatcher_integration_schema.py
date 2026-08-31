@@ -31,13 +31,24 @@ value comes from the ratified default-branch resolution (`origin/HEAD`, then the
 forge) rather than from `.livespec.jsonc`, so its lookup path is deliberately not
 under a committed block. It is REQUIRED for the same reason `compat.pinned` is:
 the only substitutable value would be the `master` literal the clause retires.
+
+WHAT THIS MODULE DELIBERATELY NO LONGER HOLDS. The DESCRIPTOR TYPE every field
+below is an instance of lives in `_dispatcher_integration_field`, and the RESOLVED
+CONTRACT those fields resolve into lives in `_dispatcher_integration_contract`.
+Both were split off by cohesion: this module is read to answer "which obligations
+exist", and the other two are read to answer "what may be said about one" and
+"what did one repository answer" -- three questions that change on three separate
+occasions.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_defaults import (
+    CONFORMANCE_HOOK_INSTALL_INTERNAL_ARGV,
+    CONFORMANCE_MODES,
+    CONFORMANCE_NO_OP,
+    CONFORMANCE_VERIFY_COMMIT_REFUSE_HOOK_INTERNAL_ARGV,
+    CONFORMANCE_VERIFY_PLUGIN_RESOLUTION_INTERNAL_ARGV,
     FLEET_CORE_REPO_URL,
     JANITOR_BOOTSTRAP_RECIPE_DEFAULT,
     JANITOR_CHECK_SUITE_DEFAULT,
@@ -50,10 +61,27 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_defaults
     SANDBOX_EXEMPT_MARKERS,
     TOOLCHAIN_NO_OP,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_field import (
+    SHAPE_ARGV,
+    SHAPE_CONFORMANCE,
+    SHAPE_ENUM,
+    SHAPE_NAME,
+    VENUE_HOST_JANITOR,
+    VENUE_IN_SANDBOX_GATE,
+    IntegrationField,
+)
 
 __all__: list[str] = [
     "COMPAT_CORE_REPO_KEY",
     "COMPAT_PINNED_KEY",
+    "CONFORMANCE_FIELDS",
+    "CONFORMANCE_HOOK_INSTALL_FIELD",
+    "CONFORMANCE_HOOK_INSTALL_KEY",
+    "CONFORMANCE_KEY",
+    "CONFORMANCE_VERIFY_COMMIT_REFUSE_HOOK_FIELD",
+    "CONFORMANCE_VERIFY_COMMIT_REFUSE_HOOK_KEY",
+    "CONFORMANCE_VERIFY_PLUGIN_RESOLUTION_FIELD",
+    "CONFORMANCE_VERIFY_PLUGIN_RESOLUTION_KEY",
     "CORE_PINNED_REF_FIELD",
     "CORE_REPO_URL_FIELD",
     "DEFAULT_BRANCH_FIELD",
@@ -79,13 +107,6 @@ __all__: list[str] = [
     "SANDBOX_CHECK_SUITE_FIELD",
     "SANDBOX_EXEMPT_MARKER_FIELD",
     "SANDBOX_EXEMPT_MARKER_KEY",
-    "SHAPE_ARGV",
-    "SHAPE_ENUM",
-    "SHAPE_NAME",
-    "VENUE_HOST_JANITOR",
-    "VENUE_IN_SANDBOX_GATE",
-    "IntegrationField",
-    "RepoIntegrationContract",
 ]
 
 # The version the executing plugin build requires of a repository's declaration.
@@ -93,17 +114,6 @@ __all__: list[str] = [
 # contract version IS the schema version: a build names one number, and the
 # validation pass grades a declaration against that number as a whole.
 INTEGRATION_CONTRACT_SCHEMA_VERSION = 1
-
-# The two venues a check-suite legitimately differs between.
-VENUE_HOST_JANITOR = "host-janitor"
-VENUE_IN_SANDBOX_GATE = "in-sandbox-gate"
-
-# The three value shapes a field admits. `name` is a non-empty string, `argv` is
-# a command the resolver hands back as argv tokens, and `enum` is a closed set of
-# admitted strings.
-SHAPE_NAME = "name"
-SHAPE_ARGV = "argv"
-SHAPE_ENUM = "enum"
 
 # The committed keys, spelled EXACTLY as every operator-facing refusal names
 # them, so a reader of a refusal knows where in `.livespec.jsonc` to write the
@@ -125,83 +135,21 @@ SANDBOX_EXEMPT_MARKER_KEY = "dispatcher.sandbox_exempt_marker"
 PREPARE_TOOLCHAIN_MISE_KEY = "dispatcher.prepare_toolchain.mise"
 PREPARE_TOOLCHAIN_LEFTHOOK_KEY = "dispatcher.prepare_toolchain.lefthook"
 
+# The three DISPATCH-TIME BASELINE CONFORMANCE premises: installing the
+# commit-refuse Mechanism in the sandbox, and the two Verifiers that prove the
+# hook and the plugin resolution are actually there. They are declared under
+# their own `conformance` block rather than beside the `prepare_toolchain` pair
+# because they answer a different question -- those two provision a TOOLCHAIN,
+# these three establish a CONFORMANCE PREMISE the ratified baseline gate names.
+CONFORMANCE_KEY = "dispatcher.conformance"
+CONFORMANCE_HOOK_INSTALL_KEY = f"{CONFORMANCE_KEY}.hook_install"
+CONFORMANCE_VERIFY_COMMIT_REFUSE_HOOK_KEY = f"{CONFORMANCE_KEY}.verify_commit_refuse_hook"
+CONFORMANCE_VERIFY_PLUGIN_RESOLUTION_KEY = f"{CONFORMANCE_KEY}.verify_plugin_resolution"
+
 # The default branch is resolved from the repository's own git/forge state, so
 # its lookup path sits OUTSIDE every committed block on purpose: nothing an
 # adopter writes in `.livespec.jsonc` may answer it.
 DEFAULT_BRANCH_KEY = "default_branch"
-
-
-@dataclass(frozen=True, kw_only=True)
-class IntegrationField:
-    """One integration point: where it is declared, and what resolving it means.
-
-    `key` is the operator-facing name every refusal quotes; `path` is the dotted
-    lookup into the declaration. They differ wherever the two nestings differ --
-    the `compat` pair names the plugin block a reader must write under while
-    being looked up relative to it.
-
-    `required` marks a field whose ratified semantics admit NO safe default, so
-    an absent key resolves to `Defective` naming the absence rather than to a
-    substituted value.
-
-    `parent_key` is the ONLY-AN-ABSENT-KEY-FALLS-BACK rule made generic. Where it
-    is set, DECLARING the parent block makes this field required: a present
-    `dispatcher.master_ci` that names no `workflow` is a defect, because
-    defaulting the missing half would prove part of a pipeline the repository
-    never named. Where it is None -- `dispatcher.janitor.check_suite` -- a
-    present parent that omits the child is a genuine absence and falls back.
-
-    `declared_in_config` says whether this point is one a repository ANSWERS in
-    its committed declaration. It is True for every field an adopter writes and
-    False for the default branch alone, whose declaration is the repository
-    itself. The pre-dispatch schema-validation pass grades a DECLARATION, so it
-    grades exactly the fields carrying True: refusing there on an unprobed
-    branch would send an operator to fix a committed key that does not exist,
-    and the branch's own two-route resolution already refuses at the seam that
-    probes it.
-    """
-
-    attribute: str
-    key: str
-    path: str
-    shape: str
-    required: bool = False
-    fleet_default: str | tuple[str, ...] | None = None
-    admitted: tuple[str, ...] = ()
-    venue: str | None = None
-    parent_key: str | None = None
-    declared_in_config: bool = True
-
-
-@dataclass(frozen=True, kw_only=True)
-class RepoIntegrationContract:
-    """The resolved integration points of ONE governed repository.
-
-    Every field carries the value the generic resolver produced -- declared, or
-    the fleet default -- with an unresolvable field carrying its shape's
-    sentinel (`UNRESOLVED_NAME`, or the empty argv) rather than a plausible
-    fallback. A caller that ignores the accompanying defects therefore fails on
-    something that cannot run, never on a fleet value the repository has already
-    said is not its own.
-
-    Command-shaped fields are argv tuples, never shell strings: the split
-    happens ONCE, here, so no seam downstream re-tokenizes a command and no seam
-    can disagree with another about where its arguments end.
-    """
-
-    schema_version: int
-    master_ci_workflow: str
-    master_ci_job: str
-    janitor_check_suite: tuple[str, ...]
-    sandbox_check_suite: tuple[str, ...]
-    janitor_bootstrap_recipe: tuple[str, ...]
-    core_repo_url: str
-    core_pinned_ref: str
-    prepare_toolchain_mise: tuple[str, ...]
-    prepare_toolchain_lefthook: tuple[str, ...]
-    default_branch: str
-    merge_mode: str
-    sandbox_exempt_marker: str
 
 
 MASTER_CI_WORKFLOW_FIELD = IntegrationField(
@@ -281,6 +229,46 @@ PREPARE_TOOLCHAIN_LEFTHOOK_FIELD = IntegrationField(
     fleet_default=TOOLCHAIN_NO_OP,
 )
 
+CONFORMANCE_HOOK_INSTALL_FIELD = IntegrationField(
+    attribute="conformance_hook_install",
+    key=CONFORMANCE_HOOK_INSTALL_KEY,
+    path=CONFORMANCE_HOOK_INSTALL_KEY,
+    shape=SHAPE_CONFORMANCE,
+    fleet_default=CONFORMANCE_NO_OP,
+    admitted=CONFORMANCE_MODES,
+    internal_argv=CONFORMANCE_HOOK_INSTALL_INTERNAL_ARGV,
+)
+
+CONFORMANCE_VERIFY_COMMIT_REFUSE_HOOK_FIELD = IntegrationField(
+    attribute="conformance_verify_commit_refuse_hook",
+    key=CONFORMANCE_VERIFY_COMMIT_REFUSE_HOOK_KEY,
+    path=CONFORMANCE_VERIFY_COMMIT_REFUSE_HOOK_KEY,
+    shape=SHAPE_CONFORMANCE,
+    fleet_default=CONFORMANCE_NO_OP,
+    admitted=CONFORMANCE_MODES,
+    internal_argv=CONFORMANCE_VERIFY_COMMIT_REFUSE_HOOK_INTERNAL_ARGV,
+)
+
+CONFORMANCE_VERIFY_PLUGIN_RESOLUTION_FIELD = IntegrationField(
+    attribute="conformance_verify_plugin_resolution",
+    key=CONFORMANCE_VERIFY_PLUGIN_RESOLUTION_KEY,
+    path=CONFORMANCE_VERIFY_PLUGIN_RESOLUTION_KEY,
+    shape=SHAPE_CONFORMANCE,
+    fleet_default=CONFORMANCE_NO_OP,
+    admitted=CONFORMANCE_MODES,
+    internal_argv=CONFORMANCE_VERIFY_PLUGIN_RESOLUTION_INTERNAL_ARGV,
+)
+
+# The conformance premises as their own tuple, so a seam asking "is this field a
+# conformance premise?" reads the schema rather than matching on an attribute
+# name. Deliberately NOT a second closed set: `INTEGRATION_FIELDS` below still
+# enumerates every field, and these three are members of it.
+CONFORMANCE_FIELDS: tuple[IntegrationField, ...] = (
+    CONFORMANCE_HOOK_INSTALL_FIELD,
+    CONFORMANCE_VERIFY_COMMIT_REFUSE_HOOK_FIELD,
+    CONFORMANCE_VERIFY_PLUGIN_RESOLUTION_FIELD,
+)
+
 DEFAULT_BRANCH_FIELD = IntegrationField(
     attribute="default_branch",
     key=DEFAULT_BRANCH_KEY,
@@ -321,6 +309,9 @@ INTEGRATION_FIELDS: tuple[IntegrationField, ...] = (
     CORE_PINNED_REF_FIELD,
     PREPARE_TOOLCHAIN_MISE_FIELD,
     PREPARE_TOOLCHAIN_LEFTHOOK_FIELD,
+    CONFORMANCE_HOOK_INSTALL_FIELD,
+    CONFORMANCE_VERIFY_COMMIT_REFUSE_HOOK_FIELD,
+    CONFORMANCE_VERIFY_PLUGIN_RESOLUTION_FIELD,
     DEFAULT_BRANCH_FIELD,
     MERGE_MODE_FIELD,
     SANDBOX_EXEMPT_MARKER_FIELD,

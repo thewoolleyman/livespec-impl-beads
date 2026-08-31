@@ -42,14 +42,23 @@ import shlex
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 
+from livespec_orchestrator_beads_fabro.commands._dispatcher_conformance_premises import (
+    conformance_field,
+    conformance_mode,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_contract import (
+    ResolvedIntegrationContract,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_resolver import (
     Declared,
     Defective,
     FleetDefault,
     IntegrationResolution,
-    ResolvedIntegrationContract,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_schema import (
+    CONFORMANCE_HOOK_INSTALL_FIELD,
+    CONFORMANCE_VERIFY_COMMIT_REFUSE_HOOK_FIELD,
+    CONFORMANCE_VERIFY_PLUGIN_RESOLUTION_FIELD,
     DEFAULT_BRANCH_FIELD,
     MERGE_MODE_FIELD,
     PREPARE_TOOLCHAIN_LEFTHOOK_FIELD,
@@ -81,6 +90,11 @@ CONTRACT_INPUT_NAMES: Mapping[str, str] = {
     SANDBOX_CHECK_SUITE_FIELD.attribute: "sandbox_check_suite",
     PREPARE_TOOLCHAIN_MISE_FIELD.attribute: "prepare_toolchain_mise",
     PREPARE_TOOLCHAIN_LEFTHOOK_FIELD.attribute: "prepare_toolchain_lefthook",
+    CONFORMANCE_HOOK_INSTALL_FIELD.attribute: "conformance_hook_install",
+    CONFORMANCE_VERIFY_COMMIT_REFUSE_HOOK_FIELD.attribute: (
+        "conformance_verify_commit_refuse_hook"
+    ),
+    CONFORMANCE_VERIFY_PLUGIN_RESOLUTION_FIELD.attribute: ("conformance_verify_plugin_resolution"),
     SANDBOX_EXEMPT_MARKER_FIELD.attribute: "sandbox_exempt_marker",
     DEFAULT_BRANCH_FIELD.attribute: "default_branch",
     MERGE_MODE_FIELD.attribute: "merge_mode",
@@ -118,12 +132,18 @@ class ContractPrepareParameters:
     A toolchain premise an adopter does not carry resolves to the explicit
     no-op -- the empty argv -- which is a VALUE the ratified
     factory-sandbox-toolchain-disposition clause defines, never an absence to be
-    inferred from silence.
+    inferred from silence. The three CONFORMANCE premises carry the same no-op
+    for the same reason, one step further along: they are the prepare steps the
+    ratified baseline conformance gate names, and an adopter that carries none of
+    this fleet's tooling has to be able to say so as a value.
     """
 
     sandbox_exempt_marker: str
     toolchain_mise: tuple[str, ...]
     toolchain_lefthook: tuple[str, ...]
+    conformance_hook_install: tuple[str, ...]
+    conformance_verify_commit_refuse_hook: tuple[str, ...]
+    conformance_verify_plugin_resolution: tuple[str, ...]
 
 
 def contract_prompt_variables(*, resolved: ResolvedIntegrationContract) -> Mapping[str, str]:
@@ -168,6 +188,9 @@ def contract_prepare_parameters(
         sandbox_exempt_marker=contract.sandbox_exempt_marker,
         toolchain_mise=contract.prepare_toolchain_mise,
         toolchain_lefthook=contract.prepare_toolchain_lefthook,
+        conformance_hook_install=contract.conformance_hook_install,
+        conformance_verify_commit_refuse_hook=contract.conformance_verify_commit_refuse_hook,
+        conformance_verify_plugin_resolution=contract.conformance_verify_plugin_resolution,
     )
 
 
@@ -222,16 +245,17 @@ def integration_contract_journal_record(
     resolution. `defects` is restated as its own list because a reader asking
     "what was wrong with this repository at dispatch time" should not have to
     scan every field to find out.
+
+    A CONFORMANCE premise additionally reports its MODE, because its value alone
+    cannot answer the question a reader of this record actually has: the explicit
+    no-op and the absent key resolve to the same empty argv, and only the mode
+    beside the arm distinguishes a skip the adopter chose from one nobody wrote.
     """
     return {
         "integration_contract": {
             "schema_version": resolved.contract.schema_version,
             "fields": {
-                attribute: {
-                    "key": resolution.key,
-                    "arm": _arm(resolution=resolution),
-                    "value": _resolution_value(resolution=resolution),
-                }
+                attribute: _field_record(attribute=attribute, resolution=resolution)
                 for attribute, resolution in sorted(resolved.resolutions.items())
             },
             "defects": [
@@ -239,6 +263,19 @@ def integration_contract_journal_record(
             ],
         }
     }
+
+
+def _field_record(*, attribute: str, resolution: IntegrationResolution) -> dict[str, object]:
+    """One field's dispatch-record entry; a conformance premise also reports its mode."""
+    record: dict[str, object] = {
+        "key": resolution.key,
+        "arm": _arm(resolution=resolution),
+        "value": _resolution_value(resolution=resolution),
+    }
+    field = conformance_field(attribute=attribute)
+    if field is not None:
+        record["mode"] = conformance_mode(field=field, resolution=resolution)
+    return record
 
 
 def _arm(*, resolution: IntegrationResolution) -> str:

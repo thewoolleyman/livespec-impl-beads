@@ -29,7 +29,11 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     dispatch_fabro_run_inputs,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_argv import pr_arm_argv
+from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_contract import (
+    ResolvedIntegrationContract,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_defaults import (
+    CONFORMANCE_VERIFY_PLUGIN_RESOLUTION_INTERNAL_ARGV,
     JANITOR_CHECK_SUITE_DEFAULT,
     MERGE_MODE_DEFAULT,
     SANDBOX_CHECK_SUITE_DEFAULT,
@@ -45,9 +49,6 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_projecti
     integration_contract_journal_record,
     merge_method_flag,
     workflow_declared_inputs,
-)
-from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_resolver import (
-    ResolvedIntegrationContract,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
@@ -322,6 +323,93 @@ def test_prepare_parameters_project_the_marker_and_the_toolchain_premises() -> N
         contract_prepare_parameters(resolved=absent).sandbox_exempt_marker
         == SANDBOX_EXEMPT_MARKER_DEFAULT
     )
+
+
+def test_prepare_parameters_carry_the_three_conformance_premises() -> None:
+    """The baseline-gate prepare steps are values off the contract, no-op included."""
+    declared = resolve_repo_integration_contract(
+        config_text=_config(
+            dispatcher={
+                "conformance": {
+                    "hook_install": {"mode": "shell_argv", "argv": ["make", "hooks"]},
+                    "verify_plugin_resolution": {"mode": "internal_livespec_dev_tooling"},
+                }
+            }
+        ),
+        default_branch="master",
+    )
+    parameters = contract_prepare_parameters(resolved=declared)
+
+    assert parameters.conformance_hook_install == ("make", "hooks")
+    assert parameters.conformance_verify_plugin_resolution == (
+        CONFORMANCE_VERIFY_PLUGIN_RESOLUTION_INTERNAL_ARGV
+    )
+    # The premise this repository left unwritten carries the explicit no-op.
+    assert parameters.conformance_verify_commit_refuse_hook == ()
+
+
+def test_the_conformance_premises_cross_into_the_sandbox_as_named_inputs() -> None:
+    """An argv crosses shlex-joined as one scalar; the no-op crosses as the empty string."""
+    resolved = resolve_repo_integration_contract(
+        config_text=_config(
+            dispatcher={
+                "conformance": {
+                    "hook_install": {"mode": "shell_argv", "argv": ["make", "install hooks"]}
+                }
+            }
+        ),
+        default_branch="trunk",
+    )
+
+    variables = contract_prompt_variables(resolved=resolved)
+
+    # The input NAME equals the schema attribute, which is what makes the
+    # rendered-input set and the workflow's token set comparable at all.
+    assert {
+        attribute: name
+        for attribute, name in CONTRACT_INPUT_NAMES.items()
+        if attribute.startswith("conformance_")
+    } == {
+        "conformance_hook_install": "conformance_hook_install",
+        "conformance_verify_commit_refuse_hook": "conformance_verify_commit_refuse_hook",
+        "conformance_verify_plugin_resolution": "conformance_verify_plugin_resolution",
+    }
+    assert variables["conformance_hook_install"] == "make 'install hooks'"
+    assert variables["conformance_verify_plugin_resolution"] == ""
+
+
+def test_the_dispatch_record_reports_each_conformance_premises_mode() -> None:
+    """The value cannot say which mode produced it; the record must, so it does."""
+    resolved = resolve_repo_integration_contract(
+        config_text=_config(
+            dispatcher={
+                "conformance": {
+                    "hook_install": {"mode": "no_op"},
+                    "verify_commit_refuse_hook": {"mode": "not-a-mode"},
+                }
+            }
+        ),
+        default_branch="master",
+    )
+
+    record = integration_contract_journal_record(resolved=resolved)
+    contract = cast("dict[str, object]", record["integration_contract"])
+    fields = cast("dict[str, dict[str, object]]", contract["fields"])
+
+    assert fields["conformance_hook_install"] == {
+        "key": "dispatcher.conformance.hook_install",
+        "arm": "declared",
+        "value": "",
+        "mode": "no_op",
+    }
+    # The absent premise resolves to the SAME empty value; only arm and mode
+    # distinguish a chosen skip from one nobody wrote.
+    assert fields["conformance_verify_plugin_resolution"]["arm"] == "fleet-default"
+    assert fields["conformance_verify_plugin_resolution"]["mode"] == "no_op"
+    assert fields["conformance_verify_commit_refuse_hook"]["arm"] == "defective"
+    assert fields["conformance_verify_commit_refuse_hook"]["mode"] is None
+    # A field that is no conformance premise carries no mode key at all.
+    assert "mode" not in fields["merge_mode"]
 
 
 def test_the_resolved_merge_mode_projects_to_the_gh_pr_merge_method_flag(tmp_path: Path) -> None:

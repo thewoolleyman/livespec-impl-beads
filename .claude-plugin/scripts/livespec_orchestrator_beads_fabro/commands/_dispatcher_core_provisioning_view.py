@@ -34,6 +34,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_contract import (
+    ResolvedIntegrationContract,
+    resolve_integration_contract,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_declaration import (
     declaration_from_config_text,
 )
@@ -43,8 +47,6 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_defaults
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_resolver import (
     Defective,
-    ResolvedIntegrationContract,
-    resolve_integration_contract,
     resolved_name,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_schema import (

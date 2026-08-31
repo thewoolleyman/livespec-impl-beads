@@ -14,6 +14,9 @@ from livespec_orchestrator_beads_fabro.commands._config import FactoryTarget
 from livespec_orchestrator_beads_fabro.commands._dispatcher_completion import (
     warn_item_sizing,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_conformance_premises import (
+    emit_conformance_premise_notices,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_credentials import (
     materialize_overlay,
     read_dispatch_comments,
@@ -163,6 +166,11 @@ def _dispatch_one_locked(  # noqa: PLR0911 — one return per PRE-RUN REFUSAL ST
         acp_nodes=materialized.acp_nodes,
     )
     warn_item_sizing(item=item, journal=journal)
+    # Surfaced from the ONE contract the plan just resolved, on the same stderr
+    # channel as the other dispatch-time warnings, and never blocking: an
+    # undeclared conformance premise is a legitimate no-op that would otherwise
+    # be indistinguishable from a chosen one.
+    emit_conformance_premise_notices(resolved=plan.integration, journal=journal)
     comments = read_dispatch_comments(repo=repo, item=item)
     if isinstance(comments, str):
         return failed_dispatch_outcome(
