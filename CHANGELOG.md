@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.122.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.121.0...v0.122.0) (2026-08-31)
+
+
+### Features
+
+* **payload:** template the implement-work-item payload from the resolved integration contract (bd-ib-b7xpzl) ([39526e5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/39526e5c4840da7f7fabc64b71144f11bf67bb5f))
+
 ## [0.121.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.120.0...v0.121.0) (2026-08-31)
 
 
