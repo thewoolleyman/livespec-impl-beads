@@ -77,6 +77,31 @@ a unit-tier test); its dotted node-id prefix `tests.integration` is in the
   legs stay the member's fleet-default posture and the adopter's fully-declared
   one.
 
+- `test_declared_integration_points_scenario96.py`,
+  `test_integration_validation_pass_scenario97.py` and
+  `test_janitor_venue_merged_tip_scenario98.py` — bind
+  `SPECIFICATION/scenarios.md` Scenarios 96, 97 and 98, each over BOTH
+  governed-repository fixtures. The first walks the schema's own closed field
+  set through the ONE generic resolver, asserting per point that a committed
+  declaration resolves `Declared` carrying its value verbatim, that a truly
+  absent key resolves `FleetDefault` where the schema declares one and
+  `Defective` where none exists, and that a present-but-null key is `Defective`
+  rather than a slide onto the convention; a sibling case asserts a committed
+  check-suite outranks the per-invocation `--janitor` override, with the
+  inheriting leg as the control that the override is reachable at all. The
+  second drives the pre-dispatch validation pass's two-sided verdict — the
+  committed declaration admitted unchanged, two unmet points refused once with
+  both enumerated — and models a plugin upgrade by appending a field to the
+  closed set, so an earlier repository's ABSENCE stays ungraded (nothing
+  mid-pipeline is stranded) while a written-but-unusable point refuses fast. The
+  third builds a REAL repository whose item merged before a later
+  janitor-environment fix landed, resolves the venue and provisions there
+  through production code, and controls the claim by provisioning the same
+  repository at the retired historical merge sha, which cannot carry the fix;
+  its sibling case asserts a tip that does not contain the merge degrades with
+  the missing point and remedy, running the merge-presence check and nothing
+  else.
+
 Coverage rules: 100% line + branch on every covered module, as everywhere in
 this repo. Build state through the public store/client seam (or a small
 read-only stub for shapes the fake's public surface never produces); never read
