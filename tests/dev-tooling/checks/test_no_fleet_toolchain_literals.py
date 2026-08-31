@@ -200,17 +200,20 @@ def test_payload_paths_select_only_payload_suffixes(tmp_path: Path) -> None:
     ]
 
 
-def test_unexempted_findings_excuse_both_allow_lists(tmp_path: Path) -> None:
+def test_unexempted_findings_excuse_only_the_measured_package_sites(tmp_path: Path) -> None:
     check = _load_check()
     package = tmp_path / _PACKAGE_RELPATH
     _write(path=package / "commands/_dispatcher_fabro_argv.py", text='ARGV = ["mise"]\n')
     _write(path=package / "commands/_dispatcher_new.py", text='ARGV = ["mise"]\n')
-    for relpath in sorted(check.PAYLOAD_ALLOWLIST):
-        _write(path=tmp_path / relpath, text="run lefthook install\n")
+    payload = f"{_PAYLOAD_RELPATH}/workflow.toml"
+    _write(path=tmp_path / payload, text="run lefthook install\n")
 
     findings = check.unexempted_findings(repo_root=tmp_path)
 
-    assert [finding.relpath for finding in findings] == ["commands/_dispatcher_new.py"]
+    # The measured package site is excused; the payload has NO allow-list, so a
+    # fleet literal there is a finding exactly as an unmeasured package one is.
+    assert [finding.relpath for finding in findings] == ["commands/_dispatcher_new.py", payload]
+    assert not hasattr(check, "PAYLOAD_ALLOWLIST")
 
 
 def test_stale_exemptions_report_entries_the_tree_no_longer_needs(tmp_path: Path) -> None:
@@ -219,9 +222,8 @@ def test_stale_exemptions_report_entries_the_tree_no_longer_needs(tmp_path: Path
 
     stale = check.stale_exemptions(repo_root=tmp_path)
 
-    assert len(stale) == len(check.MEASURED_EXEMPTIONS) + len(check.PAYLOAD_ALLOWLIST)
+    assert len(stale) == len(check.MEASURED_EXEMPTIONS)
     assert any("_dispatcher_fabro_argv.py" in entry for entry in stale)
-    assert any("workflow.toml" in entry for entry in stale)
 
 
 def test_control_failures_report_an_unwalked_tree_and_a_missing_fixture(tmp_path: Path) -> None:

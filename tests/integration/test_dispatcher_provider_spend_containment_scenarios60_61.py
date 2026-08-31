@@ -649,7 +649,7 @@ def test_scenario61_the_dispatched_workflow_truncates_an_unchanged_tree(
     # unchanged arm carries the breaker's own sentinel.
     node = re.search(r"\bimplementation_diff\s*\[(?P<body>[^\]]*)\]", graph)
     assert node is not None
-    assert "git diff --quiet origin/master...HEAD" in node.group("body")
+    assert "git diff --quiet origin/{{ inputs.default_branch }}...HEAD" in node.group("body")
     assert re.search(r"\bimplement\s*->\s*implementation_diff\b(?![^\n]*condition=)", graph)
     assert re.search(
         r"\bimplementation_diff\s*->\s*dead_implementer\b(?![^\n]*condition=)",

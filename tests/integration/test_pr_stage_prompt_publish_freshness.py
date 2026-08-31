@@ -14,11 +14,13 @@ _PR_PROMPT = (
     / "prompts"
     / "pr.md"
 )
-_FETCH = "mise exec -- git fetch origin master --quiet"
-_REBASE = "mise exec -- git rebase origin/master"
-_PUSH = "mise exec -- git push -u origin HEAD:refs/heads/feat/<work-item-id>"
+# The default branch is the resolved integration-contract field, rendered by
+# fabro from `inputs.default_branch`; the prompt never spells a branch name.
+_FETCH = "git fetch origin {{ inputs.default_branch }} --quiet"
+_REBASE = "git rebase origin/{{ inputs.default_branch }}"
+_PUSH = "git push -u origin HEAD:refs/heads/feat/<work-item-id>"
 _LEASE_PUSH = (
-    "mise exec -- git push --force-with-lease="
+    "git push --force-with-lease="
     "refs/heads/feat/<work-item-id>:<observed-remote-tip> "
     "origin HEAD:refs/heads/feat/<work-item-id>"
 )
@@ -84,6 +86,15 @@ def test_pr_stage_never_instructs_bare_force_push() -> None:
     assert "--force-with-lease" in prompt
     assert " --force " not in prompt
     assert " --force\n" not in prompt
+
+
+def test_pr_stage_arms_auto_merge_with_the_declared_merge_mode() -> None:
+    """The merge-method flag is a projection of `dispatcher.merge_mode`, not a literal."""
+    prompt = _prompt_text()
+
+    assert "gh pr merge --{{ inputs.merge_mode }} --auto --delete-branch" in prompt
+    assert "--rebase" not in prompt
+    assert "--squash" not in prompt
 
 
 def test_pr_stage_does_not_authorize_workflow_file_edits() -> None:
