@@ -59,22 +59,27 @@ Optional follow-ups (skip-confirmable):
 
 #### Writing acceptance criteria
 
-The acceptance pass grades the criteria field LINE BY LINE, one line at
-a time, as standalone claims. Filers MUST therefore write **one
-unwrapped assertion per line**:
+The acceptance pass grades the criteria field one gradeable ASSERTION at a
+time, as standalone claims. `criteria_lines` segments the field by CONTENT,
+never by line width: only a blank line, a list marker, or a header starts a
+block, and each block is then split into sentences. A flush-left line with
+no marker CONTINUES the block above it. Filers MUST therefore write **one
+bulleted assertion per criterion, ending in a period**:
 
-- **One assertion per line.** Each line states exactly one checkable
-  claim about the change this item lands.
-- **Never wrap a sentence across lines.** Let a line run long instead.
-  The parser starts a NEW criterion at every non-indented line, so a
-  sentence reflowed at a column boundary is graded as several standalone
-  fragments, and each fragment is judged for evidence it cannot carry —
-  a correct, fully-implemented item fails on its own formatting. Only an
-  INDENTED continuation line is joined onto the criterion above it, so
-  indentation is the sole safe wrap.
+- **One `- ` bullet per assertion, each a complete sentence with a
+  terminal period.** The marker starts the block and the period ends the
+  sentence, so the assertion is graded on its own however the text is
+  later reflowed. Plain flush-left lines with no marker and no period
+  collapse into ONE assertion (measured 2026-08-31: nine such lines
+  parsed as one; the same nine as bullets parsed as nine).
+- **Wrapping is safe inside a bullet.** A continuation line, indented or
+  not, joins the sentence it belongs to; what must not happen is two
+  assertions sharing one sentence.
 - **Keep rationale, provenance and explanation out of the field.** They
   belong in the description or a ledger comment; in the criteria field
-  they become fragments that are graded as assertions.
+  they become sentences that are graded as assertions.
+- **No negative criteria.** The judge passes a criterion on literal
+  merged-diff vocabulary, and "no file contains X" has none to offer.
 
 Apply this AT FILING TIME. Acceptance grades the criteria SNAPSHOT taken
 at dispatch time, not the live ledger row, so a post-dispatch reflow of
@@ -119,7 +124,7 @@ item = WorkItem(
     audit=None,
     superseded_by=None,
     spec_commitment_hint=spec_commitment_hint,  # str | None; None for freeform.
-    # One unwrapped assertion per line, per "Writing acceptance criteria".
+    # One `- ` bullet per assertion, each ending in a period, per "Writing acceptance criteria".
     acceptance_criteria=acceptance_criteria,  # str | None; None when unsupplied.
 )
 append_work_item(path=config, item=item)

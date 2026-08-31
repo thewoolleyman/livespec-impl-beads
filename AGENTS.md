@@ -244,7 +244,12 @@ preview — a v1.2.x binary migrates an older store ON OPEN, before printing
 through any `bd` verb; and a fleet pause must stop the ROOT system timer
 `reconcile-runs.timer` (`systemctl list-timers --all`, system AND user manager),
 which reads this repo's ledger every ten minutes and auto-migrated this tenant
-mid-cutover. If a database has already been migrated to v65, do NOT
+mid-cutover. That attribution came from the SUDO JOURNAL, which is the
+instrument for "which process touched a tenant": every `with-*-env.sh` wrapper
+call re-execs through `sudo`, so `journalctl --since <t1> --until <t2>
+-o short-iso _COMM=sudo | grep 'PWD=/data/projects/<repo>'` lists each call
+with its full command, and `-o verbose` adds the owning `_SYSTEMD_UNIT`; the
+Dolt server's own journal logs nothing per connection. If a database has already been migrated to v65, do NOT
 improvise: roll the schema cursor back per upstream's `docs/RECOVERY-1.2.1.md`
 (at tag v1.2.2), use `BD_IGNORE_SCHEMA_SKEW=1` only as a stopgap, and upgrade
 **every** clone before recovering — a leftover v1.2.1 binary silently
@@ -675,13 +680,23 @@ having already shipped the `reconcile-merged` valve that one recommendation woul
 have broken, and a filed item asserted a dispatch produced "no PR" when its PR had
 in fact merged.)
 
-**Write acceptance criteria for the line-by-line evaluator before filing.** Each
-line in the acceptance-criteria field is graded as a checkable claim, so write
-one assertion per line, unwrapped; let a line run long rather than wrapping a
-sentence across lines. Keep explanatory prose, rationale, and provenance in the
-description or a comment instead of the criteria field. Apply this at FILING
-time because the evaluator reads the dispatch-time criteria snapshot, so editing
-an item mid-run cannot rescue an in-flight dispatch. The underlying defects and
+**Write acceptance criteria as `- ` bullets, one assertion each, ending in a
+period — and verify the parse before filing.** The evaluator grades the
+criteria field one gradeable assertion at a time, and `criteria_lines`
+(`commands/_dispatcher_acceptance_criteria.py`, since `e4db2e5d`) segments by
+CONTENT, not by line: only a blank line, a list marker, or a header starts a
+block, and each block is then split into sentences. A flush-left line with no
+marker CONTINUES the previous block, so the older advice here — "one unwrapped
+assertion per line" — now produces the opposite of what it promises. Measured
+2026-08-31 on `bd-ib-6up7oj`: nine plain lines with no markers and no terminal
+periods parsed as ONE assertion; the same nine as `- …` bullets each ending in
+a period parsed as nine. Keep explanatory prose, rationale, and provenance in
+the description or a comment, and do not write negative criteria ("no file
+contains X") — the judge passes on literal diff vocabulary and a negative has
+none. Check the result with `effective_criteria(item=...).parse_display()` (the
+capture and groom front-ends print it) and apply all of this at FILING time,
+because the evaluator reads the dispatch-time criteria snapshot, so editing an
+item mid-run cannot rescue an in-flight dispatch. The underlying defects and
 measurements are tracked in `bd-ib-tfpdya` and `bd-ib-5z0g`.
 
 **And keep every criterion inside the MERGED DIFF'S OWN VOCABULARY — a criterion
