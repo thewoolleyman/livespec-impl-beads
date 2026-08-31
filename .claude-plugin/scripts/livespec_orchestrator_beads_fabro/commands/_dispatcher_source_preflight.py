@@ -19,6 +19,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from livespec_orchestrator_beads_fabro.commands._dispatcher_default_branch import (
+    resolve_default_branch,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandResult,
     CommandRunner,
@@ -39,6 +42,17 @@ __all__: list[str] = [
 
 _GIT_PREFLIGHT_TIMEOUT_SECONDS = 30.0
 _MAX_UNPUSHED_COMMITS = 20
+
+# The synthesized outcome of a dry-run push that was never attempted, because a
+# detached HEAD on a repository whose default branch neither resolution route
+# would name leaves no ref to push at. A non-zero code so a reader tallying the
+# quoted outcome cannot read it as a push that succeeded.
+_UNNAMEABLE_TARGET_EXIT = 1
+_NO_TARGET_DETAIL = (
+    "HEAD is detached and neither `git symbolic-ref refs/remotes/origin/HEAD` nor "
+    "`gh repo view --json defaultBranchRef` named a default branch, so there is no "
+    "branch to dry-run a push at\n"
+)
 
 
 def source_checkout_preflight(*, repo: Path, runner: CommandRunner) -> SourceCheckoutOutcome:
@@ -110,8 +124,29 @@ def _unpushed_commits(*, repo: Path, runner: CommandRunner) -> tuple[str, ...]:
 
 
 def _dry_run_source_push(*, repo: Path, runner: CommandRunner) -> CommandResult:
+    """The dry-run push whose outcome the refusal quotes, onto a NAMED branch.
+
+    A detached HEAD names no branch of its own, so the target falls back to the
+    repository's own default branch through the ONE shared two-route resolution
+    the ratified default-branch-resolution clause names. It used to fall back to
+    a branch name this fleet happens to use, which on an adopter dry-ran against
+    a ref they do not have and reported that ref's absence as the push outcome --
+    diagnostic evidence about our assumption rather than about their checkout.
+
+    This step has no dispatch plan in scope: it runs before one is built, on a
+    repository whose contract has not been resolved. So it resolves the branch
+    itself, through the shared resolver rather than through a constant.
+
+    When neither route names a branch there is no target to push at, and the
+    outcome SAYS so rather than pushing at a guess. It is evidence inside a
+    refusal that has already been decided, so this cannot mask a pass.
+    """
     branch = _git_stdout(repo=repo, runner=runner, argv=["rev-parse", "--abbrev-ref", "HEAD"])
-    target = branch if branch and branch != "HEAD" else "master"
+    target = (
+        branch if branch and branch != "HEAD" else resolve_default_branch(repo=repo, runner=runner)
+    )
+    if target is None:
+        return CommandResult(exit_code=_UNNAMEABLE_TARGET_EXIT, stdout="", stderr=_NO_TARGET_DETAIL)
     return _git(repo=repo, runner=runner, argv=["push", "--dry-run", "origin", f"HEAD:{target}"])
 
 

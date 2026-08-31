@@ -32,6 +32,16 @@ probe here, taken minutes later against a repository whose `origin/HEAD` may
 have been re-pointed in between, could. A branch nobody could name is not a
 venue either: when both resolution routes were silent the field resolves to its
 sentinel and the venue degrades rather than guessing at a ref.
+
+AND THE TRUST STEP IS A PREMISE OF THE VENUE'S COMMANDS, NOT A STEP EVERY
+REPOSITORY OWES. Provisioning used to run this fleet's per-path trust command in
+every fresh checkout, on the reasoning that it warns and exits 0 where there is
+no config to trust. That reasoning assumed the tool was INSTALLED, which is true
+of a fleet member and of nothing else -- on a host carrying none of this fleet's
+tooling the step simply fails, and degrades a post-merge outcome for a premise
+that repository never declared. It now rides the resolution ARM of the
+host-janitor points, so it is emitted exactly where the fleet toolchain is what
+the venue is about to run.
 """
 
 from __future__ import annotations
@@ -45,6 +55,13 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_core_provisioning_vi
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_journal import run_stage
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_defaults import (
     UNRESOLVED_NAME,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_resolver import (
+    FleetDefault,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_schema import (
+    JANITOR_BOOTSTRAP_RECIPE_FIELD,
+    JANITOR_CHECK_SUITE_FIELD,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_degraded import (
     DegradedStep,
@@ -75,6 +92,7 @@ if TYPE_CHECKING:
 __all__: list[str] = [
     "UNRESOLVED_VENUE",
     "JanitorVenue",
+    "fleet_toolchain_is_the_host_janitor_premise",
     "provision_janitor_checkout",
     "resolve_janitor_venue",
 ]
@@ -153,6 +171,31 @@ def resolve_janitor_venue(
     return JanitorVenue(ref=tip)
 
 
+def fleet_toolchain_is_the_host_janitor_premise(*, plan: DispatchPlan) -> bool:
+    """Whether the host-janitor venue's own steps rest on THIS fleet's toolchain.
+
+    The venue provisions a fresh checkout and then runs two commands in it: the
+    hook-install recipe and the check-suite. Where either resolved to the
+    `FleetDefault` arm the repository declared nothing there and inherited this
+    fleet's own invocation, so the fleet toolchain IS the premise of the venue
+    and its per-path trust step is part of provisioning it. Where BOTH resolved
+    `Declared`, the venue runs the repository's own commands and this fleet's
+    tooling is not a premise of anything about it -- so imposing a trust step
+    would run a tool the repository never carried, and on a host without it
+    would degrade the post-merge outcome for a premise nobody asked for.
+
+    The ARM is what is read, never the VALUE: a repository is free to declare
+    exactly the fleet convention, and a value comparison would then read a
+    deliberate declaration as an inheritance. Both arms come off the plan's ONE
+    resolved contract, so this cannot disagree with the resolution the dispatch
+    record journaled.
+    """
+    return any(
+        isinstance(plan.integration.resolutions[field.attribute], FleetDefault)
+        for field in (JANITOR_CHECK_SUITE_FIELD, JANITOR_BOOTSTRAP_RECIPE_FIELD)
+    )
+
+
 def provision_janitor_checkout(
     *,
     outcome_type: type[DispatchOutcome],
@@ -220,6 +263,17 @@ def provision_janitor_checkout(
     core_step = (
         f"provisioning livespec core at {plan.janitor_core_checkout} (ref {plan.janitor_core_ref})"
     )
+    trust_step = (
+        f"trusting the fleet toolchain config in the janitor checkout {plan.janitor_checkout}"
+    )
+    # The trust step is a PREMISE of the fleet-default host-janitor commands, so
+    # it rides the same resolution they do rather than running on every governed
+    # repository. An adopter's venue therefore carries no such step at all.
+    trust = (
+        (("janitor-checkout-trust", janitor_trust_argv(), plan.janitor_checkout, trust_step, None),)
+        if fleet_toolchain_is_the_host_janitor_premise(plan=plan)
+        else ()
+    )
     steps = (
         (
             "janitor-checkout-add",
@@ -231,13 +285,7 @@ def provision_janitor_checkout(
             ),
             None,
         ),
-        (
-            "janitor-checkout-trust",
-            janitor_trust_argv(),
-            plan.janitor_checkout,
-            f"`mise trust` inside the janitor checkout {plan.janitor_checkout}",
-            None,
-        ),
+        *trust,
         (
             "janitor-checkout-bootstrap",
             janitor_bootstrap_argv(recipe=recipe),

@@ -1494,19 +1494,16 @@ def test_argv_builders_encode_family_discipline(tmp_path: Path) -> None:
         "--delete-branch",
     ]
     assert pr_update_branch_argv(plan=plan, number=7) == ["gh", "pr", "update-branch", "7"]
+    # Plain `git`, and the branch READ OFF the plan's resolved contract: no fleet
+    # runner wrapper, and no bare branch-name fallback inside a shell string.
     assert pull_primary_argv(plan=plan) == [
-        "mise",
-        "exec",
-        "--",
-        "sh",
-        "-lc",
-        (
-            'branch="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null '
-            '|| printf master)"; branch="${branch#origin/}"; '
-            'git -C "$1" pull --ff-only origin "$branch"'
-        ),
-        "pull-primary",
+        "git",
+        "-C",
         str(tmp_path),
+        "pull",
+        "--ff-only",
+        "origin",
+        plan.integration.contract.default_branch,
     ]
     # The venue is a resolved default-branch TIP, never the item's merge sha.
     assert janitor_worktree_add_argv(plan=plan, tip="origin/main") == [
@@ -2924,7 +2921,7 @@ def test_engine_degrades_when_mise_trust_fails(tmp_path: Path) -> None:
     )
     outcome, _, _ = _dispatch(runner=runner, repo=tmp_path)
     assert (outcome.status, outcome.stage) == ("green", "janitor-env-degraded")
-    assert "mise trust" in outcome.detail
+    assert "trusting the fleet toolchain config" in outcome.detail
     assert "config not trusted" in outcome.detail
     trust_argv, trust_cwd = runner.calls[8]
     assert trust_argv == ["mise", "trust"]

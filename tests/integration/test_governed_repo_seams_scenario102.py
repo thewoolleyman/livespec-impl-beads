@@ -19,11 +19,35 @@ one: an absence-assertion whose instrument is proven able to return a hit.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from livespec_orchestrator_beads_fabro.commands._config import dispatcher_block
 from livespec_orchestrator_beads_fabro.commands._dispatcher_ci_pipeline_view import (
     resolve_master_ci_pipeline,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
+    CommandResult,
+    DispatchOutcome,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_argv import (
+    janitor_trust_argv,
+    pull_primary_argv,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_hook_install_recipe import (
+    DEFAULT_RESOLUTION,
+    JanitorBootstrapRecipe,
+    hook_install_recipe_present,
+    janitor_bootstrap_recipe_from_block,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_declaration import (
     declaration_from_config_text,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_defaults import (
+    FLEET_RECIPE_RUNNER,
+    RELEASE_REPOSITORY_MASTER_REF,
+    RELEASE_REPOSITORY_RELEASE_REF,
+    RELEASE_REPOSITORY_URL,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_projection import (
     CONTRACT_INPUT_NAMES,
@@ -38,7 +62,26 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_schema i
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_validation import (
     validate_declaration,
 )
-from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import DispatchPlan, build_plan
+from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_venue import (
+    fleet_toolchain_is_the_host_janitor_premise,
+    provision_janitor_checkout,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
+    DispatchPlan,
+    PrView,
+    build_plan,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_reconcile_merged_pr import (
+    merged_pr_list_argv,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_source_preflight import (
+    source_checkout_preflight,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_staleness_gate import (
+    latest_release_ref_argv,
+    master_ref_argv,
+)
+from livespec_orchestrator_beads_fabro.types import WorkItem
 
 from tests.integration.governed_repo_fixtures import (
     FLEET_TOOLCHAIN_FILES,
@@ -47,6 +90,32 @@ from tests.integration.governed_repo_fixtures import (
     GovernedRepo,
     fleet_toolchain_token,
     over_both_fixtures,
+)
+
+_ITEM = WorkItem(
+    id="fixture-1",
+    type="feature",
+    status="active",
+    title="fixture",
+    description="the item each parametrized seam is exercised for",
+    origin="freeform",
+    gap_id=None,
+    rank="a0",
+    assignee=None,
+    depends_on=(),
+    captured_at="2026-08-31T00:00:00Z",
+    resolution=None,
+    reason=None,
+    audit=None,
+    superseded_by=None,
+)
+_MERGED = PrView(
+    number=7,
+    state="MERGED",
+    auto_merge_armed=True,
+    merge_state_status="CLEAN",
+    merge_sha="cafe01",
+    terminal_required_check_failures=(),
 )
 
 
@@ -175,6 +244,202 @@ def test_no_fleet_toolchain_literal_reaches_an_adopter_projection(
     tokens = {token for line in lines if (token := fleet_toolchain_token(line=line)) is not None}
 
     assert bool(tokens) is governed.carries_fleet_toolchain
+
+
+@over_both_fixtures
+def test_the_primary_refresh_and_merged_pr_search_name_the_resolved_branch(
+    governed: GovernedRepo,
+) -> None:
+    """Seam: the two argvs that used to pin a branch name this fleet happens to use.
+
+    `pull_primary_argv` carried the fleet runner wrapper AND a shell-string
+    fallback to a bare branch name; the merged-PR search pinned its `--base` to
+    one. Both now read the plan's resolved `default_branch`, which the fixtures
+    probe as a branch NEITHER `master` nor `main` -- so a surviving constant
+    cannot pass by agreeing with the answer.
+    """
+    plan = _plan(governed=governed)
+
+    pull = pull_primary_argv(plan=plan)
+    search = merged_pr_list_argv(
+        item=_ITEM, default_branch=plan.integration.contract.default_branch
+    )
+
+    assert pull == ["git", "-C", str(governed.root), "pull", "--ff-only", "origin", "release"]
+    assert search[search.index("--base") + 1] == PROBED_DEFAULT_BRANCH
+    assert [line for line in (*pull, *search) if fleet_toolchain_token(line=line) is not None] == []
+
+
+@over_both_fixtures
+def test_the_host_janitor_venue_emits_the_trust_step_only_on_its_own_premise(
+    governed: GovernedRepo,
+) -> None:
+    """Seam: the host-janitor argv SEQUENCE, driven through production provisioning.
+
+    The member leg is the positive control -- it must find the trust step, since
+    an absence reported by a sequence that could never contain it is not
+    evidence -- and the adopter leg asserts no argv of the whole sequence carries
+    a fleet token at all.
+    """
+    plan = _plan(governed=governed)
+    runner = _AlwaysOk()
+
+    outcome = provision_janitor_checkout(
+        outcome_type=DispatchOutcome,
+        plan=plan,
+        runner=runner,
+        journal=_Journal(),
+        merged=_MERGED,
+        recipe=janitor_bootstrap_recipe_from_block(
+            block=dispatcher_block(cwd=governed.root),
+        ),
+    )
+    argvs = [argv for argv, _ in runner.calls]
+
+    assert outcome is None
+    assert (
+        fleet_toolchain_is_the_host_janitor_premise(plan=plan) is governed.carries_fleet_toolchain
+    )
+    assert (janitor_trust_argv() in argvs) is governed.carries_fleet_toolchain
+    tokens = {
+        token
+        for argv in argvs
+        for line in argv
+        if (token := fleet_toolchain_token(line=line)) is not None
+    }
+    assert bool(tokens) is governed.carries_fleet_toolchain
+
+
+@over_both_fixtures
+def test_the_hook_install_re_verification_finds_each_fixture_its_own_recipe(
+    governed: GovernedRepo,
+) -> None:
+    """Seam: the recipe re-verification, whose runner NAME now comes from defaults.
+
+    Each fixture resolves its OWN recipe, and only the member's carries the fleet
+    recipe runner. The second half is the discrimination itself, asserted on ONE
+    recipe run against both trees so the two legs differ in the repository rather
+    than in the input: a fleet-shaped recipe is answered from the member's
+    committed justfile and is absent from the adopter's tree, and the name that
+    sends it down the justfile route is read from the fleet-defaults module
+    rather than from a parser constant of this module's own.
+
+    The justfile route is deliberately the one under test here because it reaches
+    no PATH: an invocability answer would depend on which tools this host happens
+    to carry, which is not a property of either fixture.
+    """
+    recipe = janitor_bootstrap_recipe_from_block(block=dispatcher_block(cwd=governed.root))
+    fleet_shaped = JanitorBootstrapRecipe(
+        command=(FLEET_RECIPE_RUNNER, "install-commit-refuse-hooks"),
+        text=f"{FLEET_RECIPE_RUNNER} install-commit-refuse-hooks",
+        resolution=DEFAULT_RESOLUTION,
+    )
+
+    assert recipe.command == governed.bootstrap_recipe
+    assert (FLEET_RECIPE_RUNNER in recipe.command) is governed.carries_fleet_toolchain
+    assert (
+        hook_install_recipe_present(repo=governed.root, recipe=fleet_shaped)
+        is governed.carries_fleet_toolchain
+    )
+
+
+@over_both_fixtures
+def test_the_source_preflight_dry_run_targets_the_resolved_branch(
+    governed: GovernedRepo,
+) -> None:
+    """Seam: the pre-plan step, which has no contract to read and resolves its own.
+
+    It runs before a plan exists, so it reaches the SHARED two-route resolver
+    rather than the resolved contract -- and, like every other converted site,
+    carries no branch-name constant to fall back to.
+    """
+    runner = _DetachedHead(default_branch=PROBED_DEFAULT_BRANCH)
+
+    outcome = source_checkout_preflight(repo=governed.root, runner=runner)
+
+    assert outcome.refusal is not None
+    assert ["git", "push", "--dry-run", "origin", f"HEAD:{PROBED_DEFAULT_BRANCH}"] in runner.argvs
+    assert not any("HEAD:master" in argv or "HEAD:main" in argv for argv in runner.argvs)
+
+
+@over_both_fixtures
+def test_the_currency_gate_probes_this_plugin_and_never_a_governed_repository(
+    governed: GovernedRepo,
+) -> None:
+    """Seam: the staleness gate, whose refs are THIS plugin's own release identity.
+
+    Parametrized like every other seam, and the assertion is what the
+    parametrization is for: the argv is byte-identical for both fixtures, because
+    the gate asks about the orchestrator's own publishing rather than about the
+    repository being dispatched. Its refs are read from the fleet-defaults module
+    -- the one place a bare default-branch ref may be spelled.
+    """
+    assert master_ref_argv() == (
+        "git",
+        "ls-remote",
+        RELEASE_REPOSITORY_URL,
+        RELEASE_REPOSITORY_MASTER_REF,
+    )
+    assert latest_release_ref_argv()[-1] == RELEASE_REPOSITORY_RELEASE_REF
+    assert str(governed.root) not in master_ref_argv()
+
+
+@dataclass(kw_only=True)
+class _AlwaysOk:
+    """A `CommandRunner` that succeeds, so the WHOLE provisioning sequence is recorded."""
+
+    calls: list[tuple[list[str], Path]] = field(default_factory=list)
+
+    def run(
+        self,
+        *,
+        argv: list[str],
+        cwd: Path,
+        timeout_seconds: float,
+        env: dict[str, str] | None = None,
+    ) -> CommandResult:
+        _ = (timeout_seconds, env)
+        self.calls.append((argv, cwd))
+        return CommandResult(exit_code=0, stdout="", stderr="")
+
+
+@dataclass(kw_only=True)
+class _Journal:
+    """The append-only journal seam, collected rather than written to disk."""
+
+    records: list[dict[str, object]] = field(default_factory=list)
+
+    def append(self, *, record: dict[str, object]) -> None:
+        self.records.append(record)
+
+
+@dataclass(kw_only=True)
+class _DetachedHead:
+    """A checkout on a detached HEAD, unreachable from origin, with a named default."""
+
+    default_branch: str
+    argvs: list[list[str]] = field(default_factory=list)
+
+    def run(
+        self,
+        *,
+        argv: list[str],
+        cwd: Path,
+        timeout_seconds: float,
+        env: dict[str, str] | None = None,
+    ) -> CommandResult:
+        _ = (cwd, timeout_seconds, env)
+        self.argvs.append(argv)
+        tail = tuple(argv[1:])
+        if tail[:2] == ("rev-parse", "--is-inside-work-tree"):
+            return CommandResult(exit_code=0, stdout="true\n", stderr="")
+        if tail == ("rev-parse", "--abbrev-ref", "HEAD"):
+            return CommandResult(exit_code=0, stdout="HEAD\n", stderr="")
+        if tail[:1] == ("symbolic-ref",):
+            return CommandResult(exit_code=0, stdout=f"origin/{self.default_branch}\n", stderr="")
+        if tail[:1] == ("rev-parse",):
+            return CommandResult(exit_code=0, stdout="abc123\n", stderr="")
+        return CommandResult(exit_code=1, stdout="", stderr="unreachable\n")
 
 
 def _plan(*, governed: GovernedRepo) -> DispatchPlan:

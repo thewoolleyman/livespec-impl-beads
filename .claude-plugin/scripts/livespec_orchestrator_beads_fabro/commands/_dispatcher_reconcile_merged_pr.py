@@ -48,14 +48,29 @@ def resolve_merged_pr(
     )
     if viewed.exit_code == 0:
         return _merged_pr_view(stdout=viewed.stdout)
+    # The base branch is read off the plan's ONE resolved contract. Pinning the
+    # search to a branch name this fleet happens to use searched an adopter's
+    # forge for merges onto a branch they do not have -- a clean, plausible,
+    # empty result, reported as "no merged PR belongs to this item".
+    default_branch = plan.integration.contract.default_branch
     searched = run_stage(
         runner=runner,
         journal=journal,
         plan=plan,
         stage="reconcile-pr-list-merged",
-        command=(merged_pr_list_argv(item=item), plan.repo, _GH_TIMEOUT_SECONDS, None),
+        command=(
+            merged_pr_list_argv(item=item, default_branch=default_branch),
+            plan.repo,
+            _GH_TIMEOUT_SECONDS,
+            None,
+        ),
     )
-    candidates = parse_merged_pr_list(stdout=searched.stdout, item=item, branch=plan.branch)
+    candidates = parse_merged_pr_list(
+        stdout=searched.stdout,
+        item=item,
+        branch=plan.branch,
+        default_branch=default_branch,
+    )
     if len(candidates) == 1:
         return candidates[0]
     if len(candidates) > 1:
@@ -63,8 +78,14 @@ def resolve_merged_pr(
     return None
 
 
-def merged_pr_list_argv(*, item: WorkItem) -> list[str]:
-    """Build the GitHub search argv used when branch lookup is unavailable."""
+def merged_pr_list_argv(*, item: WorkItem, default_branch: str) -> list[str]:
+    """Build the GitHub search argv used when branch lookup is unavailable.
+
+    `default_branch` is the RESOLVED default branch of the governed repository,
+    never a branch name this fleet happens to use: the search pins `--base`, so a
+    constant there asks an adopter's forge about merges onto a branch they do not
+    have and gets an empty, error-free, wrong answer.
+    """
     return [
         "gh",
         "pr",
@@ -76,20 +97,30 @@ def merged_pr_list_argv(*, item: WorkItem) -> list[str]:
         "--json",
         "number,title,headRefName,baseRefName,state,mergeCommit",
         "--base",
-        "master",
+        default_branch,
         "--limit",
         "20",
     ]
 
 
-def parse_merged_pr_list(*, stdout: str, item: WorkItem, branch: str) -> tuple[PrView, ...]:
-    """Parse merged PR search results, accepting either branch or title/id matches."""
+def parse_merged_pr_list(
+    *, stdout: str, item: WorkItem, branch: str, default_branch: str
+) -> tuple[PrView, ...]:
+    """Parse merged PR search results, accepting either branch or title/id matches.
+
+    A candidate merged onto some OTHER base than `default_branch` is rejected,
+    which is what stops a reconcile from disposing an item against a merge into
+    someone's long-lived side branch. The branch it compares against is resolved
+    for the same reason the search's own `--base` is.
+    """
     parsed_raw = parse_json(text=stdout)
     if isinstance(parsed_raw, JsonParseFailure) or not isinstance(parsed_raw, list):
         return ()
     matches: list[PrView] = []
     for entry_raw in cast("list[object]", parsed_raw):
-        view = _pr_view_from_list_entry(entry_raw=entry_raw, item=item, branch=branch)
+        view = _pr_view_from_list_entry(
+            entry_raw=entry_raw, item=item, branch=branch, default_branch=default_branch
+        )
         if view is not None:
             matches.append(view)
     return tuple(matches)
@@ -118,7 +149,9 @@ def _merged_pr_view(*, stdout: str) -> PrView | None:
     return view
 
 
-def _pr_view_from_list_entry(*, entry_raw: object, item: WorkItem, branch: str) -> PrView | None:
+def _pr_view_from_list_entry(
+    *, entry_raw: object, item: WorkItem, branch: str, default_branch: str
+) -> PrView | None:
     if not isinstance(entry_raw, dict):
         return None
     entry = cast("dict[str, Any]", entry_raw)
@@ -129,7 +162,7 @@ def _pr_view_from_list_entry(*, entry_raw: object, item: WorkItem, branch: str) 
     title_raw: object = entry.get("title")
     head_raw: object = entry.get("headRefName")
     base_raw: object = entry.get("baseRefName")
-    if isinstance(base_raw, str) and base_raw != "master":
+    if isinstance(base_raw, str) and base_raw != default_branch:
         return None
     if head_raw != branch and not (isinstance(title_raw, str) and item.id in title_raw):
         return None

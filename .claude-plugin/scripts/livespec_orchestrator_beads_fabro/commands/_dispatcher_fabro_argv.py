@@ -13,6 +13,9 @@ from livespec_orchestrator_beads_fabro.commands import _jsonc
 from livespec_orchestrator_beads_fabro.commands._dispatcher_core_provisioning_view import (
     resolve_janitor_core_provisioning,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_defaults import (
+    JANITOR_TRUST_DEFAULT,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_projection import (
     merge_method_flag,
 )
@@ -347,19 +350,33 @@ def pr_update_branch_argv(*, plan: DispatchPlan, number: int) -> list[str]:
 
 
 def pull_primary_argv(*, plan: DispatchPlan) -> list[str]:
+    """Fast-forward the primary checkout onto the plan's RESOLVED default branch.
+
+    Two fleet premises are gone from this argv and neither is replaced by
+    anything. The `mise exec --` wrapper prepended this fleet's runner to a
+    command run against every governed repository, which is the same
+    assumed-tooling defect the janitor argv builders already retired; a
+    fast-forward pull fires no hook that needs a pinned toolchain, so plain
+    `git` is what it always needed. And the shell string it wrapped re-probed
+    `refs/remotes/origin/HEAD` here, falling back to a bare branch name when the
+    probe was silent -- a second default-branch resolution, carrying exactly the
+    constant the ratified default-branch-resolution clause retires.
+
+    The branch is READ OFF THE PLAN'S RESOLVED CONTRACT instead, for the reason
+    the resolve-once-project-everywhere clause gives: a probe taken here, minutes
+    after plan build, could name a different branch than the dispatch record
+    journaled. An unresolvable branch arrives as the contract's name sentinel,
+    which `git pull` refuses outright -- a refusal an operator can read beats a
+    fast-forward onto a branch this fleet merely happens to use.
+    """
     return [
-        "mise",
-        "exec",
-        "--",
-        "sh",
-        "-lc",
-        (
-            'branch="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null '
-            '|| printf master)"; branch="${branch#origin/}"; '
-            'git -C "$1" pull --ff-only origin "$branch"'
-        ),
-        "pull-primary",
+        "git",
+        "-C",
         str(plan.repo),
+        "pull",
+        "--ff-only",
+        "origin",
+        plan.integration.contract.default_branch,
     ]
 
 
@@ -446,14 +463,20 @@ def janitor_core_clone_argv(*, plan: DispatchPlan) -> list[str]:
 
 
 def janitor_trust_argv() -> list[str]:
-    """Trust the janitor checkout's mise config (run with cwd=checkout).
+    """Trust the janitor checkout's fleet toolchain config (run with cwd=checkout).
 
-    mise trust is per-PATH, so a freshly provisioned checkout is never
-    pre-trusted and the default janitor's `mise exec` would refuse to
-    run there. With no config file present, `mise trust` warns and
-    exits 0, so this is safe to run unconditionally.
+    The command is READ FROM THE FLEET-DEFAULTS MODULE rather than spelled here,
+    because it is exactly what that module holds: a fleet premise, which the
+    fleet-toolchain-literal ban admits in one module and nowhere else.
+
+    It is no longer run unconditionally. The old justification -- "with no config
+    file present it warns and exits 0, so this is safe" -- assumed the tool was
+    INSTALLED, which is true of a fleet member and of nothing else; on a host
+    without it the step exits non-zero and degrades a post-merge outcome for a
+    premise that repository never carried. `_dispatcher_janitor_venue` therefore
+    emits it only where the host-janitor points resolved to the fleet default.
     """
-    return ["mise", "trust"]
+    return list(JANITOR_TRUST_DEFAULT)
 
 
 def janitor_bootstrap_argv(*, recipe: JanitorBootstrapRecipe) -> list[str]:

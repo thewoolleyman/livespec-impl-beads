@@ -186,11 +186,50 @@ def test_source_preflight_head_is_unknown_when_rev_parse_fails(tmp_path: Path) -
     assert "HEAD: <unknown>" in outcome.refusal.detail
 
 
-def test_source_preflight_pushes_the_dry_run_to_master_on_a_detached_head(
+def test_source_preflight_pushes_the_dry_run_to_the_resolved_default_branch(
     tmp_path: Path,
 ) -> None:
-    """A detached HEAD has no branch to name, so the dry-run targets `master`."""
-    results = _base_results() | {
+    """A detached HEAD names no branch, so the dry-run targets the RESOLVED one.
+
+    `trunk` is deliberately a branch name this fleet would never have hardcoded:
+    a target that agreed with the retired constant could not tell a resolution
+    apart from a literal that happens to match.
+    """
+    results = _detached_head_results() | {
+        ("symbolic-ref", "--short", "refs/remotes/origin/HEAD"): _result(stdout="origin/trunk\n"),
+        ("push", "--dry-run", "origin", "HEAD:trunk"): _result(exit_code=1, stderr="refused\n"),
+    }
+    runner = _Runner(results=results)
+
+    outcome = source_checkout_preflight(repo=tmp_path, runner=runner)
+
+    assert outcome.refusal is not None
+    assert ("push", "--dry-run", "origin", "HEAD:trunk") in runner.calls
+    assert not any(call[:1] == ("push",) and "HEAD:master" in call for call in runner.calls)
+
+
+def test_source_preflight_pushes_nothing_when_no_default_branch_can_be_named(
+    tmp_path: Path,
+) -> None:
+    """Both routes silent on a detached HEAD: the outcome SAYS so instead of guessing."""
+    results = _detached_head_results() | {
+        ("symbolic-ref", "--short", "refs/remotes/origin/HEAD"): _result(exit_code=128),
+        ("repo", "view", "--json", "defaultBranchRef", "--jq", ".defaultBranchRef.name"): _result(
+            exit_code=1, stderr="no gh credential\n"
+        ),
+    }
+    runner = _Runner(results=results)
+
+    outcome = source_checkout_preflight(repo=tmp_path, runner=runner)
+
+    assert outcome.refusal is not None
+    assert not any(call[:1] == ("push",) for call in runner.calls)
+    assert "no branch to dry-run a push at" in outcome.refusal.detail
+
+
+def _detached_head_results() -> dict[tuple[str, ...], CommandResult]:
+    """An unreachable HEAD with no branch of its own, ready for a per-case push arm."""
+    return _base_results() | {
         ("rev-parse", "--abbrev-ref", "HEAD"): _result(stdout="HEAD\n"),
         ("for-each-ref", "--format=%(refname:short)", "refs/remotes/origin"): _result(stdout=""),
         (
@@ -203,9 +242,3 @@ def test_source_preflight_pushes_the_dry_run_to_master_on_a_detached_head(
             "--remotes=origin",
         ): _result(stdout="abc123 local commit\n"),
     }
-    runner = _Runner(results=results)
-
-    outcome = source_checkout_preflight(repo=tmp_path, runner=runner)
-
-    assert outcome.refusal is not None
-    assert ("push", "--dry-run", "origin", "HEAD:master") in runner.calls

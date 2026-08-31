@@ -34,6 +34,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     DispatchOutcome,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_janitor import post_merge
+from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_venue import (
+    fleet_toolchain_is_the_host_janitor_premise,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     DispatchPlan,
     PrView,
@@ -48,8 +51,18 @@ _MERGE_SHA = "16fe3ac"
 # ever resolved.
 _DECLARED_CONFIG = '{"livespec-orchestrator-beads-fabro": {"compat": {"pinned": "master"}}}'
 
+# The same repository with BOTH host-janitor points declared, which is what makes
+# the fleet toolchain not a premise of its venue.
+_ADOPTER_CONFIG = (
+    '{"livespec-orchestrator-beads-fabro": {"compat": {"pinned": "master"}, "dispatcher": '
+    '{"janitor": {"check_suite": ["make", "verify"]}, '
+    '"janitor_bootstrap": {"recipe": ["make", "install-hooks"]}}}}'
+)
 
-def _plan(*, repo: Path, default_branch: str | None = "master") -> DispatchPlan:
+
+def _plan(
+    *, repo: Path, default_branch: str | None = "master", config_text: str = _DECLARED_CONFIG
+) -> DispatchPlan:
     return build_plan(
         repo=repo,
         work_item_id="x-1",
@@ -58,7 +71,7 @@ def _plan(*, repo: Path, default_branch: str | None = "master") -> DispatchPlan:
         fabro_bin="fabro",
         janitor=None,
         janitor_checkout=repo / "janitor-co",
-        config_text=_DECLARED_CONFIG,
+        config_text=config_text,
         default_branch=default_branch,
     )
 
@@ -117,6 +130,7 @@ def test_janitor_venue_module_owns_provisioning_and_old_privates_are_gone() -> N
     venue_public_names = {
         "UNRESOLVED_VENUE",
         "JanitorVenue",
+        "fleet_toolchain_is_the_host_janitor_premise",
         "provision_janitor_checkout",
         "resolve_janitor_venue",
     }
@@ -171,6 +185,40 @@ def test_post_merge_provisions_the_venue_at_the_merged_default_branch_tip(tmp_pa
     assert [argv for argv in argvs if _MERGE_SHA in argv] == [
         ["git", "-C", str(tmp_path), "merge-base", "--is-ancestor", _MERGE_SHA, "origin/main"]
     ]
+
+
+def test_post_merge_emits_no_trust_step_when_the_venue_runs_declared_commands(
+    tmp_path: Path,
+) -> None:
+    """A repository declaring BOTH host-janitor points never gets this fleet's trust step.
+
+    The trust command is a premise of the fleet-default check-suite and bootstrap
+    recipe, not something every governed repository owes. Where both resolved
+    `Declared` the venue runs the repository's own commands, so imposing a tool it
+    does not carry would fail the step and degrade a post-merge outcome for a
+    premise nobody declared.
+
+    The member case above is the positive control for this absence: it runs the
+    same code path, resolves both points to `FleetDefault`, and DOES emit the
+    step -- so an argv list that could never contain it is not what is being read
+    here.
+    """
+    plan = _plan(repo=tmp_path, default_branch="main", config_text=_ADOPTER_CONFIG)
+    runner = Runner(queue=[_ok(), *[_ok() for _ in range(8)]])
+    journal = Journal()
+
+    outcome = post_merge(
+        outcome_type=DispatchOutcome,
+        plan=plan,
+        runner=runner,
+        journal=journal,
+        merged=_merged(),
+    )
+
+    assert (outcome.status, outcome.stage) == ("green", "done")
+    assert fleet_toolchain_is_the_host_janitor_premise(plan=plan) is False
+    assert "janitor-checkout-trust" not in [record["stage"] for record in journal.records]
+    assert [argv for argv, _ in runner.calls if argv == ["mise", "trust"]] == []
 
 
 def test_post_merge_degrades_when_the_resolved_tip_does_not_contain_the_merge(

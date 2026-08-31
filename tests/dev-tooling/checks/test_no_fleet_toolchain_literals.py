@@ -59,12 +59,38 @@ def _conforming_repo(*, root: Path, check: ModuleType) -> None:
     _write(path=root / _FIXTURE_RELPATH, text='ARGV = ["mise", "exec"]\n')
 
 
-def test_the_repository_carries_no_unexempted_fleet_toolchain_literal() -> None:
+def test_the_repository_carries_no_fleet_toolchain_literal_at_all() -> None:
+    """The realized ban: no residue in the package, and nothing excusing one either."""
     check = _load_check()
 
-    assert check.unexempted_findings(repo_root=_REPO_ROOT) == []
-    assert check.stale_exemptions(repo_root=_REPO_ROOT) == []
+    assert check.all_findings(repo_root=_REPO_ROOT) == []
+    assert check.package_findings(repo_root=_REPO_ROOT) == []
     assert check.control_failures(repo_root=_REPO_ROOT) == []
+
+
+def test_the_gate_carries_no_allow_list_of_any_kind() -> None:
+    """The C7 deletion, asserted on the gate's OWN surface rather than on prose.
+
+    The retired names are checked one at a time rather than by scanning for a
+    keyword: a `hasattr` on a name that never existed passes for the wrong
+    reason, so each name asserted here is one this module genuinely used to
+    export. `MEASURED_EXEMPTIONS` and its stale-entry control were the package
+    half; `PAYLOAD_ALLOWLIST` was the payload half, retired earlier.
+    """
+    check = _load_check()
+    retired = (
+        "MEASURED_EXEMPTIONS",
+        "PAYLOAD_ALLOWLIST",
+        "stale_exemptions",
+        "unexempted_findings",
+    )
+
+    assert [name for name in retired if hasattr(check, name)] == []
+    assert [name for name in check.__all__ if name in retired] == []
+    # The scan's ONE skip is the module the schema designates, and it is named by
+    # the schema rather than listed here, which is what the designation control
+    # below keeps honest.
+    assert check.FLEET_DEFAULTS_MODULE == "commands/_dispatcher_integration_defaults.py"
 
 
 def test_main_passes_on_the_repository(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -200,7 +226,14 @@ def test_payload_paths_select_only_payload_suffixes(tmp_path: Path) -> None:
     ]
 
 
-def test_unexempted_findings_excuse_only_the_measured_package_sites(tmp_path: Path) -> None:
+def test_all_findings_excuse_nothing_in_either_tree(tmp_path: Path) -> None:
+    """The site that USED to be excused is a finding now, and reads like any other.
+
+    `_dispatcher_fabro_argv.py` is deliberately the probe: it carried the largest
+    measured residue and its exemption was the first entry of the retired list,
+    so a leftover allow-list would show up here as that one file going missing
+    from the findings while its unmeasured sibling reported normally.
+    """
     check = _load_check()
     package = tmp_path / _PACKAGE_RELPATH
     _write(path=package / "commands/_dispatcher_fabro_argv.py", text='ARGV = ["mise"]\n')
@@ -208,22 +241,13 @@ def test_unexempted_findings_excuse_only_the_measured_package_sites(tmp_path: Pa
     payload = f"{_PAYLOAD_RELPATH}/workflow.toml"
     _write(path=tmp_path / payload, text="run lefthook install\n")
 
-    findings = check.unexempted_findings(repo_root=tmp_path)
+    findings = check.all_findings(repo_root=tmp_path)
 
-    # The measured package site is excused; the payload has NO allow-list, so a
-    # fleet literal there is a finding exactly as an unmeasured package one is.
-    assert [finding.relpath for finding in findings] == ["commands/_dispatcher_new.py", payload]
-    assert not hasattr(check, "PAYLOAD_ALLOWLIST")
-
-
-def test_stale_exemptions_report_entries_the_tree_no_longer_needs(tmp_path: Path) -> None:
-    check = _load_check()
-    _conforming_repo(root=tmp_path, check=check)
-
-    stale = check.stale_exemptions(repo_root=tmp_path)
-
-    assert len(stale) == len(check.MEASURED_EXEMPTIONS)
-    assert any("_dispatcher_fabro_argv.py" in entry for entry in stale)
+    assert [finding.relpath for finding in findings] == [
+        "commands/_dispatcher_fabro_argv.py",
+        "commands/_dispatcher_new.py",
+        payload,
+    ]
 
 
 def test_control_failures_report_an_unwalked_tree_and_a_missing_fixture(tmp_path: Path) -> None:

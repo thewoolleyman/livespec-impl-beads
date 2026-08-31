@@ -26,6 +26,17 @@ a prepare-toolchain premise an adopter does not carry. It is spelled as a value 
 field RESOLVES TO precisely so the no-op is declared and validated like every
 other point instead of being inferred from silence -- an inference is what makes
 a silent adopter degradation indistinguishable from a configuration nobody wrote.
+
+AND THE FLEET'S OWN NAMES, WHICH ARE NOT RESOLVER ANSWERS. Two smaller groups
+live here for the same reason the defaults do rather than because a resolver
+returns them: the tool and recipe RUNNER NAMES every fleet default above is
+composed from, and this plugin's OWN release-repository identity, which the
+currency gate probes. Neither is an integration point a governed repository may
+declare -- one is the vocabulary the defaults are built out of, the other is a
+fact about this plugin rather than about anything it governs -- but both are
+fleet-toolchain literals, and the fleet-toolchain-literal ban leaves exactly one
+module they may be spelled in. Spelling them anywhere else is the defect that
+ban exists to catch, so they are spelled here.
 """
 
 from __future__ import annotations
@@ -40,12 +51,18 @@ __all__: list[str] = [
     "CONFORMANCE_VERIFY_COMMIT_REFUSE_HOOK_INTERNAL_ARGV",
     "CONFORMANCE_VERIFY_PLUGIN_RESOLUTION_INTERNAL_ARGV",
     "FLEET_CORE_REPO_URL",
+    "FLEET_RECIPE_RUNNER",
+    "FLEET_TOOL_RUNNER",
     "JANITOR_BOOTSTRAP_RECIPE_DEFAULT",
     "JANITOR_CHECK_SUITE_DEFAULT",
+    "JANITOR_TRUST_DEFAULT",
     "MASTER_CI_JOB_DEFAULT",
     "MASTER_CI_WORKFLOW_DEFAULT",
     "MERGE_MODES",
     "MERGE_MODE_DEFAULT",
+    "RELEASE_REPOSITORY_MASTER_REF",
+    "RELEASE_REPOSITORY_RELEASE_REF",
+    "RELEASE_REPOSITORY_URL",
     "SANDBOX_CHECK_SUITE_DEFAULT",
     "SANDBOX_EXEMPT_MARKERS",
     "SANDBOX_EXEMPT_MARKER_DEFAULT",
@@ -53,6 +70,22 @@ __all__: list[str] = [
     "UNRESOLVED_ARGV",
     "UNRESOLVED_NAME",
 ]
+
+# This fleet's tool runner and its recipe runner, named ONCE. Every default below
+# that invokes one composes it from these names rather than respelling it, so
+# there is a single answer to "what does this fleet run its recipes through?" and
+# a consumer that needs the NAME -- the hook-install re-verification, which has to
+# recognize a recipe invocation before it can look the recipe up in a justfile --
+# reads it from here instead of keeping a parser constant of its own.
+FLEET_TOOL_RUNNER = "mise"
+FLEET_RECIPE_RUNNER = "just"
+
+# How this fleet reaches a recipe at all: the tool runner, then the recipe
+# runner. `just` reaches these hosts through mise, so every fleet recipe default
+# carries this prefix; a DECLARED command never does, because imposing our own
+# invocation wrapper on someone else's command is the assumed-tooling defect one
+# layer down.
+_FLEET_RECIPE_INVOCATION: tuple[str, ...] = (FLEET_TOOL_RUNNER, "exec", "--", FLEET_RECIPE_RUNNER)
 
 # What a field that resolved NOTHING renders as. A sentinel rather than the
 # convention's own value, because the convention is the wrong answer on a
@@ -79,14 +112,21 @@ MASTER_CI_JOB_DEFAULT = "ci-green"
 # declared sandbox, so this PROVISIONS the pack rather than exempting the venue:
 # the asserted property becomes TRUE instead of skipped.
 JANITOR_CHECK_SUITE_DEFAULT: tuple[str, ...] = (
-    "mise",
-    "exec",
-    "--",
-    "just",
+    *_FLEET_RECIPE_INVOCATION,
     "check-no-workflow-edits",
     "install-worktree-pack",
     "check",
 )
+
+# The HOST-JANITOR venue's mise-trust step, which is a PREMISE of that venue's
+# fleet defaults rather than a step every governed repository owes. mise trust is
+# per-PATH, so a freshly provisioned checkout is never pre-trusted and the
+# fleet-default janitor's own `mise exec` would refuse to run there. A repository
+# whose host-janitor points resolved DECLARED never runs this fleet's toolchain
+# in that venue, so running it there would impose a tool the adopter does not
+# carry -- and on a host without it the step exits non-zero and degrades a
+# post-merge outcome for a premise nobody asked for.
+JANITOR_TRUST_DEFAULT: tuple[str, ...] = (FLEET_TOOL_RUNNER, "trust")
 
 # The IN-SANDBOX-GATE venue's check-suite. It is the same declared check-suite
 # with the host-venue provisioning dropped: a Fabro sandbox is a fresh full
@@ -95,7 +135,7 @@ JANITOR_CHECK_SUITE_DEFAULT: tuple[str, ...] = (
 # differing ONLY in their fleet default is what the ratified venue dimension
 # buys -- before it, this argv lived as a bare literal in the publish prompts
 # with nothing binding it to the host one.
-SANDBOX_CHECK_SUITE_DEFAULT: tuple[str, ...] = ("mise", "exec", "--", "just", "check")
+SANDBOX_CHECK_SUITE_DEFAULT: tuple[str, ...] = (*_FLEET_RECIPE_INVOCATION, "check")
 
 # How this fleet INVOKES its hook-install recipe. `just` reaches these hosts
 # through mise, so the default's argv keeps the `mise exec --` prefix the shipped
@@ -103,10 +143,7 @@ SANDBOX_CHECK_SUITE_DEFAULT: tuple[str, ...] = ("mise", "exec", "--", "just", "c
 # wrote it: imposing our wrapper on someone else's command is the same
 # assumed-tooling defect one layer down.
 JANITOR_BOOTSTRAP_RECIPE_DEFAULT: tuple[str, ...] = (
-    "mise",
-    "exec",
-    "--",
-    "just",
+    *_FLEET_RECIPE_INVOCATION,
     "install-commit-refuse-hooks",
 )
 
@@ -115,6 +152,18 @@ JANITOR_BOOTSTRAP_RECIPE_DEFAULT: tuple[str, ...] = (
 # substitutable ref would be the moving branch tip its own clause forbids, so
 # that field is REQUIRED and an absent declaration resolves to `Defective`.
 FLEET_CORE_REPO_URL = "https://github.com/thewoolleyman/livespec.git"
+
+# THIS PLUGIN'S OWN release repository and the two refs the currency gate probes
+# on it. Not an integration point at all: a governed repository cannot declare
+# where the orchestrator it is dispatched by publishes, and the gate would be
+# asking the wrong repository if it could. They live here because the master ref
+# is a bare default-branch name used AS A REF, which the fleet-toolchain-literal
+# ban admits in exactly one module -- and because splitting the URL from its refs
+# would leave the plugin's own identity spelled in two places, which is the
+# drift the defaults module exists to stop.
+RELEASE_REPOSITORY_URL = "https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro.git"
+RELEASE_REPOSITORY_RELEASE_REF = "refs/heads/release"
+RELEASE_REPOSITORY_MASTER_REF = "refs/heads/master"
 
 # The explicit no-op VALUE a prepare-toolchain premise resolves to for a
 # repository that carries no such premise. Never an absent key -- see the module

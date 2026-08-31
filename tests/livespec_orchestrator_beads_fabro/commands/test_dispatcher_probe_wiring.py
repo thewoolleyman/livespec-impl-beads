@@ -12,10 +12,14 @@ import argparse
 from collections.abc import Sequence
 from pathlib import Path
 
+import pytest
+from livespec_orchestrator_beads_fabro.commands import _dispatcher_probe_wiring
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import CommandResult
+from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_defaults import (
+    UNRESOLVED_NAME,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_probe_wiring import (
     ATTENTION_SOURCE,
-    DEFAULT_BRANCH_FALLBACK,
     LEDGER_SOURCE,
     AttentionResidueSource,
     LedgerResidueSource,
@@ -193,29 +197,49 @@ def test_the_default_branch_is_read_from_the_remote_head(tmp_path: Path) -> None
     assert resolve_default_branch(repo=tmp_path, runner=runner) == "main"
 
 
-def test_an_unset_remote_head_falls_back_to_the_family_default(tmp_path: Path) -> None:
-    runner = _ScriptedRunner(results=[CommandResult(exit_code=128, stdout="", stderr="no HEAD")])
+def test_an_unset_remote_head_falls_through_to_the_forge_route(tmp_path: Path) -> None:
+    """The SHARED two-route resolution, not a second probe: git silent, forge answers."""
+    runner = _ScriptedRunner(
+        results=[
+            CommandResult(exit_code=128, stdout="", stderr="no HEAD"),
+            CommandResult(exit_code=0, stdout="trunk\n", stderr=""),
+        ]
+    )
 
-    assert resolve_default_branch(repo=tmp_path, runner=runner) == DEFAULT_BRANCH_FALLBACK
+    assert resolve_default_branch(repo=tmp_path, runner=runner) == "trunk"
 
 
-def test_an_empty_remote_head_falls_back_to_the_family_default(tmp_path: Path) -> None:
-    runner = _ScriptedRunner(results=[CommandResult(exit_code=0, stdout="\n", stderr="")])
+def test_both_routes_silent_answers_the_sentinel_and_never_a_branch_name(
+    tmp_path: Path,
+) -> None:
+    """No branch is guessed. The retired constant fallback is what an adopter tripped on."""
+    runner = _ScriptedRunner(
+        results=[
+            CommandResult(exit_code=0, stdout="\n", stderr=""),
+            CommandResult(exit_code=0, stdout="\n", stderr=""),
+        ]
+    )
 
-    assert resolve_default_branch(repo=tmp_path, runner=runner) == DEFAULT_BRANCH_FALLBACK
+    assert resolve_default_branch(repo=tmp_path, runner=runner) == UNRESOLVED_NAME
 
 
 # --- the production cycle ---------------------------------------------------
 
 
 def test_the_production_cycle_wires_the_published_surfaces_and_the_status_read(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """The cycle carries what the SHARED resolution answered, never a branch constant."""
     repo = _repo(tmp_path=tmp_path)
     append_work_item(path=_config(repo_root=repo), item=_item(status="active"))
     args = argparse.Namespace(journal=str(tmp_path / "j.jsonl"))
+    monkeypatch.setattr(
+        _dispatcher_probe_wiring,
+        "resolve_repository_default_branch",
+        lambda **_kwargs: "trunk",
+    )
 
     cycle = production_cycle(args=args, repo=repo)
 
-    assert cycle.default_branch == DEFAULT_BRANCH_FALLBACK
+    assert cycle.default_branch == "trunk"
     assert cycle.item_status(work_item_id=_ITEM) == "active"

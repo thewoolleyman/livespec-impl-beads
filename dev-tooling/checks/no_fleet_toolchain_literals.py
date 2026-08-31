@@ -19,34 +19,32 @@ build.
 This module owns the SCOPE and the POLICY; the sibling matcher module owns what
 counts as a literal in the first place.
 
-ONE ALLOW-LIST, MEASURED AND SELF-RETIRING. It is not an exemption in the
-"this is fine" sense; it names work already sliced under the
-typed-repository-integration-contract plan epic:
+THERE IS NO ALLOW-LIST OF ANY KIND. Neither the package nor the payload has one.
+The payload's went first, with the typed-workflow-inputs carrier (C5-payload),
+which converted every fleet premise the payload and prompt files carried into an
+`inputs.<name>` projection of the resolved integration contract. The package's
+followed, with the retire-measured-exemptions carrier (C7): its six
+`MEASURED_EXEMPTIONS` entries were always a CONVERSION FOLLOW-UP rather than a
+judgement that the sites were correct, and each site now reads its value through
+the resolved integration contract or from the fleet-defaults module. A fleet
+literal anywhere outside that one module is a finding, wherever it appears.
 
-- `MEASURED_EXEMPTIONS` names the dispatcher-package sites that still resolve a
-  fleet premise from a constant. Each was measured, not guessed, and each is a
-  ratified-conversion follow-up rather than a judgement that the site is correct.
-
-THE PAYLOAD HAS NO ALLOW-LIST. The workflow payload and the prompt files are
-scanned in full: the typed-workflow-inputs carrier (C5-payload) converted every
-fleet premise they carried into an `inputs.<name>` projection of the resolved
-integration contract and deleted the list that had excused them while that
-conversion was pending. A fleet literal reintroduced into the payload is a
-finding, exactly as one in the package is.
-
-A STALE ENTRY IN THE LIST IS A FAILURE, which is what makes those deletions
-mechanical rather than remembered: the moment a site is converted, its entry
-stops matching and this check fails until the entry is removed. An allow-list
-that can only be removed by hand is an allow-list that outlives its reason.
+That the list retired itself is what the design bought. Every entry carried a
+stale-entry control -- the moment a site converted, its entry stopped matching
+and this check FAILED until the entry was removed -- so the deletions were
+mechanical rather than remembered, and the list could not outlive its reason by
+being quietly ignored. The control is gone with the list it guarded; what
+replaces it is that there is nothing left to be stale.
 
 FOUR POSITIVE CONTROLS, because this check reports an ABSENCE for a living. A
 broken pattern or a mis-scoped glob would make it permanently green while printing
 exactly what a clean repo prints, so `main` refuses to report a clean scan unless
 all four hold: the DISCOVERY controls assert the package and payload walks reached
 the modules and files that carry the literals; the DESIGNATION control asserts the
-exempt module is the one the schema actually designates, so the exemption cannot
-drift onto a module the contract never named; and the MATCHER control asserts the
-checked-in fixture still produces findings through the same parse/match path.
+one module the scan skips is the one the schema actually designates, so the skip
+cannot drift onto a module the contract never named; and the MATCHER control
+asserts the checked-in fixture still produces findings through the same
+parse/match path.
 
 Output discipline: `print` and direct `sys.stderr.write` are banned here, so
 diagnostics flow through structlog (JSON to stderr).
@@ -90,15 +88,13 @@ import structlog  # noqa: E402
 __all__: list[str] = [
     "DISCOVERY_ANCHORS",
     "FLEET_DEFAULTS_MODULE",
-    "MEASURED_EXEMPTIONS",
     "SCHEMA_MODULE",
+    "all_findings",
     "control_failures",
     "main",
     "package_findings",
     "payload_findings",
     "payload_paths",
-    "stale_exemptions",
-    "unexempted_findings",
 ]
 
 # The single fleet-defaults module. Package-relative, and asserted below to be
@@ -107,41 +103,12 @@ FLEET_DEFAULTS_MODULE = "commands/_dispatcher_integration_defaults.py"
 SCHEMA_MODULE = "commands/_dispatcher_integration_schema.py"
 
 # Package-relative paths the walk MUST reach: the two contract modules, plus the
-# argv builder that carries the largest measured residue. A walk that misses one
-# is mis-scoped, and its clean report means nothing.
+# argv builder that carried the largest measured residue before C7 converted it.
+# A walk that misses one is mis-scoped, and its clean report means nothing.
 DISCOVERY_ANCHORS: tuple[str, ...] = (
     "commands/_dispatcher_fabro_argv.py",
     FLEET_DEFAULTS_MODULE,
     SCHEMA_MODULE,
-)
-
-# (package-relative path, literal) pairs MEASURED to still resolve a fleet
-# premise from a constant. Each is a conversion follow-up, not an approval.
-MEASURED_EXEMPTIONS: frozenset[tuple[str, str]] = frozenset(
-    {
-        # `pull_primary_argv` and `janitor_trust_argv` still prepend this fleet's
-        # runner wrapper (and, inside the former's shell string, still fall back
-        # to a bare branch name) to commands run against the governed repository.
-        ("commands/_dispatcher_fabro_argv.py", "mise"),
-        # The command name whose arguments are recipe names in a repository's
-        # justfile. It reads an ADOPTER's declared recipe rather than imposing
-        # one, but the discrimination belongs in the contract, not in a parser
-        # constant.
-        ("commands/_dispatcher_hook_install_recipe.py", "just"),
-        # A second default-branch resolution carrying the constant fallback the
-        # ratified default-branch-resolution clause retired; the shared resolver
-        # in the default-branch module deliberately falls back to nothing.
-        ("commands/_dispatcher_probe_wiring.py", "master"),
-        # The merged-PR search pins its `--base` and filters its `baseRefName`
-        # against a branch an adopter may not have.
-        ("commands/_dispatcher_reconcile_merged_pr.py", "master"),
-        # The dry-run source push falls back to a branch name when `HEAD` is
-        # detached.
-        ("commands/_dispatcher_source_preflight.py", "master"),
-        # This repo's OWN release/master probe refs. Not an imposition on a
-        # governed repository, but still a constant the contract should carry.
-        ("commands/_dispatcher_staleness_gate.py", "refs/heads/master"),
-    }
 )
 
 _PACKAGE_RELPATH = ".claude-plugin/scripts/livespec_orchestrator_beads_fabro"
@@ -162,7 +129,7 @@ def payload_paths(*, repo_root: Path) -> list[Path]:
 
 
 def package_findings(*, repo_root: Path) -> list[Finding]:
-    """Every literal in the dispatcher package, measured exemptions NOT applied."""
+    """Every literal in the dispatcher package outside the fleet-defaults module."""
     package = repo_root / _PACKAGE_RELPATH
     findings: list[Finding] = []
     for path in _module_paths(package=package):
@@ -186,26 +153,9 @@ def payload_findings(*, repo_root: Path) -> list[Finding]:
     return findings
 
 
-def unexempted_findings(*, repo_root: Path) -> list[Finding]:
-    """Every literal the measured exemptions do not excuse, plus every payload literal."""
-    package = [
-        finding
-        for finding in package_findings(repo_root=repo_root)
-        if (finding.relpath, finding.literal) not in MEASURED_EXEMPTIONS
-    ]
-    return package + payload_findings(repo_root=repo_root)
-
-
-def stale_exemptions(*, repo_root: Path) -> list[str]:
-    """Allow-list entries the tree no longer needs, so a converted site cannot stay exempt."""
-    measured = {
-        (finding.relpath, finding.literal) for finding in package_findings(repo_root=repo_root)
-    }
-    return [
-        f"measured exemption {entry} matches no literal; the site is converted, so delete it"
-        for entry in sorted(MEASURED_EXEMPTIONS)
-        if entry not in measured
-    ]
+def all_findings(*, repo_root: Path) -> list[Finding]:
+    """Every literal the scan found, package and payload alike; nothing excuses one."""
+    return package_findings(repo_root=repo_root) + payload_findings(repo_root=repo_root)
 
 
 def _designates_defaults(*, source: str) -> bool:
@@ -230,8 +180,8 @@ def control_failures(*, repo_root: Path) -> list[str]:
     )
     if not payload_paths(repo_root=repo_root):
         failures.append(f"discovery control: the walk of {_PAYLOAD_RELPATH} reached no file")
-    # The exemption is only legitimate while the schema still designates that
-    # module; without this control it could silently drift onto a module the
+    # The one skipped module is only legitimate while the schema still designates
+    # it; without this control the skip could silently drift onto a module the
     # contract never named.
     schema = package / SCHEMA_MODULE
     if not schema.is_file() or not _designates_defaults(source=schema.read_text(encoding="utf-8")):
@@ -264,10 +214,7 @@ def main() -> int:
             "positive control failed; this scan cannot report a trustworthy absence",
             detail=failure,
         )
-    stale = stale_exemptions(repo_root=repo_root)
-    for entry in stale:
-        log.error("allow-list entry is stale; a converted site must not stay exempt", detail=entry)
-    findings = unexempted_findings(repo_root=repo_root)
+    findings = all_findings(repo_root=repo_root)
     for finding in findings:
         log.error(
             _FINDING_MESSAGE,
@@ -276,7 +223,7 @@ def main() -> int:
             token=finding.token,
             literal=finding.literal,
         )
-    return 1 if failures or stale or findings else 0
+    return 1 if failures or findings else 0
 
 
 if __name__ == "__main__":  # pragma: no cover

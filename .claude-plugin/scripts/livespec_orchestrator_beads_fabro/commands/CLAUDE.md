@@ -101,7 +101,10 @@ Private helper modules (underscore-prefixed) carry shared plumbing:
   `_dispatcher_integration_contract.py` — the typed repository-integration
   contract. `_schema` holds the CLOSED field set, `_field` holds the
   `IntegrationField` DESCRIPTOR TYPE plus the shape and venue dimensions,
-  `_defaults` holds every fleet default the resolver can return, `_declaration`
+  `_defaults` holds every fleet default the resolver can return — plus, because
+  the fleet-toolchain-literal ban admits them in no other module, the fleet's own
+  tool and recipe runner NAMES the defaults are composed from and this plugin's
+  own release-repository identity, `_declaration`
   reads a governed repo's declaration, `_resolver` is the ONE generic resolver
   returning `Declared | FleetDefault | Defective` for ONE point, and `_contract`
   assembles the whole closed set into the frozen `RepoIntegrationContract` /
