@@ -1,0 +1,15 @@
+#!/bin/sh
+# THE DELIBERATELY NON-HONORING VARIANT. It is committed to be FAILED, never run
+# in anger: `SPECIFICATION/scenarios.md` Scenario 108's third scenario requires
+# that an adopter fixture whose commit-blocking hook ignores the resolved marker
+# fail the sandbox-exemption obligation on the adopter leg.
+#
+# It is byte-for-byte its honoring sibling with the marker branch deleted, so the
+# only thing the seam test can be measuring is the honor itself. A dispatch into
+# a repository carrying this hook would refuse every Red-Green-Replay commit its
+# own sandbox tried to make, with no error naming the marker -- which is exactly
+# the silent stranding the obligation exists to make catchable in CI.
+set -eu
+
+printf '%s\n' "refusing: commits are not made in the primary checkout" >&2
+exit 1

@@ -1,0 +1,7 @@
+# The fleet git-hook manager. A member installs its commit-blocking hook through
+# lefthook; the adopter fixture installs the same-shaped hook through its own
+# declared recipe and carries no file like this.
+pre-commit:
+  commands:
+    commit-refuse:
+      run: hooks/pre-commit

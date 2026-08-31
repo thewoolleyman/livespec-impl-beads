@@ -1,0 +1,7 @@
+# The fleet toolchain this fixture exists to CARRY. A member pins its tools
+# through mise, which is how the fleet-default check-suite and bootstrap argv
+# reach `just` at all. The adopter fixture beside this one carries none of it,
+# and the seam tests run over both.
+[tools]
+just = "1.42.4"
+uv = "0.9.9"

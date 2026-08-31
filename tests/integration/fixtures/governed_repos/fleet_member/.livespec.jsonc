@@ -1,0 +1,21 @@
+// A FLEET-MEMBER governed repository, as the parametrized dispatch-path seam
+// tests consume it (the adopter-and-member-fixtures bullet of the
+// governed-repository integration constraints in `SPECIFICATION/constraints.md`;
+// `SPECIFICATION/scenarios.md` Scenario 102).
+//
+// IT DECLARES NO OPTIONAL INTEGRATION KEY, ON PURPOSE. Every point the schema
+// marks optional is left unwritten so the seam tests exercise the FleetDefault
+// arm end to end -- which is what "the member fixture passes the same tests on
+// fleet defaults" means. The one key written here is `compat.pinned`, which the
+// ratified one-resolver clause marks REQUIRED precisely because its only
+// substitutable value would be the moving branch tip its own clause forbids: an
+// absent pin resolves to `Defective` for a member exactly as it does for an
+// adopter, so writing it is what lets the fleet-default arm be the thing under
+// test at every other point rather than being masked by a required-field defect.
+{
+  "livespec-orchestrator-beads-fabro": {
+    "compat": {
+      "pinned": "v0.109.0"
+    }
+  }
+}
