@@ -57,17 +57,14 @@
 #      holds no database is SKIPPED rather than counted unreadable; that arm is
 #      matched narrowly so an auth or connection failure still stops the run.
 #
-# RELOCATE THIS BEFORE THE PLAN ARCHIVES
-#   This file currently lives in a PLAN RESEARCH DIRECTORY, and archiving a plan
-#   moves the whole directory to plan/archive/<topic>/ with nothing left behind.
-#   That is correct for research prose and WRONG for an operational gate: this
-#   probe is useful to any future beads upgrade, and it is referenced as a STOP
-#   gate from bd-ib-ao3j. Before bd-ib-3kolea is archived, move it somewhere
-#   durable -- bd-guard/test/ is the natural home, since the v1.1.2 candidate
-#   qualification harness already lives there -- and update the references in
-#   this thread's notes and on bd-ib-ao3j. It is deliberately NOT moved now:
-#   the plan is live, the paths are cited from merged notes and a ledger
-#   comment, and churning them early buys nothing.
+# LOCATION
+#   Relocated here from plan/beads-v1-1-2-upgrade/research/ on 2026-08-31, after
+#   the v1.0.5 -> v1.2.2 cutover it gated, so that archiving that plan does not
+#   take the probe with it. It is a reusable STOP gate for any future beads
+#   schema upgrade: run it with EXPECTED_SCHEMA_VERSION set to the version every
+#   tenant must currently be at (53 after the 2026-08-31 cutover). Ledger
+#   comments written before the move (for example on bd-ib-ao3j) still cite the
+#   old research/ path; comments cannot be edited, so this note is the redirect.
 #
 # MAINTENANCE
 #   The column lists below are copied verbatim from auxRekeyTables in

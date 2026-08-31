@@ -43,7 +43,7 @@ The v1.2.x migration runs `rekeyAuxRowIDs`, which rewrites the CHAR(36) primary
 keys of `events`, `comments`, `issue_snapshots`, `compaction_snapshots`. On
 dolthub/dolt#11131 storage drift it SKIPS a table, logs three lines, and exits 0
 — and our client discards that stderr on a zero exit, so a partial re-key passes
-silently (`rekey-silent-skip-hazard-2026-08-20.md`). `preflight-probe.sh` is the
+silently (`rekey-silent-skip-hazard-2026-08-20.md`). `bd-guard/test/preflight-probe.sh` is the
 control: per tenant it reads `MAX(version)` (anything ≥65 is the landmine, live),
 forces a decode of exactly the `auxRekeyTables` columns to surface any
 "invalid hash length", and counts the rows the re-key would rewrite. It is
@@ -56,7 +56,7 @@ because the reading is point-in-time on a live store.
    and several concurrent sessions. A mid-cutover write by an un-upgraded client
    is the failure mode.
 2. **Fetch + verify v1.2.2** once; stage the verified binary.
-3. **Per-tenant preflight** (`preflight-probe.sh`) across every tenant on the
+3. **Per-tenant preflight** (`bd-guard/test/preflight-probe.sh`) across every tenant on the
    shared server; abort the whole cutover if any tenant reads schema ≠ expected
    baseline or shows rekey drift.
 4. **Upgrade every binary** — the guard delegate and every clone's resolved `bd`
