@@ -26,6 +26,11 @@ from pathlib import Path
 from typing import Protocol
 
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import CommandRunner
+from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_defaults import (
+    RELEASE_REPOSITORY_MASTER_REF,
+    RELEASE_REPOSITORY_RELEASE_REF,
+    RELEASE_REPOSITORY_URL,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import ShellCommandRunner
 from livespec_orchestrator_beads_fabro.commands._dispatcher_minimum_release_floor import (
     MinimumReleaseVerdict,
@@ -60,9 +65,6 @@ CURRENCY_UNDETERMINED_STAGE = "dispatcher-currency-undetermined"
 # staleness refusal — which no longer exists — into a deliberate operator floor.
 MINIMUM_RELEASE_REFUSED_STAGE = "dispatcher-minimum-release-refused"
 
-_REPO_URL = "https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro.git"
-_RELEASE_REF = "refs/heads/release"
-_MASTER_REF = "refs/heads/master"
 _PROBE_TIMEOUT_SECONDS = 60.0
 _EXIT_PRECONDITION_ERROR = 3
 _BUILD_ID_MINIMUM_LENGTH = 7
@@ -98,13 +100,20 @@ class DispatcherStalenessDecision:
 
 
 def latest_release_ref_argv() -> tuple[str, ...]:
-    """Probe the newest installable release artifact."""
-    return ("git", "ls-remote", _REPO_URL, _RELEASE_REF)
+    """Probe the newest installable release artifact.
+
+    The repository and its ref come from the fleet-defaults module. They name
+    THIS PLUGIN's own publishing identity rather than anything about the governed
+    repository being dispatched -- but one of them is a bare default-branch name
+    used as a ref, and the ratified fleet-toolchain-literal ban admits such a
+    literal in exactly one module.
+    """
+    return ("git", "ls-remote", RELEASE_REPOSITORY_URL, RELEASE_REPOSITORY_RELEASE_REF)
 
 
 def master_ref_argv() -> tuple[str, ...]:
-    """Probe raw master only for the non-blocking unreleased-code warning."""
-    return ("git", "ls-remote", _REPO_URL, _MASTER_REF)
+    """Probe this plugin's own raw master, for the non-blocking unreleased-code warning."""
+    return ("git", "ls-remote", RELEASE_REPOSITORY_URL, RELEASE_REPOSITORY_MASTER_REF)
 
 
 def dispatcher_staleness_decision(

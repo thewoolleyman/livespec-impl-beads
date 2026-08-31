@@ -24,7 +24,13 @@ from pathlib import Path
 
 from livespec_runtime.attention_item import AttentionItem
 
+from livespec_orchestrator_beads_fabro.commands._dispatcher_default_branch import (
+    resolve_default_branch as resolve_repository_default_branch,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import CommandRunner
+from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_defaults import (
+    UNRESOLVED_NAME,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import ShellCommandRunner
 from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_close import load_items
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import journal_path
@@ -52,7 +58,6 @@ from livespec_orchestrator_beads_fabro.types import WorkItem
 
 __all__: list[str] = [
     "ATTENTION_SOURCE",
-    "DEFAULT_BRANCH_FALLBACK",
     "LEDGER_SOURCE",
     "AttentionResidueSource",
     "LedgerResidueSource",
@@ -64,9 +69,7 @@ __all__: list[str] = [
 
 ATTENTION_SOURCE = "attention"
 LEDGER_SOURCE = "ledger"
-DEFAULT_BRANCH_FALLBACK = "master"
 
-_GIT_TIMEOUT_SECONDS = 60.0
 _MISSING_STATUS = "<absent from the tenant>"
 _READ_ERRORS = (
     OSError,
@@ -140,16 +143,23 @@ def item_status_of(*, repo: Path, work_item_id: str) -> str:
 
 
 def resolve_default_branch(*, repo: Path, runner: CommandRunner) -> str:
-    """The governed repository's default branch, falling back to the family default."""
-    result = runner.run(
-        argv=["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
-        cwd=repo,
-        timeout_seconds=_GIT_TIMEOUT_SECONDS,
-    )
-    if result.exit_code != 0:
-        return DEFAULT_BRANCH_FALLBACK
-    resolved = result.stdout.strip().removeprefix("origin/")
-    return resolved or DEFAULT_BRANCH_FALLBACK
+    """The governed repository's default branch, or the name sentinel when silent.
+
+    A THIN PROJECTION OF THE ONE SHARED RESOLUTION, not a second probe. This
+    module used to carry its own `git symbolic-ref` read and its own branch-name
+    fallback -- a second answer to a question the ratified
+    default-branch-resolution clause gives one resolver, and the constant that
+    clause retires. An adopter whose primary branch is not this fleet's got a
+    clean, plausible, wrong answer from it, and the probe's `git diff` then
+    compared against a range that is not theirs.
+
+    The sentinel is what a silent probe answers, exactly as the resolved contract
+    renders an unresolvable REQUIRED field. Nothing is guessed: the probe's own
+    diff then fails on a ref nobody could name and reports itself unreadable,
+    which is the outcome its residue contract is built around.
+    """
+    resolved = resolve_repository_default_branch(repo=repo, runner=runner)
+    return UNRESOLVED_NAME if resolved is None else resolved
 
 
 def production_cycle(*, args: argparse.Namespace, repo: Path) -> DispatchProbeCycle:

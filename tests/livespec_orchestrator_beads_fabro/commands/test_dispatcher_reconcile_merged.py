@@ -573,9 +573,17 @@ def test_parse_merged_pr_list_accepts_branch_or_title_and_rejects_unusable_shape
     item = _item(id="bd-ib-target")
 
     assert (
-        module.parse_merged_pr_list(stdout="not json", item=item, branch="feat/bd-ib-target") == ()
+        module.parse_merged_pr_list(
+            stdout="not json", item=item, branch="feat/bd-ib-target", default_branch="trunk"
+        )
+        == ()
     )
-    assert module.parse_merged_pr_list(stdout="{}", item=item, branch="feat/bd-ib-target") == ()
+    assert (
+        module.parse_merged_pr_list(
+            stdout="{}", item=item, branch="feat/bd-ib-target", default_branch="trunk"
+        )
+        == ()
+    )
     matches = module.parse_merged_pr_list(
         stdout=json.dumps(
             [
@@ -590,6 +598,7 @@ def test_parse_merged_pr_list_accepts_branch_or_title_and_rejects_unusable_shape
         ),
         item=item,
         branch="feat/bd-ib-target",
+        default_branch="trunk",
     )
 
     assert [(match.number, match.merge_sha) for match in matches] == [(4, "ddd"), (5, "eee")]

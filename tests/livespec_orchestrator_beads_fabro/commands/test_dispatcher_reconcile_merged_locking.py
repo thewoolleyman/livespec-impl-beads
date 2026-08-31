@@ -283,30 +283,43 @@ def test_write_dispatch_lock_preserves_live_replacement_when_stale_reclaim_races
     assert path.read_bytes() == live_bytes
 
 
-def test_parse_merged_pr_list_rejects_non_default_base(tmp_path: Path) -> None:
+def test_parse_merged_pr_list_rejects_a_base_other_than_the_resolved_default(
+    tmp_path: Path,
+) -> None:
+    """The base compared against is RESOLVED, so the same entry flips on it alone.
+
+    Both legs run the identical record and differ only in the default branch
+    handed in, which is what makes the rejection evidence about the resolution
+    rather than about a branch name this fleet happens to use. The accepting leg
+    is the positive control: without it a parser that rejected EVERYTHING would
+    pass the rejecting leg for entirely the wrong reason.
+    """
     _ = tmp_path
     from livespec_orchestrator_beads_fabro.commands import _dispatcher_reconcile_merged
 
     item = _item(id="bd-ib-target")
-
-    matches = _dispatcher_reconcile_merged.parse_merged_pr_list(
-        stdout=json.dumps(
-            [
-                {
-                    "number": 31,
-                    "title": f"fix {item.id}",
-                    "headRefName": "branch",
-                    "baseRefName": "release",
-                    "state": "MERGED",
-                    "mergeCommit": {"oid": "def031"},
-                }
-            ]
-        ),
-        item=item,
-        branch="feat/bd-ib-target",
+    stdout = json.dumps(
+        [
+            {
+                "number": 31,
+                "title": f"fix {item.id}",
+                "headRefName": "branch",
+                "baseRefName": "release",
+                "state": "MERGED",
+                "mergeCommit": {"oid": "def031"},
+            }
+        ]
     )
 
-    assert matches == ()
+    rejected = _dispatcher_reconcile_merged.parse_merged_pr_list(
+        stdout=stdout, item=item, branch="feat/bd-ib-target", default_branch="trunk"
+    )
+    accepted = _dispatcher_reconcile_merged.parse_merged_pr_list(
+        stdout=stdout, item=item, branch="feat/bd-ib-target", default_branch="release"
+    )
+
+    assert rejected == ()
+    assert [match.number for match in accepted] == [31]
 
 
 def _write_dispatch_lock(*, repo: Path, item_id: str, pid: int, started_at: float) -> None:

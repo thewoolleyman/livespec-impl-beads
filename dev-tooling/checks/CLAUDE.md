@@ -53,17 +53,19 @@ Current checks:
   module the `RepoIntegrationContract` schema designates. Only two literal shapes
   count — the constant IS the token, or the token sits in shell command position
   inside it — so comments, docstrings, `__all__` entries and operator-facing
-  prose are out of scope by construction. Two MEASURED allow-lists carry work
-  already sliced elsewhere: the workflow payload and prompt files (retired by
-  carrier C5-payload) and the dispatcher-package sites still resolving a premise
-  from a constant. A STALE entry in either list FAILS, so a converted site cannot
-  stay exempt. It reports an ABSENCE, so it carries four positive controls —
-  package and payload discovery, a designation control asserting the exempt
-  module is the one the schema imports, and a matcher control over
-  `fixtures/fleet_toolchain_literal_control.py.txt` — and refuses to report a
-  clean scan when any fails. The two concerns live in two modules because they
-  change for different reasons: this one owns the scope, the allow-lists and the
-  controls, while the sibling private helper
+  prose are out of scope by construction. There is NO allow-list of any kind:
+  the payload's went with carrier C5-payload and the dispatcher package's went
+  with carrier C7, which converted its six remaining sites onto the resolved
+  integration contract or the fleet-defaults module. Each list carried a
+  stale-entry control while it existed — a converted site's entry stopped
+  matching and FAILED the check until it was deleted — which is what made both
+  retirements mechanical rather than remembered. It reports an ABSENCE, so it
+  carries four positive controls — package and payload discovery, a designation
+  control asserting the ONE skipped module is the one the schema imports, and a
+  matcher control over `fixtures/fleet_toolchain_literal_control.py.txt` — and
+  refuses to report a clean scan when any fails. The two concerns live in two
+  modules because they change for different reasons: this one owns the scope and
+  the controls, while the sibling private helper
   `_fleet_toolchain_literals_matcher.py` owns what counts as a literal at all.
 - `seam_equivalence.py` — the CI half of SPECIFICATION/contracts.md
   §"Repository integration contract", clause "Typed workflow inputs and the

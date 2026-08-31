@@ -62,6 +62,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_declarat
     declaration_from_dispatcher_block,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_defaults import (
+    FLEET_RECIPE_RUNNER,
     JANITOR_BOOTSTRAP_RECIPE_DEFAULT,
     UNRESOLVED_NAME,
 )
@@ -103,9 +104,6 @@ DEFAULT_RESOLUTION = "default"
 # What a defective declaration renders its recipe as. A sentinel rather than the
 # convention's text precisely because the convention is the wrong answer here.
 UNRESOLVED_RECIPE = UNRESOLVED_NAME
-
-# The command name whose arguments are recipe names in a repository's justfile.
-_JUST = "just"
 
 # The filenames `just` itself accepts for a repository's root justfile.
 _JUSTFILE_NAMES: tuple[str, ...] = ("justfile", "Justfile", ".justfile")
@@ -237,9 +235,16 @@ def _just_recipe_names(*, command: tuple[str, ...]) -> tuple[str, ...]:
     indistinguishable from a recipe name without knowing every option's arity.
     Over-collecting is the safe direction here: the caller asks whether ANY
     candidate is declared, so a stray flag value simply never matches.
+
+    The runner's NAME comes from the fleet-defaults module rather than from a
+    parser constant of its own. It is the same name the bootstrap recipe default
+    is composed from, so a fleet that changed its recipe runner would otherwise
+    change the default and leave this discrimination looking for the old one --
+    and it is a fleet-toolchain literal, which that module is the single place
+    the ratified ban admits.
     """
     for index, token in enumerate(command):
-        if PurePosixPath(token).name != _JUST:
+        if PurePosixPath(token).name != FLEET_RECIPE_RUNNER:
             continue
         return tuple(token for token in command[index + 1 :] if not token.startswith("-"))
     return ()
