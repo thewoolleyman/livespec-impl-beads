@@ -1068,17 +1068,17 @@
     "heading": "## Scenario 100 — The repository integration contract resolves once and projects identically to every seam",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
+    "test": "tests.integration.test_seam_equivalence_contract_inputs_scenario100.test_the_seam_check_reports_each_way_the_integration_input_surfaces_disagree",
     "work_item": "bd-ib-vblnq2",
-    "reason": "Owned by plan epic bd-ib-6pshji; bound to an INTEGRATION-tier test of the integration-contract-schema and resolved-contract-projection followups, exercising resolve-once journaling, identical host and in-sandbox projection, Defective with no default substitution, and the seam-equivalence check."
+    "reason": "Bound by plan typed-repo-integration-contract (epic bd-ib-vblnq2) child C8 scenario-bindings. The named case seeds one throwaway repository per ratified disagreement — a workflow token the Dispatcher renders no input for, a rendered input no workflow position reads, and a token in an attribute the pinned engine does not expand — and judges each through the shipped check-seam-equivalence gate, parametrized over the committed fleet-member and adopter fixtures. Its sibling test_the_committed_payload_agrees_with_a_governed_repository_declaration is the positive control that the gate can report clean. The resolve-once and identical-projection halves of this heading are bound by tests.integration.test_governed_repo_seams_scenario102."
   },
   {
     "heading": "## Scenario 101 — A schema-version mismatch refuses pre-dispatch with every defective point enumerated",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
+    "test": "tests.integration.test_schema_validation_refusal_scenario101.test_a_declaration_that_satisfies_neither_point_refuses_enumerating_both",
     "work_item": "bd-ib-vblnq2",
-    "reason": "Owned by plan epic bd-ib-6pshji; bound to an INTEGRATION-tier test of the schema-validation-pass followup, exercising the complete enumerated pre-dispatch refusal on a contract-version mismatch and non-stranding of an already-admitted item."
+    "reason": "Bound by plan typed-repo-integration-contract (epic bd-ib-vblnq2) child C8 scenario-bindings. The named case drives the REAL dispatch CLI over each committed governed-repository fixture with two unusable points written into its own declaration, and asserts the pre-dispatch precondition exit code, one message enumerating both committed keys, the journaled refusal record, and a journal carrying nothing else — so no run was created and nothing was claimed. Its sibling test_the_committed_declaration_passes_the_same_grading_unchanged is the control that the same pass admits what the two fixtures actually declare."
   },
   {
     "heading": "## Scenario 102 — Members-and-adopters-identical is a failing test",
@@ -1132,9 +1132,9 @@
     "heading": "## Scenario 107 — An adopter's declared merge strategy projects to both the argv and the prompt",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
+    "test": "tests.integration.test_merge_mode_projection_scenario107.test_the_merge_mode_field_resolves_each_arm_and_projects_to_the_merge_method_flag",
     "work_item": "bd-ib-vblnq2",
-    "reason": "Bound by plan typed-repo-integration-contract (epic bd-ib-vblnq2). merge_mode lands with C1 (schema field), C2 (argv projection), C3 (Defective/refusal), and C5-payload (pr.md prompt projection)."
+    "reason": "Bound by plan typed-repo-integration-contract (epic bd-ib-vblnq2) child C8 scenario-bindings. The named case rewrites dispatcher.merge_mode inside each committed governed-repository fixture's own declaration to reach all three arms — Declared squash, the absent key on the fleet default, and a value outside the admitted set resolving to Defective — and reads each answer back off the auto-merge argv the dispatch would spawn, the defective one arming no method at all. Its sibling test_the_committed_fixture_arms_the_strategy_its_own_declaration_names anchors the arms to the fixtures as committed. The pr.md prompt projection of the same resolved value is bound by tests.integration.test_governed_repo_seams_scenario102."
   },
   {
     "heading": "## Scenario 108 — A governed repository's commit-blocking hook honors the resolved sandbox-exemption marker",
