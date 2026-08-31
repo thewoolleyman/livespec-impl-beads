@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.123.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.122.0...v0.123.0) (2026-08-31)
+
+
+### Features
+
+* **contract:** retire MEASURED_EXEMPTIONS by converting its six sites (bd-ib-vblnq2.2) ([0eb564d](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/0eb564d009b544b35993050937c155f186487753))
+
 ## [0.122.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.121.0...v0.122.0) (2026-08-31)
 
 
