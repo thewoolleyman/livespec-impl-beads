@@ -1036,25 +1036,25 @@
     "heading": "## Scenario 96 — Each governed-repo integration point resolves from a committed declaration, with a fleet default only where one exists",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "reason": "Owned by plan epic bd-ib-6pshji; bound to an INTEGRATION-tier test of the declaration-resolution helpers (declared-janitor-check-suite, declared-core-provisioning impl-followups). A real integration-tier test ID replaces this TODO when those helpers land, exercising declared-verbatim invocation, absent-key fleet-default fallback, present-but-null refusal naming the key, committed-declaration-over-per-invocation-override precedence, and the absent-pinned degraded/refused outcome versus a declared bootstrap master honored as declared.",
-    "work_item": "bd-ib-6pshji"
+    "test": "tests.integration.test_declared_integration_points_scenario96.test_every_declarable_integration_point_resolves_declared_fleet_default_or_defective",
+    "reason": "Owned by plan epic bd-ib-vblnq2 (typed-repo-integration-contract), which retired the per-key declaration-resolution helpers this entry's prior TODO was waiting on and realizes the obligation through the one generic resolver instead. Bound by C11 (bd-ib-vblnq2.7) to the INTEGRATION-tier three-arm resolution test, parametrized over both committed governed-repository fixtures and walking the schema's own closed field set: every declarable point resolves Declared from a committed declaration carrying the declared value verbatim with nothing prepended, FleetDefault where the schema declares one, and Defective where none exists or the key is present-but-unusable. Its sibling case asserts the committed check-suite is invoked verbatim and is not displaced by the per-invocation --janitor override, with the inheriting leg as the control that the override can be reached.",
+    "work_item": "bd-ib-vblnq2"
   },
   {
     "heading": "## Scenario 97 — One up-front validation pass refuses pre-dispatch with the complete unmet list and no silent degrade",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "reason": "Owned by plan epic bd-ib-6pshji; bound to an INTEGRATION-tier test of the dispatch-integration-validation-pass impl-followup, exercising the complete-enumerated pre-dispatch refusal, the fleet-member control that passes unchanged, the plugin-upgrade-adds-expectation fail-fast without stranding a mid-pipeline item, and the no-silent-degrade disposition of factory-sandbox premises.",
-    "work_item": "bd-ib-6pshji"
+    "test": "tests.integration.test_integration_validation_pass_scenario97.test_the_committed_declaration_is_admitted_while_two_unmet_points_refuse_once_naming_both",
+    "reason": "Owned by plan epic bd-ib-vblnq2 (typed-repo-integration-contract), which absorbed the dispatch-integration-validation-pass follow-up this entry's prior TODO was waiting on and realizes it as the pre-dispatch schema-validation pass. Bound by C11 (bd-ib-vblnq2.7) to the INTEGRATION-tier two-sided verdict over both committed governed-repository fixtures: the committed declaration is admitted unchanged — the fleet-member leg being the control, since that fixture declares none of the optional integration keys — while the same declaration with two points written unmet earns exactly one refusal enumerating both committed keys. Its sibling case models a plugin upgrade that appends an expectation to the schema's closed set: an earlier repository's absence is left ungraded so a mid-pipeline item is not stranded, while a repository that wrote there unusably is refused fast naming the new point.",
+    "work_item": "bd-ib-vblnq2"
   },
   {
     "heading": "## Scenario 98 — The post-merge and reconcile janitor venue is the merged default-branch tip",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "reason": "Owned by plan epic bd-ib-6pshji; bound to an INTEGRATION-tier test of the janitor-venue-merged-tip impl-followup, exercising that a post-merge environment fix clears an item merged before the fix landed and that a resolved tip not containing the item's merge is a degraded post-merge outcome rather than a silent proceed.",
-    "work_item": "bd-ib-6pshji"
+    "test": "tests.integration.test_janitor_venue_merged_tip_scenario98.test_a_post_merge_environment_fix_clears_an_item_merged_before_the_fix_landed",
+    "reason": "Owned by plan epic bd-ib-vblnq2 (typed-repo-integration-contract), which absorbed the janitor-venue-merged-tip follow-up this entry's prior TODO was waiting on and projects the merged default-branch tip into the reconcile venue. Bound by C11 (bd-ib-vblnq2.7) to the INTEGRATION-tier venue test, run against a REAL repository whose item merged before a later janitor-environment fix landed and parametrized over both committed governed-repository fixtures: production venue resolution answers the default-branch tip, the checkout provisioned there carries both the item's merge and the later fix, and the item clears with no per-invocation --janitor override — controlled by provisioning the same repository at the retired historical merge sha, which cannot carry the fix. Its sibling case drives production provisioning for a merge the resolved tip does not contain and asserts a degraded post-merge outcome carrying the missing point and the remedy, with the merge-presence check the only command run and no checkout left behind.",
+    "work_item": "bd-ib-vblnq2"
   },
   {
     "heading": "## Scenario 99 — Empty-diff acceptance integrity: a zero-change merge is ungradeable, not delivered",
