@@ -1,0 +1,23 @@
+#!/bin/sh
+# The canonical commit-refuse hook body, in the shape a fleet member carries it.
+#
+# `SPECIFICATION/contracts.md`, the sandbox commit-refuse exemption resolution,
+# ratifies both halves this script realizes. A Fabro sandbox is a fresh full
+# clone, structurally indistinguishable from a primary checkout, so this hook's
+# primary-checkout refusal would refuse the sandbox's own Red-Green-Replay
+# commits; when the RESOLVED marker key reads `true` in the sandbox's git config
+# the refusal is suspended -- and only that refusal, because every gate the hook
+# delegates still fires.
+#
+# The key is read LITERALLY, which is exactly why the schema closes
+# `dispatcher.sandbox_exempt_marker` to the single value `livespec.sandboxExempt`:
+# a declared alternate would be set by the projection and honored by nothing.
+set -eu
+
+exempt=$(git config --get --bool livespec.sandboxExempt || printf 'false')
+if [ "$exempt" = true ]; then
+    exec "$(dirname "$0")/red-green-replay-gate"
+fi
+
+printf '%s\n' "refusing: commits are not made in the primary checkout" >&2
+exit 1

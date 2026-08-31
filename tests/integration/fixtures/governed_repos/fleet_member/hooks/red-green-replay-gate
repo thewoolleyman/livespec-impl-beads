@@ -1,0 +1,11 @@
+#!/bin/sh
+# The Red-Green-Replay gate the commit-blocking hook DELEGATES to.
+#
+# The ratified exemption suspends the primary-checkout refusal ONLY: "every
+# Red-Green-Replay gate the hook delegates still fires". This stand-in records
+# that it ran and then passes, so a seam test can observe the second half of
+# that clause instead of inferring it from a commit that merely succeeded.
+set -eu
+
+printf 'ran\n' >"$(git rev-parse --git-dir)/red-green-replay-gate.ran"
+exit 0

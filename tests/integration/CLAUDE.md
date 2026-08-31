@@ -35,6 +35,25 @@ a unit-tier test); its dotted node-id prefix `tests.integration` is in the
   the export-before-terminate ordering is OBSERVED rather than inferred from
   the end state.
 
+- `test_governed_repo_seams_scenario102.py` and
+  `test_sandbox_exempt_hook_honor_scenario108.py` — bind
+  `SPECIFICATION/scenarios.md` Scenarios 102 and 108 and the
+  adopter-and-member-fixtures bullet of `SPECIFICATION/constraints.md`
+  §"Governed-repository integration constraints". Every dispatch-path seam
+  (preflight, contract resolution, plan build, input rendering, workflow
+  validation, and the sandbox prepare parameters with the sandbox stubbed) runs
+  through PRODUCTION code parametrized over the two committed
+  governed-repository fixtures under `fixtures/governed_repos/`: a fleet member
+  carrying the fleet toolchain and declaring no optional integration key, and an
+  ADOPTER declaring every point through the contract schema while carrying none
+  of this fleet's tooling. `governed_repo_fixtures.py` holds what the two
+  fixtures are and what each seam owes each of them, so one parametrized test
+  body asserts the SHAPE for both legs instead of branching on a fixture's name.
+  The second module runs each fixture's commit-blocking hook in a sandbox-shaped
+  checkout against the marker key the contract resolved, with a
+  refuses-without-the-marker control and a deliberately non-honoring adopter
+  variant that must fail.
+
 Coverage rules: 100% line + branch on every covered module, as everywhere in
 this repo. Build state through the public store/client seam (or a small
 read-only stub for shapes the fake's public surface never produces); never read

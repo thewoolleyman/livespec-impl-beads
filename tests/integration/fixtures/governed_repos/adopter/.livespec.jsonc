@@ -1,0 +1,52 @@
+// An ADOPTER governed repository carrying NONE of this fleet's toolchain, as
+// the parametrized dispatch-path seam tests consume it
+// (the adopter-and-member-fixtures bullet of the governed-repository
+// integration constraints in `SPECIFICATION/constraints.md`;
+// `SPECIFICATION/scenarios.md` Scenario 102).
+//
+// IT DECLARES ITS INTEGRATION POINTS THROUGH THE CONTRACT SCHEMA AND NOTHING
+// ELSE. That is the whole property the fixture buys: any orchestrator behavior
+// that depends on a fleet premise this file does not name has nowhere to read
+// it from, so the adopter leg of a seam test fails instead of an adopter's
+// production dispatch failing.
+//
+// The prepare-toolchain premises are deliberately UNWRITTEN. Their ratified
+// FleetDefault is the explicit no-op VALUE, so leaving them out is this
+// repository saying "I carry no such premise" through the schema rather than by
+// silence -- which is why the no-op is a value a field resolves to and not an
+// absence somebody infers.
+{
+  "livespec-orchestrator-beads-fabro": {
+    "compat": {
+      "core_repo": "https://git.example.invalid/adopter/livespec.git",
+      "pinned": "v0.109.0"
+    },
+    "dispatcher": {
+      "master_ci": {
+        "workflow": "build.yml",
+        "job": "verify"
+      },
+      "janitor": {
+        "check_suite": ["make", "verify"]
+      },
+      "janitor_bootstrap": {
+        "recipe": ["make", "install-hooks"]
+      },
+      "merge_mode": "squash",
+      "sandbox_exempt_marker": "livespec.sandboxExempt",
+      "conformance": {
+        "hook_install": {
+          "mode": "shell_argv",
+          "argv": ["make", "install-hooks"]
+        },
+        "verify_commit_refuse_hook": {
+          "mode": "shell_argv",
+          "argv": ["make", "verify-hooks"]
+        },
+        "verify_plugin_resolution": {
+          "mode": "no_op"
+        }
+      }
+    }
+  }
+}

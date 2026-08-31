@@ -1084,17 +1084,17 @@
     "heading": "## Scenario 102 — Members-and-adopters-identical is a failing test",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "work_item": "bd-ib-vblnq2",
-    "reason": "Owned by plan epic bd-ib-6pshji; bound to an INTEGRATION-tier test of the adopter-member-fixtures and fleet-toolchain-literal-ban followups, exercising the adopter fixture passing with zero fleet tooling, the member fixture on defaults, and a reintroduced literal failing the gate."
+    "test": "tests.integration.test_governed_repo_seams_scenario102.test_no_fleet_toolchain_literal_reaches_an_adopter_projection",
+    "work_item": "bd-ib-dgs54p",
+    "reason": "Bound by plan typed-repo-integration-contract (epic bd-ib-vblnq2) child C6 adopter-member-fixtures. The whole module runs every dispatch-path seam — preflight, contract resolution, plan build, input rendering, workflow validation, sandbox stubbed — parametrized over the committed fleet-member and zero-tooling adopter fixtures; the named case is the one that fails the adopter leg on a reintroduced fleet-toolchain literal, with the member leg as its positive control. The literal gate's own half is bound by tests.dev-tooling.checks.test_no_fleet_toolchain_literals."
   },
   {
     "heading": "## Governed-repository integration constraints",
     "spec_root": "SPECIFICATION",
     "spec_file": "constraints.md",
-    "test": "TODO",
-    "work_item": "bd-ib-6pshji",
-    "reason": "Owned by plan epic bd-ib-6pshji; bound to the adopter-member-fixtures and fleet-toolchain-literal-ban followups (integration-tier fixture parametrization and the check-no-fleet-toolchain-literals gate)."
+    "test": "tests.integration.test_governed_repo_seams_scenario102.test_the_committed_fixture_carries_the_toolchain_shape_it_claims",
+    "work_item": "bd-ib-dgs54p",
+    "reason": "Bound by plan typed-repo-integration-contract (epic bd-ib-vblnq2) child C6 adopter-member-fixtures: the two committed governed-repository fixtures of the adopter-and-member-fixtures bullet, asserted to be the toolchain shapes they claim — the member carrying the fleet toolchain, the adopter carrying none of it."
   },
   {
     "heading": "## Scenario 103 — A needs-human outcome terminates the run and routes the decision to the ledger",
@@ -1140,8 +1140,8 @@
     "heading": "## Scenario 108 — A governed repository's commit-blocking hook honors the resolved sandbox-exemption marker",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
-    "work_item": "bd-ib-vblnq2",
-    "reason": "Bound by plan typed-repo-integration-contract (epic bd-ib-vblnq2). sandbox_exempt_marker lands with C1 (schema field), C2 (resolve-once), C5-payload (prepare-step projection), and C6 (adopter-fixture commit-blocking hook honor plus non-honoring negative variant)."
+    "test": "tests.integration.test_sandbox_exempt_hook_honor_scenario108.test_the_commit_blocking_hook_honors_the_resolved_marker_and_still_gates",
+    "work_item": "bd-ib-dgs54p",
+    "reason": "Bound by plan typed-repo-integration-contract (epic bd-ib-vblnq2) child C6. sandbox_exempt_marker landed across C1 (schema field), C2 (resolve-once), C5-payload (prepare-step projection) and C6, which adds the honor half: both fixtures' commit-blocking hooks are run in a sandbox-shaped checkout against the marker key the contract resolved, with a refuses-without-the-marker control and a deliberately non-honoring adopter variant that must fail."
   }
 ]

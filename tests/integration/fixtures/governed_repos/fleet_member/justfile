@@ -1,0 +1,19 @@
+# The fleet recipes the FleetDefault check-suite and bootstrap argv invoke.
+# `JANITOR_CHECK_SUITE_DEFAULT` runs `check-no-workflow-edits
+# install-worktree-pack check` through `mise exec -- just`, the in-sandbox
+# venue's default runs `check` alone, and `JANITOR_BOOTSTRAP_RECIPE_DEFAULT`
+# runs `install-commit-refuse-hooks` -- so a member that declares nothing still
+# has somewhere for each of them to land. The adopter fixture has no file like
+# this and declares its own commands instead.
+
+check:
+    uv run pytest
+
+check-no-workflow-edits:
+    uv run python -m livespec_dev_tooling.checks.no_workflow_edits
+
+install-worktree-pack:
+    uv run python -m livespec_dev_tooling.install_worktree_pack
+
+install-commit-refuse-hooks:
+    uv run python -m livespec_dev_tooling.install_commit_refuse_hooks
