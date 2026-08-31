@@ -49,8 +49,17 @@ def _workflow(*, slugs: tuple[str, ...], anchored: bool = True) -> str:
     )
 
 
-def _doc_only(*, slugs: tuple[str, ...]) -> str:
-    body = "".join(f"    {slug}\n" for slug in slugs)
+def _doc_only(*, slugs: tuple[str, ...], commented: tuple[str, ...] = ()) -> str:
+    """Render a targets block; each `commented` slug is named ONLY in comments.
+
+    Every commented slug is named twice — once on a whole-line comment and once
+    as a trailing comment after a real target — so a parse that ignores only one
+    of the two comment forms still reads the slug as a wired target.
+    """
+    lines = [f"    {slug}\n" for slug in slugs]
+    lines += [f"    # deliberately absent: {slug}\n" for slug in commented]
+    lines += [f"    check-unguarded  # nor {slug}\n" for slug in commented]
+    body = "".join(lines)
     return f'#!/usr/bin/env bash\ntargets=(\n{body})\nfor target in "${{targets[@]}}"; do just "$target"; done\n'
 
 
@@ -65,13 +74,16 @@ def _seed(
     doc_only_slugs: tuple[str, ...],
     recipe_slugs: tuple[str, ...],
     anchored: bool = True,
+    commented_doc_only_slugs: tuple[str, ...] = (),
 ) -> None:
     workflow = root / ".github" / "workflows" / "ci.yml"
     workflow.parent.mkdir(parents=True)
     _ = workflow.write_text(_workflow(slugs=workflow_slugs, anchored=anchored), encoding="utf-8")
     script = root / "dev-tooling" / "just-check-pre-commit-doc-only.sh"
     script.parent.mkdir(parents=True)
-    _ = script.write_text(_doc_only(slugs=doc_only_slugs), encoding="utf-8")
+    _ = script.write_text(
+        _doc_only(slugs=doc_only_slugs, commented=commented_doc_only_slugs), encoding="utf-8"
+    )
     _ = (root / "justfile").write_text(_justfile(slugs=recipe_slugs), encoding="utf-8")
 
 
@@ -104,6 +116,31 @@ def test_a_slug_missing_from_the_doc_only_targets_is_named(
 ) -> None:
     slugs = tuple(check.REQUIRED_SLUGS)
     _seed(root=tmp_path, workflow_slugs=slugs, doc_only_slugs=slugs[:-1], recipe_slugs=slugs)
+
+    findings = check.findings(repo_root=tmp_path)
+
+    assert len(findings) == 1
+    assert slugs[-1] in findings[0]
+    assert "doc-only" in findings[0]
+
+
+def test_a_slug_named_only_in_a_comment_is_absent_from_the_doc_only_list(
+    check: ModuleType, tmp_path: Path
+) -> None:
+    """A comment naming a guarded slug must not read as a wired target.
+
+    The false-present path this closes: a note inside the targets block saying
+    which slugs are deliberately absent would otherwise satisfy the very check
+    that exists to report their absence.
+    """
+    slugs = tuple(check.REQUIRED_SLUGS)
+    _seed(
+        root=tmp_path,
+        workflow_slugs=slugs,
+        doc_only_slugs=slugs[:-1],
+        recipe_slugs=slugs,
+        commented_doc_only_slugs=(slugs[-1],),
+    )
 
     findings = check.findings(repo_root=tmp_path)
 

@@ -84,8 +84,18 @@ def _invoked(*, batch_text: str, slug: str) -> bool:
 
 
 def _doc_only_targets(*, script_text: str) -> frozenset[str]:
+    """Every real target token, ignoring comment lines and trailing comments.
+
+    Splitting the whole block on whitespace would count a slug named inside a
+    shell comment as a wired target — and the likeliest comment to sit in that
+    block is a note recording which slugs are deliberately absent, which is
+    exactly what this check reports. Everything from an unquoted `#` to the end
+    of the line is dropped, which covers both a whole-line comment and a
+    trailing one; a target slug can never contain a `#`.
+    """
     match = _TARGETS_RE.search(script_text)
-    return frozenset() if match is None else frozenset(match.group("body").split())
+    body = "" if match is None else match.group("body")
+    return frozenset(token for line in body.splitlines() for token in line.split("#", 1)[0].split())
 
 
 def _recipes(*, justfile_text: str) -> frozenset[str]:
