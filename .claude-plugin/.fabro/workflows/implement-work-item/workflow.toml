@@ -405,10 +405,19 @@ script = "set -- {{ inputs.conformance_hook_install }}; test $# -eq 0 || \"$@\""
 # still fires the RGR gates. The marker NAME is the resolved
 # `dispatcher.sandbox_exempt_marker` field (contracts.md §"Dispatch-time
 # baseline conformance gate"), projected here rather than spelled. Set
-# UNCONDITIONALLY and backward-compatible: the legacy livespec.primaryPath-
-# based body never reads this key, so it is a harmless no-op until each repo
-# migrates to the structural body. Local config only — never leaves the
-# ephemeral sandbox (pushes carry refs, not config).
+# UNCONDITIONALLY. It is NOT a harmless no-op for every hook shape: a body
+# that never reads the marker (the legacy livespec.primaryPath-based body)
+# ignores it, but an adopter-authored WRITE-time structural hook without the
+# exemption slot fails CLOSED — it denies the sandbox's in-clone writes even
+# with the marker set (proven live on homelab runs 01M107EF8QMRF66RGH9T393CQV
+# and 01M186Y59CEBP2CNZ9ESSR3DHA, 2026-08-30; agents then improvised worktrees
+# and fabro's --allow-empty checkpoints minted empty commits). Honoring the
+# marker is therefore a ratified adopter-hook obligation (v094; contracts.md
+# §"Dispatch-time baseline conformance gate"), exercised by the C6 honor and
+# non-honoring fixture tests; a prepare-time writability probe that would
+# refuse such a hook loudly is the pending propose-change recorded as plan
+# bd-ib-vblnq2 deferral D5. Local config only — never leaves the ephemeral
+# sandbox (pushes carry refs, not config).
 script = "git config {{ inputs.sandbox_exempt_marker }} true"
 
 [[run.prepare.steps]]
