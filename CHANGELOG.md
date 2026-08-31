@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.124.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.123.0...v0.124.0) (2026-08-31)
+
+
+### Features
+
+* **checks:** guard that the integration gates are wired into CI and the doc-only pre-push path (bd-ib-vblnq2.6) ([4217d29](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/4217d291db0dd102770278dec29288e05ff0db9a))
+
 ## [0.123.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.122.0...v0.123.0) (2026-08-31)
 
 
