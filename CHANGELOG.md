@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.121.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.120.0...v0.121.0) (2026-08-31)
+
+
+### Features
+
+* **dispatcher:** conformance-premise contract fields with a closed mode enumeration ([69bd21a](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/69bd21a07d5949c6aee7c835bf358b7cacc2892b))
+
 ## [0.120.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.119.0...v0.120.0) (2026-08-30)
 
 
