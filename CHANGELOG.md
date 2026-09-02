@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.124.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.124.1...v0.124.2) (2026-09-02)
+
+
+### Bug Fixes
+
+* **otel-receiver:** allowlist the factory build-telemetry scheme attributes ([44ca04f](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/44ca04f5d8bb755f53b51c19ffbd7ef859f67879))
+
 ## [0.124.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.124.0...v0.124.1) (2026-08-31)
 
 
