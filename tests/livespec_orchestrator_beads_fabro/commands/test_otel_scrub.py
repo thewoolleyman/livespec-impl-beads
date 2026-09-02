@@ -161,3 +161,23 @@ def test_scrub_at_credential_free_value_never_exceeds_max_len(*, value: str) -> 
     scrubbed = scrub(value=value)
     assert len(scrubbed) <= ATTR_MAX_LEN
     assert scrubbed == value[:ATTR_MAX_LEN]
+
+
+def test_factory_build_phase_attrs_are_allowlisted() -> None:
+    """The fabro-sandbox cargo shim's build-telemetry scheme keys reach Honeycomb.
+
+    Measured before this test existed: `repo` + `git.commit.sha` arrived while
+    `build.env` / `build.phase` were dropped by this allowlist, so the console's
+    factory baselines had to be queried by span NAME (console item -elt9).
+    """
+    for key in (
+        "build.env",
+        "build.phase",
+        "toolchain.version",
+        "cargo.subcommand",
+        "work_item_id",
+        "build.cache.tier",
+        "build.cache.hit",
+    ):
+        assert key in ATTRIBUTE_ALLOWLIST
+        assert is_allowed_attr(key=key) is True

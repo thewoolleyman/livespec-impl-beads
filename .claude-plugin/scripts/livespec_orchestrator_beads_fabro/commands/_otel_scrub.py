@@ -173,6 +173,24 @@ ATTRIBUTE_ALLOWLIST: frozenset[str] = frozenset(
         "visit",
         "stop_reason",
         "node_id",
+        # Factory build-phase telemetry (livespec-console-beads-fabro plan
+        # optimize-console-builds; console item -elt9). The fabro-sandbox
+        # `cargo` shim (livespec-dev-tooling otel_cargo_phase.py) POSTs one
+        # `build.cargo-<subcmd>` span per cargo invocation through THIS
+        # receiver, carrying the shared build-telemetry attribute scheme
+        # (`plan/optimize-console-builds/telemetry-attribute-scheme.md`).
+        # Measured 2026-09-01/02: `repo` + `git.commit.sha` arrived in
+        # Honeycomb (already named above) while `build.env` / `build.phase`
+        # were silently dropped here — so every factory before/after query
+        # had to key on the span NAME instead of the scheme. All are bounded
+        # enum / version / id scalars, scrub-safe.
+        "build.env",
+        "build.phase",
+        "toolchain.version",
+        "cargo.subcommand",
+        "work_item_id",
+        "build.cache.tier",
+        "build.cache.hit",
     }
 )
 
