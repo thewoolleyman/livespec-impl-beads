@@ -49,6 +49,28 @@
 #   ./preflight-probe.sh              # check every server-mode tenant
 #   ./preflight-probe.sh <repo-path>  # check one
 #
+# EXPECTED SCHEMA VERSION
+#   EXPECTED_SCHEMA_VERSION defaults to 53, and that default is the CURRENT
+#   FLEET STEADY STATE: every family tenant has been at schema 53 since the
+#   2026-08-31 v1.0.5 -> v1.2.2 cutover. It therefore MUST BE BUMPED as part of
+#   any future schema cutover, in the same change that migrates the tenants.
+#   A default left behind at the previous version reports a false STOP on every
+#   healthy tenant, and a probe that always refuses trains its operator to
+#   ignore the verdict — the same outcome as having no probe. (That is exactly
+#   what happened between the cutover and 2026-09-04, while the default still
+#   read 49.)
+#
+#   The environment override is retained deliberately: it is what lets a
+#   cutover run the probe against the TARGET version mid-window, as this repo
+#   did on 2026-08-31.
+#
+#     EXPECTED_SCHEMA_VERSION=<target-version> ./preflight-probe.sh
+#
+#   NEVER auto-detect the expected version from the tenants. The probe exists
+#   to detect drift from an EXPECTED version, so a value derived from the
+#   observed fleet would agree with whatever it finds and could never fail —
+#   converting a fail-closed gate into one incapable of returning a hit.
+#
 # EXIT CODES
 #   0  every probed tenant is clean and at the expected baseline
 #   1  at least one tenant FAILED a check — treat as a STOP, do not migrate
@@ -61,8 +83,9 @@
 #   Relocated here from plan/beads-v1-1-2-upgrade/research/ on 2026-08-31, after
 #   the v1.0.5 -> v1.2.2 cutover it gated, so that archiving that plan does not
 #   take the probe with it. It is a reusable STOP gate for any future beads
-#   schema upgrade: run it with EXPECTED_SCHEMA_VERSION set to the version every
-#   tenant must currently be at (53 after the 2026-08-31 cutover). Ledger
+#   schema upgrade; the version every tenant must currently be at is carried by
+#   the EXPECTED_SCHEMA_VERSION default above (53 after the 2026-08-31 cutover),
+#   so a bare run is the correct steady-state check. Ledger
 #   comments written before the move (for example on bd-ib-ao3j) still cite the
 #   old research/ path; comments cannot be edited, so this note is the redirect.
 #
@@ -74,7 +97,10 @@
 
 set -uo pipefail
 
-EXPECTED_SCHEMA_VERSION="${EXPECTED_SCHEMA_VERSION:-49}"
+# 53 is the current fleet steady state (post-2026-08-31 cutover). Bump this with
+# any future schema cutover; never derive it from the tenants. See the
+# "EXPECTED SCHEMA VERSION" header section above.
+EXPECTED_SCHEMA_VERSION="${EXPECTED_SCHEMA_VERSION:-53}"
 LANDMINE_VERSION=65
 WRAPPER_DIR=/data/projects/1password-env-wrapper
 
