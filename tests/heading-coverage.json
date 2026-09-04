@@ -1143,5 +1143,45 @@
     "test": "tests.integration.test_sandbox_exempt_hook_honor_scenario108.test_the_commit_blocking_hook_honors_the_resolved_marker_and_still_gates",
     "work_item": "bd-ib-dgs54p",
     "reason": "Bound by plan typed-repo-integration-contract (epic bd-ib-vblnq2) child C6. sandbox_exempt_marker landed across C1 (schema field), C2 (resolve-once), C5-payload (prepare-step projection) and C6, which adds the honor half: both fixtures' commit-blocking hooks are run in a sandbox-shaped checkout against the marker key the contract resolved, with a refuses-without-the-marker control and a deliberately non-honoring adopter variant that must fail."
+  },
+  {
+    "heading": "## Scenario 109 — Every epic carries a canonical, tenant-unique `plan_slug`",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "work_item": "bd-ib-w3nwz5.1",
+    "reason": "Ratified with the plan-slug-anchor-and-typed-next-action revision (plan console-control-plane-primitives, epic bd-ib-w3nwz5, child bd-ib-w3nwz5.1, console decision D6). plan_slug is required and tenant-unique on every epic, must equal its own canonicalization, is forbidden on non-epics (with a tenant-qualified plan_ref the one exception), and is written by both the plan front-end and the capture route. Awaits the integration-tier armed-check test delivered by bd-ib-w3nwz5.1; real test ID to follow."
+  },
+  {
+    "heading": "## Scenario 110 — The `associated_work_item_id` anchor matches its epic in both directions",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "work_item": "bd-ib-w3nwz5.1",
+    "reason": "Ratified with the plan-slug-anchor-and-typed-next-action revision (epic bd-ib-w3nwz5, child bd-ib-w3nwz5.1, console decision D6). The plan/<slug>/associated_work_item_id anchor holds the epic id or the literal unassigned, matches its epic in both directions, accepts unassigned only while no epic carries the slug, and is reported when missing or malformed. Awaits the integration-tier armed-check test delivered by bd-ib-w3nwz5.1; real test ID to follow."
+  },
+  {
+    "heading": "## Scenario 111 — Typed `next_action` drives an unattended resume and cannot be truncated by wrapping",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "work_item": "bd-ib-w3nwz5.1",
+    "reason": "Ratified with the plan-slug-anchor-and-typed-next-action revision (epic bd-ib-w3nwz5, child bd-ib-w3nwz5.1, console decision D6 item 5). Typed next_action epic metadata is the sole unattended-resume authority: impl/spec-op refs act without asking, human/none raise the picker, a handoff write updates it in the same call, and the wrapped-prose marker parse is retired so a truncated fragment can never execute. Awaits the integration-tier resume test delivered by bd-ib-w3nwz5.1; real test ID to follow."
+  },
+  {
+    "heading": "## Scenario 112 — The one-shot anchor migration is complete and idempotent",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "work_item": "bd-ib-w3nwz5.1",
+    "reason": "Ratified with the plan-slug-anchor-and-typed-next-action revision (epic bd-ib-w3nwz5, child bd-ib-w3nwz5.1, console decision D6 items 4 and 6). The one-shot migration writes anchors from existing slugs, derives missing slugs and refuses collisions, seeds next_action from the newest handoff, and changes nothing on a second run. Awaits the integration-tier migration test delivered by bd-ib-w3nwz5.1; real test ID to follow."
+  },
+  {
+    "heading": "## Scenario 113 — A plan epic closed without completeness-review evidence is reported",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "work_item": "bd-ib-w3nwz5.1",
+    "reason": "Ratified with the plan-slug-anchor-and-typed-next-action revision (epic bd-ib-w3nwz5, child bd-ib-w3nwz5.1, console decision D6 item 4). The plan_close_evidence conformance check reports, after the fact, an epic whose plan_slug names a live or archived directory that was closed with no completeness-review evidence comment, while leaving evidenced-closed and still-open epics unreported. This is the detective conformance counterpart to Scenario 55's proactive archive-operation behavior. Awaits the integration-tier armed-check test delivered by bd-ib-w3nwz5.1; real test ID to follow."
   }
 ]
