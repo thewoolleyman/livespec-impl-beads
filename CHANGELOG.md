@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.125.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.124.3...v0.125.0) (2026-09-04)
+
+
+### Features
+
+* **plan:** write the plan-identity anchor and plan_slug on every epic route (bd-ib-cwhos6) ([3779e93](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/3779e93ddcfaa40a34f9dc27b5154d709a404f63))
+
 ## [0.124.3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.124.2...v0.124.3) (2026-09-04)
 
 
