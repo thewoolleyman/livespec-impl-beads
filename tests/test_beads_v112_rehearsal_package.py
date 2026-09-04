@@ -17,7 +17,7 @@ from jsonschema import ValidationError
 from jsonschema.validators import Draft202012Validator
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKAGE = ROOT / "plan" / "beads-v1-1-2-upgrade" / "rehearsal-package"
+PACKAGE = ROOT / "plan" / "archive" / "beads-v1-1-2-upgrade" / "rehearsal-package"
 IDENTITY_PROBE = PACKAGE / "wrappers" / "identity-probe.py"
 ANCHOR_PROBE = PACKAGE / "wrappers" / "anchor-probe.py"
 
