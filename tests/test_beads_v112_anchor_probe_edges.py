@@ -8,7 +8,13 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 ANCHOR_PROBE = (
-    ROOT / "plan" / "beads-v1-1-2-upgrade" / "rehearsal-package" / "wrappers" / "anchor-probe.py"
+    ROOT
+    / "plan"
+    / "archive"
+    / "beads-v1-1-2-upgrade"
+    / "rehearsal-package"
+    / "wrappers"
+    / "anchor-probe.py"
 )
 
 
