@@ -49,21 +49,31 @@ on:
   push:
     branches: [master]
 
-# RUNNER ROUTING — deliberately PLAIN `runs-on: ubuntu-latest` everywhere.
+# RUNNER ROUTING — the fleet's flippable form, like the other nine members.
 #
-# Do NOT "restore uniformity" by introducing the flippable
-# `runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["self-hosted","local-ci"]') }}`
-# form that the other fleet repos use. This repo hosts the fleet's PRIVILEGED
-# on-demand gate-runner lane, and livespec-dev-tooling's `self_hosted_routing`
-# check is a fail-by-default SECURITY guard: if ANY job's `runs-on` references
-# the label `local-ci`, the workflow's trigger set must contain none of six
-# forbidden triggers. The flippable form puts the literal `local-ci` into this
-# file, dragging the one repo with a privileged lane into that guard's scope and
-# leaving a latent default that would route CI to self-hosted runners if the
-# CI_RUNNER_LABELS repo variable were ever unset. This repo also registers ZERO
-# self-hosted runners today, so that default would simply hang. Adding a
-# contained `local-ci` lane here is a two-trust-tier security decision the
-# maintainer owns, and it is deliberately NOT being made.
+# Every check job's `runs-on` reads the repository variable CI_RUNNER_LABELS
+# and falls back to GitHub-hosted `ubuntu-latest` when it is unset; `setup`,
+# `detect-py-changes`, `export-telemetry` and `ci-green` stay hosted so the
+# fan-out root and the gate reporter never depend on the self-hosted pool
+# (the same convention every routed member's ci.yml follows). The variable
+# points at this repo's PowerEdge scale set (`livespec-orchestrator-k3s`,
+# livespec-dev-tooling ci-runner/k3s/phase2/arc/values-livespec-orchestrator-beads-fabro.yaml)
+# and is written only through livespec-dev-tooling's guarded
+# ci-runner/set-ci-runner-labels.sh, which refuses unless the fork-PR
+# approval tier is at its strictest setting.
+#
+# Until 2026-09-04 this file was plain `runs-on: ubuntu-latest` by a recorded
+# caution: this repo also hosts the fleet's operator-triggered live
+# golden-master tier (acceptance-live-golden-master.yml, a separate workflow
+# on a separate `livespec-orchestrator`-labeled runner), and routing CI here
+# was called a "two-trust-tier" decision. The maintainer settled it in
+# session on 2026-09-04 (livespec plan ci-runner-pod-lifecycle-reliability,
+# epic livespec-ifwnqj, the ~16:15Z scope event, Carrier G1): the exposure is
+# the same as every other member's, and this file's triggers are
+# `pull_request` + `push` exactly like livespec's, so livespec-dev-tooling's
+# self_hosted_routing guard (which fires only when a workflow both names the
+# `local-ci` label and uses an automation trigger) does not bear on it. The
+# fallback here is `ubuntu-latest`, not `local-ci`, for that reason.
 #
 # The baked `container:` image below is orthogonal to routing: it gives the
 # check jobs the SAME environment the Fabro sandbox runs, so "green in CI" and
@@ -123,7 +133,7 @@ jobs:
   check-python:
     name: ${{ matrix.target }} (${{ matrix.uid }})
     needs: setup
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     container:
       image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.40.2
     env:
@@ -314,7 +324,7 @@ jobs:
   check-per-file-coverage:
     name: check-per-file-coverage (${{ matrix.uid }})
     needs: setup
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     container:
       image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.40.2
     env:
@@ -410,7 +420,7 @@ jobs:
   check-coverage:
     name: ${{ matrix.target }} (${{ matrix.uid }})
     needs: [setup, check-per-file-coverage]
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     container:
       image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.40.2
     env:
@@ -505,7 +515,7 @@ jobs:
   check-python-batch:
     name: check-python-batch (${{ matrix.uid }})
     needs: setup
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     container:
       image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.40.2
     env:
@@ -629,7 +639,7 @@ jobs:
 
   check-doctor-static:
     name: check-doctor-static
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     container:
       image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.40.2
     env:
@@ -694,7 +704,7 @@ jobs:
   check-metadata:
     name: ${{ matrix.target }}
     needs: setup
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     container:
       image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.40.2
     env:
@@ -786,7 +796,7 @@ jobs:
   e2e-cli:
     name: e2e-cli
     needs: setup
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     container:
       image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.40.2
     # SINGLE env block — this job already had a job-level `env:` carrying
@@ -851,7 +861,7 @@ jobs:
   # y6e2 explain why the pack must be materialized).
   check-metadata-batch:
     name: check-metadata-batch
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     container:
       image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.40.2
     env:
@@ -932,7 +942,7 @@ jobs:
   acceptance:
     name: acceptance
     needs: setup
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     container:
       image: ghcr.io/thewoolleyman/livespec-fabro-sandbox:python-v1.40.2
     env:
