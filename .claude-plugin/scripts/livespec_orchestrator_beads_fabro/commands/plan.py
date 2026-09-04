@@ -23,6 +23,10 @@ from livespec_orchestrator_beads_fabro.commands._plan_disposition import (
     close_plan_child,
     reparent_plan_child,
 )
+from livespec_orchestrator_beads_fabro.commands._plan_identity import (
+    tag_epic_plan_slug,
+    write_plan_anchor,
+)
 from livespec_orchestrator_beads_fabro.commands._plan_record_rate import (
     DEFAULT_DAILY_RECORD_THRESHOLD,
     PlanRecordRateWarning,
@@ -100,15 +104,23 @@ def create_thread(  # noqa: PLR0913 — package primitive mirrors the plan-creat
     research_text: str,
     now: str,
 ) -> dict[str, str]:
-    """Create a plan with one research note and one ledger epic anchor."""
+    """Create a plan with one research note, one ledger epic, and its anchor."""
     topic_dir = project_root / _PLAN_DIR / slug
     research_path = topic_dir / _RESEARCH_DIR / research_filename
-    research_path.parent.mkdir(parents=True, exist_ok=False)
-    _ = research_path.write_text(research_text, encoding="utf-8")
+    # Write-once is enforced on the NOTE, not on its directory: an epic may
+    # adopt a `plan/<slug>/` that already holds standalone research, so the
+    # directory legitimately pre-exists while the note it adds may not. The
+    # exclusive-create mode refuses that collision as the directory-level
+    # `exist_ok=False` used to, without refusing the adoption.
+    research_path.parent.mkdir(parents=True, exist_ok=True)
+    with research_path.open("x", encoding="utf-8") as handle:
+        _ = handle.write(research_text)
     epic = plan_anchor_epic(prefix=config.prefix, slug=slug, title=title, now=now)
     append_work_item(path=config, item=epic)
-    _tag_epic_anchor(config=config, epic_id=epic.id, slug=slug)
+    _ = tag_epic_plan_slug(config=config, epic_id=epic.id, title=title, slug=slug)
+    anchor_path = write_plan_anchor(project_root=project_root, slug=slug, epic_id=epic.id)
     return {
+        "anchor_path": anchor_path.relative_to(project_root).as_posix(),
         "epic_id": epic.id,
         "research_path": research_path.relative_to(project_root).as_posix(),
     }
@@ -257,14 +269,6 @@ def _blocking_dependency_ids(*, record: BeadsRecord) -> frozenset[str]:
 
 def _is_blocks_dependency_edge(*, edge: object) -> str | None:
     return is_blocks_dependency_edge(edge=edge)
-
-
-def _tag_epic_anchor(*, config: StoreConfig, epic_id: str, slug: str) -> None:
-    client = make_beads_client(config=config)
-    record = client.show_issue(issue_id=epic_id)
-    metadata = dict(record["metadata"])
-    metadata["plan_slug"] = slug
-    client.update_issue(issue_id=epic_id, metadata=metadata)
 
 
 def _comment_body(*, prefix: str, author: str, now: str, body: str) -> str:

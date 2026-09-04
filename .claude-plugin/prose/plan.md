@@ -116,7 +116,12 @@ hyphens, and truncate to 64 characters. Confirm the proposed slug.
 On confirmation, create exactly these records:
 
 1. One initial research note under `plan/<slug>/research/`.
-2. One ledger `epic` anchor for the thread.
+2. One ledger `epic` anchor for the thread, carrying `plan_slug`.
+3. The write-once file `plan/<slug>/associated_work_item_id`, holding
+   that epic's id on one line. `create_thread` writes all three; when the
+   slug names a directory of standalone research whose anchor still reads
+   `unassigned`, the epic ADOPTS it and the anchor is completed to the
+   epic id rather than rewritten from one id to another.
 
 Do not create `handoff.md`, status files, terminal markers, local queue
 files, or any other thread metadata file.

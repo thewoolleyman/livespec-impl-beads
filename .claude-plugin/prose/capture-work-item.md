@@ -136,7 +136,21 @@ if plan_parent_id is not None:
     )
 ```
 
-Print the assigned id back to the user.
+An epic IS a plan, so an epic filed here MUST carry the canonical
+`plan_slug` that listings and the Control-Plane surface resolve it by —
+every epic-creating route owes that write, not just the `plan` front-end.
+Derive it from the title by passing no `slug`; supply one only when the
+user names a handle, and let the primitive canonicalize it rather than
+canonicalizing by hand:
+
+```python
+from livespec_orchestrator_beads_fabro.commands._plan_identity import tag_epic_plan_slug
+
+if item.type == "epic":
+    plan_slug = tag_epic_plan_slug(config=config, epic_id=item.id, title=item.title)
+```
+
+Print the assigned id back to the user, plus `plan_slug` for an epic.
 
 Then resolve and DISPLAY the item's effective-criteria parse, through the one
 public primitive every gate uses — never by re-reading the criteria field or
