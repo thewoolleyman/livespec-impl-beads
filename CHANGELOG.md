@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.127.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.126.0...v0.127.0) (2026-09-04)
+
+
+### Features
+
+* **plan:** one-shot idempotent plan-record migration (bd-ib-bmxumc) ([eea591f](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/eea591facf56a82793dca5e530a32f30922b02a5))
+
 ## [0.126.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.125.0...v0.126.0) (2026-09-04)
 
 
