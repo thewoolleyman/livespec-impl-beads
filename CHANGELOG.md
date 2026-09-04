@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.124.3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.124.2...v0.124.3) (2026-09-04)
+
+
+### Bug Fixes
+
+* **dispatcher:** substitute the resolved contract's inputs into the overlay's prepare commands (bd-ib-8atx) ([79066c7](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/79066c796fa1507e3789f959fe9893a8b2750a44))
+
 ## [0.124.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.124.1...v0.124.2) (2026-09-02)
 
 
