@@ -1,4 +1,17 @@
-# Cutover plan: executing the v1.0.5 → v1.2.2 upgrade (PLAN ONLY — not authorized to run)
+# Cutover plan: executing the v1.0.5 → v1.2.2 upgrade (EXECUTED 2026-08-31 — historical)
+
+> **STATUS BANNER, added 2026-09-04.** This document is the pre-cutover PLAN as
+> authored on 2026-08-29, kept verbatim below as the historical record. **The
+> cutover it describes has since been executed**: all 14 tenants moved v49 → v53
+> on 2026-08-31 and the host binary is v1.2.2. Its original heading and its
+> "not authorized to run / it executes nothing" framing were true when written
+> and are **no longer true** — do not read this file as a pending instruction.
+>
+> For what actually happened, including two corrections to the procedure below
+> (`bd migrate --dry-run` is NOT a preview — it migrates on store-open; and the
+> fleet-pause list must stop the root `reconcile-runs.timer`), read
+> `cutover-receipt-2026-08-31.md` beside this file, and the `CUTOVER RECEIPT`
+> handoff entry on epic `bd-ib-3kolea`.
 
 **Date:** 2026-08-29
 **Thread:** `plan/beads-v1-1-2-upgrade/`

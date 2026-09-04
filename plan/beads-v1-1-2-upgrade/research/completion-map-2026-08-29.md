@@ -1,4 +1,17 @@
-# Completion map: what remains before bd-ib-3kolea can archive
+# Completion map: what remained before bd-ib-3kolea could archive (2026-08-29 snapshot — superseded)
+
+> **STATUS BANNER, added 2026-09-04.** This is a point-in-time audit taken on
+> 2026-08-29, kept verbatim below. Its table of **five undisposed children is
+> superseded**: `bd-ib-1atn`, `bd-ib-3kolea.3`, `bd-ib-ao3j` and `bd-ib-092q`
+> have all closed, the cutover itself executed on 2026-08-31, and the image
+> parity leg (`bd-ib-6up7oj`, `bd-ib-lowvtz`, `bd-ib-4ynkmh`) closed on
+> 2026-09-04. As of this banner the epic has **one** undisposed child,
+> `bd-ib-3kolea.2`, awaiting its human-only acceptance.
+>
+> Do not read the table below as current state. The live answer comes from the
+> ledger — the union child enumeration (`client.children` /
+> `undisposed_plan_child_ids`), never a hand-filtered `bd list` — and the
+> narrative is in the newest handoff entries on epic `bd-ib-3kolea`.
 
 **Date:** 2026-08-29
 **Thread:** `plan/beads-v1-1-2-upgrade/`
