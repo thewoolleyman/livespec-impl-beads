@@ -47,6 +47,7 @@ if TYPE_CHECKING:
 
 __all__: list[str] = [
     "PLAN_ANCHOR_FILENAME",
+    "PLAN_SLUG_METADATA_KEY",
     "UNASSIGNED_ANCHOR",
     "canonical_plan_slug",
     "tag_epic_plan_slug",
@@ -55,9 +56,12 @@ __all__: list[str] = [
 
 PLAN_ANCHOR_FILENAME = "associated_work_item_id"
 UNASSIGNED_ANCHOR = "unassigned"
+# Public because a READER of the tag needs the same key its writer uses: the
+# migration reads `plan_slug` off every epic to decide which are untagged, and a
+# second copy of the literal is how a reader and a writer come to disagree.
+PLAN_SLUG_METADATA_KEY = "plan_slug"
 
 _PLAN_DIR = "plan"
-_PLAN_SLUG_KEY = "plan_slug"
 # The canonicalization the `propose-change` operation applies to a topic
 # hint, restated as code: lowercase, one hyphen per run of non-`[a-z0-9]`,
 # strip, truncate to 64.
@@ -104,6 +108,6 @@ def tag_epic_plan_slug(
     client = make_beads_client(config=config)
     record = client.show_issue(issue_id=epic_id)
     metadata = dict(record["metadata"])
-    metadata[_PLAN_SLUG_KEY] = resolved
+    metadata[PLAN_SLUG_METADATA_KEY] = resolved
     client.update_issue(issue_id=epic_id, metadata=metadata)
     return resolved
