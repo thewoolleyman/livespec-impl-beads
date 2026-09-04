@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -25,7 +26,13 @@ def _tier_one_embedded_bd_body(*, script: str) -> str:
 def test_github_cli_apt_install_is_exactly_pinned_and_verified() -> None:
     dockerfile = _DOCKERFILE.read_text(encoding="utf-8")
 
-    assert "ENV GH_VERSION=2.96.0\n" in dockerfile
+    # The pin itself lives ONLY in the Dockerfile: asserting the exact version
+    # literal here too would mean every gh roll edits two files. Assert the
+    # SHAPE — exactly one ENV line carrying a fully-qualified version — and
+    # that both consuming lines read it back through ${GH_VERSION}.
+    pins = re.findall(r"^ENV GH_VERSION=(\S+)$", dockerfile, flags=re.MULTILINE)
+    assert len(pins) == 1, pins
+    assert re.fullmatch(r"\d+\.\d+\.\d+", pins[0]), pins[0]
     assert 'apt-get install -y --no-install-recommends gh="${GH_VERSION}"' in dockerfile
     assert 'test "$(gh --version | awk \'NR == 1 {print $3}\')" = "${GH_VERSION}"' in dockerfile
 
