@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import cast
 
@@ -137,6 +137,7 @@ def materialize_overlay(  # noqa: PLR0913 — kw-only overlay materializer; each
     dispatch_id: str,
     token: Callable[[], str],
     graph_override: Path | None = None,
+    prepare_inputs: Mapping[str, str] | None = None,
 ) -> str | None:
     """Write the uncommitted mode-600 run-config overlay.
 
@@ -214,6 +215,12 @@ def materialize_overlay(  # noqa: PLR0913 — kw-only overlay materializer; each
         # The per-dispatch payload's rendered graph, carrying this dispatch's
         # resolved node timeouts as literal durations.
         graph_override=graph_override,
+        # The resolved integration contract's values, substituted into the
+        # committed run config's `{{ inputs.* }}` prepare commands because the
+        # pinned engine does not render that site. Forwarded rather than
+        # re-derived: the caller passes the SAME resolved contract the
+        # `--input` pairs come from.
+        prepare_inputs=prepare_inputs,
     )
     if rendered is None:
         return (

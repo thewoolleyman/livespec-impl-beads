@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -195,6 +196,7 @@ def render_run_config_overlay(  # noqa: PLR0913 — kw-only pure overlay builder
     codex_auth_snapshot: str | None = None,
     fabro_sandbox_image: str | None = None,
     graph_override: Path | None = None,
+    prepare_inputs: Mapping[str, str] | None = None,
 ) -> str | None:
     """Render the dispatch-time run-config overlay.
 
@@ -228,6 +230,7 @@ def render_run_config_overlay(  # noqa: PLR0913 — kw-only pure overlay builder
     )
     if rewritten is None:
         return None
+    rewritten = _substitute_input_tokens(text=rewritten, prepare_inputs=prepare_inputs)
     token_literal = json.dumps(token)
     github_token_literal = json.dumps(github_token)
     sibling_steps = "" if siblings is None else _sibling_clone_steps_block(siblings=siblings)
@@ -264,6 +267,62 @@ def render_run_config_overlay(  # noqa: PLR0913 — kw-only pure overlay builder
         + otel_env_lines
         + codex_env_lines
     )
+
+
+# The `{{ inputs.<name> }}` token the committed run config templates its prepare
+# commands with. The name grammar is deliberately narrow (an identifier), so a
+# MiniJinja expression this substituter does not understand is left for whatever
+# does.
+_INPUT_TOKEN_RE = re.compile(r"\{\{\s*inputs\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}")
+
+
+def _substitute_input_tokens(*, text: str, prepare_inputs: Mapping[str, str] | None) -> str:
+    """Render the run config's `inputs.*` tokens HOST-SIDE, because the engine does not.
+
+    fabro 0.254.0 renders `inputs.*` in graph node attributes at run-create time
+    and leaves `run.prepare` commands verbatim, so a templated prepare step
+    reaches bash as a literal `{{` and kills the run in setup at exit 127 before
+    any agent node runs. The committed payload has templated its toolchain and
+    conformance premises that way since the typed-integration-contract change,
+    which made every dispatch through it unrunnable.
+
+    Substituting here rather than asking the engine to change keeps the values
+    on the one already-resolved `ResolvedIntegrationContract` the `--input`
+    pairs are rendered from, so the run config and the run's bound inputs cannot
+    drift apart. The `--input` pairs are still sent: they are what the GRAPH
+    reads, and the graph half works.
+
+    A name the mapping does not carry is LEFT ALONE rather than blanked. An
+    unresolved premise then fails visibly at its own step, instead of quietly
+    becoming a no-op — which is the failure mode that made the sibling
+    conformance-gate defect dangerous.
+    """
+    if not prepare_inputs:
+        return text
+    rendered: list[str] = []
+    cursor = 0
+    for match in _INPUT_TOKEN_RE.finditer(text):
+        value = prepare_inputs.get(match.group(1))
+        if value is None:
+            continue
+        rendered.append(text[cursor : match.start()])
+        rendered.append(_escape_toml_basic_string(value=value))
+        cursor = match.end()
+    rendered.append(text[cursor:])
+    return "".join(rendered)
+
+
+def _escape_toml_basic_string(*, value: str) -> str:
+    """Escape a substituted value for the TOML basic string it lands inside.
+
+    Every token sits within `script = "..."`. Contract values arrive as one
+    shell word-list from `shlex.join`, and `shlex.quote` emits the `'"'"'`
+    sandwich for an embedded apostrophe — which carries double quotes. Written
+    raw, one of those terminates the TOML string early and makes the WHOLE
+    overlay unparseable, turning one repository's command into a dispatch-wide
+    failure. Backslash first, so the quote escape is not re-escaped.
+    """
+    return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
 def _rewrite_fabro_sandbox_image(

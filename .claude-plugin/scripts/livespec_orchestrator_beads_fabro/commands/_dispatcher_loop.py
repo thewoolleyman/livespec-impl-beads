@@ -36,6 +36,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     DispatchOutcome,
     run_dispatch,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_projection import (
+    contract_prompt_variables,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import (
     GithubTokenEnvRunner,
     JournalFile,
@@ -200,6 +203,11 @@ def _dispatch_one_locked(  # noqa: PLR0911 — one return per PRE-RUN REFUSAL ST
         dispatch_id=identity.dispatch_id,
         token=token_supplier,
         graph_override=payload.graph,
+        # The ONE contract the plan already resolved, projected once more: the
+        # committed run config's prepare commands template these values as
+        # `{{ inputs.* }}`, and the pinned engine renders that site for the
+        # graph but not for `run.prepare`.
+        prepare_inputs=contract_prompt_variables(resolved=plan.integration),
     )
     if overlay_error is not None:
         return failed_dispatch_outcome(
