@@ -941,6 +941,25 @@ that repo from this one.
   `tailscaled` (not `fabro`) means the proxy is up but the server is not.
 - **Never `pkill -f 'fabro server'`** — it self-matches the killing shell and can
   reap unrelated shells. Match real daemons via `/proc/<pid>/exe` and kill by PID.
+- **A merged factory slice stays `active` until you run `reconcile-merged
+  --item <id>`; the `reconcile-runs.timer` does NOT close it.** The root
+  timer runs `dispatcher.py reconcile-runs`, which reconciles only
+  stranded/held runs and returns `reconciled: []` for cleanly-merged work.
+  The active→closed valve on merge is a DIFFERENT subcommand driven PER
+  ITEM: `dispatcher.py reconcile-merged --repo <repo> --item <id> --invoker
+  <role:name>`. It runs the per-item post-merge janitor (fresh checkout +
+  baseline checks — expect it to exceed a 600s foreground timeout; background
+  it) and closes the item, printing e.g. `bd-ib-cwhos6  green at done PR#2146
+  merged, post-merge janitor green`. Consequence: after a slice's PR merges,
+  any downstream item blocked on it stays blocked until you run
+  `reconcile-merged` for the merged item. Measured 2026-09-04 on
+  `console-control-plane-primitives`: two merged slices sat `active` across
+  four timer cycles (40+ min) until `reconcile-merged --item` closed each,
+  which was what cleared their dependent's blockers. (Prior plan handoffs
+  wrongly asserted the timer auto-closes a merged item.) Related: `next`
+  never lists a `pending-approval` item, so an `admission:auto` item is
+  invisible to `next` but selectable by the dispatcher drain, and `drive
+  --action impl:<id>` admits and dispatches such an item in one step.
 
 ## Daily commands
 
