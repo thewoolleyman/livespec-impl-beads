@@ -44,44 +44,63 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 # --- GitHub CLI (gh) — the dispatcher's PR/merge surface. Installed from the
-#     official cli.github.com apt repo (keyring pinned) with an exact package
-#     version so apt/Docker cache state cannot silently select a different gh. ---
-ENV GH_VERSION=2.100.0
-RUN mkdir -p -m 755 /etc/apt/keyrings \
- && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-        -o /etc/apt/keyrings/githubcli-archive-keyring.gpg \
- && chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
- && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
-        > /etc/apt/sources.list.d/github-cli.list \
- && apt-get update \
- && apt-get install -y --no-install-recommends gh="${GH_VERSION}" \
- && test "$(gh --version | awk 'NR == 1 {print $3}')" = "${GH_VERSION}" \
- && rm -rf /var/lib/apt/lists/*
+#     versioned .deb published on the github/cli GitHub release, content-pinned
+#     by sha256 in exactly the shape bd and dolt use below.
+#
+#     This REPLACES an exact-version apt pin against the official
+#     cli.github.com suite. That pin achieved determinism but rotted BY
+#     CONSTRUCTION: the stable suite indexes only the NEWEST gh, so the pinned
+#     version disappeared the moment upstream released the next one and every
+#     rebuild then died with `E: Version 'X' for 'gh' was not found` (apt exit
+#     100) — which is what happened to 2.96.0. GitHub keeps release assets
+#     forever, so an exact version stays fetchable AND its bytes are proven. ---
+ENV GH_VERSION=2.100.0 \
+    GH_DEB_SHA256=698c8d88cc19cc92bfe96bad58d10b2a5b274c52433d6dc57799c81f6139d5fc
+RUN curl -fsSL -o /tmp/gh.deb \
+        "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.deb" \
+ && echo "${GH_DEB_SHA256}  /tmp/gh.deb" | sha256sum -c - \
+ && dpkg -i /tmp/gh.deb \
+ && rm -f /tmp/gh.deb \
+ && test "$(gh --version | awk 'NR == 1 {print $3}')" = "${GH_VERSION}"
 
 # --- mise — needed by the dispatcher itself after a PR merge. Fabro sandboxes
 #     provision their own toolchain, but the orchestrator container owns the
 #     post-merge primary refresh and janitor checkout (`mise trust` +
 #     `mise exec -- just check`), so mise must be present in the production
-#     runtime too. ---
-RUN mkdir -p -m 755 /etc/apt/keyrings \
- && curl -fsSL https://mise.jdx.dev/gpg-key.pub \
-        | gpg --dearmor -o /etc/apt/keyrings/mise-archive-keyring.gpg \
- && chmod go+r /etc/apt/keyrings/mise-archive-keyring.gpg \
- && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/mise-archive-keyring.gpg] https://mise.jdx.dev/deb stable main" \
-        > /etc/apt/sources.list.d/mise.list \
- && apt-get update \
- && apt-get install -y --no-install-recommends mise \
- && rm -rf /var/lib/apt/lists/* \
- && mise --version
+#     runtime too.
+#
+#     Installed from the versioned jdx/mise GitHub release binary, content-
+#     pinned by sha256. This REPLACES an unpinned
+#     `apt-get install --no-install-recommends mise` against the mise apt repo,
+#     which carried no version at all: every rebuild silently took whatever the
+#     repo served, i.e. undetectable drift in the one tool whose entire job is
+#     pinning everything else. ---
+ENV MISE_VERSION=2026.9.1 \
+    MISE_BINARY_SHA256=c98423c8470d6dc416d9f7036d0646d8ef5ae92ad9186907f8fcc84cbe7db4ea
+RUN curl -fsSL -o /tmp/mise \
+        "https://github.com/jdx/mise/releases/download/v${MISE_VERSION}/mise-v${MISE_VERSION}-linux-x64" \
+ && echo "${MISE_BINARY_SHA256}  /tmp/mise" | sha256sum -c - \
+ && install -m 0755 /tmp/mise /usr/local/bin/mise \
+ && rm -f /tmp/mise \
+ && /usr/local/bin/mise --version | grep -q "${MISE_VERSION}"
 
 # --- uv (Astral) — the Python toolchain manager (family convention: uv pins
-#     Python + Python packages; mise pins non-Python binaries). Pinned to the
-#     family version (0.5.20) from the official installer, then verified. ---
-ENV UV_VERSION=0.5.20
-RUN curl -fsSL "https://astral.sh/uv/${UV_VERSION}/install.sh" \
-        -o /tmp/uv-install.sh \
- && env UV_INSTALL_DIR=/usr/local/bin sh /tmp/uv-install.sh \
- && rm -f /tmp/uv-install.sh \
+#     Python + Python packages; mise pins non-Python binaries). Installed from
+#     the versioned astral-sh/uv release tarball, content-pinned by sha256.
+#
+#     This REPLACES `curl https://astral.sh/uv/${UV_VERSION}/install.sh | sh`,
+#     which pinned the VERSION but never the CONTENT: the installer ran with no
+#     integrity check whatsoever and every build log said so verbatim
+#     (`no checksums to verify`). ---
+ENV UV_VERSION=0.5.20 \
+    UV_TARBALL_SHA256=8fdbfca767917f957e4541747cbf7b23b45c211109dbba97b49962fa3547aab4
+RUN curl -fsSL -o /tmp/uv.tar.gz \
+        "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-x86_64-unknown-linux-gnu.tar.gz" \
+ && echo "${UV_TARBALL_SHA256}  /tmp/uv.tar.gz" | sha256sum -c - \
+ && tar -xzf /tmp/uv.tar.gz -C /tmp \
+ && install -m 0755 /tmp/uv-x86_64-unknown-linux-gnu/uv /usr/local/bin/uv \
+ && install -m 0755 /tmp/uv-x86_64-unknown-linux-gnu/uvx /usr/local/bin/uvx \
+ && rm -rf /tmp/uv.tar.gz /tmp/uv-x86_64-unknown-linux-gnu \
  && /usr/local/bin/uv --version
 
 # --- bd (beads CLI), pinned v1.2.2 behind the lifecycle guard. The official
