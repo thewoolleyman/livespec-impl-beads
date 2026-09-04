@@ -1,4 +1,10 @@
-"""Unattended plan resume takes the single recorded next action without a picker."""
+"""The unattended marker, and the prose next-action probe the resume no longer reads.
+
+`resume_directive` moved to `_plan_next_action.py` when the typed `next_action`
+metadata became the resume authority; its coverage lives in
+`test_plan_next_action.py`. What stays here is the session-marker read and the
+handoff self-sufficiency findings, which still probe the prose a person reads.
+"""
 
 from __future__ import annotations
 
@@ -14,12 +20,12 @@ from livespec_orchestrator_beads_fabro.commands._plan_timeline import (
     is_unattended_session,
 )
 from livespec_orchestrator_beads_fabro.commands.plan import (
+    NextAction,
     PlanTimelineEntry,
     append_handoff,
     read_timeline,
     record_scope_event,
     recorded_next_actions,
-    resume_directive,
 )
 from livespec_orchestrator_beads_fabro.types import StoreConfig
 
@@ -155,70 +161,6 @@ def test_handoff_timeline_verifier_rejects_empty_or_unattributed_entries() -> No
     )
 
 
-def test_unattended_resume_with_one_recorded_next_action_does_not_ask() -> None:
-    directive = resume_directive(
-        entries=(_entry(kind="handoff", body=_HANDOFF_ONE_ACTION),),
-        unattended=True,
-    )
-
-    assert not directive.ask
-    assert directive.next_action == "implement bd-ib-idgwyk.1."
-
-
-def test_unattended_resume_with_several_recorded_next_actions_still_asks() -> None:
-    body = "NEXT ACTION: implement bd-ib-idgwyk.1.\nNEXT ACTION: implement bd-ib-idgwyk.2.\n"
-
-    directive = resume_directive(entries=(_entry(kind="handoff", body=body),), unattended=True)
-
-    assert directive.ask
-    assert directive.next_action is None
-    assert "2 next actions" in directive.reason
-
-
-def test_unattended_resume_with_no_recorded_next_action_still_asks() -> None:
-    directive = resume_directive(
-        entries=(_entry(kind="handoff", body="Research updated; nothing named.\n"),),
-        unattended=True,
-    )
-
-    assert directive.ask
-    assert directive.next_action is None
-
-
-def test_unattended_resume_with_an_empty_timeline_still_asks() -> None:
-    directive = resume_directive(entries=(), unattended=True)
-
-    assert directive.ask
-    assert "no handoff entry" in directive.reason
-
-
-def test_interactive_resume_always_asks() -> None:
-    directive = resume_directive(
-        entries=(_entry(kind="handoff", body=_HANDOFF_ONE_ACTION),),
-        unattended=False,
-    )
-
-    assert directive.ask
-    assert directive.next_action is None
-    assert directive.reason == "interactive resume"
-
-
-def test_resume_reads_the_newest_handoff_not_a_newer_scope_event() -> None:
-    stale = "NEXT ACTION: implement bd-ib-idgwyk.1.\n"
-    newest = "NEXT ACTION: implement bd-ib-idgwyk.2.\n"
-
-    directive = resume_directive(
-        entries=(
-            _entry(kind="handoff", body=stale),
-            _entry(kind="handoff", body=newest),
-            _entry(kind="scope", body="Requirement carriers:\n- bd-ib-idgwyk.2\n"),
-        ),
-        unattended=True,
-    )
-
-    assert directive.next_action == "implement bd-ib-idgwyk.2."
-
-
 def test_read_timeline_labels_each_entry_with_its_kind() -> None:
     _seed_epic(epic_id="bd-ib-plan")
     record_scope_event(
@@ -235,9 +177,13 @@ def test_read_timeline_labels_each_entry_with_its_kind() -> None:
         body=_HANDOFF_ONE_ACTION,
         author="unattended-plan-operation-plan",
         now="2026-08-20T00:00:01Z",
+        next_action=NextAction(
+            kind="impl",
+            ref="bd-ib-idgwyk.1",
+            text="Implement bd-ib-idgwyk.1 through the factory.",
+        ),
     )
 
     entries = read_timeline(config=_config(), epic_id="bd-ib-plan")
 
     assert [entry.kind for entry in entries] == ["scope", "handoff"]
-    assert not resume_directive(entries=entries, unattended=True).ask

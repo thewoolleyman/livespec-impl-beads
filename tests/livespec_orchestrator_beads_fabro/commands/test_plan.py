@@ -118,6 +118,11 @@ def test_handoff_append_is_ledger_comment_and_timeline_readable(tmp_path: Path) 
         body="Next action: dispatch bd-ib-child through the factory.",
         author="factory-test",
         now="2026-08-11T01:02:03Z",
+        next_action=plan.NextAction(
+            kind="impl",
+            ref="bd-ib-child",
+            text="Dispatch bd-ib-child through the factory.",
+        ),
     )
     entries = plan.read_timeline(config=_config(), epic_id=created["epic_id"])
 
@@ -125,6 +130,13 @@ def test_handoff_append_is_ledger_comment_and_timeline_readable(tmp_path: Path) 
     assert entries[0].author == "factory-test"
     assert entries[0].created_at == "2026-08-11T01:02:03Z"
     assert entries[0].body == "Next action: dispatch bd-ib-child through the factory."
+    metadata = _fake().show_issue(issue_id=created["epic_id"])["metadata"]
+    assert metadata["next_action"] == {
+        "kind": "impl",
+        "ref": "bd-ib-child",
+        "text": "Dispatch bd-ib-child through the factory.",
+    }
+    assert metadata["last_session"] == "factory-test at 2026-08-11T01:02:03Z"
 
 
 def test_supervisor_handoff_computes_reserved_author_literal(tmp_path: Path) -> None:
@@ -146,6 +158,11 @@ def test_supervisor_handoff_computes_reserved_author_literal(tmp_path: Path) -> 
         slug="harness-smoke",
         body="Resume state before wind-down.",
         now="2026-08-11T01:02:03Z",
+        next_action=plan.NextAction(
+            kind="human",
+            ref="",
+            text="Confirm the anchor filename with the maintainer.",
+        ),
     )
     entries = plan.read_timeline(config=_config(), epic_id=created["epic_id"])
 
@@ -153,6 +170,8 @@ def test_supervisor_handoff_computes_reserved_author_literal(tmp_path: Path) -> 
     assert entries[0].author == "harness-smoke-supervisor"
     assert entries[0].created_at == "2026-08-11T01:02:03Z"
     assert entries[0].body == "Resume state before wind-down."
+    metadata = _fake().show_issue(issue_id=created["epic_id"])["metadata"]
+    assert metadata["last_session"] == "harness-smoke-supervisor at 2026-08-11T01:02:03Z"
 
 
 def test_scope_event_records_requirements_and_explicit_deferrals(tmp_path: Path) -> None:
