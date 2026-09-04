@@ -20,7 +20,7 @@ from livespec_orchestrator_beads_fabro.commands.needs_attention import (
     render_json,
     render_markdown,
 )
-from livespec_orchestrator_beads_fabro.commands.plan import append_handoff
+from livespec_orchestrator_beads_fabro.commands.plan import NextAction, append_handoff
 from livespec_orchestrator_beads_fabro.store import append_work_item
 from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
 from livespec_runtime.needs_attention import SpecNextOutput
@@ -280,6 +280,7 @@ def test_build_attention_reads_ledger_held_plan_without_handoff_file(
         body="Next action: keep driving bd-plan from the ledger.",
         author="factory-test",
         now="2026-08-11T01:02:03Z",
+        next_action=NextAction(kind="impl", ref="bd-plan", text="Keep driving bd-plan."),
     )
 
     attention = build_attention(
@@ -314,6 +315,7 @@ def test_build_attention_surfaces_a_live_plan_with_an_insufficient_newest_handof
         body="Current state cites bd-ib-qfv9.1.\n\n== EXACTLY ONE NEXT ACTION ==\nImplement it.",
         author="factory-test",
         now="2026-08-11T01:02:03Z",
+        next_action=NextAction(kind="impl", ref="bd-ib-qfv9.1", text="Implement it."),
     )
 
     attention = build_attention(

@@ -27,6 +27,13 @@ from livespec_orchestrator_beads_fabro.commands._plan_identity import (
     tag_epic_plan_slug,
     write_plan_anchor,
 )
+from livespec_orchestrator_beads_fabro.commands._plan_next_action import (
+    NEXT_ACTION_KINDS,
+    NextAction,
+    ResumeDirective,
+    resume_directive,
+    set_next_action,
+)
 from livespec_orchestrator_beads_fabro.commands._plan_record_rate import (
     DEFAULT_DAILY_RECORD_THRESHOLD,
     PlanRecordRateWarning,
@@ -37,12 +44,10 @@ from livespec_orchestrator_beads_fabro.commands._plan_timeline import (
     PLAN_SCOPE_PREFIX,
     UNATTENDED_ENV_VAR,
     PlanTimelineEntry,
-    ResumeDirective,
     handoff_timeline_findings,
     is_unattended_session,
     read_timeline,
     recorded_next_actions,
-    resume_directive,
 )
 from livespec_orchestrator_beads_fabro.store import append_work_item
 
@@ -52,7 +57,9 @@ if TYPE_CHECKING:
 
 __all__: list[str] = [
     "DEFAULT_DAILY_RECORD_THRESHOLD",
+    "NEXT_ACTION_KINDS",
     "UNATTENDED_ENV_VAR",
+    "NextAction",
     "PlanArchiveRefusedError",
     "PlanDispositionRefusedError",
     "PlanRecordRateWarning",
@@ -74,6 +81,7 @@ __all__: list[str] = [
     "recorded_next_actions",
     "reparent_plan_child",
     "resume_directive",
+    "set_next_action",
 ]
 
 _PLAN_DIR = "plan"
@@ -133,12 +141,28 @@ def append_handoff(
     body: str,
     author: str,
     now: str,
+    next_action: NextAction,
 ) -> None:
-    """Append one handoff entry to the plan epic's ledger comments."""
+    """Append one handoff entry AND update the epic's typed next_action.
+
+    Per contracts.md's "Ledger-held handoff persistence": the next action is
+    not carried by the comment. The entry holds rationale, warnings and
+    pointers; the pointer to the next step is the typed metadata written here
+    in the same call, so a handoff can never record a next step the resume
+    path cannot see. `author` doubles as the `last_session` identity, because
+    the session that signs the entry is the one that wrote the pointer.
+    """
     client = make_beads_client(config=config)
     client.add_comment(
         issue_id=epic_id,
         body=_comment_body(prefix=PLAN_HANDOFF_PREFIX, author=author, now=now, body=body),
+    )
+    set_next_action(
+        config=config,
+        epic_id=epic_id,
+        action=next_action,
+        session=author,
+        now=now,
     )
 
 
@@ -149,6 +173,7 @@ def append_supervisor_handoff(
     slug: str,
     body: str,
     now: str,
+    next_action: NextAction,
 ) -> None:
     """Append one handoff entry authored as the plan's reserved supervisor literal.
 
@@ -163,6 +188,7 @@ def append_supervisor_handoff(
         body=body,
         author=f"{slug}-supervisor",
         now=now,
+        next_action=next_action,
     )
 
 

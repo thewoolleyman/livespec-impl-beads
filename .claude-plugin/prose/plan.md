@@ -54,18 +54,22 @@ The operation's testable package substrate is
 - `create_thread(...)` creates `plan/<slug>/research/<file>` and one
   ledger epic anchor.
 - `append_handoff(...)` appends one plan-epic comment, with a
-  caller-supplied `author`.
+  caller-supplied `author`, and writes the required `next_action` onto the
+  epic in the same call. See "The typed next action" below.
 - `append_supervisor_handoff(...)` appends one plan-epic comment on
   behalf of the plan's supervisor role, computing the reserved
   `<slug>-supervisor` author literal internally (never caller-supplied).
   A supervisor session driving this operation MUST use this call, never
   `append_handoff`, for its own handoff entries.
+- `set_next_action(...)` updates the epic's `next_action` and
+  `last_session` metadata in place, without appending a comment. Use it
+  when the pointer changes and there is nothing new to narrate.
 - `read_timeline(...)` reads plan handoff and scope comments
   oldest-first, each labelled with its `kind` (`handoff` or `scope`).
 - `is_unattended_session(...)` reports whether this session carries the
-  unattended marker, and `resume_directive(...)` decides whether this
-  resume asks which action to take or takes the single recorded next
-  action. See Step 3's "Unattended resume".
+  unattended marker, and `resume_directive(...)` reads the epic's typed
+  `next_action` and decides whether this resume asks which action to take
+  or takes it. See Step 3's "Unattended resume".
 - `record_scope_event(...)` records requirement carriers and explicit
   deferrals before implementation children are admitted.
 - `close_plan_child(...)` and `reparent_plan_child(...)` dispose one plan
@@ -130,13 +134,14 @@ files, or any other thread metadata file.
 
 Within a thread, perform one action at a time. Which action comes from
 `resume_directive(...)`: an attended resume asks, and an unattended one
-with a single recorded next action takes it. See "Unattended resume"
-below.
+whose epic carries a dispatchable typed next action takes it. See
+"Unattended resume" below.
 
 - Update reasoning. Add or revise a research note under
   `plan/<slug>/research/`.
 - Append a handoff entry. Write one plan-epic ledger comment with the
-  next action, current facts, and read-first chain. Read it back through
+  current facts and read-first chain, and supply the `next_action` the
+  same call writes onto the epic. Read it back through
   `read_timeline(...)` before declaring it recorded.
 - Record a scoping event. Before implementation children are admitted,
   write a scope comment that names the requirement carriers and the
@@ -195,6 +200,31 @@ warning MUST be surfaced rather than swallowed. When one fires, the
 useful question is whether the thread is blocked on something that a
 handoff entry cannot fix.
 
+#### The typed next action
+
+The next action is epic metadata, not prose. Every open epic with a live
+`plan/<slug>/` directory carries a `next_action` object with exactly
+three keys, beside a `last_session` string naming who wrote it and when:
+
+- `kind: impl` — factory implementation of one work-item. `ref` is that
+  work-item's id, and the action executes as `impl:<ref>`.
+- `kind: spec-op` — a spec-lifecycle operation. `ref` is
+  `<operation>:<topic>`, which is itself the action id.
+- `kind: human` — a person is needed. `ref` may be empty or may name the
+  attention item or question that carries the ask.
+- `kind: none` — nothing is recorded, and `ref` is empty.
+
+`text` is one imperative sentence a person can read with no other
+context. Write all four fields only through `append_handoff(...)`,
+`append_supervisor_handoff(...)`, or `set_next_action(...)`; never
+hand-edit epic metadata.
+
+A prose `next action:` line may still appear in a handoff body for a
+human reader, but it carries no authority. When the two disagree the
+metadata wins — a wrapped prose line truncated the instruction twice on
+a live tenant, deleting a constraint in one case and the factory route
+in the other, while the resume reported one confident action.
+
 #### Unattended resume
 
 A resume is *unattended* when the environment variable
@@ -204,22 +234,20 @@ on the resume it triggers after a context-threshold restart, where no
 operator is present to answer a question. Nothing else sets it: an
 operator-launched session leaves it unset and keeps the picker.
 
-Call `resume_directive(entries=..., unattended=...)` with the timeline
-from `read_timeline(...)`. It returns `ask`, `next_action`, and a
-`reason`:
+Call `resume_directive(config=..., epic_id=..., unattended=...)`. It
+reads the epic's `next_action` — it parses no comment body — and returns
+`ask`, `next_action`, and a `reason`:
 
-- `ask` is false only when the session is unattended AND the NEWEST
-  handoff entry names exactly one next action. Take that
-  `next_action` directly and do not raise the which-action picker.
-- `ask` is true in every other case — an attended session, a timeline
-  with no handoff entry, a newest handoff naming no next action, or one
-  naming several. Present the picker and wait.
+- `ask` is false only when the session is unattended AND the `kind` is
+  `impl` or `spec-op` AND the `ref` is non-empty. Take the returned
+  `next_action` action id directly and do not raise the which-action
+  picker.
+- `ask` is true in every other case — an attended session, an epic
+  carrying no typed pointer, a `human` or `none` kind, or a dispatchable
+  kind with an empty ref. Present the picker and wait.
 
-The newest **handoff** entry is what counts; a scope event recorded after
-it does not shadow the handoff, and an older handoff's next action is
-never resurrected once a newer handoff supersedes it. A marker line that
-names nothing after its colon records no action, so it falls back to the
-picker rather than executing an empty instruction.
+An attended resume presents the epic's `next_action` as the default
+choice of that picker.
 
 Report the `reason` when the picker is raised in an unattended session:
 that string is how a hands-off restart explains why it stopped rather
@@ -230,10 +258,11 @@ than parking silently on a question nobody will see.
 A handoff entry is ready only when a fresh session can continue from the
 ledger timeline without chat history:
 
-1. The entry names exactly one next action.
+1. The call wrote exactly one typed `next_action` onto the epic.
 2. Every path it cites exists and is committed.
 3. If the next action is implementation work, it names the factory route:
-   the `drive` operation (`impl:<id>`) or Dispatcher drain. Only items
+   `kind: impl` with the work-item id as its `ref`, which the `drive`
+   operation executes as `impl:<ref>`, or a Dispatcher drain. Only items
    explicitly recorded as factory-ineligible may name an in-session
    implementation route.
 4. It does not embed a parallel checklist or status queue. Status is
@@ -283,8 +312,9 @@ or work-item before archiving.
 
 ## Important Properties
 
-- Research is filesystem-held; handoffs are ledger-held.
-- An unattended resume with exactly one recorded next action takes it;
+- Research is filesystem-held; handoffs are ledger-held; the next action
+  is typed epic metadata that no line wrap can truncate.
+- An unattended resume with a dispatchable typed next action takes it;
   the which-action picker is the attended-mode behavior.
 - Child disposition is session-performable with a recorded rationale;
   only a spec-change-tier child refuses.

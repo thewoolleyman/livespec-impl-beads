@@ -1,16 +1,18 @@
-"""The plan-epic timeline, and the resume directive derived from it.
+"""The plan-epic timeline, and the handoff self-sufficiency findings over it.
 
 The plan operation asks which action to take on every resume. That question is
 right for an operator sitting at the terminal and wrong for the overseer
-daemon's context-threshold restart, which re-enters the same thread with its own
-recorded next action already on the timeline and nobody present to answer. This
-module supplies the deterministic half of the rule: whether the session carries
-the unattended marker, which next actions the newest handoff records, and
-whether the resume may proceed without asking.
+daemon's context-threshold restart, which re-enters the same thread with
+nobody present to answer. This module supplies the reading half of the rule:
+whether the session carries the unattended marker, and what the timeline of
+handoff and scope comments holds. The decision half moved to
+`_plan_next_action.py`, which reads the epic's typed `next_action` metadata.
 
-Refusing to ask is the narrow case. It requires the marker AND exactly one
-recorded next action on the NEWEST handoff entry; zero, several, or an
-attended session all fall back to the picker.
+`recorded_next_actions` survives that move as a HUMAN-READABILITY probe only.
+It is no longer the resume authority — a wrapped prose line truncated the
+instruction twice on a live tenant while the resume reported one confident
+action — and `handoff_timeline_findings` is the only caller left: it reports
+whether a newest handoff still reads as self-sufficient to a person.
 """
 
 from __future__ import annotations
@@ -35,12 +37,10 @@ __all__: list[str] = [
     "SCOPE_KIND",
     "UNATTENDED_ENV_VAR",
     "PlanTimelineEntry",
-    "ResumeDirective",
     "handoff_timeline_findings",
     "is_unattended_session",
     "read_timeline",
     "recorded_next_actions",
-    "resume_directive",
 ]
 
 UNATTENDED_ENV_VAR = "LIVESPEC_PLAN_UNATTENDED"
@@ -70,25 +70,20 @@ class PlanTimelineEntry:
     created_at: str
 
 
-@dataclass(frozen=True, kw_only=True)
-class ResumeDirective:
-    """Whether a resume asks which action to take, and what it takes instead."""
-
-    ask: bool
-    next_action: str | None
-    reason: str
-
-
 def is_unattended_session(*, env: Mapping[str, str]) -> bool:
     """Report whether this session carries the unattended-resume marker."""
     return env.get(UNATTENDED_ENV_VAR, "").strip().lower() in _TRUTHY
 
 
 def recorded_next_actions(*, body: str) -> tuple[str, ...]:
-    """Return every next action a handoff body names, in written order.
+    """Return every next action a handoff body names in prose, in written order.
 
     A marker line that names nothing after its colon records no action: it is
-    counted as absent rather than as an empty instruction to execute.
+    counted as absent rather than as an empty instruction.
+
+    This is a readability probe, NOT the resume authority — see the module
+    docstring. `resume_directive` reads the epic's typed `next_action`
+    metadata and never this.
     """
     actions: list[str] = []
     for line in body.splitlines():
@@ -100,31 +95,6 @@ def recorded_next_actions(*, body: str) -> tuple[str, ...]:
             continue
         actions.append(action.strip())
     return tuple(actions)
-
-
-def resume_directive(*, entries: Sequence[PlanTimelineEntry], unattended: bool) -> ResumeDirective:
-    """Decide whether this resume asks which action to take, or just takes it."""
-    if not unattended:
-        return ResumeDirective(ask=True, next_action=None, reason="interactive resume")
-    handoffs = [entry for entry in entries if entry.kind == HANDOFF_KIND]
-    if not handoffs:
-        return ResumeDirective(
-            ask=True,
-            next_action=None,
-            reason="no handoff entry on the plan timeline",
-        )
-    actions = recorded_next_actions(body=handoffs[-1].body)
-    if len(actions) != 1:
-        return ResumeDirective(
-            ask=True,
-            next_action=None,
-            reason=f"newest handoff records {len(actions)} next actions, not exactly one",
-        )
-    return ResumeDirective(
-        ask=False,
-        next_action=actions[0],
-        reason="unattended resume takes the single recorded next action",
-    )
 
 
 def handoff_timeline_findings(*, entries: Sequence[PlanTimelineEntry]) -> tuple[str, ...]:

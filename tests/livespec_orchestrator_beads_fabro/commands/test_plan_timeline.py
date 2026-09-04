@@ -11,7 +11,11 @@ from livespec_orchestrator_beads_fabro._beads_client import (
     make_beads_client,
     reset_fake_singleton,
 )
-from livespec_orchestrator_beads_fabro.commands.plan import append_handoff, read_timeline
+from livespec_orchestrator_beads_fabro.commands.plan import (
+    NextAction,
+    append_handoff,
+    read_timeline,
+)
 from livespec_orchestrator_beads_fabro.types import StoreConfig
 
 
@@ -62,6 +66,9 @@ def test_timeline_ignores_non_plan_comments() -> None:
         body="Continue with the scoped child.",
         author="factory-test",
         now="2026-08-11T01:02:03Z",
+        next_action=NextAction(
+            kind="impl", ref="bd-ib-plan.1", text="Continue with the scoped child."
+        ),
     )
 
     [entry] = read_timeline(config=_config(), epic_id="bd-ib-plan")
@@ -95,6 +102,7 @@ def test_timeline_recovers_missing_header_timestamp_from_comment_record() -> Non
         body="Well-formed later handoff.",
         author="factory-test",
         now="2026-08-21T04:35:00Z",
+        next_action=NextAction(kind="none", ref="", text="Nothing is recorded."),
     )
 
     entries = read_timeline(config=_config(), epic_id="bd-ib-plan")
