@@ -46,7 +46,7 @@ RUN apt-get update \
 # --- GitHub CLI (gh) — the dispatcher's PR/merge surface. Installed from the
 #     official cli.github.com apt repo (keyring pinned) with an exact package
 #     version so apt/Docker cache state cannot silently select a different gh. ---
-ENV GH_VERSION=2.96.0
+ENV GH_VERSION=2.100.0
 RUN mkdir -p -m 755 /etc/apt/keyrings \
  && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
         -o /etc/apt/keyrings/githubcli-archive-keyring.gpg \
