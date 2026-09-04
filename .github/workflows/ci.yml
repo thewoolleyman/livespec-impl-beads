@@ -38,6 +38,16 @@ name: CI
 env:
   UV_HTTP_RETRIES: "5"
   MISE_HTTP_RETRIES: "5"
+  # Lane-selected uv fetch bounds, required of every workflow that routes
+  # through CI_RUNNER_LABELS (livespec-dev-tooling's self_hosted_uv_lane
+  # check; the fleet form every routed member carries). The self-hosted pool
+  # runs many job slots on ONE host behind one uplink, so per-job download
+  # concurrency is capped there and the transfer timeout raised; the hosted
+  # lane keeps uv's own defaults. Missed by the routing change (livespec-ifwnqj.1)
+  # because a ci.yml-only pull request skips the python-batch job that runs
+  # the check, and it fired on the first master push instead.
+  UV_CONCURRENT_DOWNLOADS: ${{ contains(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]', 'ubuntu') && '50' || '4' }}
+  UV_HTTP_TIMEOUT: ${{ contains(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]', 'ubuntu') && '30' || '60' }}
 
 # merge_group is deliberately ABSENT: no merge queue is configured for this
 # repo (verified live — zero rulesets, required_merge_queue: null; branch
