@@ -23,18 +23,94 @@ def _tier_one_embedded_bd_body(*, script: str) -> str:
     return before_completion.split(heredoc_start, maxsplit=1)[1].split(heredoc_end, maxsplit=1)[0]
 
 
-def test_github_cli_apt_install_is_exactly_pinned_and_verified() -> None:
+def _instructions(*, dockerfile: str) -> str:
+    """Return the Dockerfile with whole-line `#` comments dropped.
+
+    The rationale comments deliberately QUOTE the rotting install routes they
+    replaced, so a regression assertion has to read the instructions rather
+    than the prose that documents them.
+    """
+    return "\n".join(line for line in dockerfile.splitlines() if not line.lstrip().startswith("#"))
+
+
+def _sole_version_pin(*, dockerfile: str, variable: str) -> str:
+    """Return the single fully-qualified version literal declared for `variable`."""
+    pins = re.findall(rf"^ENV {variable}=(\S+) \\$", dockerfile, flags=re.MULTILINE)
+    assert len(pins) == 1, pins
+    assert re.fullmatch(r"\d+\.\d+\.\d+", pins[0]), pins[0]
+    return pins[0]
+
+
+def _sole_recorded_sha256(*, dockerfile: str, variable: str) -> str:
+    """Return the single recorded sha256 literal declared for `variable`."""
+    checksums = re.findall(rf"^    {variable}=([0-9a-f]{{64}})$", dockerfile, flags=re.MULTILINE)
+    assert len(checksums) == 1, checksums
+    return checksums[0]
+
+
+def test_github_cli_install_is_version_pinned_and_sha256_verified() -> None:
     dockerfile = _DOCKERFILE.read_text(encoding="utf-8")
 
     # The pin itself lives ONLY in the Dockerfile: asserting the exact version
-    # literal here too would mean every gh roll edits two files. Assert the
-    # SHAPE — exactly one ENV line carrying a fully-qualified version — and
-    # that both consuming lines read it back through ${GH_VERSION}.
-    pins = re.findall(r"^ENV GH_VERSION=(\S+)$", dockerfile, flags=re.MULTILINE)
-    assert len(pins) == 1, pins
-    assert re.fullmatch(r"\d+\.\d+\.\d+", pins[0]), pins[0]
-    assert 'apt-get install -y --no-install-recommends gh="${GH_VERSION}"' in dockerfile
+    # and checksum literals here too would mean every gh roll edits two files.
+    # Assert the SHAPE — one fully-qualified version, one recorded sha256
+    # beside it, and a download whose bytes are proven before it is installed,
+    # in the same shape the bd and dolt installs already use.
+    _sole_version_pin(dockerfile=dockerfile, variable="GH_VERSION")
+    _sole_recorded_sha256(dockerfile=dockerfile, variable="GH_DEB_SHA256")
+
+    assert (
+        '"https://github.com/cli/cli/releases/download/v${GH_VERSION}'
+        '/gh_${GH_VERSION}_linux_amd64.deb"' in dockerfile
+    )
+    assert 'echo "${GH_DEB_SHA256}  /tmp/gh.deb" | sha256sum -c -' in dockerfile
+    assert "dpkg -i /tmp/gh.deb" in dockerfile
     assert 'test "$(gh --version | awk \'NR == 1 {print $3}\')" = "${GH_VERSION}"' in dockerfile
+
+    # The exact-version apt pin this replaced rotted by construction: the
+    # cli.github.com stable suite indexes only the newest gh, so the pinned
+    # version vanished on the next upstream release and broke every rebuild.
+    assert "cli.github.com" not in _instructions(dockerfile=dockerfile)
+
+
+def test_mise_install_is_version_pinned_and_sha256_verified() -> None:
+    dockerfile = _DOCKERFILE.read_text(encoding="utf-8")
+
+    _sole_version_pin(dockerfile=dockerfile, variable="MISE_VERSION")
+    _sole_recorded_sha256(dockerfile=dockerfile, variable="MISE_BINARY_SHA256")
+
+    assert (
+        '"https://github.com/jdx/mise/releases/download/v${MISE_VERSION}'
+        '/mise-v${MISE_VERSION}-linux-x64"' in dockerfile
+    )
+    assert 'echo "${MISE_BINARY_SHA256}  /tmp/mise" | sha256sum -c -' in dockerfile
+    assert "install -m 0755 /tmp/mise /usr/local/bin/mise" in dockerfile
+    assert '/usr/local/bin/mise --version | grep -q "${MISE_VERSION}"' in dockerfile
+
+    # mise previously carried no version at all, so each rebuild silently took
+    # whatever the mise apt repo served — drift in the tool that pins the rest.
+    assert "apt-get install -y --no-install-recommends mise" not in _instructions(
+        dockerfile=dockerfile
+    )
+
+
+def test_uv_install_is_version_pinned_and_sha256_verified() -> None:
+    dockerfile = _DOCKERFILE.read_text(encoding="utf-8")
+
+    _sole_version_pin(dockerfile=dockerfile, variable="UV_VERSION")
+    _sole_recorded_sha256(dockerfile=dockerfile, variable="UV_TARBALL_SHA256")
+
+    assert (
+        '"https://github.com/astral-sh/uv/releases/download/${UV_VERSION}'
+        '/uv-x86_64-unknown-linux-gnu.tar.gz"' in dockerfile
+    )
+    assert 'echo "${UV_TARBALL_SHA256}  /tmp/uv.tar.gz" | sha256sum -c -' in dockerfile
+    assert "install -m 0755 /tmp/uv-x86_64-unknown-linux-gnu/uv /usr/local/bin/uv" in dockerfile
+    assert "/usr/local/bin/uv --version" in dockerfile
+
+    # The installer pipe this replaced pinned the version but not the content:
+    # it ran with no integrity check and logged "no checksums to verify".
+    assert "astral.sh/uv" not in _instructions(dockerfile=dockerfile)
 
 
 def test_build_and_verify_asserts_the_container_github_cli_version() -> None:
