@@ -1,4 +1,29 @@
-# Synthetic isolated Beads v1.1.2 migration-and-restore rehearsal package
+# Synthetic isolated Beads v1.1.2 migration-and-restore rehearsal package (SUPERSEDED 2026-08-30 — historical)
+
+> **STATUS BANNER, added 2026-09-04.** This package was **superseded in full by
+> `bd-ib-ao3j`**, which on 2026-08-30 ran the attended migration-and-restore
+> exercise directly against an isolated tenant — a real DR restore with exact
+> parity — instead of through this package. The v1.0.5 → v1.2.2 cutover it was
+> written to gate then **executed on 2026-08-31**: all 14 tenants moved v49 →
+> v53 and the host binary is v1.2.2.
+>
+> Everything below is kept verbatim as the historical record and **must not be
+> read as a pending instruction**. In particular the next section's "do not
+> schedule the attended window against this plan **yet**" was true when written
+> and is **no longer true** — the window happened, and the word "yet" implied a
+> rewrite that is no longer owed because the package itself was retired rather
+> than repaired. The command-surface measurement it reports remains accurate and
+> is worth reading; only its *instruction* is dead.
+>
+> This matters beyond tidiness in this repo: a plan handoff's single recorded
+> next action **fires without a human** under an unattended resume, so a stale
+> next-action line here is not merely misleading, it is executable.
+>
+> For what actually happened, read
+> `../research/cutover-receipt-2026-08-31.md`. Flagged by the independent
+> archive completeness review recorded on `bd-ib-3kolea` as evidence
+> `completeness-review-2026-09-04`, which found this the one document PR #2126's
+> banner pass missed.
 
 This package prepares O4 only. It records the deterministic inputs, wrappers,
 queries, and receipt contracts for the later attended rehearsal. It does not run
