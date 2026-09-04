@@ -22,9 +22,21 @@ accepted only where the pinned fabro build is KNOWN to expand it:
   bd-ib-vblnq2 while landing C5-payload, bd-ib-b7xpzl) that the pinned 0.254.0
   build expands `inputs.*` in a parallelogram node's `script`; the payload's
   janitor gate and dead-implementer breaker ride it;
-- a `[[run.prepare.steps]]` `script` in the run config, and a node prompt body:
-  the two other sandbox-side consumers the resolve-once-project-everywhere
-  clause names, both of which read `inputs.<name>`.
+- a node prompt body: the sandbox-side consumer the
+  resolve-once-project-everywhere clause names, which reads `inputs.<name>`;
+- a `[[run.prepare.steps]]` `script` in the run config -- RESOLVED, but NOT by
+  the engine, and the distinction is why this entry now carries its own
+  paragraph. The pinned 0.254.0 build leaves `run.prepare` commands verbatim.
+  This position was admitted alongside the node `script` on 2026-08-31, but the
+  maintainer confirmation recorded that day covered a parallelogram node's
+  `script`; nothing established the same for a prepare command, and every
+  dispatch through the templated payload died in setup at exit 127, the shell
+  reporting `{{: command not found`, until the Dispatcher's own overlay began
+  substituting the resolved values host-side
+  (`_dispatcher_overlay._substitute_input_tokens`). It belongs in this set
+  because the token IS resolved before the sandbox ever sees it -- by us rather
+  than by the engine -- and it MUST move back out if that host-side
+  substitution is removed.
 
 Every OTHER position is reported. That is deliberate rather than conservative
 book-keeping: the ratified ACP-node-timeouts clause records that the pinned
