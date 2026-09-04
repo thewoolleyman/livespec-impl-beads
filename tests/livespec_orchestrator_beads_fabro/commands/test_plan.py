@@ -84,10 +84,13 @@ def test_create_writes_research_and_one_epic_anchor_only(tmp_path: Path) -> None
     assert (tmp_path / "plan" / "harness-smoke" / "research" / "initial.md").read_text(
         encoding="utf-8"
     ) == "# Findings\n\nResearch only.\n"
+    # The anchor is the ONE sanctioned metadata file; no `epic.md`,
+    # `handoff.md`, or status file joins it.
     assert sorted(
         path.relative_to(tmp_path).as_posix() for path in (tmp_path / "plan").rglob("*")
     ) == [
         "plan/harness-smoke",
+        "plan/harness-smoke/associated_work_item_id",
         "plan/harness-smoke/research",
         "plan/harness-smoke/research/initial.md",
     ]
