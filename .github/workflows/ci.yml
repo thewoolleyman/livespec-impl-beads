@@ -298,11 +298,20 @@ jobs:
       # advisory, warn-only, or gated behind an env lever — a failure here
       # fails the job, and `ci-green` (the sole required context) fails if any
       # matrix leg fails.
+      # UV_CACHE_DIR for every uid-1000 invocation: on the PowerEdge pool the
+      # hook template points uv at the warm seed /__w/_warm/uv, whose files are
+      # root-owned hardlinks into the fleet generation; uv as uid 1000 cannot
+      # initialize that cache ("Failed to initialize cache", master runs
+      # 33903087096 / 33903145604, 2026-09-04). The nonroot legs forgo the seed
+      # and use a private cache under /home/ci; the root legs keep the seed. The
+      # fleet-level cure is the seed-ownership decision on livespec-ifwnqj
+      # (plan ci-runner-pod-lifecycle-reliability, research/006).
       - name: just ${{ matrix.target }} (uid 1000)
         if: needs.setup.outputs.py_changed == 'true' && matrix.uid == 'nonroot'
         run: |
           setpriv --reuid=1000 --regid=1000 --clear-groups \
             env HOME=/home/ci \
+                UV_CACHE_DIR=/home/ci/.cache/uv \
                 MISE_DATA_DIR=/root/.local/share/mise \
                 MISE_GLOBAL_CONFIG_FILE=/root/.config/mise/config.toml \
                 MISE_NOT_FOUND_AUTO_INSTALL=0 \
@@ -395,6 +404,7 @@ jobs:
         run: |
           setpriv --reuid=1000 --regid=1000 --clear-groups \
             env HOME=/home/ci \
+                UV_CACHE_DIR=/home/ci/.cache/uv \
                 MISE_DATA_DIR=/root/.local/share/mise \
                 MISE_GLOBAL_CONFIG_FILE=/root/.config/mise/config.toml \
                 MISE_NOT_FOUND_AUTO_INSTALL=0 \
@@ -497,6 +507,7 @@ jobs:
         run: |
           setpriv --reuid=1000 --regid=1000 --clear-groups \
             env HOME=/home/ci \
+                UV_CACHE_DIR=/home/ci/.cache/uv \
                 MISE_DATA_DIR=/root/.local/share/mise \
                 MISE_GLOBAL_CONFIG_FILE=/root/.config/mise/config.toml \
                 MISE_NOT_FOUND_AUTO_INSTALL=0 \
@@ -610,6 +621,7 @@ jobs:
           run_nonroot() {
             setpriv --reuid=1000 --regid=1000 --clear-groups \
               env HOME=/home/ci \
+                  UV_CACHE_DIR=/home/ci/.cache/uv \
                   MISE_DATA_DIR=/root/.local/share/mise \
                   MISE_GLOBAL_CONFIG_FILE=/root/.config/mise/config.toml \
                   MISE_NOT_FOUND_AUTO_INSTALL=0 \
