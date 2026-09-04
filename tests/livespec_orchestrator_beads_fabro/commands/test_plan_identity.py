@@ -62,8 +62,10 @@ def test_plan_identity_module_exposes_the_two_write_primitives() -> None:
     module = importlib.import_module(_MODULE_NAME)
     assert module.PLAN_ANCHOR_FILENAME == "associated_work_item_id"
     assert module.UNASSIGNED_ANCHOR == "unassigned"
+    assert module.PLAN_SLUG_METADATA_KEY == "plan_slug"
     assert sorted(module.__all__) == [
         "PLAN_ANCHOR_FILENAME",
+        "PLAN_SLUG_METADATA_KEY",
         "UNASSIGNED_ANCHOR",
         "canonical_plan_slug",
         "tag_epic_plan_slug",

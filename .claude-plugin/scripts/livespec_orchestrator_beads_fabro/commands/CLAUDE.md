@@ -77,6 +77,21 @@ public module per query-only skill:
   `update_work_item_rank`. `legacy_seed(rows)` is the one-time L2 backfill
   primitive (legacy `priority → captured_at → id` seed order); it is
   reused by the fleet's L2 migration, not by `main`.
+- `migrate_plan_records.py` — the orchestrator-PRIVATE, one-shot
+  plan-record migration contracts.md §"Plan-record conformance checks"
+  requires per tenant BEFORE those checks arm (NOT a contract CLI and
+  NOT a skill surface). It writes the missing `plan_slug` tags, the
+  missing `plan/<slug>/associated_work_item_id` anchors (`unassigned`
+  when no epic carries the slug), and the missing typed `next_action` +
+  `last_session` pointers, then reports what it wrote, skipped and
+  refused; a second run reports zero writes. Every ledger write goes
+  through the existing store bridge (`tag_epic_plan_slug`,
+  `set_next_action`); the decisions — slug derivation, collision
+  refusal, whether an anchor already stands, what a handoff seeds —
+  live in `_plan_record_migration.py`. It writes the working tree only:
+  the anchor files land through the repository's ordinary worktree →
+  pull-request → merge discipline, and the fleet-wide run across
+  tenants is an operator follow-up.
 
 Each public module exports `main(argv=None) -> int` (the supervisor
 the wrapper calls) plus its named helpers, all enumerated in
