@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.126.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.125.0...v0.126.0) (2026-09-04)
+
+
+### Features
+
+* **plan:** typed next_action metadata is the resume authority (bd-ib-yq2tx6) ([30ff89d](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/30ff89d4045bb1f52488f03aa626a42cacddb7c3))
+
 ## [0.125.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.124.3...v0.125.0) (2026-09-04)
 
 
