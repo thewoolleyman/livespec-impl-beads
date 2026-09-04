@@ -113,6 +113,35 @@ def test_uv_install_is_version_pinned_and_sha256_verified() -> None:
     assert "astral.sh/uv" not in _instructions(dockerfile=dockerfile)
 
 
+def test_dockerfile_adds_no_apt_source_of_its_own() -> None:
+    dockerfile = _DOCKERFILE.read_text(encoding="utf-8")
+    instructions = _instructions(dockerfile=dockerfile)
+
+    # The three assertions above each close ONE rotted route by name, so a
+    # FOURTH tool added tomorrow through a third-party apt source would pass
+    # every one of them and reopen the class. The rot is a property of
+    # THIRD-PARTY LATEST-ONLY APT SOURCES: the cli.github.com stable suite
+    # indexed only the newest gh, so the pinned 2.96.0 vanished from the index
+    # and broke every rebuild. The SANCTIONED ALTERNATIVE is the shape gh,
+    # mise, uv, bd and dolt now all use — a version-pinned, SHA256-VERIFIED
+    # download of a GitHub release asset, which upstream keeps forever and
+    # whose bytes are proven before installation.
+    #
+    # So the invariant that closes the class structurally is: the Dockerfile
+    # adds NO apt source of its own. The only apt traffic left is the
+    # base-package block against the Ubuntu archive, which keeps every version
+    # for a release and does not rot — which is why the rule here is "no
+    # third-party source" and NOT "pin every apt-get install": a blanket pin
+    # would flag that legitimate block and still not stop a new source.
+    #
+    # Read the INSTRUCTIONS, not the raw file: the rationale comments above
+    # deliberately quote the removed apt routes.
+    assert "sources.list.d" not in instructions
+    assert "keyring" not in instructions
+    assert "apt-key" not in instructions
+    assert "add-apt-repository" not in instructions
+
+
 def test_build_and_verify_asserts_the_container_github_cli_version() -> None:
     script = _BUILD_AND_VERIFY.read_text(encoding="utf-8")
 
