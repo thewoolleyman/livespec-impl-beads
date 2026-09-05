@@ -1183,5 +1183,21 @@
     "test": "TODO",
     "work_item": "bd-ib-w3nwz5.1",
     "reason": "Ratified with the plan-slug-anchor-and-typed-next-action revision (epic bd-ib-w3nwz5, child bd-ib-w3nwz5.1, console decision D6 item 4). The plan_close_evidence conformance check reports, after the fact, an epic whose plan_slug names a live or archived directory that was closed with no completeness-review evidence comment, while leaving evidenced-closed and still-open epics unreported. This is the detective conformance counterpart to Scenario 55's proactive archive-operation behavior. Awaits the integration-tier armed-check test delivered by bd-ib-w3nwz5.1; real test ID to follow."
+  },
+  {
+    "heading": "## Scenario 114 — The `context` read primitive assembles a deterministic item-context envelope",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "work_item": "bd-ib-g4lj2w",
+    "reason": "Ratified with the context-and-discuss-work-item-surface revision (epic bd-ib-w3nwz5, b2). The context read primitive deterministically assembles an item-context envelope (epic, comments, children unioned across both linkages, dependencies, next_action, research, spec) and is query-only and side-effect-free. Awaits the integration-tier exercising test delivered by the b2.S2 factory slice bd-ib-g4lj2w; real test ID to follow."
+  },
+  {
+    "heading": "## Scenario 115 — `discuss-work-item` stands by over the context envelope and resumes without chat history",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "work_item": "bd-ib-kr334k",
+    "reason": "Ratified with the context-and-discuss-work-item-surface revision (epic bd-ib-w3nwz5, b2). The discuss-work-item heavyweight interactive skill assembles context through the context primitive, stands by (driving only on explicit instruction), records rulings as scope events, resumes from the envelope alone, and is registered under a name that does not collide with the plan built-in. Awaits the integration-tier exercising test delivered by the b2.S3 factory slice bd-ib-kr334k; real test ID to follow."
   }
 ]
