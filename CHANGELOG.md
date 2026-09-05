@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.129.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.128.0...v0.129.0) (2026-09-05)
+
+
+### Features
+
+* **discuss-work-item:** interactive stand-by skill over the context loader (bd-ib-kr334k) ([e9e4d4c](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/e9e4d4c598f4e2e78760f4dd75b61c3c6f18d318))
+
 ## [0.128.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.127.0...v0.128.0) (2026-09-05)
 
 
