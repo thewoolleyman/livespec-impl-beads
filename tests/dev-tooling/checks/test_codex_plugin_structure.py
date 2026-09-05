@@ -59,6 +59,7 @@ _PRESENT_OPS = {
     "detect-impl-gaps": "detect_impl_gaps.py",
     "needs-attention": "needs_attention.py",
     "drive": "drive.py",
+    "context": "context.py",
 }
 _PRESENT_PROSE_OPS = (
     "capture-work-item",
@@ -299,7 +300,7 @@ def test_valid_surface_passes() -> None:
     assert _CHECK.main() == 0
 
 
-def test_present_set_is_the_six_thin_ops() -> None:
+def test_present_set_is_the_seven_thin_ops() -> None:
     assert set(_CHECK._PRESENT_OPS) == set(_PRESENT_OPS)  # noqa: SLF001
 
 

@@ -7,6 +7,17 @@ public module per query-only skill:
   Spec Reader; pure read-and-emit (never mutates the JSONL, never
   prompts).
 - `list_work_items.py` — JSONL store listing.
+- `context.py` — the item-context read primitive
+  (SPECIFICATION/contracts.md §"`context`"): resolves one `plan_slug` or
+  work-item id and emits the single deterministic envelope
+  `_context_envelope.py` assembles for it — the record, its comments, its
+  children (unioned across BOTH the dotted-id hierarchy and the
+  `parent-child` edge), its dependency edges, the plan's typed
+  `next_action`, the research directory its `associated_work_item_id`
+  anchor resolves, and the spec clauses it and its children cite. Query-only
+  like its `list-*` siblings; an absent key exits 3 naming it rather than
+  emitting an empty envelope, because a front-end resuming from the envelope
+  alone cannot tell an empty one from a plan that has not started.
 - `close_work_item.py` — the atomic close + `resolution:completed`
   wrapper (the "pit of success" for the closed-item-integrity
   invariant, SPECIFICATION/constraints.md §"Closed-item integrity").
