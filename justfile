@@ -15,7 +15,9 @@
 #   spec-required ordering: 00-lint-autofix-staged, 01-commit-pairs-
 #   source-and-test, 02-check-pre-commit at pre-commit;
 #   no-commit-on-master + red-green-replay at commit-msg; full
-#   aggregate (with zero-py subsetting) at pre-push.
+#   aggregate at pre-push (PR gate ≡ master gate — the zero-.py
+#   pre-push subset was retired; only the green-token clean-tree
+#   skip remains).
 #
 # Authority: livespec/SPECIFICATION/contracts.md
 #   §"Shared code sync — livespec-dev-tooling" (v094 wiring-
@@ -1076,16 +1078,16 @@ check-pre-commit:
     bash dev-tooling/just-check-pre-commit.sh
 
 # When zero `.py` files are staged, `check-pre-commit` delegates to this
-# conservative doc-only subset. Pre-push delegates here via `check-pre-push`
-# when the push contains zero `.py` changes.
+# conservative doc-only subset. This is a LOCAL pre-commit speed optimization
+# only — it is NOT a merge gate, and pre-push no longer delegates here.
 check-pre-commit-doc-only:
     bash dev-tooling/just-check-pre-commit-doc-only.sh
 
-# Skip the Python-code check subset when the pushed commits contain
-# zero `.py` changes; those checks are deterministic functions of
-# the source tree and would pass-or-fail identically against the
-# merge-base. Falls back to `origin/master` when no upstream branch
-# is configured locally.
+# Run the full `just check` aggregate (PR gate ≡ master gate — the zero-.py
+# pre-push subset was retired so a doc-only push runs the same gate a code
+# push does). The only skip is the green-token clean-tree memoization: when
+# the working tree is byte-identical to the last green `just check`, the
+# aggregate is skipped because CI is authoritative.
 check-pre-push:
     bash dev-tooling/just-check-pre-push.sh
 
