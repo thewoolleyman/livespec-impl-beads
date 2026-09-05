@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.128.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.127.0...v0.128.0) (2026-09-05)
+
+
+### Features
+
+* **context:** item-context read primitive and `context --json` (bd-ib-g4lj2w) ([1b221da](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/1b221dacfc03e3f5c2f6e1689216b107ea338c0f))
+
 ## [0.127.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.126.0...v0.127.0) (2026-09-04)
 
 
