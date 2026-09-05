@@ -102,6 +102,23 @@ a unit-tier test); its dotted node-id prefix `tests.integration` is in the
   the missing point and remedy, running the merge-presence check and nothing
   else.
 
+- `test_context_envelope_scenario114.py` — binds
+  `SPECIFICATION/scenarios.md` "Scenario 114 — The `context` read primitive
+  assembles a deterministic item-context envelope" and the contract it
+  realizes, `SPECIFICATION/contracts.md` §"`context`". The whole primitive
+  runs as production code — argv parse, connection resolution, tenant read,
+  child union, on-disk anchor read, JSON emission — against the REAL
+  store/client seam over a tenant built through the client's public write
+  verbs; nothing is stood in. The fixture defeats the two readings that would
+  look right and be wrong: it carries a dotted-id child AND an edge-linked
+  one, because either enumeration alone returns a plausible non-empty list
+  while dropping the other linkage, and its epic's dependency array carries a
+  `parent-child` edge beside a `blocks` edge, because a blocks-only
+  projection would report the epic as unparented. The four cases are the
+  every-field-populated epic envelope, the child-id shape parity, the
+  byte-identical re-run with the store unmodified, and the not-found refusal
+  that names the missing key.
+
 Coverage rules: 100% line + branch on every covered module, as everywhere in
 this repo. Build state through the public store/client seam (or a small
 read-only stub for shapes the fake's public surface never produces); never read

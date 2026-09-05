@@ -12,6 +12,16 @@ Tests for the thin-transport command modules under
   an OPEN dependency are absent from the ranked list).
 - `test_list_work_items.py` — listing,
   filtering, and the `--json` vs human output contracts.
+- `test_context.py` and `test_context_envelope.py` — the `context` read
+  primitive. The first drives `main()` end to end over a fixture tenant
+  carrying both child linkages (a dotted-id child and an edge-linked one)
+  and asserts the `--json` envelope, the human rendering, the
+  plan-slug-equals-epic-id resolution, the byte-identical re-run with an
+  unmodified store, and the not-found refusal. The second covers the
+  assembly decisions a well-formed tenant cannot reach: the `omitempty`
+  sparse-record tolerances, the untagged epic still carrying a
+  `plan:<slug>` marker, the archived plan directory, and the ancestor walk
+  that skips a parent with no plan slug.
 - `test_detect_impl_gaps.py` — mechanical gap detection emits the
   expected gap-id set; verifies it never mutates the JSONL.
 - `test_config.py`, `test_cross_repo.py`, `test_jsonc.py` — the

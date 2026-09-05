@@ -115,9 +115,10 @@ _CODEX_DIR = _CLAUDE_DIR / ".codex-plugin"
 _CODEX_MANIFEST = _CODEX_DIR / "plugin.json"
 _SKILLS_DIR = _CODEX_DIR / "skills"
 
-# The six PRESENT (thin, wrapper-backed) ops each dispatch to a
+# The PRESENT (thin, wrapper-backed) ops each dispatch to a
 # `scripts/bin/<op>.py` CLI. Their Codex binding body MUST self-invoke that
-# wrapper.
+# wrapper. `context` joined as the seventh (the item-context read primitive
+# `discuss-work-item` and the console chat pane are layered over).
 _PRESENT_OPS: dict[str, str] = {
     "next": "next.py",
     "list-work-items": "list_work_items.py",
@@ -125,6 +126,7 @@ _PRESENT_OPS: dict[str, str] = {
     "detect-impl-gaps": "detect_impl_gaps.py",
     "needs-attention": "needs_attention.py",
     "drive": "drive.py",
+    "context": "context.py",
 }
 # The PRESENT (heavyweight, prose-backed) ops have NO single CLI wrapper; their
 # orchestration lives in the shared `.claude-plugin/prose/<op>.md` artifact
