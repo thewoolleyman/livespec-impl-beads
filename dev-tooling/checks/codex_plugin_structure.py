@@ -135,7 +135,10 @@ _PRESENT_OPS: dict[str, str] = {
 # capture-spec-drift flipped into this set at P3b PR-2; implement and groom
 # flipped in at P3b PR-3 — completing the original heavyweight extraction.
 # `plan` joined later as the sixth heavyweight op (the Planning Lane
-# realization, epic livespec-zs22).
+# realization, epic livespec-zs22). `discuss-work-item` joined as the seventh
+# (the interactive stand-by skill layered over the `context` read primitive,
+# b2.S3) — prose-backed rather than wrapper-backed because it converses with a
+# maintainer, which is orchestration, not a single deterministic CLI call.
 _PRESENT_PROSE_OPS = frozenset(
     {
         "capture-work-item",
@@ -144,6 +147,7 @@ _PRESENT_PROSE_OPS = frozenset(
         "implement",
         "groom",
         "plan",
+        "discuss-work-item",
     }
 )
 # No heavyweight op remains pending: the P3b prose extraction is complete. The

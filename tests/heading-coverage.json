@@ -1196,8 +1196,8 @@
     "heading": "## Scenario 115 — `discuss-work-item` stands by over the context envelope and resumes without chat history",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
+    "test": "tests.integration.test_discuss_work_item_scenario115.test_scenario115_the_skill_assembles_its_subject_through_the_context_primitive",
     "work_item": "bd-ib-kr334k",
-    "reason": "Ratified with the context-and-discuss-work-item-surface revision (epic bd-ib-w3nwz5, b2). The discuss-work-item heavyweight interactive skill assembles context through the context primitive, stands by (driving only on explicit instruction), records rulings as scope events, resumes from the envelope alone, and is registered under a name that does not collide with the plan built-in. Awaits the integration-tier exercising test delivered by the b2.S3 factory slice bd-ib-kr334k; real test ID to follow."
+    "reason": "Ratified with the context-and-discuss-work-item-surface revision (epic bd-ib-w3nwz5, b2) and delivered by the b2.S3 factory slice bd-ib-kr334k. The discuss-work-item heavyweight interactive skill assembles context through the context primitive, stands by (driving only on explicit instruction), records rulings as scope events, resumes from the envelope alone, and is registered under a name that does not collide with the plan built-in. The bound integration-tier case runs the shipped context CLI over a fixture tenant and asserts the emitted envelope is the subject assembly, beside the prose routing that forbids a hand-rolled per-item read; its sibling cases in the same module cover the envelope-alone resume (an identical envelope from the plan_slug and from the epic id, carrying the typed next_action), a maintainer ruling recorded through record_scope_event and read back through read_timeline, the explicit-instruction drive gate pinned in both directions, and the three-runtime registration under discuss-work-item with the sibling plan surface proven untouched."
   }
 ]

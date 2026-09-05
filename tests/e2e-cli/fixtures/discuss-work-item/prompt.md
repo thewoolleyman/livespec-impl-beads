@@ -1,0 +1,1 @@
+/livespec-orchestrator-beads-fabro:discuss-work-item bd-ib-example Open an interactive stand-by session over this subject: assemble its context envelope through the context read primitive, report the plan's recorded next action from that envelope alone, and then stand by. Do not drive any lifecycle action without an explicit instruction, and obtain consent before any store write.

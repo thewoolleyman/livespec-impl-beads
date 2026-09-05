@@ -1,0 +1,5 @@
+# Interactive stand-by: the operation assembles the context envelope, answers,
+# and rests. Its only writes are consented ledger scope events (beads tenant DB
+# writes, not on-disk artifacts) and research notes the maintainer asks for, so
+# a bare stand-by round trip writes NO files under the project root.
+# No file assertion — success is the exit-0 round-trip (contract req 4).

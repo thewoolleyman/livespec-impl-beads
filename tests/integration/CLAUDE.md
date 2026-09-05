@@ -119,6 +119,27 @@ a unit-tier test); its dotted node-id prefix `tests.integration` is in the
   byte-identical re-run with the store unmodified, and the not-found refusal
   that names the missing key.
 
+- `test_discuss_work_item_scenario115.py` — binds
+  `SPECIFICATION/scenarios.md` "Scenario 115 — `discuss-work-item` stands by
+  over the context envelope and resumes without chat history" and the contract
+  it realizes, `SPECIFICATION/contracts.md` §"`discuss-work-item`". The
+  operation is a HEAVYWEIGHT AUTHORED skill — shared prose plus thin
+  per-runtime bindings, no CLI wrapper — so the module keeps the behavior and
+  artifact halves apart deliberately: the context assembly and the
+  envelope-alone resume run the shipped `context` CLI over a fixture tenant
+  built through the client's public write verbs, the maintainer ruling goes
+  through the REAL `record_scope_event` and is READ BACK through
+  `read_timeline`, and only the stand-by gate and the registered name are
+  asserted against the shipped prose and bindings. Two traps are worth
+  carrying forward. `plan` remains a live sibling operation, so "a skill named
+  plan exists" is true and carries no information — the discriminator is that
+  each runtime's discuss binding declares the discuss name and reads the
+  discuss prose while the `plan` bindings still declare `plan` and read
+  `plan.md`. And the prose is hard-wrapped, so `_prose()` collapses every
+  whitespace run before matching: a needle straddling a line break otherwise
+  fails while the prose says exactly the thing, which is a probe that can only
+  fail silently.
+
 Coverage rules: 100% line + branch on every covered module, as everywhere in
 this repo. Build state through the public store/client seam (or a small
 read-only stub for shapes the fake's public surface never produces); never read
