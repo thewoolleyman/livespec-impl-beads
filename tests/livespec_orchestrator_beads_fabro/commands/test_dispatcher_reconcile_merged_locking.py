@@ -69,7 +69,7 @@ def test_reconcile_merged_allows_stale_dispatch_lock(
             _ok(stdout=_pr_json(number=11, state="MERGED", sha="abc111")),
             _ok(),
             *_venue_resolution(),
-            *[_ok()] * 7,
+            *[_ok()] * 8,
         ]
     )
     _patch_runner(monkeypatch=monkeypatch, runner=runner)
@@ -102,7 +102,7 @@ def test_reconcile_merged_force_bypasses_live_dispatch_lock(
             _ok(stdout=_pr_json(number=12, state="MERGED", sha="abc222")),
             _ok(),
             *_venue_resolution(),
-            *[_ok()] * 7,
+            *[_ok()] * 8,
         ]
     )
     _patch_runner(monkeypatch=monkeypatch, runner=runner)

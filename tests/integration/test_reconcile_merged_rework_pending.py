@@ -216,7 +216,7 @@ def test_unmarked_merged_item_still_reconciles_to_done(
             _ok(stdout=_pr_json(number=1381, sha="0bd9ce1")),
             _ok(),
         ]
-        + [_ok()] * 8
+        + [_ok()] * 9
     )
     _patch_runner(monkeypatch=monkeypatch, runner=runner)
     monkeypatch.setattr(

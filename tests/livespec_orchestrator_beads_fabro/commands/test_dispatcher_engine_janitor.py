@@ -88,7 +88,7 @@ def _branch() -> CommandResult:
 
 def _provisioning_queue() -> list[CommandResult]:
     """pull-primary, the venue resolution, and every stage after it, all green."""
-    return [_ok(), _branch(), *[_ok() for _ in range(8)]]
+    return [_ok(), _branch(), *[_ok() for _ in range(9)]]
 
 
 def _merged() -> PrView:
@@ -294,6 +294,7 @@ def test_post_merge_releases_lock_after_green(tmp_path: Path) -> None:
         "janitor-checkout-add",
         "janitor-checkout-trust",
         "janitor-checkout-bootstrap",
+        "janitor-checkout-bootstrap-in-checkout",
         "janitor-core-provision",
         "janitor-post-merge",
         "janitor-checkout-remove",

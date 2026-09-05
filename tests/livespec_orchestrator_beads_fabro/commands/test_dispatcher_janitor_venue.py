@@ -22,7 +22,11 @@ import importlib
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from livespec_orchestrator_beads_fabro.commands import _dispatcher_engine_janitor
+import pytest
+from livespec_orchestrator_beads_fabro.commands import (
+    _dispatcher_engine_janitor,
+    _dispatcher_reconcile_merged,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_core_provisioning_view import (
     FLEET_JANITOR_CORE_REPO_URL,
     JANITOR_CORE_PINNED_KEY,
@@ -41,6 +45,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     DispatchPlan,
     PrView,
     build_plan,
+    janitor_reconcile_checkout_path,
 )
 
 _MERGE_SHA = "16fe3ac"
@@ -156,7 +161,7 @@ def test_post_merge_provisions_the_venue_at_the_merged_default_branch_tip(tmp_pa
     where a venue pinned to the item's merge sha could only ever re-fail.
     """
     plan = _plan(repo=tmp_path, default_branch="main")
-    runner = Runner(queue=[_ok(), *[_ok() for _ in range(8)]])
+    runner = Runner(queue=[_ok(), *[_ok() for _ in range(9)]])
     journal = Journal()
 
     outcome = post_merge(
@@ -187,6 +192,202 @@ def test_post_merge_provisions_the_venue_at_the_merged_default_branch_tip(tmp_pa
     ]
 
 
+def test_post_merge_provisions_the_janitor_checkout_itself_before_the_check_suite(
+    tmp_path: Path,
+) -> None:
+    """The per-checkout bootstrap leg: a provisioning recipe run IN the fresh checkout.
+
+    The hook-install leg installs into the SHARED `.git/hooks` and is therefore
+    correctly run from the primary, which is why it never provisioned anything
+    the janitor checkout owns on its own. The worktree-discipline pack is exactly
+    that: gitignored, so a newly added worktree has none of it, its check suite
+    fails `worktree_pack_absent` on a fully conformant repository, and an
+    already-merged GREEN item strands in `active`.
+
+    Both legs are asserted together, because the fix is worthless if it moved the
+    hooks leg off the primary rather than adding a second leg beside it.
+    """
+    plan = _plan(repo=tmp_path, default_branch="main")
+    runner = Runner(queue=[_ok(), *[_ok() for _ in range(9)]])
+    journal = Journal()
+
+    outcome = post_merge(
+        outcome_type=DispatchOutcome,
+        plan=plan,
+        runner=runner,
+        journal=journal,
+        merged=_merged(),
+    )
+
+    assert (outcome.status, outcome.stage) == ("green", "done")
+    assert (["mise", "exec", "--", "just", "install-worktree-pack"], plan.janitor_checkout) in (
+        runner.calls
+    )
+    # The hooks leg still runs where the shared hooks dir is, so this ADDED a
+    # per-checkout leg rather than relocating the one that was already right.
+    hooks = next(
+        cwd
+        for argv, cwd in runner.calls
+        if argv == ["mise", "exec", "--", "just", "install-commit-refuse-hooks"]
+    )
+    assert hooks == tmp_path
+    stages = [record["stage"] for record in journal.records]
+    # Ordering is the whole point: the pack has to be installed BEFORE the check
+    # suite reads it, and after the trust step whose `mise` the recipe rides.
+    assert stages.index("janitor-checkout-trust") < stages.index(
+        "janitor-checkout-bootstrap-in-checkout"
+    )
+    assert stages.index("janitor-checkout-bootstrap-in-checkout") < stages.index(
+        "janitor-post-merge"
+    )
+
+
+def test_post_merge_provisioning_steps_journal_both_streams(tmp_path: Path) -> None:
+    """A bootstrap that FAILS OPEN is invisible unless both streams are journaled.
+
+    `detail` alone carries whichever stream the exit code selected, so a step
+    that exits 0 having provisioned nothing -- with its diagnosis on stderr --
+    journals a record indistinguishable from one that worked. The bootstrap legs
+    are where that matters, and the fixture is exactly that shape: exit 0, an
+    empty stdout, and a real complaint on stderr.
+    """
+    plan = _plan(repo=tmp_path, default_branch="main")
+    fail_open = CommandResult(exit_code=0, stdout="", stderr="warning: nothing to install")
+    runner = Runner(queue=[_ok(), _ok(), _ok(), _ok(), _ok(), fail_open, fail_open, *[_ok()] * 3])
+    journal = Journal()
+
+    outcome = post_merge(
+        outcome_type=DispatchOutcome,
+        plan=plan,
+        runner=runner,
+        journal=journal,
+        merged=_merged(),
+    )
+
+    assert (outcome.status, outcome.stage) == ("green", "done")
+    bootstrap_records = [
+        record
+        for record in journal.records
+        if record["stage"]
+        in {"janitor-checkout-bootstrap", "janitor-checkout-bootstrap-in-checkout"}
+    ]
+    assert len(bootstrap_records) == 2
+    for record in bootstrap_records:
+        assert record["exit_code"] == 0
+        assert record["stdout"] == ""
+        assert record["stderr"] == "warning: nothing to install"
+    # The control: `detail` alone selected stdout on a zero exit, so the record
+    # without the streams says nothing at all about what went wrong.
+    assert {record["detail"] for record in bootstrap_records} == {""}
+
+
+def test_post_merge_degrades_when_the_janitor_checkout_provisioning_fails(
+    tmp_path: Path,
+) -> None:
+    """A failed per-checkout leg degrades naming the checkout, with no step id.
+
+    The closed step vocabulary is what a pre-dispatch refusal reads, and this leg
+    is not one of its members: it is a host-environment failure with no
+    integration point an adopter could provide, so it must not stand up a refusal
+    the adopter has no way to clear.
+    """
+    plan = _plan(repo=tmp_path, default_branch="main")
+    runner = Runner(
+        queue=[
+            _ok(),
+            _ok(),
+            _ok(),
+            _ok(),
+            _ok(),
+            _ok(),
+            _err(stderr="just: no recipe"),
+            *[_ok()] * 3,
+        ]
+    )
+    journal = Journal()
+
+    outcome = post_merge(
+        outcome_type=DispatchOutcome,
+        plan=plan,
+        runner=runner,
+        journal=journal,
+        merged=_merged(),
+    )
+
+    assert (outcome.status, outcome.stage) == ("green", "janitor-env-degraded")
+    assert "per-worktree dev-tooling pack" in outcome.detail
+    assert str(plan.janitor_checkout) in outcome.detail
+    assert "just: no recipe" in outcome.detail
+    assert outcome.step is None
+    # The janitor never ran against an unprovisioned checkout.
+    assert "janitor-post-merge" not in [record["stage"] for record in journal.records]
+
+
+def test_post_merge_emits_no_checkout_bootstrap_when_the_venue_runs_declared_commands(
+    tmp_path: Path,
+) -> None:
+    """An adopter's venue is never handed this fleet's per-checkout recipe either.
+
+    The pack is a livespec-dev-tooling artifact, so installing it is a PREMISE of
+    the fleet-default host-janitor commands rather than an obligation every
+    governed repository owes -- the same reasoning that gates the trust step, and
+    the same resolution ARM. The member case above is the positive control for
+    this absence: it runs the same code path and DOES emit the leg.
+    """
+    plan = _plan(repo=tmp_path, default_branch="main", config_text=_ADOPTER_CONFIG)
+    runner = Runner(queue=[_ok(), *[_ok() for _ in range(9)]])
+    journal = Journal()
+
+    outcome = post_merge(
+        outcome_type=DispatchOutcome,
+        plan=plan,
+        runner=runner,
+        journal=journal,
+        merged=_merged(),
+    )
+
+    assert (outcome.status, outcome.stage) == ("green", "done")
+    assert "janitor-checkout-bootstrap-in-checkout" not in [
+        record["stage"] for record in journal.records
+    ]
+    assert [argv for argv, _ in runner.calls if "install-worktree-pack" in argv] == []
+
+
+def test_reconcile_valve_provisions_its_own_janitor_checkout_through_the_same_seam(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The reconcile venue inherits the per-checkout leg because it IS the same seam.
+
+    The reconcile valve differs from a live dispatch only in the checkout it
+    names, so the provisioning it gets is whatever `post_merge` provisions --
+    which is what makes a fix here reach both venues rather than one. Both halves
+    are asserted: that the valve calls this entry point, and that the leg lands in
+    the reconcile checkout rather than in a live-dispatch one.
+
+    The reconcile checkout path is rooted at the invoking user's HOME, and the
+    janitor lock is written beside it, so HOME is redirected into `tmp_path`
+    rather than letting a unit test deposit directories in the real one.
+    """
+    monkeypatch.setenv("HOME", str(tmp_path))
+    checkout = janitor_reconcile_checkout_path(repo=tmp_path, work_item_id="x-1")
+    plan = replace(_plan(repo=tmp_path, default_branch="main"), janitor_checkout=checkout)
+    runner = Runner(queue=[_ok(), *[_ok() for _ in range(9)]])
+    journal = Journal()
+
+    outcome = post_merge(
+        outcome_type=DispatchOutcome,
+        plan=plan,
+        runner=runner,
+        journal=journal,
+        merged=_merged(),
+    )
+
+    assert (outcome.status, outcome.stage) == ("green", "done")
+    assert _dispatcher_reconcile_merged.post_merge is post_merge
+    assert checkout.name.startswith("janitor-reconcile-")
+    assert (["mise", "exec", "--", "just", "install-worktree-pack"], checkout) in runner.calls
+
+
 def test_post_merge_emits_no_trust_step_when_the_venue_runs_declared_commands(
     tmp_path: Path,
 ) -> None:
@@ -204,7 +405,7 @@ def test_post_merge_emits_no_trust_step_when_the_venue_runs_declared_commands(
     here.
     """
     plan = _plan(repo=tmp_path, default_branch="main", config_text=_ADOPTER_CONFIG)
-    runner = Runner(queue=[_ok(), *[_ok() for _ in range(8)]])
+    runner = Runner(queue=[_ok(), *[_ok() for _ in range(9)]])
     journal = Journal()
 
     outcome = post_merge(
@@ -225,7 +426,7 @@ def test_post_merge_degrades_when_the_resolved_tip_does_not_contain_the_merge(
     tmp_path: Path,
 ) -> None:
     plan = _plan(repo=tmp_path, default_branch="main")
-    runner = Runner(queue=[_ok(), _err(), *[_ok() for _ in range(8)]])
+    runner = Runner(queue=[_ok(), _err(), *[_ok() for _ in range(9)]])
     journal = Journal()
 
     outcome = post_merge(
@@ -254,7 +455,7 @@ def test_post_merge_degrades_when_the_resolved_tip_does_not_contain_the_merge(
 def test_post_merge_degrades_when_no_default_branch_can_be_resolved(tmp_path: Path) -> None:
     """Both probe routes silent at plan build leaves the REQUIRED field unresolved."""
     plan = _plan(repo=tmp_path, default_branch=None)
-    runner = Runner(queue=[_ok(), *[_ok() for _ in range(8)]])
+    runner = Runner(queue=[_ok(), *[_ok() for _ in range(9)]])
     journal = Journal()
 
     outcome = post_merge(
@@ -279,7 +480,7 @@ def test_post_merge_venue_skips_the_containment_probe_when_no_merge_sha_is_known
 ) -> None:
     """No merge sha is nothing to confirm, not a degradation."""
     plan = _plan(repo=tmp_path, default_branch="master")
-    runner = Runner(queue=[_ok(), *[_ok() for _ in range(8)]])
+    runner = Runner(queue=[_ok(), *[_ok() for _ in range(9)]])
     journal = Journal()
 
     outcome = post_merge(
@@ -311,7 +512,7 @@ def test_post_merge_degrades_naming_the_undeclared_janitor_core_declaration(
     clone's own stderr would name a branch the repository never declared.
     """
     plan = replace(_plan(repo=tmp_path), janitor_core_ref=UNRESOLVED_JANITOR_CORE)
-    runner = Runner(queue=[_ok(), *[_ok() for _ in range(8)]])
+    runner = Runner(queue=[_ok(), *[_ok() for _ in range(9)]])
     journal = Journal()
 
     outcome = post_merge(
@@ -339,7 +540,7 @@ def test_post_merge_degrades_naming_the_undeclared_janitor_core_declaration(
 def test_post_merge_degrades_naming_an_unusable_core_repo_declaration(tmp_path: Path) -> None:
     """A present-but-unusable `core_repo` refuses instead of sliding onto the fleet default."""
     plan = replace(_plan(repo=tmp_path), janitor_core_repo_url=UNRESOLVED_JANITOR_CORE)
-    runner = Runner(queue=[_ok(), *[_ok() for _ in range(8)]])
+    runner = Runner(queue=[_ok(), *[_ok() for _ in range(9)]])
     journal = Journal()
 
     outcome = post_merge(

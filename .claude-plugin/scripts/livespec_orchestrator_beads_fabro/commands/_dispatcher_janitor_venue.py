@@ -33,6 +33,27 @@ have been re-pointed in between, could. A branch nobody could name is not a
 venue either: when both resolution routes were silent the field resolves to its
 sentinel and the venue degrades rather than guessing at a ref.
 
+THE BOOTSTRAP SEAM HAS TWO LEGS, BECAUSE A CHECKOUT HAS TWO KINDS OF STATE.
+The hook-install recipe installs into the SHARED `.git/hooks`, so it is run from
+the primary and reaches every worktree at once -- correct, and the whole of what
+the shipped step did. Nothing then provisioned the fresh checkout's OWN
+per-worktree state, which the venue's check suite reads: the worktree-discipline
+pack is gitignored, so a newly added worktree carries none of it by
+construction, the suite fails `worktree_pack_absent` on a fully conformant
+repository, and an already-merged GREEN item strands in `active` until an
+operator hand-installs the pack. The second leg therefore runs a checkout-scoped
+provisioning recipe with `cwd` set to the janitor checkout. The fleet default
+check-suite hides this by installing the pack inside the suite itself, which is
+why the gap only ever surfaced on a repository that DECLARED a check-suite of
+its own -- so the provisioning belongs at the venue, where it is true of every
+check-suite, rather than inside anybody's check command.
+
+BOTH LEGS JOURNAL BOTH STREAMS. A bootstrap that fails loudly is already
+visible; one that FAILS OPEN -- exits 0 having provisioned nothing, with its
+diagnosis on the stream the exit code did not select -- journals a record
+indistinguishable from a step that worked, and the only later evidence is the
+check-suite failure it was meant to prevent.
+
 AND THE TRUST STEP IS A PREMISE OF THE VENUE'S COMMANDS, NOT A STEP EVERY
 REPOSITORY OWES. Provisioning used to run this fleet's per-path trust command in
 every fresh checkout, on the reasoning that it warns and exits 0 where there is
@@ -67,9 +88,13 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_janitor_degraded imp
     DegradedStep,
     degraded_step,
     merged_degraded_for_plan,
+    tip_without_merge_step,
+    unresolved_branch_step,
+    unresolved_core_step,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     janitor_bootstrap_argv,
+    janitor_checkout_provision_argv,
     janitor_core_clone_argv,
     janitor_trust_argv,
     janitor_venue_contains_merge_argv,
@@ -106,22 +131,6 @@ _VENUE_TIMEOUT_SECONDS = 30.0
 # on `main` that we looked for a branch they do not have.
 UNRESOLVED_VENUE = "<unresolved>"
 
-_UNRESOLVED_CORE_REMEDY = (
-    "declare the livespec core this repository is governed against in its committed "
-    "`.livespec.jsonc` -- `livespec-orchestrator-beads-fabro.compat.pinned` names the ref the "
-    "janitor clones (a release tag, or `master` where that is genuinely the repository's own "
-    "choice), and the OPTIONAL `compat.core_repo` names the clone repository, which resolves to "
-    "the fleet livespec core when it is absent"
-)
-
-_UNRESOLVED_BRANCH_REMEDY = (
-    "give the target repository a resolvable default branch on this host -- "
-    "`git remote set-head origin --auto` in the primary checkout sets "
-    "`refs/remotes/origin/HEAD`, or a working `gh` credential lets "
-    "`gh repo view --json defaultBranchRef` answer -- so the janitor venue can be "
-    "provisioned at a named default-branch tip"
-)
-
 
 @dataclass(frozen=True, kw_only=True)
 class JanitorVenue:
@@ -157,7 +166,7 @@ def resolve_janitor_venue(
     """
     branch = plan.integration.contract.default_branch
     if branch == UNRESOLVED_NAME:
-        return JanitorVenue(ref=UNRESOLVED_VENUE, defect=_unresolved_branch_step(plan=plan))
+        return JanitorVenue(ref=UNRESOLVED_VENUE, defect=unresolved_branch_step(plan=plan))
     tip = f"origin/{branch}"
     if merge_sha is None:
         return JanitorVenue(ref=tip)
@@ -167,7 +176,7 @@ def resolve_janitor_venue(
         timeout_seconds=_VENUE_TIMEOUT_SECONDS,
     )
     if contains.exit_code != 0:
-        return JanitorVenue(ref=tip, defect=_tip_without_merge_step(tip=tip, merge_sha=merge_sha))
+        return JanitorVenue(ref=tip, defect=tip_without_merge_step(tip=tip, merge_sha=merge_sha))
     return JanitorVenue(ref=tip)
 
 
@@ -238,7 +247,7 @@ def provision_janitor_checkout(
             outcome_type=outcome_type,
             plan=plan,
             merged=merged,
-            step=_unresolved_core_step(plan=plan, defect=core_defect),
+            step=unresolved_core_step(plan=plan, defect=core_defect),
             recipe=recipe,
         )
     # Resolved BEFORE the preclean, on the same principle as the recipe defect
@@ -266,12 +275,33 @@ def provision_janitor_checkout(
     trust_step = (
         f"trusting the fleet toolchain config in the janitor checkout {plan.janitor_checkout}"
     )
-    # The trust step is a PREMISE of the fleet-default host-janitor commands, so
-    # it rides the same resolution they do rather than running on every governed
-    # repository. An adopter's venue therefore carries no such step at all.
+    checkout_bootstrap_step = (
+        f"provisioning the janitor checkout {plan.janitor_checkout} itself, so the "
+        "per-worktree dev-tooling pack its check suite reads is installed there"
+    )
+    # The trust step and the per-checkout bootstrap leg are both PREMISES of the
+    # fleet-default host-janitor commands, so they ride the same resolution those
+    # commands do rather than running on every governed repository. An adopter
+    # whose venue runs its own commands end to end carries neither step: the pack
+    # is this fleet's dev-tooling artifact, and installing it would mean running a
+    # tool that repository never carried.
+    fleet_premise = fleet_toolchain_is_the_host_janitor_premise(plan=plan)
     trust = (
         (("janitor-checkout-trust", janitor_trust_argv(), plan.janitor_checkout, trust_step, None),)
-        if fleet_toolchain_is_the_host_janitor_premise(plan=plan)
+        if fleet_premise
+        else ()
+    )
+    checkout_bootstrap = (
+        (
+            (
+                "janitor-checkout-bootstrap-in-checkout",
+                janitor_checkout_provision_argv(),
+                plan.janitor_checkout,
+                checkout_bootstrap_step,
+                None,
+            ),
+        )
+        if fleet_premise
         else ()
     )
     steps = (
@@ -293,6 +323,7 @@ def provision_janitor_checkout(
             f"installing commit-refuse hooks via `{recipe.text}` in {plan.repo}",
             JANITOR_BOOTSTRAP,
         ),
+        *checkout_bootstrap,
         (
             "janitor-core-provision",
             janitor_core_clone_argv(plan=plan),
@@ -308,6 +339,7 @@ def provision_janitor_checkout(
             plan=plan,
             stage=stage,
             command=(argv, cwd, _GIT_TIMEOUT_SECONDS, None),
+            streams=True,
         )
         if result.exit_code != 0:
             return merged_degraded_for_plan(
@@ -318,52 +350,3 @@ def provision_janitor_checkout(
                 recipe=recipe,
             )
     return None
-
-
-def _unresolved_core_step(*, plan: DispatchPlan, defect: str) -> DegradedStep:
-    """No livespec core could be named, so there is nothing to provision the clone from."""
-    return DegradedStep(
-        description=(
-            f"resolving the livespec-core clone to provision at {plan.janitor_core_checkout}"
-        ),
-        reason=defect,
-        missing_point="a declared livespec-core ref for the target repository",
-        remedy_text=_UNRESOLVED_CORE_REMEDY,
-    )
-
-
-def _unresolved_branch_step(*, plan: DispatchPlan) -> DegradedStep:
-    """No default branch could be named, so there is no tip to provision at."""
-    return DegradedStep(
-        description=(
-            f"resolving the default-branch tip to provision the janitor venue in {plan.repo}"
-        ),
-        reason=(
-            "neither `git symbolic-ref refs/remotes/origin/HEAD` nor `gh repo view --json "
-            "defaultBranchRef` named a default branch, so the venue has no tip to be provisioned "
-            "at and the merge-presence of any tip cannot be confirmed"
-        ),
-        missing_point="a resolvable default branch for the target repository",
-        remedy_text=_UNRESOLVED_BRANCH_REMEDY,
-    )
-
-
-def _tip_without_merge_step(*, tip: str, merge_sha: str) -> DegradedStep:
-    """The tip resolved, but it does not carry the item's merge -- so it is not the venue."""
-    return DegradedStep(
-        description=(
-            f"confirming the resolved default-branch tip {tip} contains the item's merge "
-            f"{merge_sha}"
-        ),
-        reason=(
-            f"`git merge-base --is-ancestor {merge_sha} {tip}` reports the tip does NOT contain "
-            "the merge, so a janitor run there would prove nothing about this item's work"
-        ),
-        missing_point=f"a {tip} tip containing the item's merge {merge_sha}",
-        remedy_text=(
-            f"refresh the target repository so its {tip} carries {merge_sha} and re-run the "
-            "reconcile; if the merge is genuinely absent from the default branch then it did not "
-            "land where this dispatch believes it did, and the item's disposition is what needs "
-            "correcting"
-        ),
-    )
