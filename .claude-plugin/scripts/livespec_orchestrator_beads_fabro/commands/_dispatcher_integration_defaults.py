@@ -54,6 +54,7 @@ __all__: list[str] = [
     "FLEET_RECIPE_RUNNER",
     "FLEET_TOOL_RUNNER",
     "JANITOR_BOOTSTRAP_RECIPE_DEFAULT",
+    "JANITOR_CHECKOUT_PROVISION_DEFAULT",
     "JANITOR_CHECK_SUITE_DEFAULT",
     "JANITOR_TRUST_DEFAULT",
     "MASTER_CI_JOB_DEFAULT",
@@ -116,6 +117,22 @@ JANITOR_CHECK_SUITE_DEFAULT: tuple[str, ...] = (
     "check-no-workflow-edits",
     "install-worktree-pack",
     "check",
+)
+
+# The HOST-JANITOR venue's PER-CHECKOUT provisioning recipe -- a PREMISE of that
+# venue's fleet defaults in exactly the way the trust step below is, and run in
+# the janitor checkout rather than in the primary. The worktree-discipline pack
+# is gitignored (installed, never tracked), so a freshly added worktree carries
+# none of it by construction and the janitor's own check suite fails
+# `worktree_pack_absent` on a fully conformant repository. The check-suite
+# default above provisions the pack INSIDE the suite, which is why a fleet member
+# never saw this: a repository that declares a check-suite of its own inherits no
+# such provisioning, and its janitor strands an already-merged green item in
+# `active` until an operator hand-installs the pack. Provisioning at the VENUE is
+# what makes the pack present for a declared check-suite too.
+JANITOR_CHECKOUT_PROVISION_DEFAULT: tuple[str, ...] = (
+    *_FLEET_RECIPE_INVOCATION,
+    "install-worktree-pack",
 )
 
 # The HOST-JANITOR venue's mise-trust step, which is a PREMISE of that venue's

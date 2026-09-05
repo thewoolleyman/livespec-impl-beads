@@ -175,7 +175,7 @@ def test_await_merge_fails_fast_on_terminal_required_check(tmp_path: Path) -> No
 
 
 def test_post_merge_runs_janitor_in_fresh_checkout(tmp_path: Path) -> None:
-    runner = Runner(queue=[_ok(), *_venue_resolution(), *[_ok() for _ in range(7)]])
+    runner = Runner(queue=[_ok(), *_venue_resolution(), *[_ok() for _ in range(8)]])
     merged = confirm_pr(
         plan=_plan(repo=tmp_path),
         runner=Runner(queue=[_ok(stdout=_pr_json(state="MERGED", sha="cafe06"))]),

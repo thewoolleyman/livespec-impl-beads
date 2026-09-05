@@ -91,7 +91,7 @@ def test_reconcile_merged_active_item_runs_post_merge_janitor_then_accepts(
             _ok(stdout=_pr_json(number=1381, state="MERGED", sha="0bd9ce1")),
             _ok(),
             *_venue_resolution(),
-            *[_ok()] * 7,
+            *[_ok()] * 8,
         ]
     )
     _patch_runner(monkeypatch=monkeypatch, runner=runner)
@@ -139,6 +139,7 @@ def test_reconcile_merged_active_item_runs_post_merge_janitor_then_accepts(
         "janitor-checkout-add",
         "janitor-checkout-trust",
         "janitor-checkout-bootstrap",
+        "janitor-checkout-bootstrap-in-checkout",
         "janitor-core-provision",
         "janitor-post-merge",
         "janitor-checkout-remove",
@@ -166,7 +167,7 @@ def test_reconcile_merged_resolves_merged_pr_by_title_search(
             _ok(stdout=json.dumps([_list_pr(number=17, title=f"fix {item.id}", sha="abc777")])),
             _ok(),
             *_venue_resolution(),
-            *[_ok() for _ in range(7)],
+            *[_ok() for _ in range(8)],
         ]
     )
     _patch_runner(monkeypatch=monkeypatch, runner=runner)
@@ -203,7 +204,7 @@ def test_reconcile_merged_accepts_merge_verified_parked_items(
             _ok(stdout=_pr_json(number=1654, state="MERGED", sha="33b230b6")),
             _ok(),
             *_venue_resolution(),
-            *[_ok()] * 7,
+            *[_ok()] * 8,
         ]
     )
     _patch_runner(monkeypatch=monkeypatch, runner=runner)
@@ -240,6 +241,7 @@ def test_reconcile_merged_janitor_red_leaves_item_active(
             _ok(stdout=_pr_json(number=9, state="MERGED", sha="badc0de")),
             _ok(),
             *_venue_resolution(),
+            _ok(),
             _ok(),
             _ok(),
             _ok(),
@@ -306,7 +308,7 @@ def test_reconcile_merged_refuses_live_dispatch_lock_before_pr_resolution(
             _ok(stdout=_pr_json(number=9, state="MERGED", sha="badc0de")),
             _ok(),
             *_venue_resolution(),
-            *[_ok()] * 7,
+            *[_ok()] * 8,
         ]
     )
     _patch_runner(monkeypatch=monkeypatch, runner=runner)
@@ -354,7 +356,7 @@ def test_reconcile_merged_proceeds_when_dispatch_lock_absent_or_stale(
             _ok(stdout=_pr_json(number=10, state="MERGED", sha="abc010")),
             _ok(),
             *_venue_resolution(),
-            *[_ok()] * 7,
+            *[_ok()] * 8,
         ]
     )
     _patch_runner(monkeypatch=monkeypatch, runner=runner)

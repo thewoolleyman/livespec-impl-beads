@@ -14,6 +14,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_core_provisioning_vi
     resolve_janitor_core_provisioning,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_defaults import (
+    JANITOR_CHECKOUT_PROVISION_DEFAULT,
     JANITOR_TRUST_DEFAULT,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_projection import (
@@ -41,6 +42,7 @@ __all__: list[str] = [
     "janitor_argv",
     "janitor_bootstrap_argv",
     "janitor_checkout_path",
+    "janitor_checkout_provision_argv",
     "janitor_core_checkout_path",
     "janitor_core_clone_argv",
     "janitor_core_ref_from_config",
@@ -477,6 +479,28 @@ def janitor_trust_argv() -> list[str]:
     emits it only where the host-janitor points resolved to the fleet default.
     """
     return list(JANITOR_TRUST_DEFAULT)
+
+
+def janitor_checkout_provision_argv() -> list[str]:
+    """Provision the janitor CHECKOUT itself (run with cwd=the janitor checkout).
+
+    The hook-install recipe below installs into the checkout's SHARED
+    `.git/hooks`, so running it from the primary is correct and nothing about it
+    reaches the janitor checkout's OWN per-worktree state. That state is what
+    this step provisions: the worktree-discipline pack is gitignored -- installed
+    rather than tracked -- so a freshly added worktree carries none of it by
+    construction, its check suite fails `worktree_pack_absent` on a fully
+    conformant repository, and an already-merged green item strands in `active`
+    until an operator hand-installs the pack.
+
+    Like the trust step above, the command is READ FROM THE FLEET-DEFAULTS MODULE
+    rather than spelled here, and it is a fleet PREMISE rather than an obligation
+    every governed repository owes: `_dispatcher_janitor_venue` emits it only
+    where the host-janitor points resolved to the fleet default, so a venue
+    running an adopter's own commands is never handed a tool it does not carry.
+    Idempotent: safe to run on every dispatch.
+    """
+    return list(JANITOR_CHECKOUT_PROVISION_DEFAULT)
 
 
 def janitor_bootstrap_argv(*, recipe: JanitorBootstrapRecipe) -> list[str]:

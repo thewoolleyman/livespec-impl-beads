@@ -66,15 +66,27 @@ def journal_stage(
     plan: DispatchPlan,
     stage: str,
     result: CommandResult,
+    streams: bool = False,
 ) -> None:
-    journal.append(
-        record={
-            "work_item_id": plan.work_item_id,
-            "stage": stage,
-            "exit_code": result.exit_code,
-            "detail": tail(text=result.stderr if result.exit_code != 0 else result.stdout),
-        }
-    )
+    """Append one stage record, optionally carrying BOTH captured streams.
+
+    `detail` alone carries whichever stream the exit code SELECTED, which is
+    enough for a step that fails loudly and not enough for one that FAILS OPEN --
+    exits 0 having provisioned nothing, with its diagnosis on the stream the
+    exit code did not select. That record is indistinguishable from a step which
+    genuinely did its work, so the venue's provisioning steps ask for `streams`
+    and journal both.
+    """
+    record: dict[str, object] = {
+        "work_item_id": plan.work_item_id,
+        "stage": stage,
+        "exit_code": result.exit_code,
+        "detail": tail(text=result.stderr if result.exit_code != 0 else result.stdout),
+    }
+    if streams:
+        record["stdout"] = tail(text=result.stdout)
+        record["stderr"] = tail(text=result.stderr)
+    journal.append(record=record)
 
 
 StageCommand = tuple[list[str], Path, float, dict[str, str] | None]
@@ -87,10 +99,11 @@ def run_stage(
     plan: DispatchPlan,
     stage: str,
     command: StageCommand,
+    streams: bool = False,
 ) -> CommandResult:
     argv, cwd, timeout_seconds, env = command
     result = runner.run(argv=argv, cwd=cwd, timeout_seconds=timeout_seconds, env=env)
-    journal_stage(journal=journal, plan=plan, stage=stage, result=result)
+    journal_stage(journal=journal, plan=plan, stage=stage, result=result, streams=streams)
     return result
 
 

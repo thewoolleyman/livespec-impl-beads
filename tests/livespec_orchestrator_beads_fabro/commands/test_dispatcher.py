@@ -227,6 +227,7 @@ def test_dispatcher_plan_decomposition_contract() -> None:
         "janitor_argv",
         "janitor_bootstrap_argv",
         "janitor_checkout_path",
+        "janitor_checkout_provision_argv",
         "janitor_core_checkout_path",
         "janitor_core_clone_argv",
         "janitor_core_ref_from_config",
@@ -501,10 +502,11 @@ def _venue_resolution() -> list[CommandResult]:
 
 
 def _post_merge_green_tail() -> list[CommandResult]:
-    """The nine all-green post-merge results: pull-primary, the venue
+    """The ten all-green post-merge results: pull-primary, the venue
     containment probe, then the janitor-checkout lifecycle (preclean, add,
-    trust, bootstrap, core clone, janitor run, remove)."""
-    return [_ok(), *_venue_resolution(), *[_ok() for _ in range(7)]]
+    trust, bootstrap, the per-checkout bootstrap leg, core clone, janitor run,
+    remove)."""
+    return [_ok(), *_venue_resolution(), *[_ok() for _ in range(8)]]
 
 
 def _err(stderr: str = "boom") -> CommandResult:
@@ -2440,6 +2442,7 @@ def test_engine_green_runs_janitor_in_fresh_checkout(tmp_path: Path) -> None:
             _ok(),  # janitor-checkout-add
             _ok(),  # janitor-checkout-trust
             _ok(),  # janitor-checkout-bootstrap
+            _ok(),  # janitor-checkout-bootstrap-in-checkout
             _ok(),  # janitor-core-provision
             _ok(),  # janitor-post-merge
             _ok(),  # janitor-checkout-remove
@@ -2466,6 +2469,7 @@ def test_engine_green_runs_janitor_in_fresh_checkout(tmp_path: Path) -> None:
         "janitor-checkout-add",
         "janitor-checkout-trust",
         "janitor-checkout-bootstrap",
+        "janitor-checkout-bootstrap-in-checkout",
         "janitor-core-provision",
         "janitor-post-merge",
         "janitor-checkout-remove",
@@ -2498,8 +2502,8 @@ def test_engine_green_runs_janitor_in_fresh_checkout(tmp_path: Path) -> None:
     assert add_cwd == tmp_path
     remove_argv = ["git", "-C", str(tmp_path), "worktree", "remove", "--force", str(checkout)]
     assert runner.calls[6][0] == remove_argv
-    assert runner.calls[12][0] == remove_argv
-    assert runner.envs[11] == {
+    assert runner.calls[13][0] == remove_argv
+    assert runner.envs[12] == {
         "LIVESPEC_CORE_PLUGIN_ROOT": str(checkout / ".livespec-core" / ".claude-plugin")
     }
 
@@ -2517,6 +2521,7 @@ def test_engine_fails_when_green_janitor_checkout_cleanup_fails(tmp_path: Path) 
             _ok(),  # janitor-checkout-add
             _ok(),  # janitor-checkout-trust
             _ok(),  # janitor-checkout-bootstrap
+            _ok(),  # janitor-checkout-bootstrap-in-checkout
             _ok(),  # janitor-core-provision
             _ok(),  # janitor-post-merge
             _err(stderr="checkout has vanished"),  # janitor-checkout-remove
@@ -2812,7 +2817,7 @@ def test_engine_poll_budget_exhaustion_keeps_pr_number(tmp_path: Path) -> None:
 
 
 def test_engine_post_merge_failures_carry_merge_evidence(tmp_path: Path) -> None:
-    cases = [([None, None, None, None, None, None, "janitor broke"], "janitor-post-merge")]
+    cases = [([None, None, None, None, None, None, None, "janitor broke"], "janitor-post-merge")]
     for tail_specs, stage in cases:
         tail = [_ok() if spec is None else _err(stderr=spec) for spec in tail_specs]
         runner = _FakeRunner(
@@ -2863,6 +2868,7 @@ def test_engine_janitor_red_keeps_checkout_for_diagnosis(tmp_path: Path) -> None
             _ok(),  # janitor-checkout-add
             _ok(),  # janitor-checkout-trust
             _ok(),  # janitor-checkout-bootstrap
+            _ok(),  # janitor-checkout-bootstrap-in-checkout
             _ok(),  # janitor-core-provision
             _err(stderr="2 failed, 1 passed"),  # janitor red in the fresh checkout
         ]
@@ -2876,7 +2882,7 @@ def test_engine_janitor_red_keeps_checkout_for_diagnosis(tmp_path: Path) -> None
     assert "2 failed, 1 passed" in outcome.detail
     # A red checkout is PRESERVED (no remove after the janitor ran):
     # the working tree is the diagnosis evidence.
-    assert len(runner.calls) == 12
+    assert len(runner.calls) == 13
     assert [record["stage"] for record in journal.records][-1] == "janitor-post-merge"
 
 
@@ -2975,6 +2981,7 @@ def test_engine_degrades_when_janitor_core_provisioning_fails(tmp_path: Path) ->
             _ok(),  # janitor-checkout-add
             _ok(),  # janitor-checkout-trust
             _ok(),  # janitor-checkout-bootstrap
+            _ok(),  # janitor-checkout-bootstrap-in-checkout
             _err(stderr="core clone failed"),  # janitor-core-provision
         ]
     )
@@ -2987,7 +2994,7 @@ def test_engine_degrades_when_janitor_core_provisioning_fails(tmp_path: Path) ->
     # integration point for an adopter to provide carries no structured id, so
     # it cannot persist into a refusal the adopter has no way to clear.
     assert (outcome.step, outcome.missing_integration_point, outcome.remedy) == (None, None, None)
-    assert len(runner.calls) == 11
+    assert len(runner.calls) == 12
     assert [record["stage"] for record in journal.records][-1] == "janitor-core-provision"
 
 
@@ -3006,6 +3013,7 @@ def test_engine_janitor_checkout_uses_the_resolved_tip_without_a_merge_sha(
             _ok(),  # janitor-checkout-add
             _ok(),  # janitor-checkout-trust
             _ok(),  # janitor-checkout-bootstrap
+            _ok(),  # janitor-checkout-bootstrap-in-checkout
             _ok(),  # janitor-core-provision
             _ok(),  # janitor-post-merge
             _ok(),  # janitor-checkout-remove
@@ -3032,6 +3040,7 @@ def test_engine_runs_configured_janitor_in_fresh_checkout(tmp_path: Path) -> Non
             _ok(),  # janitor-checkout-add
             _ok(),  # janitor-checkout-trust
             _ok(),  # janitor-checkout-bootstrap
+            _ok(),  # janitor-checkout-bootstrap-in-checkout
             _ok(),  # janitor-core-provision
             _ok(),  # janitor-post-merge
             _ok(),  # janitor-checkout-remove

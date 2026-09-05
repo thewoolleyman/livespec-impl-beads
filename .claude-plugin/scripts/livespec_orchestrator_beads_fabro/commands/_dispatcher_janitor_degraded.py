@@ -11,6 +11,15 @@ that makes its degradation persist into the next dispatch's refusal. Deciding
 that here, in one place with the reason written down, is what stops the other
 provisioning stages from drifting into a set that is extensible only by
 ratification.
+
+THE VENUE'S OWN THREE DEGRADATIONS SHAPE HERE TOO, for the same reason. An
+unresolvable livespec-core pin, an unresolvable default branch, and a resolved
+tip that does not carry the item's merge are all answers to "how does this
+degradation READ" -- prose, a missing point, and a remedy -- while WHICH of them
+applies is a venue decision the venue module keeps. They are public rather than
+private because a cross-module private call is neither importable under pyright
+strict nor allowed by the private-calls check; a public shaper is the interface
+the split needs.
 """
 
 from __future__ import annotations
@@ -40,7 +49,26 @@ __all__: list[str] = [
     "degraded_step",
     "merged_degraded_for_plan",
     "merged_degraded_outcome",
+    "tip_without_merge_step",
+    "unresolved_branch_step",
+    "unresolved_core_step",
 ]
+
+_UNRESOLVED_CORE_REMEDY = (
+    "declare the livespec core this repository is governed against in its committed "
+    "`.livespec.jsonc` -- `livespec-orchestrator-beads-fabro.compat.pinned` names the ref the "
+    "janitor clones (a release tag, or `master` where that is genuinely the repository's own "
+    "choice), and the OPTIONAL `compat.core_repo` names the clone repository, which resolves to "
+    "the fleet livespec core when it is absent"
+)
+
+_UNRESOLVED_BRANCH_REMEDY = (
+    "give the target repository a resolvable default branch on this host -- "
+    "`git remote set-head origin --auto` in the primary checkout sets "
+    "`refs/remotes/origin/HEAD`, or a working `gh` credential lets "
+    "`gh repo view --json defaultBranchRef` answer -- so the janitor venue can be "
+    "provisioned at a named default-branch tip"
+)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -149,4 +177,53 @@ def merged_degraded_outcome(
             integration_point(recipe=recipe) if bootstrap_step else step.missing_point
         ),
         remedy=remedy(recipe=recipe) if bootstrap_step else step.remedy_text,
+    )
+
+
+def unresolved_core_step(*, plan: DispatchPlan, defect: str) -> DegradedStep:
+    """No livespec core could be named, so there is nothing to provision the clone from."""
+    return DegradedStep(
+        description=(
+            f"resolving the livespec-core clone to provision at {plan.janitor_core_checkout}"
+        ),
+        reason=defect,
+        missing_point="a declared livespec-core ref for the target repository",
+        remedy_text=_UNRESOLVED_CORE_REMEDY,
+    )
+
+
+def unresolved_branch_step(*, plan: DispatchPlan) -> DegradedStep:
+    """No default branch could be named, so there is no tip to provision at."""
+    return DegradedStep(
+        description=(
+            f"resolving the default-branch tip to provision the janitor venue in {plan.repo}"
+        ),
+        reason=(
+            "neither `git symbolic-ref refs/remotes/origin/HEAD` nor `gh repo view --json "
+            "defaultBranchRef` named a default branch, so the venue has no tip to be provisioned "
+            "at and the merge-presence of any tip cannot be confirmed"
+        ),
+        missing_point="a resolvable default branch for the target repository",
+        remedy_text=_UNRESOLVED_BRANCH_REMEDY,
+    )
+
+
+def tip_without_merge_step(*, tip: str, merge_sha: str) -> DegradedStep:
+    """The tip resolved, but it does not carry the item's merge -- so it is not the venue."""
+    return DegradedStep(
+        description=(
+            f"confirming the resolved default-branch tip {tip} contains the item's merge "
+            f"{merge_sha}"
+        ),
+        reason=(
+            f"`git merge-base --is-ancestor {merge_sha} {tip}` reports the tip does NOT contain "
+            "the merge, so a janitor run there would prove nothing about this item's work"
+        ),
+        missing_point=f"a {tip} tip containing the item's merge {merge_sha}",
+        remedy_text=(
+            f"refresh the target repository so its {tip} carries {merge_sha} and re-run the "
+            "reconcile; if the merge is genuinely absent from the default branch then it did not "
+            "land where this dispatch believes it did, and the item's disposition is what needs "
+            "correcting"
+        ),
     )
