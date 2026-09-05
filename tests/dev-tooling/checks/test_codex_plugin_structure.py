@@ -68,6 +68,7 @@ _PRESENT_PROSE_OPS = (
     "implement",
     "groom",
     "plan",
+    "discuss-work-item",
 )
 # The P3b prose extraction is complete: no heavyweight op remains pending.
 _PENDING_OPS: tuple[str, ...] = ()
