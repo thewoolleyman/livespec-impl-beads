@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.129.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.129.0...v0.129.1) (2026-09-05)
+
+
+### Bug Fixes
+
+* **dispatcher:** janitor venue provisions the janitor checkout itself (bd-ib-ttmeb2) ([0e74c1f](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/0e74c1facd4896ffbf97eccbe379140ac5b08e32))
+
 ## [0.129.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.128.0...v0.129.0) (2026-09-05)
 
 
