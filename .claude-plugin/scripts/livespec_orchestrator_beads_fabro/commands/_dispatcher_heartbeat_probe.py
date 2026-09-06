@@ -37,11 +37,19 @@ This module adds two seams, both feeding the EXISTING `decide_stall`
 Keying (§4.4 + the 29f.7 sink): the `HeartbeatSink` stores keys AFTER the
 shared fail-closed `scrub` (so a credential-shaped id lands as the
 redaction marker), keyed on the FIRST present of `fabro.run_id` /
-`livespec.dispatch.id` / `work.item.id` / `session.id`. The watchdog
-always knows the work-item id (plan time) and discovers the fabro run id
-from `fabro ps`; `heartbeat_lookup_keys` returns the SCRUBBED candidates
-(run id first when known, work-item id always) so a lookup matches
-whatever id the receiver keyed the beat under.
+`livespec.dispatch.id` / `work.item.id` / `session.id`. `fabro.run_id` is
+NEVER among them in practice: `cc_otel_overlay_env` projects only
+`work.item.id` and `livespec.dispatch.id` into the sandbox's
+`OTEL_RESOURCE_ATTRIBUTES` (the fabro run id does not exist at projection
+time), so `_preferred_key` always lands on `livespec.dispatch.id`. A
+lookup by fabro run id therefore could never match a stored beat, which
+is exactly how this probe silently read as "no signal" on every run until
+the keys were realigned (plan `bd-ib-b5dg` research/008: 6/12 live
+heartbeat keys were dispatch ids, 0/141 work-item and 0/147 run ids
+matched). `heartbeat_lookup_keys` accordingly returns the SCRUBBED
+work-item id (known at plan time) and dispatch id (minted by the
+dispatcher before launch) — the SAME pair, in the same order, that
+`_dispatcher_cost_sink.cost_lookup_keys` derives.
 
 Pure of side effects beyond the injected `HeartbeatSink` read: the probe
 samples are a function of the on-disk heartbeat plus the injected clock,
@@ -67,20 +75,23 @@ __all__: list[str] = [
 ]
 
 
-def heartbeat_lookup_keys(*, work_item_id: str, run_id: str | None) -> tuple[str, ...]:
-    """The SCRUBBED candidate heartbeat keys for one in-flight run.
+def heartbeat_lookup_keys(*, work_item_id: str, dispatch_id: str | None) -> tuple[str, ...]:
+    """The SCRUBBED candidate heartbeat keys for one in-flight dispatch.
 
-    The `HeartbeatSink` keys a beat on the FIRST present of `fabro.run_id`
-    / `livespec.dispatch.id` / `work.item.id` / `session.id` and stores it
-    AFTER `scrub`. The watchdog always knows the work-item id (plan time)
-    and discovers the fabro run id from `fabro ps`; this returns the
-    candidates the probe should look up, MOST-SPECIFIC first (the run id
-    when known, then the work-item id), each run through the SAME `scrub`
-    so the lookup matches whatever the sink stored. Empty / duplicate
-    candidates are dropped (an empty id can never key a beat, and a
-    duplicate would be a redundant lookup).
+    Mirrors `_dispatcher_cost_sink.cost_lookup_keys`: both key on
+    `work.item.id` then `livespec.dispatch.id`, because those are the ONLY
+    two ids `cc_otel_overlay_env` projects into the sandbox, so they are
+    the only two the sink's `_preferred_key` can ever store a beat under.
+    The work-item id is known at plan time and the dispatch id is minted
+    before launch, so both are available to the watchdog. Empty /
+    duplicate candidates are dropped (an empty id can never key a beat,
+    and a duplicate would be a redundant lookup).
+
+    Unlike the cost keys these ARE scrubbed, because the sink stores its
+    keys after the shared fail-closed `scrub` — a lookup that skipped it
+    would miss a beat the sink had redacted.
     """
-    raw_candidates = (run_id, work_item_id) if run_id is not None else (work_item_id,)
+    raw_candidates = (work_item_id, dispatch_id) if dispatch_id is not None else (work_item_id,)
     scrubbed: list[str] = []
     for candidate in raw_candidates:
         if candidate == "":
@@ -97,7 +108,7 @@ class HeartbeatLivenessProbe:
 
     `sink` is the SAME `HeartbeatSink` the live receiver writes (pointed
     at the journal-sibling `<journal-stem>-otel-heartbeat.json`); `keys`
-    are the SCRUBBED candidate run/session keys (from
+    are the SCRUBBED candidate work-item / dispatch keys (from
     `heartbeat_lookup_keys`). `sample` reads the FRESHEST last-emit
     timestamp across the candidate keys as the liveness signal, or None
     ("no signal") when no candidate has ever beaten.
