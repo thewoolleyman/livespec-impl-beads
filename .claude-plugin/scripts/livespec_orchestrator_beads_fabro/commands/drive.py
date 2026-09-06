@@ -95,6 +95,7 @@ def run_action(  # noqa: PLR0913 — kw-only router; `answer` is one more indepe
     runner: CommandRunner | None = None,
     dispatcher_bin: Path | None = None,
     acp_nodes: tuple[str, ...] = (),
+    workflow_name: str | None = None,
     identity: InvokerIdentity | None = None,
     answer: str | None = None,
 ) -> dict[str, Any]:
@@ -105,6 +106,11 @@ def run_action(  # noqa: PLR0913 — kw-only router; `answer` is one more indepe
     here: `drive` is a transport onto `dispatcher.py loop`, and the layer
     that validates a node name is the one that also knows which workflow
     the dispatch will run.
+
+    `workflow_name` selects one registered `dispatcher.workflows` variant and
+    is forwarded on exactly the same terms: the registry lives in the dispatch
+    TARGET's configuration, so the name is only meaningful to the layer that
+    reads it, and the refusal for an unregistered one belongs there too.
 
     `identity` is the invocation's resolved invoker. `None` means "resolve it
     from the environment here" so a direct caller is still attributed; the CLI
@@ -145,6 +151,7 @@ def run_action(  # noqa: PLR0913 — kw-only router; `answer` is one more indepe
         runner=runner,
         dispatcher_bin=dispatcher_bin,
         acp_nodes=acp_nodes,
+        workflow_name=workflow_name,
         identity=resolved_identity,
     )
 
@@ -168,6 +175,7 @@ def main(*, argv: list[str] | None = None, runner: CommandRunner | None = None) 
         action_id=args.action,
         runner=runner,
         acp_nodes=tuple(args.acp_node or ()),
+        workflow_name=args.workflow_name,
         identity=invoker_from_args(args=args),
         answer=args.answer,
     )
@@ -226,6 +234,22 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "override one ACP node's adapter for this dispatch only, as a complete "
             "adapter command line; repeatable"
+        ),
+    )
+    # The PER-DISPATCH workflow-variant selector, reachable from the operator
+    # surface on the same terms as `--acp-node` above and re-emitted into the
+    # `dispatcher.py loop` argv verbatim. An ARGUMENT and never an environment
+    # variable: which GRAPH the factory runs must be visible in the recorded
+    # argv and on the dispatch record.
+    _ = parser.add_argument(
+        "--workflow-name",
+        dest="workflow_name",
+        default=None,
+        metavar="NAME",
+        help=(
+            "select one registered `dispatcher.workflows` variant for this dispatch; "
+            "forwarded to the Dispatcher, which resolves the work-item's recorded "
+            "variant then dispatcher.default_workflow when this is omitted"
         ),
     )
     # The v093-native answer route. A factory run that needs a human decision

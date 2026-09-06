@@ -47,13 +47,14 @@ class CommandRunner(Protocol):
         ...
 
 
-def run_impl_dispatch(
+def run_impl_dispatch(  # noqa: PLR0913 — kw-only transport; `workflow_name` is one more independent per-dispatch input forwarded verbatim, not a coupled one.
     *,
     repo: Path,
     work_item_ref: str,
     runner: CommandRunner | None,
     dispatcher_bin: Path | None,
     acp_nodes: tuple[str, ...],
+    workflow_name: str | None,
     identity: InvokerIdentity | None,
 ) -> dict[str, Any]:
     """Run one `impl:<id>` action as a `dispatcher.py loop` subprocess."""
@@ -64,6 +65,7 @@ def run_impl_dispatch(
         dispatcher_bin=resolved_dispatcher,
         work_item_ref=work_item_ref,
         acp_nodes=acp_nodes,
+        workflow_name=workflow_name,
         identity=identity,
     )
     result = resolved_runner(argv=argv, cwd=repo)
@@ -90,6 +92,7 @@ def build_dispatcher_argv(
     dispatcher_bin: Path,
     work_item_ref: str,
     acp_nodes: tuple[str, ...] = (),
+    workflow_name: str | None = None,
     identity: InvokerIdentity | None = None,
 ) -> tuple[str, ...]:
     """Build the `dispatcher.py loop` argv one `impl:<id>` action runs.
@@ -97,6 +100,14 @@ def build_dispatcher_argv(
     Each ACP adapter override becomes its own `--acp-node NODE=ADAPTER`
     pair, so the value reaches the Dispatcher as a single argv element and
     an adapter carrying spaces survives without quoting games.
+
+    `--workflow-name` is re-emitted the same way and for the same reason the
+    ACP overrides are: the workflow-variant selector is a recorded ARGUMENT
+    and never an environment variable, so the only route from this operator
+    surface to the Dispatcher is the argv this function builds — which is
+    also what the drive result payload publishes back. Omitted entirely when
+    unselected, so the Dispatcher's own ledger-then-default precedence
+    resolves it rather than being pre-empted by an empty string.
 
     An ASSERTED identity (flag or environment) is forwarded as an explicit
     `--invoker` so the spawned Dispatcher records the operator, not the shell
@@ -119,6 +130,7 @@ def build_dispatcher_argv(
         "1",
         "--item",
         work_item_ref,
+        *_forwarded_workflow_name(workflow_name=workflow_name),
         *overrides,
         "--json",
     )
@@ -139,6 +151,12 @@ class _SubprocessRunner:
             stdout=completed.stdout,
             stderr=completed.stderr,
         )
+
+
+def _forwarded_workflow_name(*, workflow_name: str | None) -> tuple[str, ...]:
+    if workflow_name is None or workflow_name == "":
+        return ()
+    return ("--workflow-name", workflow_name)
 
 
 def _forwarded_invoker(*, identity: InvokerIdentity | None) -> tuple[str, ...]:

@@ -64,6 +64,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_self_update import (
     post_verdict_runner,
     self_update_after_verdict,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_workflow_ledger import (
+    args_with_dispatch_workflow_name,
+)
 from livespec_orchestrator_beads_fabro.io import write_stderr
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
@@ -236,7 +239,18 @@ def _admit_and_dispatch_loop_wave(  # noqa: PLR0913 — see `_dispatch_loop_wave
         futures = [
             pool.submit(
                 dispatch_one,
-                args=args_with_dispatch_factory_target(args=args, repo=repo, work_item_id=item.id),
+                # BOTH per-dispatch ledger pins, applied in one place so the
+                # factory this dispatch goes to and the workflow variant it
+                # runs are recorded on the item together — a retry that reuses
+                # one and re-resolves the other is the drift both pins exist
+                # to prevent.
+                args=args_with_dispatch_workflow_name(
+                    args=args_with_dispatch_factory_target(
+                        args=args, repo=repo, work_item_id=item.id
+                    ),
+                    repo=repo,
+                    work_item_id=item.id,
+                ),
                 repo=repo,
                 item=item,
                 journal=journal,

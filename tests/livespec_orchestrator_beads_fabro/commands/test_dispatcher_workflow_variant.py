@@ -241,4 +241,39 @@ def test_materialize_dispatch_materializes_the_selected_variant_directory(
 
     assert not isinstance(materialized, MaterializationRefusal), materialized
     assert materialized.committed_workflow == variant / "workflow.toml"
+    assert materialized.workflow_name == "codex-first"
     assert [record["stage"] for record in journal.records] == ["node-timeouts", "acp-nodes"]
+
+
+def test_materialize_dispatch_selects_the_variant_named_on_the_namespace(
+    tmp_path: Path,
+) -> None:
+    """The ledger-pinned name on the Namespace is what chooses the directory.
+
+    The dispatch command paths overwrite `args.workflow_name` with the name
+    the work-item is pinned to before calling here, so this is the seam the
+    whole retry-consistency guarantee passes through: a materializer that
+    ignored the Namespace would re-resolve `dispatcher.default_workflow` on
+    every attempt and quietly move a half-finished item onto another graph.
+
+    `default_workflow` is deliberately absent from the registry config, so
+    the reserved workflow is what the unselected case would resolve — which
+    makes the selected variant's directory the only way this assertion holds.
+    """
+    repo = tmp_path / "repo"
+    variant = repo / _VARIANT_DIR
+    variant.parent.mkdir(parents=True)
+    _ = shutil.copytree(_COMMITTED_WORKFLOW.parent, variant)
+    _write_dispatcher_config(repo=repo, block={"workflows": {"codex-first": _VARIANT_DIR}})
+    journal = _RecordingJournal()
+
+    materialized = materialize_dispatch(
+        args=argparse.Namespace(workflow=None, repo=str(repo), workflow_name="codex-first"),
+        repo=repo,
+        work_item_id="bd-ib-u7arwz",
+        journal=journal,
+    )
+
+    assert not isinstance(materialized, MaterializationRefusal), materialized
+    assert materialized.committed_workflow == variant / "workflow.toml"
+    assert materialized.workflow_name == "codex-first"

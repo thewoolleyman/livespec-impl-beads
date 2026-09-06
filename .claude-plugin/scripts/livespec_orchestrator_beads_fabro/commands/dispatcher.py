@@ -250,6 +250,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_completion import (
     host_only_refusal,
     warn_item_sizing,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_dispatch_args import (
+    add_dispatch_common,
+    add_probe_arguments,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import (
     add_invoker_argument,
 )
@@ -383,12 +387,12 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_janitor_check(parser=subparsers.add_parser("janitor-check"))
     _add_reconcile_runs(parser=subparsers.add_parser("reconcile-runs"))
     _add_reconcile_merged(parser=subparsers.add_parser("reconcile-merged"))
-    _add_probe(parser=subparsers.add_parser("probe"))
+    add_probe_arguments(parser=subparsers.add_parser("probe"))
     dispatch = subparsers.add_parser("dispatch")
-    _add_dispatch_common(parser=dispatch)
+    add_dispatch_common(parser=dispatch)
     _ = dispatch.add_argument("--item", dest="item", required=True)
     loop = subparsers.add_parser("loop")
-    _add_dispatch_common(parser=loop)
+    add_dispatch_common(parser=loop)
     _ = loop.add_argument("--budget", dest="budget", type=int, required=True)
     _ = loop.add_argument("--parallel", dest="parallel", type=int, default=1)
     _ = loop.add_argument("--dry-run", dest="dry_run", action="store_true")
@@ -459,73 +463,5 @@ def _add_reconcile_merged(*, parser: argparse.ArgumentParser) -> None:
             "bypass only the live-dispatch heartbeat refusal after confirming the "
             "original dispatcher process is dead"
         ),
-    )
-    _ = parser.add_argument("--json", dest="as_json", action="store_true")
-
-
-def _add_probe(*, parser: argparse.ArgumentParser) -> None:
-    # The probe drives the SAME published machinery an ordinary dispatch uses,
-    # so it carries the same flag surface: the namespace it builds is the one
-    # the dispatch and reconcile entry points are handed unchanged.
-    _add_dispatch_common(parser=parser)
-    # `--item` is deliberately NOT `required=True`. The loop-probe clause makes
-    # "refuse without a designated item, and create nothing" a BEHAVIOUR of the
-    # probe rather than a parser accident, so the flag is optional here and the
-    # handler owns the refusal, its wording, and its precondition exit code.
-    _ = parser.add_argument("--item", dest="item", default=None)
-    # The reconcile valve's live-dispatch bypass is never the probe's to take:
-    # the probe drives its own cycle, so there is no dead dispatcher process to
-    # reach around. Defaulted rather than exposed so no invocation can arm it.
-    parser.set_defaults(force=False)
-
-
-def _add_dispatch_common(*, parser: argparse.ArgumentParser) -> None:
-    # `--invoker` is the FIRST of the two accepted identity inputs of
-    # the journal invoker attribution contract in contracts.md; it wins over
-    # `LIVESPEC_INVOKER`, which wins over the derived unattributed mark.
-    add_invoker_argument(parser=parser)
-    _ = parser.add_argument("--repo", dest="repo", required=True)
-    _ = parser.add_argument("--factory", dest="factory", default=None)
-    _ = parser.add_argument("--workflow", dest="workflow", default=None)
-    # Default None (NOT the bare name "fabro"): a None sentinel means "not
-    # explicitly passed -> resolve from LIVESPEC_FABRO_BIN / the .livespec.jsonc
-    # dispatcher.fabro_bin key / the absolute default at command entry". An
-    # explicit `--fabro-bin <path>` still wins over resolution.
-    _ = parser.add_argument("--fabro-bin", dest="fabro_bin", default=None)
-    _ = parser.add_argument("--janitor", dest="janitor", default=None)
-    _ = parser.add_argument("--journal", dest="journal", default=None)
-    # The PER-DISPATCH adapter layer of `SPECIFICATION/contracts.md`. It is an
-    # ARGUMENT and never an environment variable, on purpose: an ad-hoc shell
-    # must not be able to re-provider the factory with nothing in the record,
-    # so the override is given on the command line and journaled on the
-    # dispatch record. Repeatable, one node per occurrence.
-    _ = parser.add_argument(
-        "--acp-node",
-        dest="acp_node",
-        action="append",
-        default=None,
-        metavar="NODE=ADAPTER",
-        help=(
-            "override one ACP node's adapter for this dispatch only, as a complete "
-            "adapter command line (leading KEY=value env assignments, then the "
-            "command and its arguments); repeatable"
-        ),
-    )
-    _ = parser.add_argument("--poll-attempts", dest="poll_attempts", type=int, default=80)
-    _ = parser.add_argument(
-        "--poll-interval-seconds",
-        dest="poll_interval_seconds",
-        type=float,
-        default=30.0,
-    )
-    _ = parser.add_argument(
-        "--no-close-on-merge",
-        dest="close_on_merge",
-        action="store_false",
-    )
-    _ = parser.add_argument(
-        "--skip-ledger-check",
-        dest="skip_ledger_check",
-        action="store_true",
     )
     _ = parser.add_argument("--json", dest="as_json", action="store_true")
