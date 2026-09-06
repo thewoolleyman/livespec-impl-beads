@@ -1,19 +1,27 @@
 """Materialize WHAT one dispatch will run, before any Fabro run exists.
 
-Split out of `_dispatcher_loop` by cohesion. Two questions share one
-answer here and nowhere else: which committed workflow config governs this
-dispatch, and what does that workflow resolve to once this target's
-configuration is applied to it -- the graph with its node timeouts written
-in as literal durations, and every ACP node's adapter resolved through the
-three configuration layers. `_dispatcher_loop` is left with the other
-concern, driving the dispatch and routing each pre-run refusal.
+Split out of `_dispatcher_loop` by cohesion. Three questions share one
+answer here and nowhere else: WHICH named workflow variant this dispatch
+runs, which committed workflow config that variant resolves to, and what
+that workflow resolves to once this target's configuration is applied to it
+-- the graph with its node timeouts written in as literal durations, and
+every ACP node's adapter resolved through the three configuration layers.
+`_dispatcher_loop` is left with the other concern, driving the dispatch and
+routing each pre-run refusal.
 
-BOTH STEPS REFUSE BEFORE ANY RUN EXISTS, which is why they belong
-together. A non-positive timeout and a node named in `dispatcher.acp_nodes`
-that the workflow does not declare are the same KIND of fault -- a config
-typo whose only honest discovery point is the dispatch that would
-otherwise have gone out carrying a value nobody chose. Each refusal keeps
-its own journal stage, so the record still says which of the two failed.
+EVERY STEP REFUSES BEFORE ANY RUN EXISTS, which is why they belong
+together. A registry naming a variant that is not there, a non-positive
+timeout, and a node named in `dispatcher.acp_nodes` that the workflow does
+not declare are the same KIND of fault -- a config typo whose only honest
+discovery point is the dispatch that would otherwise have gone out carrying
+a value nobody chose. Each refusal keeps its own journal stage, so the
+record still says which step failed.
+
+THE ORDER IS LOAD-BEARING. The variant resolves FIRST because everything
+after it reads the directory it chose: the payload copy, the node-timeout
+render and the ACP adapter layers all run against the SELECTED variant, so
+a registered variant is held to exactly the parity the reserved workflow is
+rather than being validated against the bundle it is not running.
 """
 
 from __future__ import annotations
@@ -35,6 +43,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import workflo
 from livespec_orchestrator_beads_fabro.commands._dispatcher_payload import (
     WorkflowPayload,
     prepare_workflow_payload,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_workflow_variant import (
+    WorkflowVariantRefusal,
+    prepare_workflow_variant,
 )
 
 __all__: list[str] = [
@@ -70,15 +82,26 @@ def materialize_dispatch(
     work_item_id: str,
     journal: JournalWriter,
 ) -> MaterializedDispatch | MaterializationRefusal:
-    """Resolve this dispatch's workflow payload and ACP adapters, or refuse."""
-    # Resolved once and journaled: `workflow_toml` now picks the dispatch
-    # target's OWN committed workflow over the plugin's bundled default, and
-    # that config carries the sandbox image pin — so which file won is the
-    # first thing to read when a dispatch dies on a missing toolchain. The
-    # payload materializer then renders THIS dispatch's resolved node
-    # timeouts into a per-run copy of that workflow's graph as literal
-    # durations; a config typo refuses here, before any Fabro run exists.
-    committed_workflow = workflow_toml(args=args)
+    """Resolve this dispatch's workflow variant, payload and ACP adapters, or refuse."""
+    # WHICH named workflow this dispatch runs, before WHERE its config file
+    # is: the dispatch target may register variants under
+    # `dispatcher.workflows`, and a registry this Dispatcher cannot honour
+    # refuses here rather than quietly running the reserved graph under the
+    # selected variant's name. Every step below keys on the directory that
+    # resolves — the payload copy, the graph render and the ACP adapter
+    # layers all read the SELECTED variant, never the bundle.
+    variant = prepare_workflow_variant(repo=repo)
+    if isinstance(variant, WorkflowVariantRefusal):
+        return MaterializationRefusal(stage=variant.stage, detail=variant.detail)
+    # Resolved once and journaled: `workflow_toml` picks the selected
+    # variant's directory, else the dispatch target's OWN committed workflow
+    # over the plugin's bundled default, and that config carries the sandbox
+    # image pin — so which file won is the first thing to read when a
+    # dispatch dies on a missing toolchain. The payload materializer then
+    # renders THIS dispatch's resolved node timeouts into a per-run copy of
+    # that workflow's graph as literal durations; a config typo refuses here,
+    # before any Fabro run exists.
+    committed_workflow = workflow_toml(args=args, variant_directory=variant.directory)
     payload = prepare_workflow_payload(
         repo=repo,
         committed=committed_workflow,

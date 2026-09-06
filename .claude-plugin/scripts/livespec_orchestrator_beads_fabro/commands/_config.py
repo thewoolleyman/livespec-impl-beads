@@ -37,17 +37,10 @@ other way — env is highest-priority):
    priority (mirrors `LIVESPEC_BD_PATH`). A non-empty value wins outright.
 2. The `.livespec.jsonc` `livespec-orchestrator-beads-fabro.dispatcher`
    block's `fabro_bin` key, when non-empty.
-3. The built-in default, resolved AT CALL TIME across BOTH deploy envs: the
-   absolute `$HOME/.fabro/bin/fabro` when it exists and is executable, else a
-   `PATH` lookup (`shutil.which("fabro")`), else the concrete home-path string.
-
-The default probes the absolute home path before a bare `PATH` lookup because
-the two envs that run with no explicit `--fabro-bin` disagree: the fleet
-credential wrapper sanitizes `PATH` (secure_path, no `~/.local/bin`) but
-PRESERVES `HOME`, so on the host the absolute `$HOME/.fabro/bin/fabro`
-resolves where a bare `fabro` lookup fails; the orchestrator container instead
-carries `fabro` at `/usr/local/bin/fabro` ON `PATH` with no `~/.fabro`, which
-the `shutil.which` fallback finds.
+3. The built-in default, which is a HOST PROBE rather than a configuration
+   answer and therefore lives in `_fabro_bin` — `$HOME/.fabro/bin/fabro` when
+   it exists and is executable, else a `PATH` lookup, else the concrete
+   home-path string, with the two-deploy-environment reasoning recorded there.
 
 The function signature keeps the plaintext sibling's
 `work_items_arg` parameter (`resolve_store_config(*, cwd,
@@ -60,7 +53,6 @@ signature only for call-site compatibility.
 from __future__ import annotations
 
 import os
-import shutil
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -78,9 +70,17 @@ from livespec_orchestrator_beads_fabro.commands._codex_model_tiers import (
     CodexModelTiers,
     codex_model_tiers_from_block,
 )
+from livespec_orchestrator_beads_fabro.commands._fabro_bin import (
+    configured_fabro_bin,
+    default_fabro_bin,
+)
 from livespec_orchestrator_beads_fabro.commands._node_timeouts import (
     NodeTimeouts,
     node_timeouts_from_block,
+)
+from livespec_orchestrator_beads_fabro.commands._workflow_variants import (
+    WorkflowVariant,
+    workflow_variant_from_block,
 )
 from livespec_orchestrator_beads_fabro.errors import (
     ConnectionPrefixMissingError,
@@ -102,6 +102,7 @@ __all__: list[str] = [
     "resolve_fabro_sandbox_image",
     "resolve_node_timeouts",
     "resolve_store_config",
+    "resolve_workflow_variant",
 ]
 
 _LIVESPEC_CONFIG = ".livespec.jsonc"
@@ -204,18 +205,20 @@ def resolve_fabro_bin(*, cwd: Path) -> str:
     if env_value is not None and env_value != "":
         return env_value
     # ⚠️ THE ONLY READER LEFT OFF THE RAILWAY, AND THE REASON IS RECORDED RATHER
-    # THAN HIDDEN. Its recovery value is its OWN last precedence leg, the probed
-    # `_default_fabro_bin()` — so a caller writing `.value_or(...)` would need
-    # that probe, and pyright REFUSES the cross-module private import
-    # (`reportPrivateUsage`) while making it public would add a new offender
-    # returning a bare `str`. The honest destination is the preflight-error
-    # channel `_dispatcher_run_checks._fabro_preflight_error` already owns, which
-    # is a flow change rather than a signature change. Tracked as `8o8e.21`;
-    # until then the fold stays HERE, next to the probe it needs.
+    # THAN HIDDEN. Its recovery value is its OWN last precedence leg, the probe
+    # `default_fabro_bin()` — so a caller writing `.value_or(...)` would need
+    # that probe. The probe is now PUBLIC in `_fabro_bin` (the cross-module
+    # private import pyright refuses is no longer the obstacle it was), but the
+    # obstacle that remains is the same one: it returns a bare `str`, so lifting
+    # this reader onto the railway still has nowhere honest to put the recovery.
+    # The honest destination is the preflight-error channel
+    # `_dispatcher_run_checks._fabro_preflight_error` already owns, which is a
+    # flow change rather than a signature change. Tracked as `8o8e.21`; until
+    # then the fold stays HERE, next to the probe it needs.
     return unsafe_perform_io(
         _read_dispatcher_block(cwd=cwd)
-        .map(lambda block: _configured_fabro_bin(block=block))
-        .value_or(_default_fabro_bin())
+        .map(lambda block: configured_fabro_bin(block=block))
+        .value_or(default_fabro_bin())
     )
 
 
@@ -251,6 +254,19 @@ def resolve_node_timeouts(*, cwd: Path) -> NodeTimeouts | str:
     failed dispatch before any run exists.
     """
     return node_timeouts_from_block(block=dispatcher_block(cwd=cwd))
+
+
+def resolve_workflow_variant(*, cwd: Path, name: str | None = None) -> WorkflowVariant:
+    """Resolve which named Fabro workflow variant this dispatch runs.
+
+    The policy itself -- the `dispatcher.workflows` registry shape, the
+    `dispatcher.default_workflow` precedence and the reserved
+    `implement-work-item` name -- lives in `_workflow_variants`; this is the
+    config-reading seam that feeds it. Deliberately NO environment layer,
+    matching `_codex_model_tiers` and the ACP node adapters: which graph the
+    factory runs is a recorded argument, not something an ad-hoc shell changes.
+    """
+    return workflow_variant_from_block(block=dispatcher_block(cwd=cwd), name=name)
 
 
 # `has_explicit_codex_implementer_model` used to live here. It answered ONE
@@ -426,13 +442,6 @@ def _sub_block(*, root: dict[str, Any], key: str) -> dict[str, Any]:
     return cast("dict[str, Any]", sub_block_raw)
 
 
-def _configured_fabro_bin(*, block: dict[str, Any]) -> str:
-    configured = _str_or(value=block.get("fabro_bin"), default="")
-    if configured != "":
-        return configured
-    return _default_fabro_bin()
-
-
 def _configured_sandbox_image(*, block: dict[str, Any]) -> str | None:
     configured = _str_or(value=block.get("fabro_sandbox_image"), default="")
     if configured != "":
@@ -459,34 +468,6 @@ def _resolve_bd_path(*, block: dict[str, Any]) -> str:
     if env_value is not None and env_value != "":
         return env_value
     return _str_or(value=block.get("bd_path"), default=_DEFAULT_BD_PATH)
-
-
-def _default_fabro_bin() -> str:
-    """The default `fabro` path, resolved AT CALL TIME across BOTH deploy envs.
-
-    Two environments run the Dispatcher with no explicit `--fabro-bin`:
-
-    - Host-under-wrapper: the fleet credential wrapper sanitizes `PATH`
-      (secure_path, no `~/.local/bin`) but PRESERVES `HOME`, so the binary at
-      `$HOME/.fabro/bin/fabro` resolves by absolute path where a bare `fabro`
-      PATH lookup would fail.
-    - Orchestrator container (dark factory): `fabro` lives at
-      `/usr/local/bin/fabro` ON `PATH`, and `$HOME/.fabro/bin/fabro` is absent.
-
-    So the default probes the absolute home path FIRST (fixes the host bug),
-    then falls back to a `PATH` lookup (works in the container). When neither
-    resolves it returns the concrete home-path string so the preflight error
-    names a real, actionable target rather than a bare name. Computed at call
-    time (not import time) so a test that monkeypatches `Path.home()` /
-    `shutil.which` observes the redirected values.
-    """
-    home_candidate = Path.home() / ".fabro" / "bin" / "fabro"
-    if home_candidate.is_file() and os.access(home_candidate, os.X_OK):
-        return str(home_candidate)
-    found = shutil.which("fabro")
-    if found is not None:
-        return found
-    return str(home_candidate)
 
 
 def _resolve_configured_factory_name(*, block: dict[str, Any]) -> str:

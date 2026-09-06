@@ -9,14 +9,18 @@ INSIDE that root.
 `workflow_toml` then admits the DISPATCH TARGET's own committed workflow
 between the explicit override and that plugin-root default, so a consumer repo
 whose sandbox needs a different toolchain governs its own execution substrate.
-The full precedence under test:
+A named workflow VARIANT, selected from the target's `dispatcher.workflows`
+registry, sits between those two: it is a whole directory in the target repo
+with no bundle to fall back to. The full precedence under test:
 
 1. An explicit `--workflow <path>` always wins.
-2. Otherwise `<repo>/.fabro/workflows/implement-work-item/workflow.toml`, when
+2. Otherwise `<repo>/<variant_directory>/workflow.toml`, when this dispatch
+   selected a registered variant.
+3. Otherwise `<repo>/.fabro/workflows/implement-work-item/workflow.toml`, when
    the dispatch target commits one. `args` is not guaranteed to carry a `repo`
-   attribute, so a namespace without one must degrade to step 3 rather than
-   raise.
-3. Otherwise `<plugin-root>/.fabro/workflows/implement-work-item/workflow.toml`,
+   attribute, so a namespace without one must degrade to step 4 rather than
+   raise — and that degradation covers step 2 as well.
+4. Otherwise `<plugin-root>/.fabro/workflows/implement-work-item/workflow.toml`,
    where `<plugin-root>` is `Path(dispatcher.__file__).resolve().parents[3]`
    (the `.claude-plugin/` dir) — and the packaged `workflow.toml` AND
    `workflow.fabro` must actually exist there, so a future accidental drop of
@@ -24,15 +28,22 @@ The full precedence under test:
 
 Both resolvers honor a non-empty `CLAUDE_PLUGIN_ROOT` env override (the
 cache-mode anchor) and otherwise fall back to the source `parents[3]` walk.
+
+The `_config.resolve_workflow_variant` seam that SELECTS a variant is covered
+here too, against real `.livespec.jsonc` files, because the precedence it
+implements and the precedence `workflow_toml` implements are two halves of one
+answer and a reader checking either one wants the other beside it.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
+from inspect import signature
 from pathlib import Path
 
 import pytest
-from livespec_orchestrator_beads_fabro.commands import dispatcher
+from livespec_orchestrator_beads_fabro.commands import _config, dispatcher
 from livespec_orchestrator_beads_fabro.commands._dispatcher_claude_credential import (
     ClaudeCredentialStatus,
 )
@@ -52,6 +63,15 @@ _PLUGIN_ROOT = Path(dispatcher.__file__).resolve().parents[3]
 _WORKFLOW_SUBPATH = (".fabro", "workflows", "implement-work-item", "workflow.toml")
 _PROMPTS_DIR = _PLUGIN_ROOT / ".fabro" / "workflows" / "implement-work-item" / "prompts"
 _TEST_TOKEN = "test-oauth-token"
+_VARIANT_DIR = ".fabro/workflows/codex-first"
+
+
+def _write_dispatcher_config(*, repo: Path, block: dict[str, object]) -> None:
+    """Commit a `.livespec.jsonc` carrying only the given dispatcher block."""
+    _ = (repo / ".livespec.jsonc").write_text(
+        json.dumps({"livespec-orchestrator-beads-fabro": {"dispatcher": block}}),
+        encoding="utf-8",
+    )
 
 
 def _credential_status(*, token: str, usable: bool) -> ClaudeCredentialStatus:
@@ -156,6 +176,145 @@ def test_workflow_override_arg_wins_over_the_repo_local_workflow(
     )
 
     assert resolved == override
+
+
+def test_workflow_toml_resolves_a_selected_variant_directory(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A selected variant's registry directory wins over the reserved workflow.
+
+    The first assertion is the Red-honest guard the new-module stub technique
+    prescribes for a parameter that does not exist yet: without it the call
+    below would die on a TypeError rather than on a behavioural assertion, and
+    a Red that only proves a signature is unimportable proves nothing about
+    the behaviour. It stays because it is also the cheapest statement of the
+    contract this whole file documents — the variant directory is an INPUT.
+    """
+    assert "variant_directory" in signature(workflow_toml).parameters
+    monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+    repo = tmp_path / "consumer-repo"
+    # The target ALSO commits the reserved workflow, so a resolution that
+    # ignored the variant would still return a real, existing file — the
+    # failure mode this test exists to catch.
+    reserved = repo.joinpath(*_WORKFLOW_SUBPATH)
+    reserved.parent.mkdir(parents=True)
+    _ = reserved.write_text("# the reserved workflow\n", encoding="utf-8")
+
+    resolved = workflow_toml(
+        args=argparse.Namespace(workflow=None, repo=str(repo)),
+        variant_directory=_VARIANT_DIR,
+    )
+
+    assert resolved == repo / _VARIANT_DIR / "workflow.toml"
+
+
+def test_workflow_toml_does_not_fall_back_from_a_selected_variant(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A variant is a whole directory: an absent one does NOT fall back.
+
+    `_dispatcher_workflow_variant` has already refused an incomplete registry
+    directory before this point, so re-probing here could only re-introduce
+    the silent substitution the refusal exists to prevent.
+    """
+    monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+    repo = tmp_path / "consumer-repo"
+    repo.mkdir()
+
+    resolved = workflow_toml(
+        args=argparse.Namespace(workflow=None, repo=str(repo)),
+        variant_directory=_VARIANT_DIR,
+    )
+
+    assert resolved == repo / _VARIANT_DIR / "workflow.toml"
+    assert not resolved.is_file()
+
+
+def test_workflow_override_arg_wins_over_a_selected_variant(tmp_path: Path) -> None:
+    """`--workflow` outranks every registry choice, not just the two defaults."""
+    override = tmp_path / "explicit" / "workflow.toml"
+
+    resolved = workflow_toml(
+        args=argparse.Namespace(workflow=str(override), repo=str(tmp_path)),
+        variant_directory=_VARIANT_DIR,
+    )
+
+    assert resolved == override
+
+
+def test_workflow_toml_degrades_a_variant_without_a_repo_to_the_bundle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A variant directory with no repo to anchor it degrades, never raises."""
+    monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+    args = argparse.Namespace(workflow=None)
+    assert not hasattr(args, "repo")
+
+    resolved = workflow_toml(args=args, variant_directory=_VARIANT_DIR)
+
+    assert resolved == _PLUGIN_ROOT.joinpath(*_WORKFLOW_SUBPATH)
+
+
+def test_workflow_toml_without_a_variant_resolves_exactly_as_before(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The no-registry case is byte-identical to the pre-registry behaviour.
+
+    Both repo-local arms are exercised against the SAME namespace the caller
+    passed before the parameter existed, so a target declaring no registry
+    cannot have its resolution moved by this change.
+    """
+    monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+    repo = tmp_path / "consumer-repo"
+    repo.mkdir()
+    args = argparse.Namespace(workflow=None, repo=str(repo))
+
+    assert workflow_toml(args=args) == _PLUGIN_ROOT.joinpath(*_WORKFLOW_SUBPATH)
+
+    repo_local = repo.joinpath(*_WORKFLOW_SUBPATH)
+    repo_local.parent.mkdir(parents=True)
+    _ = repo_local.write_text("# the dispatch target's own workflow\n", encoding="utf-8")
+
+    assert workflow_toml(args=args) == repo_local
+
+
+def test_resolve_workflow_variant_defaults_to_the_reserved_name(tmp_path: Path) -> None:
+    """A target declaring no registry selects the reserved workflow."""
+    assert hasattr(_config, "resolve_workflow_variant")
+
+    variant = _config.resolve_workflow_variant(cwd=tmp_path)
+
+    assert variant.name == "implement-work-item"
+    assert variant.directory is None
+
+
+def test_resolve_workflow_variant_reads_the_configured_default(tmp_path: Path) -> None:
+    """`dispatcher.default_workflow` selects a registered entry from the config file."""
+    _write_dispatcher_config(
+        repo=tmp_path,
+        block={"workflows": {"codex-first": _VARIANT_DIR}, "default_workflow": "codex-first"},
+    )
+
+    variant = _config.resolve_workflow_variant(cwd=tmp_path)
+
+    assert variant.name == "codex-first"
+    assert variant.directory == _VARIANT_DIR
+
+
+def test_resolve_workflow_variant_prefers_an_explicit_name(tmp_path: Path) -> None:
+    """An explicitly named variant outranks the configured default."""
+    _write_dispatcher_config(
+        repo=tmp_path,
+        block={
+            "workflows": {"codex-first": _VARIANT_DIR, "review-heavy": ".fabro/workflows/rh"},
+            "default_workflow": "codex-first",
+        },
+    )
+
+    variant = _config.resolve_workflow_variant(cwd=tmp_path, name="review-heavy")
+
+    assert variant.name == "review-heavy"
+    assert variant.directory == ".fabro/workflows/rh"
 
 
 def test_workflow_toml_tolerates_a_namespace_without_a_repo_attribute(
