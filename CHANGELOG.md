@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.133.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.132.0...v0.133.0) (2026-09-06)
+
+
+### Features
+
+* **dev-tooling:** hold every registered workflow variant to the bundle's seam parity ([43c76e7](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/43c76e75f72b8317f5c704b38e54e91814273441))
+* **dispatcher:** pin the resolved workflow variant to the work-item ledger ([5f9e3a3](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/5f9e3a3a40fcd3910b53abab12c28e8eda407efd))
+
 ## [0.132.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.131.1...v0.132.0) (2026-09-06)
 
 
