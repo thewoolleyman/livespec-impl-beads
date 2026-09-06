@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.133.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.133.0...v0.133.1) (2026-09-06)
+
+
+### Bug Fixes
+
+* **plan:** refuse a plan archive while code outside plan/ reads it by path ([bdc37b1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/bdc37b1ee6237b849042d3322bf080cd8abd8b94))
+
 ## [0.133.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.132.0...v0.133.0) (2026-09-06)
 
 
