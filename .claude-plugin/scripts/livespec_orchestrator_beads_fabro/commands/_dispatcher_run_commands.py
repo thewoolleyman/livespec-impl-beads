@@ -66,6 +66,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_self_update import (
     post_verdict_runner,
     self_update_after_verdict,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_workflow_ledger import (
+    args_with_dispatch_workflow_name,
+)
 from livespec_orchestrator_beads_fabro.io import write_stderr
 from livespec_orchestrator_beads_fabro.types import WorkItem
 
@@ -218,7 +221,14 @@ def _admit_and_dispatch_target(  # noqa: PLR0913 — kw-only targeted dispatch; 
     )
     dispatched = [
         dispatch_one(
-            args=args_with_dispatch_factory_target(args=args, repo=repo, work_item_id=item.id),
+            # Both per-dispatch ledger pins, as in the queue-draining loop:
+            # the factory this dispatch goes to and the workflow variant it
+            # runs are recorded on the item together.
+            args=args_with_dispatch_workflow_name(
+                args=args_with_dispatch_factory_target(args=args, repo=repo, work_item_id=item.id),
+                repo=repo,
+                work_item_id=item.id,
+            ),
             repo=repo,
             item=item,
             journal=journal,

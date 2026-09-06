@@ -63,6 +63,7 @@ class MaterializedDispatch:
     """Everything one dispatch runs, resolved from the committed workflow."""
 
     committed_workflow: Path
+    workflow_name: str
     payload: WorkflowPayload
     acp_nodes: AcpNodeResolution
 
@@ -90,7 +91,12 @@ def materialize_dispatch(
     # selected variant's name. Every step below keys on the directory that
     # resolves — the payload copy, the graph render and the ACP adapter
     # layers all read the SELECTED variant, never the bundle.
-    variant = prepare_workflow_variant(repo=repo)
+    #
+    # `workflow_name` is read defensively for the reason `acp_node` below is:
+    # only the dispatching subparsers define the argument, and the two
+    # dispatch command paths overwrite it with the LEDGER-PINNED name before
+    # reaching here, so a retry selects what the first attempt ran.
+    variant = prepare_workflow_variant(repo=repo, name=getattr(args, "workflow_name", None))
     if isinstance(variant, WorkflowVariantRefusal):
         return MaterializationRefusal(stage=variant.stage, detail=variant.detail)
     # Resolved once and journaled: `workflow_toml` picks the selected
@@ -132,6 +138,7 @@ def materialize_dispatch(
         return MaterializationRefusal(stage=ACP_NODES_STAGE, detail=acp_nodes)
     return MaterializedDispatch(
         committed_workflow=committed_workflow,
+        workflow_name=variant.name,
         payload=payload,
         acp_nodes=acp_nodes,
     )

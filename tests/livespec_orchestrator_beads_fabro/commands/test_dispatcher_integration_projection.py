@@ -147,6 +147,7 @@ def test_the_dispatch_record_journals_the_resolved_contract(tmp_path: Path) -> N
         identity=DispatchJournalIdentity(dispatch_id="d-1", dispatch_factory=None),
         started_at_epoch=1.0,
         workflow_toml=tmp_path / "wf.toml",
+        workflow_name="implement-work-item",
         integration=plan.integration,
     )
 
