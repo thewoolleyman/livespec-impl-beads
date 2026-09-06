@@ -1,12 +1,19 @@
 """Tests for the integration-input seam-equivalence guard.
 
 The guard reports an ABSENCE, so a broken scanner would print exactly what a
-conformant payload prints. These tests therefore carry the two controls the
+conformant payload prints. These tests therefore carry the controls the
 work-item makes non-optional plus a NEGATIVE CONTROL per direction of the
 equality: every assertion below is made against a payload seeded on disk and
 read back through the check's own scan path, never against the return value of
 a write call. Since C5-payload the committed payload references every
 integration input, so the equality is also exercised for real.
+
+THE VARIANT CASES USE A FIXTURE REGISTRY, not the repository's own
+`.livespec.jsonc`, which registers no variant. Each seeds a throwaway root
+carrying a real `dispatcher.workflows` table plus real copies of the bundle,
+and the defect is introduced in ONE registered copy: the assertion that matters
+is that the finding names THAT directory while the bundle beside it still
+passes, which no single-payload gate could produce.
 """
 
 from __future__ import annotations
@@ -21,6 +28,13 @@ import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _CHECK_PATH = _REPO_ROOT / "dev-tooling" / "checks" / "seam_equivalence.py"
+_PAYLOADS_PATH = _REPO_ROOT / "dev-tooling" / "checks" / "_checked_workflow_payloads.py"
+_BUNDLE_WHERE = ".claude-plugin/.fabro/workflows/implement-work-item"
+
+# The one anchor the registry is spliced in after. Asserted to occur exactly
+# once before every splice, so a config reshape breaks the fixture loudly
+# instead of silently seeding a repo with no registry at all.
+_DISPATCHER_OPENER = '"dispatcher": {'
 
 # A run config carrying one token per position class: a prepare-step script
 # (rendered), an input default (not rendered), and a comment (no attribute at
@@ -67,6 +81,12 @@ def _rules_fixture(check: ModuleType) -> ModuleType:
     return sys.modules["_seam_equivalence_findings"]
 
 
+@pytest.fixture(name="payloads")
+def _payloads_fixture(check: ModuleType) -> ModuleType:
+    assert check is not None
+    return sys.modules["_checked_workflow_payloads"]
+
+
 def _seed_repo(*, repo_root: Path, check: ModuleType) -> Path:
     """Copy the real payload, config and control fixture into a throwaway root."""
     source = check.payload_dir(repo_root=_REPO_ROOT)
@@ -76,6 +96,25 @@ def _seed_repo(*, repo_root: Path, check: ModuleType) -> Path:
     fixture = check.fixture_path(repo_root=repo_root)
     fixture.parent.mkdir(parents=True, exist_ok=True)
     _ = shutil.copy2(check.fixture_path(repo_root=_REPO_ROOT), fixture)
+    return target
+
+
+def _register_variants(*, repo_root: Path, variants: dict[str, str]) -> None:
+    """Declare a `dispatcher.workflows` table in the seeded root's config."""
+    config = repo_root / ".livespec.jsonc"
+    text = config.read_text(encoding="utf-8")
+    assert text.count(_DISPATCHER_OPENER) == 1
+    entries = ", ".join(f'"{name}": "{declared}"' for name, declared in variants.items())
+    _ = config.write_text(
+        text.replace(_DISPATCHER_OPENER, f'{_DISPATCHER_OPENER} "workflows": {{{entries}}},', 1),
+        encoding="utf-8",
+    )
+
+
+def _copy_bundle(*, repo_root: Path, declared: str) -> Path:
+    """A registered variant directory holding a real, complete copy of the bundle."""
+    target = repo_root / declared
+    _ = shutil.copytree(_REPO_ROOT.joinpath(*_BUNDLE_WHERE.split("/")), target)
     return target
 
 
@@ -105,8 +144,11 @@ def test_main_passes_against_the_real_repo(
     assert check.main() == 0
 
 
-def test_scan_of_the_real_payload_returns_the_tokens_that_are_there(check: ModuleType) -> None:
-    occurrences = check.payload_occurrences(repo_root=_REPO_ROOT)
+def test_scan_of_the_real_payload_returns_the_tokens_that_are_there(
+    check: ModuleType,
+    payloads: ModuleType,
+) -> None:
+    occurrences = check.payload_occurrences(payload=payloads.bundle_payload(repo_root=_REPO_ROOT))
 
     # The instrument must be able to return a hit before its clean report on
     # the integration subset means anything: the adapter and policy tokens ARE
@@ -245,9 +287,10 @@ def test_the_committed_payload_references_every_integration_input(
     check: ModuleType,
     scan: ModuleType,
     rules: ModuleType,
+    payloads: ModuleType,
 ) -> None:
     """The equality is no longer vacuous: every projectable field has a real token."""
-    occurrences = check.payload_occurrences(repo_root=_REPO_ROOT)
+    occurrences = check.payload_occurrences(payload=payloads.bundle_payload(repo_root=_REPO_ROOT))
 
     referenced = rules.referenced_integration_inputs(occurrences=occurrences)
     assert referenced == rules.SCHEMA_PROJECTABLE_INPUTS
@@ -469,3 +512,167 @@ def test_discovery_control_fails_when_the_graph_scan_finds_no_adapter_token(
     failures = check.control_failures(repo_root=tmp_path)
     assert [failure for failure in failures if "node implement" in failure]
     assert not [failure for failure in failures if "matcher" in failure]
+
+
+# ---------------------------------------------------------------------------
+# Every REGISTERED variant is checked, and every finding names its directory.
+# ---------------------------------------------------------------------------
+
+
+def test_the_shared_payload_enumeration_module_is_installed() -> None:
+    """One module answers "which directories does a payload gate read" for both gates."""
+    assert _PAYLOADS_PATH.is_file()
+
+
+def test_a_repository_declaring_no_registry_is_checked_as_the_bundle_alone(
+    check: ModuleType,
+    payloads: ModuleType,
+    tmp_path: Path,
+) -> None:
+    _ = _seed_repo(repo_root=tmp_path, check=check)
+
+    checked = payloads.checked_payloads(repo_root=tmp_path)
+
+    assert [payload.where for payload in checked] == [_BUNDLE_WHERE]
+    # And the same holds for THIS repository, which registers no variant: the
+    # deferral of a real second variant is a fact about the config, not a gap
+    # in the gate.
+    assert [payload.where for payload in payloads.checked_payloads(repo_root=_REPO_ROOT)] == [
+        _BUNDLE_WHERE
+    ]
+
+
+def test_every_directory_the_registry_names_is_checked_beside_the_bundle(
+    check: ModuleType,
+    payloads: ModuleType,
+    tmp_path: Path,
+) -> None:
+    _ = _seed_repo(repo_root=tmp_path, check=check)
+    _register_variants(
+        repo_root=tmp_path, variants={"beta": "variants/beta", "alpha": "variants/alpha"}
+    )
+
+    checked = payloads.checked_payloads(repo_root=tmp_path)
+
+    # Read back through the registry's OWN parser off the config on disk, so a
+    # table this fixture failed to splice in could not read as "no variants".
+    assert '"workflows"' in (tmp_path / ".livespec.jsonc").read_text(encoding="utf-8")
+    assert [payload.where for payload in checked] == [
+        _BUNDLE_WHERE,
+        "variants/alpha",
+        "variants/beta",
+    ]
+    assert [payload.directory for payload in checked[1:]] == [
+        tmp_path / "variants/alpha",
+        tmp_path / "variants/beta",
+    ]
+
+
+def test_a_registered_variant_with_an_unrendered_token_fails_while_the_bundle_passes(
+    check: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bundle = _seed_repo(repo_root=tmp_path, check=check)
+    _register_variants(
+        repo_root=tmp_path,
+        variants={"conformant": "variants/conformant", "unrendered": "variants/unrendered"},
+    )
+    _ = _copy_bundle(repo_root=tmp_path, declared="variants/conformant")
+    graph = _copy_bundle(repo_root=tmp_path, declared="variants/unrendered") / "workflow.fabro"
+    _ = graph.write_text(
+        graph.read_text(encoding="utf-8").replace(
+            'timeout="1800s"', 'timeout="{{ inputs.sandbox_check_suite }}"', 1
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    # Prove the defect landed in the VARIANT and nowhere else before reading
+    # the verdict: the bundle and the conformant variant are the controls.
+    persisted = graph.read_text(encoding="utf-8")
+    assert 'timeout="{{ inputs.sandbox_check_suite }}"' in persisted
+    assert 'timeout="{{ inputs.sandbox_check_suite }}"' not in (
+        bundle / "workflow.fabro"
+    ).read_text(encoding="utf-8")
+    findings = check.payload_findings(repo_root=tmp_path)
+    assert [finding.kind for finding in findings] == ["non-rendered-position"]
+    assert findings[0].detail.startswith("variants/unrendered: ")
+    assert check.control_failures(repo_root=tmp_path) == []
+    assert check.main() == 1
+
+
+def test_a_registered_variant_referencing_fewer_tokens_is_a_finding_not_a_pass(
+    check: ModuleType,
+    tmp_path: Path,
+) -> None:
+    """The rider's own example: a variant that drops `default_branch` must fail.
+
+    The comparand is the ONE Dispatcher-rendered set, derived from the bundle.
+    Were it re-derived per variant, this variant would shrink its own comparand
+    and the equality would hold vacuously -- a silent pass on the exact defect
+    the per-variant set identity exists to catch.
+    """
+    _ = _seed_repo(repo_root=tmp_path, check=check)
+    _register_variants(repo_root=tmp_path, variants={"narrowed": "variants/narrowed"})
+    variant = _copy_bundle(repo_root=tmp_path, declared="variants/narrowed")
+    for path in sorted(variant.rglob("*")):
+        if path.is_file():
+            _ = path.write_text(
+                path.read_text(encoding="utf-8").replace(
+                    "{{ inputs.default_branch }}", "the default branch"
+                ),
+                encoding="utf-8",
+            )
+
+    assert not [
+        path for path in variant.rglob("*.md") if "inputs.default_branch" in path.read_text("utf-8")
+    ]
+    assert "default_branch" in check.rendered_input_names(repo_root=tmp_path)
+    findings = check.payload_findings(repo_root=tmp_path)
+    assert [(finding.kind, finding.subject) for finding in findings] == [
+        ("rendered-input-without-token", "default_branch")
+    ]
+    assert findings[0].detail.startswith("variants/narrowed: ")
+
+
+def test_a_registered_variant_that_scans_to_nothing_fails_rather_than_reporting_clean(
+    check: ModuleType,
+    tmp_path: Path,
+) -> None:
+    _ = _seed_repo(repo_root=tmp_path, check=check)
+    _register_variants(repo_root=tmp_path, variants={"absent": "variants/absent"})
+
+    failures = check.control_failures(repo_root=tmp_path)
+
+    assert not (tmp_path / "variants" / "absent").exists()
+    # The controls are PER DIRECTORY: the missing variant fails both of its own
+    # while the bundle standing beside it reports neither.
+    assert [failure for failure in failures if "completeness control: variants/absent" in failure]
+    assert [
+        failure for failure in failures if "variants/absent: the graph scan found no" in failure
+    ]
+    assert not [failure for failure in failures if f"{_BUNDLE_WHERE}:" in failure]
+    # And it is loud in the findings too, every one of them naming the absent
+    # directory: the equality sees a payload referencing nothing at all.
+    findings = check.payload_findings(repo_root=tmp_path)
+    assert {finding.kind for finding in findings} == {"rendered-input-without-token"}
+    assert all(finding.detail.startswith("variants/absent: ") for finding in findings)
+
+
+def test_an_incomplete_registered_variant_is_a_finding_naming_that_directory(
+    check: ModuleType,
+    tmp_path: Path,
+) -> None:
+    _ = _seed_repo(repo_root=tmp_path, check=check)
+    _register_variants(repo_root=tmp_path, variants={"partial": "variants/partial"})
+    variant = _copy_bundle(repo_root=tmp_path, declared="variants/partial")
+    (variant / "workflow.toml").unlink()
+
+    failures = check.control_failures(repo_root=tmp_path)
+
+    assert not (variant / "workflow.toml").exists()
+    assert (variant / "workflow.fabro").is_file()
+    named = [failure for failure in failures if "completeness control: variants/partial" in failure]
+    assert [failure for failure in named if "workflow.toml" in failure]
+    assert not [failure for failure in named if "workflow.fabro" in failure]

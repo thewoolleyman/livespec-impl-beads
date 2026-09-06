@@ -1,4 +1,10 @@
-"""Tests for the fleet-toolchain literal ban."""
+"""Tests for the fleet-toolchain literal ban.
+
+The variant cases seed a throwaway root carrying a real `dispatcher.workflows`
+table: one registered directory conformant, one carrying a fleet literal. The
+assertion that matters is that the finding names THAT directory while the bundle
+beside it still scans clean, which no single-payload gate could produce.
+"""
 
 from __future__ import annotations
 
@@ -15,6 +21,7 @@ _CHECK_PATH = _REPO_ROOT / "dev-tooling" / "checks" / "no_fleet_toolchain_litera
 _PACKAGE_RELPATH = ".claude-plugin/scripts/livespec_orchestrator_beads_fabro"
 _PAYLOAD_RELPATH = ".claude-plugin/.fabro/workflows/implement-work-item"
 _FIXTURE_RELPATH = "dev-tooling/checks/fixtures/fleet_toolchain_literal_control.py.txt"
+_CONFORMANT_PAYLOAD = 'script = "uv sync"\n'
 _SCHEMA_SOURCE = (
     "from livespec_orchestrator_beads_fabro.commands._dispatcher_integration_defaults import (\n"
     "    MERGE_MODE_DEFAULT,\n"
@@ -49,13 +56,31 @@ def _write(*, path: Path, text: str) -> None:
     _ = path.write_text(text, encoding="utf-8")
 
 
+def _write_workflow(*, directory: Path, config: str = _CONFORMANT_PAYLOAD) -> None:
+    """A COMPLETE workflow directory: the two files the completeness control requires."""
+    _write(path=directory / "workflow.toml", text=config)
+    _write(path=directory / "workflow.fabro", text='digraph Variant { start [label="Start"] }\n')
+
+
+def _register_variants(*, root: Path, variants: dict[str, str]) -> None:
+    """Declare a `dispatcher.workflows` table in the synthetic root's config."""
+    entries = ", ".join(f'"{name}": "{declared}"' for name, declared in variants.items())
+    _write(
+        path=root / ".livespec.jsonc",
+        text=(
+            '{"livespec-orchestrator-beads-fabro": {"dispatcher": '
+            f'{{"workflows": {{{entries}}}}}}}}}\n'
+        ),
+    )
+
+
 def _conforming_repo(*, root: Path, check: ModuleType) -> None:
     """A synthetic tree every positive control passes against."""
     package = root / _PACKAGE_RELPATH
     for anchor in check.DISCOVERY_ANCHORS:
         _write(path=package / anchor, text="VALUE = 1\n")
     _write(path=package / check.SCHEMA_MODULE, text=_SCHEMA_SOURCE)
-    _write(path=root / _PAYLOAD_RELPATH / "workflow.toml", text='script = "uv sync"\n')
+    _write_workflow(directory=root / _PAYLOAD_RELPATH)
     _write(path=root / _FIXTURE_RELPATH, text='ARGV = ["mise", "exec"]\n')
 
 
@@ -311,3 +336,85 @@ def test_main_returns_nonzero_for_a_reintroduced_literal(
     monkeypatch.chdir(tmp_path)
 
     assert check.main() == 1
+
+
+# ---------------------------------------------------------------------------
+# Every REGISTERED variant is scanned, and every finding names its directory.
+# ---------------------------------------------------------------------------
+
+
+def test_the_repository_registers_no_variant_so_the_bundle_is_the_whole_scan() -> None:
+    """The deferral of a real second variant is a config fact, not a gap in the gate."""
+    check = _load_check()
+
+    assert {
+        path.relative_to(_REPO_ROOT).parts[:4] for path in check.payload_paths(repo_root=_REPO_ROOT)
+    } == {tuple(_PAYLOAD_RELPATH.split("/"))}
+
+
+def test_a_registered_variant_with_a_fleet_literal_fails_while_the_bundle_passes(
+    tmp_path: Path,
+) -> None:
+    check = _load_check()
+    _conforming_repo(root=tmp_path, check=check)
+    _register_variants(
+        root=tmp_path,
+        variants={"conformant": "variants/conformant", "literal": "variants/literal"},
+    )
+    _write_workflow(directory=tmp_path / "variants/conformant")
+    _write_workflow(directory=tmp_path / "variants/literal", config='script = "mise exec -- x"\n')
+
+    findings = check.payload_findings(repo_root=tmp_path)
+
+    # The bundle and the conformant variant are the controls: the scan reached
+    # all three directories, and only the one carrying the literal reports.
+    assert len(check.payload_paths(repo_root=tmp_path)) == 6
+    assert [(finding.relpath, finding.token) for finding in findings] == [
+        ("variants/literal/workflow.toml", "mise")
+    ]
+    assert check.control_failures(repo_root=tmp_path) == []
+
+
+def test_a_registered_variant_that_scans_to_nothing_fails_rather_than_reporting_clean(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    check = _load_check()
+    _conforming_repo(root=tmp_path, check=check)
+    _register_variants(root=tmp_path, variants={"absent": "variants/absent"})
+    monkeypatch.chdir(tmp_path)
+
+    failures = check.control_failures(repo_root=tmp_path)
+
+    assert not (tmp_path / "variants" / "absent").exists()
+    # Per directory: the missing variant fails its own controls while the
+    # bundle standing beside it reports neither, and the scan is not clean.
+    assert failures == [
+        "completeness control: variants/absent: the directory has no workflow.fabro, "
+        "so it is not a complete workflow",
+        "completeness control: variants/absent: the directory has no workflow.toml, "
+        "so it is not a complete workflow",
+        "discovery control: the walk of variants/absent reached no file",
+    ]
+    assert check.payload_findings(repo_root=tmp_path) == []
+    assert check.main() == 1
+
+
+def test_an_incomplete_registered_variant_is_a_finding_naming_that_directory(
+    tmp_path: Path,
+) -> None:
+    check = _load_check()
+    _conforming_repo(root=tmp_path, check=check)
+    _register_variants(root=tmp_path, variants={"partial": "variants/partial"})
+    _write(path=tmp_path / "variants/partial/workflow.fabro", text="digraph P { a }\n")
+
+    failures = check.control_failures(repo_root=tmp_path)
+
+    assert not (tmp_path / "variants/partial/workflow.toml").exists()
+    # A half-written directory still WALKS to a file, so the discovery control
+    # is satisfied and the completeness control is the one that must fire.
+    assert check.payload_paths(repo_root=tmp_path) != []
+    assert failures == [
+        "completeness control: variants/partial: the directory has no workflow.toml, "
+        "so it is not a complete workflow"
+    ]
