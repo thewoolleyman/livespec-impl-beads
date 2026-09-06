@@ -1215,5 +1215,13 @@
     "test": "tests.integration.test_named_workflow_variants.test_the_recorded_workflow_name_outranks_the_items_dispatch_workflow_pin",
     "reason": "Ratified by the pluggable-factory-workflow-configs revise pass (plan epic bd-ib-yqpdrt) and bound once its three implementation children landed: bd-ib-27puvv (registry parse, resolve_workflow_variant and the three pre-run refusals), bd-ib-u7arwz (recorded --workflow-name, the dispatch_workflow pin and the workflow_name journal field) and bd-ib-asrazi (seam parity over registered variants). The named case drives the real dispatcher.main dispatch CLI over a target registering two complete variants and asserts the explicitly named one outranks the name a prior dispatch pinned to the work-item, reading both halves of the answer off the dispatch record because the selected name and the committed path are not recoverable from each other. Its siblings in the same integration module cover the rest of the ratified precedence — an explicit --workflow path outranking the recorded name, the pin outranking dispatcher.default_workflow, and that default outranking the reserved implement-work-item name, with a control leg that drops the one default key and resolves the target's own committed reserved workflow so the default's win is evidence rather than the only reachable answer — and one parametrized case per registry fault (an unregistered name, a variant directory lacking its graph, and a registry entry redefining the reserved name), each asserting the journal stage the refusal records, the cause it names, and that no Fabro run exists on two independent instruments: the launch seam is never entered and no dispatch record is written.",
     "work_item": "bd-ib-yqpdrt"
+  },
+  {
+    "heading": "## Scenario 118 — A groom workflow variant drafts a cut, parks it in the ledger, and files only on a recorded approval",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "reason": "Ratified by the consensus-gated-automated-groom-cut revise pass (plan epic bd-ib-yqpdrt, spec carrier bd-ib-e38q). The exercising integration-tier test is owed by plan pluggable-factory-workflow-configs once the groom workflow variant child (filed under bd-ib-yqpdrt at this revision's revise pass) and bd-ib-ouoq (the required approval record on file_approved_slices) land; until then the behavior has no implementation to bind to.",
+    "work_item": "bd-ib-yqpdrt"
   }
 ]
