@@ -36,10 +36,13 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_acp_nodes import (
     prepare_acp_nodes,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import JournalWriter
+from livespec_orchestrator_beads_fabro.commands._dispatcher_groom_draft import (
+    approved_groom_draft_for,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_plan import (
     workflow_payload_dir,
 )
-from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import workflow_toml
+from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import store_config, workflow_toml
 from livespec_orchestrator_beads_fabro.commands._dispatcher_payload import (
     WorkflowPayload,
     prepare_workflow_payload,
@@ -48,12 +51,31 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_workflow_variant imp
     WorkflowVariantRefusal,
     prepare_workflow_variant,
 )
+from livespec_orchestrator_beads_fabro.effects import AttemptFailure, attempt
+from livespec_orchestrator_beads_fabro.errors import (
+    BeadsCommandError,
+    BeadsConnectionError,
+    BeadsMappingError,
+    BeadsTenantMissingError,
+    ConnectionPrefixMissingError,
+    WorkItemNotFoundError,
+)
 
 __all__: list[str] = [
     "MaterializationRefusal",
     "MaterializedDispatch",
+    "approved_groom_draft_pin",
     "materialize_dispatch",
 ]
+
+_LEDGER_ERRORS = (
+    WorkItemNotFoundError,
+    ConnectionPrefixMissingError,
+    BeadsCommandError,
+    BeadsConnectionError,
+    BeadsMappingError,
+    BeadsTenantMissingError,
+)
 
 _WORKFLOW_PAYLOAD_STAGE = "workflow-payload"
 
@@ -96,7 +118,11 @@ def materialize_dispatch(
     # only the dispatching subparsers define the argument, and the two
     # dispatch command paths overwrite it with the LEDGER-PINNED name before
     # reaching here, so a retry selects what the first attempt ran.
-    variant = prepare_workflow_variant(repo=repo, name=getattr(args, "workflow_name", None))
+    variant = prepare_workflow_variant(
+        repo=repo,
+        name=getattr(args, "workflow_name", None),
+        approved_groom_draft=approved_groom_draft_pin(repo=repo, work_item_id=work_item_id),
+    )
     if isinstance(variant, WorkflowVariantRefusal):
         return MaterializationRefusal(stage=variant.stage, detail=variant.detail)
     # Resolved once and journaled: `workflow_toml` picks the selected
@@ -142,3 +168,24 @@ def materialize_dispatch(
         payload=payload,
         acp_nodes=acp_nodes,
     )
+
+
+def approved_groom_draft_pin(*, repo: Path, work_item_id: str) -> str | None:
+    """The variant that drafted this item's approved cut, if it carries one.
+
+    Fail-soft, and the reason it is SAFE to be fail-soft here is a property of
+    the sequence rather than of this function: an unreadable ledger yields None,
+    the apply gate is not armed, and the dispatch proceeds -- to
+    `_dispatcher_loop`'s own `read_dispatch_comments` step a few lines later,
+    which reads the SAME comments and refuses the dispatch under the
+    `ledger-comments` stage when it cannot. So no run is ever launched on a
+    ledger this could not read; what a raise here would cost instead is the
+    refusal's own stage, replaced by an exception on the dispatch path.
+    """
+    read = attempt(
+        action=lambda: approved_groom_draft_for(
+            path=store_config(repo=repo), work_item_id=work_item_id
+        ),
+        exceptions=_LEDGER_ERRORS,
+    )
+    return None if isinstance(read, AttemptFailure) else read
