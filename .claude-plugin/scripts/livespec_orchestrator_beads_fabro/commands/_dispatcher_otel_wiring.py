@@ -5,13 +5,23 @@ from __future__ import annotations
 import argparse
 import os
 from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 from typing import cast
 
+from livespec_orchestrator_beads_fabro.commands._config import (
+    FactoryTarget,
+    resolve_fabro_factory,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_cost_pricing import (
     DEFAULT_DISPATCH_COST_MODEL_ENV,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_cost_sink import CostSink
+from livespec_orchestrator_beads_fabro.commands._dispatcher_otel_endpoint import (
+    TailnetHostResolver,
+    resolve_receiver_host,
+    shell_tailnet_host,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_paths import (
     calibration_spans_path,
     cost_report_spans_path,
@@ -65,12 +75,12 @@ _OTEL_ENRICH_DRIVER_HOLDER: dict[str, object] = {}
 
 
 def _build_otel_receiver(
-    *, args: argparse.Namespace, repo: Path, config: ReceiverConfig | None = None
+    *, args: argparse.Namespace, repo: Path, config: ReceiverConfig
 ) -> StartableServer:
     """Build (but do NOT start) the single host-local live OTLP receiver.
 
-    Resolves the bound loopback addr/port from the `LIVESPEC_OTEL_RECEIVER_*`
-    levers, wires the SHARED 29f.5 Honeycomb egress exporter (ingest-only
+    Binds the addr/port `_receiver_config_for` resolved for this dispatch,
+    wires the SHARED 29f.5 Honeycomb egress exporter (ingest-only
     key from env), points the metrics heartbeat at the journal-sibling
     file, and points the efj CC-token cost sink at its sibling
     `<base>-otel-cost.json` (the derived-cost seam the y0m spend cap
@@ -80,7 +90,6 @@ def _build_otel_receiver(
     """
     from livespec_orchestrator_beads_fabro.commands._otel_enrich import HoneycombHttpExporter
 
-    resolved_config = config or resolve_receiver_config(environ=dict(os.environ))
     exporter = HoneycombHttpExporter(ingest_key=os.environ.get(_HONEYCOMB_INGEST_KEY_ENV, ""))
     heartbeat = HeartbeatSink(path=heartbeat_path(args=args, repo=repo))
     cost = CostSink(path=cost_sink_path(args=args, repo=repo))
@@ -88,7 +97,7 @@ def _build_otel_receiver(
     run_turn = RunTurnSink(path=run_turn_path)
     default_model = os.environ.get(DEFAULT_DISPATCH_COST_MODEL_ENV, "").strip() or None
     return OtelReceiver(
-        config=resolved_config,
+        config=config,
         exporter=exporter,
         heartbeat=heartbeat,
         cost=cost,
@@ -104,6 +113,7 @@ def ensure_otel_receiver(
     repo: Path,
     holder: dict[str, object] | None = None,
     factory: Callable[[], StartableServer] | None = None,
+    tailnet_resolver: TailnetHostResolver | None = None,
 ) -> StartableServer | None:
     """Idempotently start the single shared live OTLP receiver (29f.7 E1).
 
@@ -112,22 +122,72 @@ def ensure_otel_receiver(
     authoritative journal; egress is best-effort). `holder` + `factory` are
     injectable for the hermetic test tier (so no real socket binds in a
     test); production uses the module-level holder + the real factory.
+    `tailnet_resolver` is the third injection point: it supplies this host's
+    own tailnet address for a remote-factory dispatch, so the hermetic tier
+    resolves one without shelling out to `tailscale`.
     """
     target_holder = _OTEL_RECEIVER_HOLDER if holder is None else holder
+    config = _receiver_config_for(args=args, repo=repo, tailnet_resolver=tailnet_resolver)
     resolved_factory = (
-        (lambda: _build_otel_receiver(args=args, repo=repo)) if factory is None else factory
+        (lambda: _build_otel_receiver(args=args, repo=repo, config=config))
+        if factory is None
+        else factory
     )
     server = ensure_receiver_started(holder=target_holder, factory=resolved_factory)
     if server is None and factory is None:
-        server = _ensure_fallback_otel_receiver(args=args, repo=repo, holder=target_holder)
+        server = _ensure_fallback_otel_receiver(
+            args=args, repo=repo, holder=target_holder, config=config
+        )
     _project_owned_receiver_endpoint(server=server)
     return server
 
 
+def _dispatch_factory_target(*, args: argparse.Namespace, repo: Path) -> FactoryTarget:
+    """The factory target this dispatch runs its sandbox on.
+
+    `dispatch_preamble` pins `fabro_factory_target` before either entrypoint
+    arms egress, so the config fallback covers arming reached OUTSIDE that
+    preamble rather than the routine path — and it resolves the same way the
+    preamble would, so the two never disagree about which host runs the work.
+    """
+    pinned = getattr(args, "fabro_factory_target", None)
+    if isinstance(pinned, FactoryTarget):
+        return pinned
+    return resolve_fabro_factory(cwd=repo)
+
+
+def _receiver_config_for(
+    *,
+    args: argparse.Namespace,
+    repo: Path,
+    tailnet_resolver: TailnetHostResolver | None,
+) -> ReceiverConfig:
+    """Resolve the addr/port this dispatch's receiver binds AND advertises.
+
+    The port stays exactly what the `LIVESPEC_OTEL_RECEIVER_*` levers say. Only
+    the HOST moves, and only for a remote-factory dispatch, whose sandbox
+    cannot reach the Docker-bridge literal those levers default to.
+    """
+    environ = dict(os.environ)
+    configured = resolve_receiver_config(environ=environ)
+    host = resolve_receiver_host(
+        factory=_dispatch_factory_target(args=args, repo=repo),
+        bridge_host=configured.host,
+        environ=environ,
+        resolver=(
+            partial(shell_tailnet_host, cwd=repo) if tailnet_resolver is None else tailnet_resolver
+        ),
+    )
+    return ReceiverConfig(host=host, port=configured.port)
+
+
 def _ensure_fallback_otel_receiver(
-    *, args: argparse.Namespace, repo: Path, holder: dict[str, object]
+    *,
+    args: argparse.Namespace,
+    repo: Path,
+    holder: dict[str, object],
+    config: ReceiverConfig,
 ) -> StartableServer | None:
-    config = resolve_receiver_config(environ=dict(os.environ))
     fallback = ReceiverConfig(host=config.host, port=0)
     return ensure_receiver_started(
         holder=holder,
@@ -136,6 +196,13 @@ def _ensure_fallback_otel_receiver(
 
 
 def _project_owned_receiver_endpoint(*, server: StartableServer | None) -> None:
+    """Tell the sandbox where to post, using the address the receiver BOUND.
+
+    Reading the host back off `server.config` is what keeps the two halves in
+    lockstep: whatever `_receiver_config_for` decided to bind is exactly what
+    gets advertised, so a remote-factory dispatch can never advertise an
+    address the receiver is not listening on.
+    """
     if not isinstance(server, OtelReceiver):
         return
     if server.bound_port <= 0:
