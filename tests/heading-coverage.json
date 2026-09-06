@@ -1223,5 +1223,13 @@
     "test": "TODO",
     "reason": "Ratified by the consensus-gated-automated-groom-cut revise pass (plan epic bd-ib-yqpdrt, spec carrier bd-ib-e38q). The exercising integration-tier test is owed by plan pluggable-factory-workflow-configs once the groom workflow variant child (filed under bd-ib-yqpdrt at this revision's revise pass) and bd-ib-ouoq (the required approval record on file_approved_slices) land; until then the behavior has no implementation to bind to.",
     "work_item": "bd-ib-yqpdrt"
+  },
+  {
+    "heading": "## Scenario 119 — A per-item merge hold publishes the pull request and merges only on release",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "reason": "Ratified by the per-item-merge-hold revise pass (plan epic bd-ib-yqpdrt, spec carrier bd-ib-vlhp). The exercising integration-tier test is owed by plan pluggable-factory-workflow-configs once the implementation child filed under bd-ib-vlhp at this revision's revise pass lands; until then the behavior has no implementation to bind to.",
+    "work_item": "bd-ib-yqpdrt"
   }
 ]
