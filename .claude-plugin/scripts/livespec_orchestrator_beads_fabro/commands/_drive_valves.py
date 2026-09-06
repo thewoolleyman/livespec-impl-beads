@@ -1,11 +1,12 @@
 """Action parsing, routing, and the ledger-only human valves for `drive`.
 
-The `reject` valve lives in `_drive_reject_valve` and the policy / cap / queue
-/ blocked-state valves in `_drive_policy_valves`; what stays here is the
-action-id grammar, the router that dispatches on it, and the two valves that do
-nothing but write the ledger.
+The `reject` valve lives in `_drive_reject_valve`, the merge-hold valve in
+`_drive_merge_hold_valve`, and the policy / cap / queue / blocked-state valves
+in `_drive_policy_valves`; what stays here is the action-id grammar, the router
+that dispatches on it, and the two valves that do nothing but write the ledger.
 """
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
@@ -22,6 +23,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_lifecycle_writes imp
     write_work_item_status_and_reconcile,
 )
 from livespec_orchestrator_beads_fabro.commands._drive_answer import answer_delivery
+from livespec_orchestrator_beads_fabro.commands._drive_merge_hold_valve import set_merge_hold
 from livespec_orchestrator_beads_fabro.commands._drive_policy_valves import (
     CAP_ACTION_VERBS,
     move_item,
@@ -54,6 +56,10 @@ VALUE_ALLOWLISTS = {
     "set-admission": frozenset({"auto", "manual"}),
     "set-acceptance": frozenset({"ai-only", "human-only", "ai-then-human"}),
     "set-workflow-scope-override": frozenset({"citation-only"}),
+    # The hold's value space is exactly the switch it is: `on` writes the label,
+    # `off` removes it. Anything else in that position is not a weaker hold, it
+    # is a typo, and the grammar refuses it before the store is ever read.
+    "set-merge-hold": frozenset({"on", "off"}),
 }
 
 
@@ -93,35 +99,116 @@ def run_human_valve_action(
             err="work-item-not-found",
             msg=f"work-item not found: {item_id}",
         )
-    value = cast("str", action_value)
-    if action == "resolve-blocked":
-        result = resolve_blocked_item(
+    return _route(
+        call=_ValveCall(
+            repo=repo,
             config=config,
             item=item,
-            aid=action_id,
-            target_status=value,
-            delivery=answer_delivery(answer=answer, identity=resolved_identity, repo=repo),
+            action=action,
+            action_id=action_id,
+            value=cast("str", action_value),
+            runner=runner,
+            identity=resolved_identity,
+        ),
+        answer=answer,
+    )
+
+
+@dataclass(frozen=True, kw_only=True)
+class _ValveCall:
+    """One PARSED valve invocation: the verb, the item it named, and its inputs.
+
+    Assembled once by the supervisor above so the routing below is a pure
+    dispatch on `action`. The alternative — threading nine independent
+    arguments through each routing layer — is what pushed this router past the
+    branch ceiling in the first place.
+    """
+
+    repo: Path
+    config: StoreConfig
+    item: WorkItem
+    action: str
+    action_id: str
+    value: str
+    runner: HumanValveRunner | None
+    identity: InvokerIdentity
+
+
+def _route(*, call: _ValveCall, answer: str | None) -> dict[str, Any]:
+    """Dispatch one parsed action onto its valve."""
+    edit = _policy_edit(call=call)
+    if edit is not None:
+        return edit
+    if call.action == "resolve-blocked":
+        return resolve_blocked_item(
+            config=call.config,
+            item=call.item,
+            aid=call.action_id,
+            target_status=call.value,
+            delivery=answer_delivery(answer=answer, identity=call.identity, repo=call.repo),
         )
-    elif action == "approve":
-        result = _approve_item(repo=repo, config=config, item=item, action_id=action_id)
-    elif action == "accept":
-        result = _accept_item(config=config, item=item, action_id=action_id)
-    elif action in {"set-admission", "set-acceptance"}:
-        result = set_policy(config=config, item=item, aid=action_id, action=action, value=value)
-    elif action == "set-workflow-scope-override":
-        result = set_workflow_scope_override(config=config, item=item, aid=action_id, value=value)
-    elif action in CAP_ACTION_VERBS:
-        result = set_cap(config=config, item=item, aid=action_id, action=action, value=value)
-    elif action == "move":
-        result = move_item(config=config, item=item, aid=action_id, target_status=value)
-    else:
-        result = reject_item(
-            repo=repo, config=config, item=item, aid=action_id, reject_kind=value, runner=runner
+    if call.action == "approve":
+        return _approve_item(
+            repo=call.repo, config=call.config, item=call.item, action_id=call.action_id
         )
-        journal_rework_return(
-            repo=repo, identity=resolved_identity, reject_kind=value, result=result
+    if call.action == "accept":
+        return _accept_item(config=call.config, item=call.item, action_id=call.action_id)
+    if call.action == "move":
+        return move_item(
+            config=call.config, item=call.item, aid=call.action_id, target_status=call.value
         )
+    result = reject_item(
+        repo=call.repo,
+        config=call.config,
+        item=call.item,
+        aid=call.action_id,
+        reject_kind=call.value,
+        runner=call.runner,
+    )
+    journal_rework_return(
+        repo=call.repo, identity=call.identity, reject_kind=call.value, result=result
+    )
     return result
+
+
+def _policy_edit(*, call: _ValveCall) -> dict[str, Any] | None:
+    """The valves that write ONE field of an item and never its status, or `None`.
+
+    Grouped because the contract groups them: a policy edit, the workflow-scope
+    assertion, a cap override and the merge hold each modify only the named
+    field and MUST NOT move the item. The merge hold is the one member that also
+    reaches the forge, which is why it alone is handed the command runner.
+    """
+    if call.action in {"set-admission", "set-acceptance"}:
+        return set_policy(
+            config=call.config,
+            item=call.item,
+            aid=call.action_id,
+            action=call.action,
+            value=call.value,
+        )
+    if call.action == "set-workflow-scope-override":
+        return set_workflow_scope_override(
+            config=call.config, item=call.item, aid=call.action_id, value=call.value
+        )
+    if call.action in CAP_ACTION_VERBS:
+        return set_cap(
+            config=call.config,
+            item=call.item,
+            aid=call.action_id,
+            action=call.action,
+            value=call.value,
+        )
+    if call.action == "set-merge-hold":
+        return set_merge_hold(
+            repo=call.repo,
+            config=call.config,
+            item=call.item,
+            aid=call.action_id,
+            value=call.value,
+            runner=call.runner,
+        )
+    return None
 
 
 def is_human_valve_action(*, action_id: str) -> bool:
@@ -137,6 +224,7 @@ def is_human_valve_action(*, action_id: str) -> bool:
             "set-merge-on-review-cap:",
             "set-review-fix-cap:",
             "set-acceptance-rework-cap:",
+            "set-merge-hold:",
             "move:",
         )
     )

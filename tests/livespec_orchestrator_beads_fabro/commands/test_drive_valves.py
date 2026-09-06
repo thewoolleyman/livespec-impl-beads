@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from livespec_orchestrator_beads_fabro._beads_client import FakeBeadsClient, make_beads_client
 from livespec_orchestrator_beads_fabro.commands._drive_valves import run_human_valve_action
+from livespec_orchestrator_beads_fabro.commands.drive import run_action
 from livespec_orchestrator_beads_fabro.store import append_work_item, read_work_item_comments
 from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
 
@@ -421,3 +422,36 @@ def test_move_with_empty_item_is_unsupported(tmp_path: Path) -> None:
 
     assert result["status"] == "failed"
     assert result["domain_error"] == "invalid-action-id"
+
+
+class _NoPullRequestRunner:
+    """A forge that reports no pull request, so the valve's ledger half stands alone."""
+
+    def __call__(self, *, argv: tuple[str, ...], cwd: Path | None = None) -> _NoPullRequest:
+        _ = (argv, cwd)
+        return _NoPullRequest()
+
+
+@dataclass(frozen=True, kw_only=True)
+class _NoPullRequest:
+    returncode: int = 1
+    stdout: str = ""
+    stderr: str = ""
+
+
+def test_drive_accepts_the_twelfth_action_and_routes_it_to_the_merge_hold_valve(
+    tmp_path: Path,
+) -> None:
+    """`drive`'s own grammar, not just the valve router, admits `set-merge-hold:`."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _write_fake_config(repo)
+    append_work_item(path=_config(), item=_item(status="active"))
+
+    result = run_action(
+        repo=repo, action_id="set-merge-hold:bd-ib-ready:on", runner=_NoPullRequestRunner()
+    )
+
+    assert result["kind"] == "human-valve"
+    assert "merge-hold:on" in _fake().show_issue(issue_id="bd-ib-ready")["labels"]
+    assert _fake().show_issue(issue_id="bd-ib-ready")["status"] == "active"
