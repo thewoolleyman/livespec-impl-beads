@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.135.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.134.0...v0.135.0) (2026-09-06)
+
+
+### Features
+
+* **needs-attention:** the held-item lifecycle — reclaimed, unreconciled, discriminated, and surfaced once ([3d794a5](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/3d794a540d7fe3ce4e906e0df138853f4c756dbf))
+
 ## [0.134.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.133.2...v0.134.0) (2026-09-06)
 
 
