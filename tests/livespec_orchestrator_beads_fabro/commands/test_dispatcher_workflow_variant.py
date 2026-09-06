@@ -32,6 +32,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_materialize imp
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_workflow_variant import (
     WORKFLOW_VARIANT_INCOMPLETE_STAGE,
+    WORKFLOW_VARIANT_NOT_GROOM_STAGE,
     WORKFLOW_VARIANT_RESERVED_NAME_STAGE,
     WORKFLOW_VARIANT_UNREGISTERED_STAGE,
     WorkflowVariantRefusal,
@@ -277,3 +278,221 @@ def test_materialize_dispatch_selects_the_variant_named_on_the_namespace(
     assert not isinstance(materialized, MaterializationRefusal), materialized
     assert materialized.committed_workflow == variant / "workflow.toml"
     assert materialized.workflow_name == "codex-first"
+
+
+# --- The apply gate (v100): the FOURTH refusal, about the ITEM ---------------
+#
+# The three cases above are faults of the REGISTRY. This one is a fault of the
+# combination: a work-item carrying an approved groom draft, resolving to a
+# workflow that does not groom. It has its own stage for the same reason they
+# do — the four share one exit code, so the stage is the only thing that says
+# which fault refused.
+#
+# THE THREE ROUTES THE CONTRACT ENUMERATES ARE COVERED SEPARATELY, because the
+# gate has to survive all three and they arrive by different mechanisms: an
+# explicit `--workflow-name` naming the reserved workflow, the same naming a
+# registered implement variant, and a CLEARED pin falling through to
+# `dispatcher.default_workflow`. The third is the one a pin-keyed gate would
+# miss — clearing the pin is precisely what disarms such a gate — so it is
+# driven through `materialize_dispatch` end to end with a real ledger.
+
+
+def _groom_manifest(*, kind: str) -> str:
+    return f'[workflow]\ngraph = "workflow.fabro"\n\n[run.inputs]\nworkflow_kind = "{kind}"\n'
+
+
+def _kinded_repo(*, tmp_path: Path, default_workflow: str | None = None) -> Path:
+    """A target registering one groom variant and one implement variant."""
+    repo = tmp_path / "repo"
+    for name, kind in (("groom-cut", "groom"), ("codex-first", "implement")):
+        directory = repo / ".fabro" / "workflows" / name
+        directory.mkdir(parents=True)
+        _ = (directory / "workflow.toml").write_text(_groom_manifest(kind=kind), encoding="utf-8")
+        _ = (directory / "workflow.fabro").write_text("digraph G {}\n", encoding="utf-8")
+    block: dict[str, object] = {
+        "workflows": {
+            "groom-cut": ".fabro/workflows/groom-cut",
+            "codex-first": ".fabro/workflows/codex-first",
+        }
+    }
+    if default_workflow is not None:
+        block["default_workflow"] = default_workflow
+    _write_dispatcher_config(repo=repo, block=block)
+    return repo
+
+
+def test_an_approved_groom_draft_dispatched_under_its_groom_variant_resolves(
+    tmp_path: Path,
+) -> None:
+    """The control: the gate must not refuse the dispatch it exists to protect."""
+    repo = _kinded_repo(tmp_path=tmp_path)
+
+    resolved = prepare_workflow_variant(
+        repo=repo, name="groom-cut", approved_groom_draft="groom-cut"
+    )
+
+    assert resolved == WorkflowVariant(name="groom-cut", directory=".fabro/workflows/groom-cut")
+
+
+def test_an_approved_groom_draft_dispatched_under_the_reserved_workflow_is_refused(
+    tmp_path: Path,
+) -> None:
+    """The reserved workflow MUST NOT groom, however explicitly it is asked to."""
+    repo = _kinded_repo(tmp_path=tmp_path)
+
+    refusal = prepare_workflow_variant(
+        repo=repo, name=RESERVED_WORKFLOW_NAME, approved_groom_draft="groom-cut"
+    )
+
+    assert isinstance(refusal, WorkflowVariantRefusal)
+    assert refusal.stage == WORKFLOW_VARIANT_NOT_GROOM_STAGE
+    assert "groom-cut" in refusal.detail
+
+
+def test_an_approved_groom_draft_dispatched_under_an_implement_variant_is_refused(
+    tmp_path: Path,
+) -> None:
+    """The refused variant is REGISTERED and COMPLETE; only its kind is wrong.
+
+    A gate that checked registration or completeness would pass this case, so
+    the assertion is on the stage rather than merely on there being a refusal.
+    """
+    repo = _kinded_repo(tmp_path=tmp_path)
+
+    refusal = prepare_workflow_variant(
+        repo=repo, name="codex-first", approved_groom_draft="groom-cut"
+    )
+
+    assert isinstance(refusal, WorkflowVariantRefusal)
+    assert refusal.stage == WORKFLOW_VARIANT_NOT_GROOM_STAGE
+
+
+def test_an_item_carrying_no_approved_draft_is_never_gated(tmp_path: Path) -> None:
+    """Ordinary implement dispatches are untouched by the gate."""
+    repo = _kinded_repo(tmp_path=tmp_path)
+
+    resolved = prepare_workflow_variant(repo=repo, name="codex-first")
+
+    assert resolved == WorkflowVariant(name="codex-first", directory=".fabro/workflows/codex-first")
+
+
+def test_an_incomplete_directory_is_reported_as_incomplete_not_as_non_groom(
+    tmp_path: Path,
+) -> None:
+    """An incomplete variant reads as `implement`, so ORDER decides which is named.
+
+    Checking the kind before completeness would report "not a groom variant"
+    for a directory whose real fault is that half of it is missing, sending the
+    operator to fix the wrong thing.
+    """
+    repo = _registered_repo(tmp_path=tmp_path, files=("workflow.toml",))
+
+    refusal = prepare_workflow_variant(
+        repo=repo, name="codex-first", approved_groom_draft="groom-cut"
+    )
+
+    assert isinstance(refusal, WorkflowVariantRefusal)
+    assert refusal.stage == WORKFLOW_VARIANT_INCOMPLETE_STAGE
+
+
+def test_a_cleared_pin_falling_through_to_the_default_is_refused_end_to_end(
+    tmp_path: Path,
+) -> None:
+    """The route a pin-keyed gate could not catch, driven through the ledger.
+
+    Nothing on the item says `groom` any more — the pin is gone — so the ONLY
+    surviving signal is the draft comment the park wrote, which is what the
+    gate reads. The dispatch is driven through `materialize_dispatch` so the
+    ledger read, the fall-through to `dispatcher.default_workflow` and the
+    refusal are all production code, and the empty journal proves the refusal
+    landed before any payload was materialized.
+    """
+    from livespec_orchestrator_beads_fabro._beads_client import reset_fake_singleton
+    from livespec_orchestrator_beads_fabro.commands._dispatcher_groom_draft import (
+        render_groom_draft_comment,
+    )
+    from livespec_orchestrator_beads_fabro.commands._drive_answer import ANSWER_COMMENT_MARKER
+    from livespec_orchestrator_beads_fabro.store import append_work_item, append_work_item_comment
+    from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
+
+    repo = _kinded_repo(tmp_path=tmp_path, default_workflow="codex-first")
+    _ = (repo / ".livespec.jsonc").write_text(
+        json.dumps(
+            {
+                "livespec-orchestrator-beads-fabro": {
+                    "connection": {
+                        "tenant": "livespec-impl-beads",
+                        "prefix": "livespec-impl-beads",
+                        "server_user": "livespec-impl-beads",
+                        "database": "livespec-impl-beads",
+                        "bd_path": "bd",
+                        "fake": True,
+                    },
+                    "dispatcher": {
+                        "workflows": {
+                            "groom-cut": ".fabro/workflows/groom-cut",
+                            "codex-first": ".fabro/workflows/codex-first",
+                        },
+                        "default_workflow": "codex-first",
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    config = StoreConfig(
+        tenant="livespec-impl-beads",
+        prefix="livespec-impl-beads",
+        server_user="livespec-impl-beads",
+        database="livespec-impl-beads",
+        bd_path="bd",
+        fake=True,
+    )
+    reset_fake_singleton()
+    append_work_item(
+        path=config,
+        item=WorkItem(
+            id="bd-ib-apply",
+            type="task",
+            status="ready",
+            title="A groomed epic awaiting its apply dispatch",
+            description="Its cut is drafted and approved.",
+            origin="freeform",
+            gap_id=None,
+            rank="m",
+            assignee=None,
+            depends_on=(),
+            captured_at="2026-09-06T00:00:00Z",
+            resolution=None,
+            reason=None,
+            audit=None,
+            superseded_by=None,
+        ),
+    )
+    append_work_item_comment(
+        path=config,
+        work_item_id="bd-ib-apply",
+        body=render_groom_draft_comment(
+            draft="Layer 1: slice A.",
+            variant="groom-cut",
+            run_id="01M1APPLY",
+            at="2026-09-06T00:00:00Z",
+        ),
+    )
+    append_work_item_comment(
+        path=config,
+        work_item_id="bd-ib-apply",
+        body=f"{ANSWER_COMMENT_MARKER} (human:maintainer via cli, x, y):\nApproved.",
+    )
+    journal = _RecordingJournal()
+
+    refusal = materialize_dispatch(
+        args=argparse.Namespace(workflow=None, repo=str(repo)),
+        repo=repo,
+        work_item_id="bd-ib-apply",
+        journal=journal,
+    )
+
+    assert isinstance(refusal, MaterializationRefusal)
+    assert refusal.stage == WORKFLOW_VARIANT_NOT_GROOM_STAGE
+    assert journal.records == []
