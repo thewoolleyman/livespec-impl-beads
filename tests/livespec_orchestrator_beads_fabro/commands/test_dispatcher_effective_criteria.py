@@ -33,7 +33,11 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_effective_criteria i
 )
 from livespec_orchestrator_beads_fabro.commands._drive_valves import run_human_valve_action
 from livespec_orchestrator_beads_fabro.commands.dispatcher import main
-from livespec_orchestrator_beads_fabro.commands.groom import CandidateSlice, file_approved_slices
+from livespec_orchestrator_beads_fabro.commands.groom import (
+    CandidateSlice,
+    GroomApproval,
+    file_approved_slices,
+)
 from livespec_orchestrator_beads_fabro.store import append_work_item, read_work_items
 from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
 
@@ -504,6 +508,7 @@ def test_groom_reports_the_criteria_parse_for_every_filed_slice_without_refusing
             )
         ],
         local_repo="here",
+        approval=GroomApproval(approver="thewoolleyman", route="resolve-blocked ledger comment"),
     )
 
     assert len(result.filed_slice_ids) == 1

@@ -11,9 +11,15 @@ The original backlog item is never silently dropped. Once at least one local
 factory slice is filed, it is explicitly closed as no longer applicable with a
 reason naming the replacement slices.
 
+Filing is gated on an approval RECORD, not on the calling agent's judgement:
+`file_approved_slices` requires a `GroomApproval` naming the approver identity
+and the route the approval arrived on, refuses a call carrying none before any
+slice is filed, and stamps the record on every filed slice and on the closed
+original so a later reader can query who approved the cut.
+
 Expected failures raise typed errors from `errors.py` (`WorkItemNotFoundError`,
-`GroomTargetNotBacklogError`, `GroomExitRefusedError`, `GroomDraftError`);
-genuine bugs propagate as built-in exceptions.
+`GroomTargetNotBacklogError`, `GroomExitRefusedError`, `GroomDraftError`,
+`GroomApprovalRequiredError`); genuine bugs propagate as built-in exceptions.
 """
 
 from __future__ import annotations
@@ -27,6 +33,11 @@ from livespec_runtime.work_items.rank import key_between
 from livespec_orchestrator_beads_fabro import regroom
 from livespec_orchestrator_beads_fabro._beads_client import make_beads_client
 from livespec_orchestrator_beads_fabro._ids import new_work_item_id
+from livespec_orchestrator_beads_fabro._store_groom_approval import (
+    GroomApproval,
+    record_groom_approval,
+    require_groom_approval,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_effective_criteria import (
     EffectiveCriteria,
     effective_criteria,
@@ -46,6 +57,7 @@ if TYPE_CHECKING:
 __all__: list[str] = [
     "CandidateSlice",
     "CrossRepoSlice",
+    "GroomApproval",
     "GroomContext",
     "GroomResult",
     "SliceCriteriaParse",
@@ -172,11 +184,19 @@ def file_approved_slices(
     regroom_item_id: str,
     slices: list[CandidateSlice],
     local_repo: str,
+    approval: GroomApproval | None,
 ) -> GroomResult:
     """File approved local factory slices through intake, then close the original.
 
-    Called ONLY after the maintainer approves the draft. For each factory
-    slice (`is_spec_change == False`):
+    Called ONLY after the maintainer approves the draft, and the `approval`
+    record is what carries that approval INTO the seam rather than leaving it
+    an obligation on the calling agent's judgement: it names the approver
+    identity and the route the approval arrived on, it is checked before any
+    slice is filed, and it is stamped on every filed slice and on the closed
+    original so a later reader can tell an approved cut from an unapproved
+    one (the groom-cut clause of `SPECIFICATION/contracts.md`).
+
+    For each factory slice (`is_spec_change == False`):
 
     - If `repo_target == local_repo` (a LOCAL slice): file via
       `append_work_item`, route through the intake DoR primitive, and link
@@ -191,11 +211,14 @@ def file_approved_slices(
     After all slices are processed, the original backlog item is explicitly
     closed against the filed LOCAL slice ids.
 
+    Raises `GroomApprovalRequiredError` — before any slice is filed — if the
+    approval record is absent or names no approver identity or route.
     Raises `GroomDraftError` if any factory slice has an empty `repo_target`
     or if a `depends_on` handle names no earlier factory slice in the draft.
     Raises `GroomExitRefusedError` if no local factory slice was filed.
     Raises `WorkItemNotFoundError` if `regroom_item_id` is absent.
     """
+    approved = require_groom_approval(approval=approval)
     filed_ids: list[str] = []
     parses: list[SliceCriteriaParse] = []
     spec_change: list[CandidateSlice] = []
@@ -235,13 +258,11 @@ def file_approved_slices(
         item = _work_item_for(
             candidate=candidate, slice_id=slice_id, dep_entries=dep_entries, rank=rank
         )
-        append_work_item(path=path, item=item)
-        _route_approved_slice_intake(path=path, item_id=slice_id)
+        parses.append(_file_local_slice(path=path, item=item, approval=approved))
         filed_ids.append(slice_id)
-        # Advisory only: an empty parse is REPORTED, never a refusal.
-        parses.append(SliceCriteriaParse(slice_id=slice_id, criteria=effective_criteria(item=item)))
         id_by_title[candidate.title] = slice_id
     regroom.close_regroomed_out(path=path, item_id=regroom_item_id, replacement_slice_ids=filed_ids)
+    record_groom_approval(path=path, work_item_id=regroom_item_id, approval=approved)
     return GroomResult(
         filed_slice_ids=tuple(filed_ids),
         criteria_parses=tuple(parses),
@@ -249,6 +270,25 @@ def file_approved_slices(
         cross_repo_slices=tuple(cross_repo),
         regroomed_out=True,
     )
+
+
+def _file_local_slice(
+    *, path: StoreConfig, item: WorkItem, approval: GroomApproval
+) -> SliceCriteriaParse:
+    """File one approved local slice, route it, stamp its approval, parse it.
+
+    The three writes are kept in one place because they are one act: a slice
+    that is filed but not routed is not ready, and a slice that is filed but
+    not stamped is a slice nobody can attribute later.
+    """
+    append_work_item(path=path, item=item)
+    _route_approved_slice_intake(path=path, item_id=item.id)
+    # Stamped AFTER intake routing: the router rewrites the slice's modeled
+    # metadata, so a stamp placed before it would be overlaid by the very
+    # write that makes the slice ready.
+    record_groom_approval(path=path, work_item_id=item.id, approval=approval)
+    # Advisory only: an empty parse is REPORTED, never a refusal.
+    return SliceCriteriaParse(slice_id=item.id, criteria=effective_criteria(item=item))
 
 
 def _resolve_dep_entries(

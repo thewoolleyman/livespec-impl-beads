@@ -51,6 +51,7 @@ from livespec_orchestrator_beads_fabro.commands.dispatcher import main
 from livespec_orchestrator_beads_fabro.commands.drive import run_action
 from livespec_orchestrator_beads_fabro.commands.groom import (
     CandidateSlice,
+    GroomApproval,
     file_approved_slices,
 )
 from livespec_orchestrator_beads_fabro.store import (
@@ -463,6 +464,7 @@ def test_all_four_gates_resolve_the_identical_effective_criteria_text(
         ],
         regroom_item_id="bd-ib-groomtarget",
         local_repo=_LOCAL_REPO,
+        approval=GroomApproval(approver="thewoolleyman", route="resolve-blocked ledger comment"),
     )
     [parse] = groomed.criteria_parses
     capture_assertions = parse.criteria.assertions

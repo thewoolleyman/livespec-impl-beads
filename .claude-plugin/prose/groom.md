@@ -88,17 +88,38 @@ acceptance — `groom` only proposes. The draft is READ-ONLY: nothing is
 filed until the maintainer approves. The maintainer may edit the cut /
 acceptance / deps / tiers and approve, or send it back to re-draft.
 
+Capture the approval as a RECORD, not as a remembered fact. When the
+approval arrives, note WHO approved (the approving invoker's identity) and
+HOW the approval was obtained (the route it arrived on — under the
+two-phase groom variant, the `resolve-blocked:<work-item-id>:ready` valve
+plus the ledger comment the answer landed as). Step 3 requires both, refuses
+to file without them, and stamps them where a later reader can query them.
+Do NOT synthesize either value: an identity you invented attributes the cut
+to someone who never approved it, which is worse than the refusal.
+
 ### Step 3 — On approval, file the slices and regroom the original out
 
 ONLY after explicit approval, file the approved factory slices and
-explicitly dispose the original backlog item:
+explicitly dispose the original backlog item. The approval is passed as a
+required `GroomApproval` record — the mechanism that makes "only after
+approval" an enforced precondition of this seam rather than an obligation on
+this prose's reader:
 
 ```python
-from livespec_orchestrator_beads_fabro.commands.groom import CandidateSlice, file_approved_slices
+from livespec_orchestrator_beads_fabro.commands.groom import (
+    CandidateSlice,
+    GroomApproval,
+    file_approved_slices,
+)
 
 result = file_approved_slices(
     path=config,
     regroom_item_id=item_id,
+    approval=GroomApproval(
+        approver=...,   # WHO approved — the approving invoker's identity.
+        route=...,      # HOW it was obtained — e.g. the resolve-blocked
+                        # valve plus the ledger comment carrying the answer.
+    ),
     slices=[
         CandidateSlice(
             title=...,
@@ -138,6 +159,16 @@ REFUSES (`GroomExitRefusedError`) and the original STAYS `backlog` —
 escalate-don't-drop. A `depends_on` handle naming no earlier factory
 slice is a malformed cut (`GroomDraftError`); surface it and re-draft.
 
+An absent `approval`, or one naming no approver identity or no route, is
+refused with `GroomApprovalRequiredError` BEFORE any slice is filed, so a
+refusal leaves nothing half-filed and the original at `backlog`. On a
+successful filing the record is stamped on every filed slice AND on the
+regroomed-out original, in the queryable `groom_approval` metadata field —
+`groom_approval_for(path=config, work_item_id=...)` reads it back. That
+stamp is the forensic difference between a cut the maintainer approved and
+one approved by a peer or by the agent itself; without it the ledger cannot
+tell the three apart after the fact.
+
 ### Step 4 — Route the spec-change slices to the propose-change operation
 
 For each entry in `result.spec_change_slices`, invoke the cross-boundary
@@ -160,7 +191,10 @@ then drains eligible factory slices by dependency layer.
 
 - **Read-only until approval** — `load_groom_context` and the drafting
   conversation mutate NOTHING; only `file_approved_slices` (post-approval)
-  writes.
+  writes, and it refuses to write at all without an approval record.
+- **Approval is recorded, not assumed** — the approver identity and the
+  route the approval arrived on are stamped on every filed slice and on the
+  regroomed-out original, so who approved a cut stays answerable later.
 - **Escalate-don't-drop** — the original backlog item is closed ONLY
   after real local factory slices are filed; an all-spec-change cut leaves it
   `backlog`.
