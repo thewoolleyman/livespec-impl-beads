@@ -149,6 +149,7 @@ def test_the_dispatch_record_journals_the_resolved_contract(tmp_path: Path) -> N
         workflow_toml=tmp_path / "wf.toml",
         workflow_name="implement-work-item",
         integration=plan.integration,
+        merge_hold=plan.merge_hold,
     )
 
     record = json.loads((tmp_path / "journal.jsonl").read_text(encoding="utf-8").strip())
@@ -288,6 +289,19 @@ def test_run_inputs_are_gated_on_the_input_names_the_workflow_declares() -> None
         "implement_adapter",
     }
     assert workflow_declared_inputs(committed_text="no table here") == {}
+    # A BARE TOML scalar is a declaration too. Two of the three per-item policy
+    # inputs are not strings, so a quoted-only scan would report a payload
+    # declaring them as declaring neither -- an instrument that cannot return
+    # the hit its caller is looking for.
+    bare = '[run.inputs]\nmerge_hold = false\nreview_fix_visit_cap = 4\ndefault_branch = "trunk"\n'
+    assert workflow_declared_inputs(committed_text=bare) == {
+        "merge_hold": "false",
+        "review_fix_visit_cap": "4",
+        "default_branch": "trunk",
+    }
+    # The contract view still filters to its own closed name set, so widening
+    # the scan did not widen what the Dispatcher sends.
+    assert contract_workflow_inputs(committed_text=bare) == frozenset({"default_branch"})
 
 
 def test_the_dispatch_renders_the_contract_inputs_its_workflow_can_receive(tmp_path: Path) -> None:
@@ -300,10 +314,13 @@ def test_the_dispatch_renders_the_contract_inputs_its_workflow_can_receive(tmp_p
     assert plan.integration_inputs == (f"sandbox_exempt_marker={SANDBOX_EXEMPT_MARKER_DEFAULT}",)
     inputs = dispatch_fabro_run_inputs(plan=plan)
     assert f"sandbox_exempt_marker={SANDBOX_EXEMPT_MARKER_DEFAULT}" in inputs
-    # A workflow declaring none of them is sent none of them.
+    # A workflow declaring none of them is sent none of them. The per-item
+    # POLICY inputs ride every dispatch regardless, because they project the
+    # item's own policy rather than this repository's integration contract.
     assert dispatch_fabro_run_inputs(plan=_plan(repo=tmp_path)) == (
         f"review_fix_visit_cap={plan.review_fix_visit_cap}",
         f"merge_on_review_cap_outcome={plan.merge_on_review_cap_outcome}",
+        "merge_hold=false",
     )
 
 

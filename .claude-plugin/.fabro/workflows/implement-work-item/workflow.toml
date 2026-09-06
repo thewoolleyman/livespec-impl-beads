@@ -235,6 +235,26 @@ review_fix_visit_cap = 4
 # effective merge_on_review_cap escape hatch is true for the item.
 merge_on_review_cap_outcome = "__merge_on_review_cap_disabled__"
 
+# The PER-ITEM MERGE HOLD (SPECIFICATION/contracts.md §"Dispatcher policy
+# settings" -> "The per-item merge hold"), the third member of the per-item
+# POLICY input family beside the two above. While it is true the pr node
+# publishes exactly as it does today but arms NO auto-merge and verifies that
+# none is armed, so an item can be IMPLEMENTED now and MERGED in a window the
+# maintainer chooses.
+#
+# FALSE HERE IS NOT A REPOSITORY-LEVEL DEFAULT — the hold deliberately has
+# none. It is set on ONE item, by a person, for ONE merge, through the human
+# valve `set-merge-hold:<work-item-id>:on|off`, and the Dispatcher renders that
+# item's effective hold here on every dispatch. This default is only ever seen
+# by a bare `fabro run` of this file, which then publishes and arms exactly as
+# it did before this input existed.
+#
+# TWO SEAMS READ THE ONE RENDERED VALUE AND NEITHER IS AUTHORITATIVE: the pr
+# prompt reads this input inside the sandbox, and the Dispatcher's own
+# auto-merge argv reads the same resolved hold host-side. A hold that reached
+# only one of them would silently not hold.
+merge_hold = false
+
 # INTEGRATION-CONTRACT INPUTS — the typed workflow inputs of
 # SPECIFICATION/contracts.md §"Repository integration contract" (the
 # typed-workflow-inputs clause). Each is ONE field of the governed repository's

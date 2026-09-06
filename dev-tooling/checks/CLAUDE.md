@@ -93,9 +93,18 @@ Current checks:
   allowlist is EVIDENCE-BASED and fail-closed — `acp.command`, edge `condition`,
   a `[[run.prepare.steps]]` `script`, and a prompt body — because a templated
   duration attribute leaves the node with NO timeout and reports nothing. The
-  equality excludes the six ACP adapter inputs and the two review/cap policy
-  inputs, and that exclusion is checked rather than assumed: the three families
-  must be pairwise disjoint and must cover every input the payload declares. It
+  equality excludes the six ACP adapter inputs and the three PER-ITEM POLICY
+  inputs (`review_fix_visit_cap`, `merge_on_review_cap_outcome`, `merge_hold`),
+  and that exclusion is checked rather than assumed: the three families
+  must be pairwise disjoint and must cover every input the payload declares.
+  Only the EQUALITY is scoped that way — the resolved-position rule binds every
+  declared input whatever its family, because the engine does not know which
+  family a name belongs to. The policy family also carries a leg of its own:
+  each of its three inputs is rendered on EVERY dispatch rather than intersected
+  with what a payload declares, so a payload (bundle or registered variant) that
+  fails to declare one earns an `undeclared-policy-input` finding — fabro would
+  reject the run. That is what holds a variant to the bundle's token set for the
+  family the equality cannot speak about. It
   reports an ABSENCE over a payload that references no integration token yet, so
   it carries three positive controls — a discovery control asserting the scan
   still returns the adapter tokens that ARE there, a completeness control

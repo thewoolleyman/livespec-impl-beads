@@ -187,6 +187,7 @@ def _dispatch_one_locked(  # noqa: PLR0911 — one return per PRE-RUN REFUSAL ST
         workflow_toml=committed_workflow,
         workflow_name=materialized.workflow_name,
         integration=plan.integration,
+        merge_hold=plan.merge_hold,
     )
     token_supplier = selfup.github_token_supplier()
     if isinstance(token_supplier, str):

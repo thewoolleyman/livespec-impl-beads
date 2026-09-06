@@ -413,6 +413,15 @@ def dispatch_fabro_run_inputs(*, plan: DispatchPlan) -> tuple[str, ...]:
     intersected with the input names the dispatched workflow declares. They are
     rendered here rather than resolved here for exactly the reason the adapters
     are — the record and the run must not be able to disagree.
+
+    The three PER-ITEM POLICY inputs at the end are rendered on EVERY dispatch
+    rather than intersected with what the payload declares, because they are
+    projections of the item's own effective policy rather than of the
+    repository's contract: an item is dispatched with a review-fix cap, a
+    merge-on-review-cap outcome and a merge hold whatever else is true of it.
+    `merge_hold` spells its boolean the way the run config declares it, so the
+    value the workflow's own default carries and the value a dispatch renders
+    are the same word.
     """
     adapters = () if plan.acp_nodes is None else plan.acp_nodes.run_inputs
     return (
@@ -420,4 +429,5 @@ def dispatch_fabro_run_inputs(*, plan: DispatchPlan) -> tuple[str, ...]:
         *plan.integration_inputs,
         f"review_fix_visit_cap={plan.review_fix_visit_cap}",
         f"merge_on_review_cap_outcome={plan.merge_on_review_cap_outcome}",
+        f"merge_hold={'true' if plan.merge_hold else 'false'}",
     )

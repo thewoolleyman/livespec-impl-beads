@@ -363,6 +363,7 @@ def test_fabro_port_run_routes_implementer_to_codex_adapter(
         f"review_fix_adapter={claude_opus_5}",
         "review_fix_visit_cap=4",
         "merge_on_review_cap_outcome=__merge_on_review_cap_disabled__",
+        "merge_hold=false",
     ]
     expected_base = (
         'CODEX_CONFIG=\'{"approval_policy":"never","sandbox_mode":"danger-full-access"}\' '
@@ -643,6 +644,7 @@ def test_fabro_port_run_routes_effective_review_cap_policy_inputs(tmp_path: Path
     assert input_values == [
         "review_fix_visit_cap=8",
         "merge_on_review_cap_outcome=succeeded",
+        "merge_hold=false",
     ]
 
 

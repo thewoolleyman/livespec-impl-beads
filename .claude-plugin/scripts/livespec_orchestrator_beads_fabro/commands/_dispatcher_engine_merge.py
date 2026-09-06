@@ -39,8 +39,15 @@ def confirm_pr(
         return None
     if view.auto_merge_armed or view.state == "MERGED":
         return view
+    argv = pr_arm_argv(plan=plan, number=view.number)
+    # An EMPTY argv is the merge hold saying there is no forge write to make.
+    # This is the fallback-arming path, which exists precisely for a pr stage
+    # that could not arm -- so running it for a held item would take the one
+    # branch that silently undoes a pr stage which correctly armed nothing.
+    if not argv:
+        return view
     arm = runner.run(
-        argv=pr_arm_argv(plan=plan, number=view.number),
+        argv=argv,
         cwd=plan.repo,
         timeout_seconds=_GH_TIMEOUT_SECONDS,
     )
