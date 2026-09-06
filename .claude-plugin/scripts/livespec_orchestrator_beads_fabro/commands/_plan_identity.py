@@ -36,13 +36,14 @@ rather than mirroring anything.
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from livespec_orchestrator_beads_fabro._beads_client import make_beads_client
 
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from livespec_orchestrator_beads_fabro._beads_client import BeadsRecord
     from livespec_orchestrator_beads_fabro.types import StoreConfig
 
 __all__: list[str] = [
@@ -107,7 +108,21 @@ def tag_epic_plan_slug(
     resolved = canonical_plan_slug(text=title if slug is None else slug)
     client = make_beads_client(config=config)
     record = client.show_issue(issue_id=epic_id)
-    metadata = dict(record["metadata"])
+    metadata = _record_metadata(record=record)
     metadata[PLAN_SLUG_METADATA_KEY] = resolved
     client.update_issue(issue_id=epic_id, metadata=metadata)
     return resolved
+
+
+def _record_metadata(*, record: BeadsRecord) -> dict[str, Any]:
+    """Return a record's metadata, tolerating the key's absence.
+
+    Beads records are `omitempty`-sparse: an epic holding no metadata omits
+    the key ENTIRELY rather than carrying an empty object, so subscripting it
+    raises on exactly the untagged epics this write exists to repair. The
+    migration met that on its first real tenant and wrote nothing at all.
+    """
+    metadata = record.get("metadata")
+    if not isinstance(metadata, dict):
+        return {}
+    return dict(cast("dict[str, Any]", metadata))

@@ -16,6 +16,7 @@ from livespec_orchestrator_beads_fabro._beads_client import (
     IssueDraft,
     make_beads_client,
 )
+from livespec_orchestrator_beads_fabro.commands import _plan_identity
 from livespec_orchestrator_beads_fabro.commands import migrate_plan_records as module
 from livespec_orchestrator_beads_fabro.commands._plan_record_migration import (
     PlanRecordMigrationReport,
@@ -285,6 +286,51 @@ def test_a_sparse_record_reads_as_untagged_rather_than_raising(
 
     assert report.slugs_written == ("bd-ib-sparse plan_slug=sparse-plan",)
     assert _fake().show_issue(issue_id="bd-ib-sparse")["metadata"]["plan_slug"] == "sparse-plan"
+
+
+def test_a_metadata_less_epic_is_tagged_rather_than_aborting_the_migration(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The whole migration over a tenant whose only epic omits `metadata`.
+
+    The sparse-record test above patches the migration's OWN client, so the
+    slug write still ran against the fake tenant's key-carrying record. Here
+    the write side reads the sparse record too, which is the tenant shape that
+    aborted the first real run before it wrote anything.
+    """
+
+    class _MetadataLessTenant:
+        def __init__(self) -> None:
+            self.written: list[tuple[str, dict[str, Any]]] = []
+
+        def list_issues(self) -> list[dict[str, Any]]:
+            return [self._record(issue_id="bd-ib-bare")]
+
+        def show_issue(self, *, issue_id: str) -> dict[str, Any]:
+            return self._record(issue_id=issue_id)
+
+        def update_issue(self, *, issue_id: str, metadata: dict[str, Any]) -> None:
+            self.written.append((issue_id, metadata))
+
+        def _record(self, *, issue_id: str) -> dict[str, Any]:
+            # `omitempty`-sparse: an epic holding no metadata carries no key.
+            return {"id": issue_id, "issue_type": "epic", "title": "Bare Plan", "status": "open"}
+
+    tenant = _MetadataLessTenant()
+
+    def _tenant_client(*, config: StoreConfig) -> _MetadataLessTenant:
+        assert config.fake
+        return tenant
+
+    monkeypatch.setattr(module, "make_beads_client", _tenant_client)
+    monkeypatch.setattr(_plan_identity, "make_beads_client", _tenant_client)
+
+    report = _run(project_root=tmp_path)
+
+    assert report.slugs_written == ("bd-ib-bare plan_slug=bare-plan",)
+    assert tenant.written == [("bd-ib-bare", {"plan_slug": "bare-plan"})]
+    assert report.refused == ()
 
 
 def test_main_reports_the_migration_over_the_project_root(

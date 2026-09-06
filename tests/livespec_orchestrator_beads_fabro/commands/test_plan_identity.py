@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from livespec_orchestrator_beads_fabro._beads_client import (
     FakeBeadsClient,
@@ -12,6 +13,9 @@ from livespec_orchestrator_beads_fabro._beads_client import (
     reset_fake_singleton,
 )
 from livespec_orchestrator_beads_fabro.types import StoreConfig
+
+if TYPE_CHECKING:
+    import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _MODULE_PATH = (
@@ -152,6 +156,41 @@ def test_a_supplied_slug_is_canonicalized_before_it_is_written() -> None:
     record = _fake().show_issue(issue_id="bd-ib-alpha")
     assert record["metadata"]["plan_slug"] == "alpha-topic"
     assert record["metadata"]["rank"] == "a1"
+
+
+def test_a_metadata_less_epic_record_is_tagged_rather_than_raising(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert _MODULE_PATH.is_file()
+    module = importlib.import_module(_MODULE_NAME)
+
+    class _SparseClient:
+        """A tenant whose epic record omits the `metadata` key entirely."""
+
+        def __init__(self) -> None:
+            self.written: tuple[str, dict[str, Any]] | None = None
+
+        def show_issue(self, *, issue_id: str) -> dict[str, Any]:
+            # `omitempty`-sparse: a record holding no metadata carries no key.
+            return {"id": issue_id, "issue_type": "epic", "title": "Sparse Topic"}
+
+        def update_issue(self, *, issue_id: str, metadata: dict[str, Any]) -> None:
+            self.written = (issue_id, metadata)
+
+    sparse = _SparseClient()
+
+    def _sparse_client(*, config: StoreConfig) -> _SparseClient:
+        assert config.fake
+        return sparse
+
+    monkeypatch.setattr(module, "make_beads_client", _sparse_client)
+
+    written = module.tag_epic_plan_slug(
+        config=_config(), epic_id="bd-ib-sparse", title="Sparse Topic"
+    )
+
+    assert written == "sparse-topic"
+    assert sparse.written == ("bd-ib-sparse", {"plan_slug": "sparse-topic"})
 
 
 def test_create_thread_anchors_the_directory_and_tags_the_epic(tmp_path: Path) -> None:
