@@ -10,6 +10,7 @@ from livespec_runtime.cross_repo.types import RefStatus
 from livespec_runtime.work_items.lifecycle import lane_of
 
 from livespec_orchestrator_beads_fabro._beads_client import EDGE_PARENT_CHILD, make_beads_client
+from livespec_orchestrator_beads_fabro._store_merge_hold import merge_hold_from_labels
 
 if TYPE_CHECKING:
     from livespec_runtime.cross_repo.types import CrossRepoManifest
@@ -77,6 +78,10 @@ def work_item_to_dict(
     payload["depends_on"] = [_json_ready(value=entry) for entry in item.depends_on]
     payload["parent"] = None if facts is None else facts.parent
     payload["labels"] = [] if facts is None else list(facts.labels)
+    # Derived here rather than left for each reader to re-derive from `labels`:
+    # the hold gates an automated merge, and a downstream surface that spelled
+    # the prefix itself could read a held item as free with nothing to say so.
+    payload["merge_hold"] = facts is not None and merge_hold_from_labels(labels=facts.labels)
     payload["dispatch_factory"] = dispatch_factory
     lane = lane_of(
         item=item, index=index, manifest=manifest, sibling_status_lookup=sibling_status_lookup

@@ -235,9 +235,27 @@ def test_main_json_output_key_set_tracks_work_item_dataclass_fields(
         "labels",
         "lane",
         "lane_reason",
+        "merge_hold",
         "parent",
     }
     assert set(payload[0]) == expected
+
+
+def test_main_json_output_derives_merge_hold_from_the_label(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A held item reads as held without any downstream reader parsing labels."""
+    _seed(_item(id_="li-held"))
+    _seed(_item(id_="li-free"))
+    fake_singleton().update_issue(issue_id="li-held", add_labels=["merge-hold:on"])
+
+    rc = main(argv=["--json"])
+    captured = capsys.readouterr()
+
+    assert rc == 0
+    payload = _by_id(json.loads(captured.out))
+    assert payload["li-held"]["merge_hold"] is True
+    assert payload["li-free"]["merge_hold"] is False
 
 
 def test_main_json_output_includes_parent_and_labels(
