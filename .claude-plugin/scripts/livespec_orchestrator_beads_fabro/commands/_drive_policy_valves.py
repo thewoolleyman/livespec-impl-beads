@@ -10,7 +10,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_lifecycle_writes imp
     write_blocked_state_and_reconcile,
     write_work_item_status_and_reconcile,
 )
-from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings import (
+from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_overrides import (
     ACCEPTANCE_REWORK_CAP_LABEL,
     MERGE_ON_REVIEW_CAP_LABEL,
     REVIEW_FIX_CAP_LABEL,
@@ -50,7 +50,7 @@ _MOVE_ALLOWED: frozenset[str] = frozenset({"backlog", "ready", "blocked"})
 
 # Each per-item cap-override drive verb, mapped to (its `.livespec.jsonc`
 # dispatcher setting key, the raw beads-label prefix the Dispatcher resolver
-# reads back — see _dispatcher_policy_settings.effective_*_cap). The setting key
+# reads back — see _dispatcher_policy_overrides.effective_*_cap). The setting key
 # is the single source for the value type used to validate the operator's value.
 _CAP_ACTIONS: dict[str, tuple[str, str]] = {
     "set-merge-on-review-cap": ("merge_on_review_cap", MERGE_ON_REVIEW_CAP_LABEL),

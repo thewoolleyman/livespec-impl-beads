@@ -44,10 +44,12 @@ reader (`dispatcher.minimum_release` sits with its floor for the same reason).
 Two things make it the right home rather than the convenient one. The coercion
 genuinely is peculiar to this arm: `0` is a MEANINGFUL value here and not a
 degenerate one, so this setting floors at zero where every other bound in that
-module floors at one. And that module stands at 242 LLOC against a 250 hard
-ceiling, so the eleven lines this read costs would breach it — a split of that
-module along its own `effective_*` seam is a separate change, not a rider on
-this one.
+module floors at one. And that module stood at 242 LLOC against a 250 hard
+ceiling, so the eleven lines this read costs would have breached it — a split
+of that module along its own `effective_*` seam was a separate change, not a
+rider on this one. That split has since landed (the per-item resolvers now sit
+in `_dispatcher_policy_overrides.py`), so the size argument is spent; the
+coercion argument above is what still keeps this read here.
 """
 
 from __future__ import annotations

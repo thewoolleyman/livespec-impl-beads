@@ -52,9 +52,11 @@ from returns.unsafe import unsafe_perform_io
 from livespec_orchestrator_beads_fabro.commands._dispatcher_acceptance_criteria import (
     criteria_lines,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_overrides import (
+    effective_acceptance_policy,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings import (
     DEFAULT_ACCEPTANCE_POLICY,
-    effective_acceptance_policy,
 )
 
 if TYPE_CHECKING:

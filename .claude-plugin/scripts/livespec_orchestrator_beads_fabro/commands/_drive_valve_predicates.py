@@ -6,9 +6,11 @@ from typing import TYPE_CHECKING
 
 from returns.unsafe import unsafe_perform_io
 
+from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_overrides import (
+    effective_admission_policy,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings import (
     DEFAULT_ADMISSION_POLICY,
-    effective_admission_policy,
 )
 
 if TYPE_CHECKING:
