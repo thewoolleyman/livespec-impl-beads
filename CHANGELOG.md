@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.132.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.131.1...v0.132.0) (2026-09-06)
+
+
+### Features
+
+* **dispatcher:** resolve named workflow variants from a dispatcher.workflows registry ([f0a170b](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/f0a170b4f8efec6ec74bf6fd68efa7dcbd9d0a25))
+
 ## [0.131.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.131.0...v0.131.1) (2026-09-06)
 
 
