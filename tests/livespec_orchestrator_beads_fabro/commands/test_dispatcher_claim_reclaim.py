@@ -327,6 +327,39 @@ def test_counted_claim_total_is_identical_from_every_checkout_of_one_tenant(
     assert from_peer == from_dispatching
 
 
+def test_a_merge_held_items_green_terminal_run_is_reclaimed_and_counts_no_claim(
+    tmp_path: Path,
+) -> None:
+    """A held item holds NO capacity slot, by the ORDINARY green-terminal rule.
+
+    This is a regression lock rather than a new mechanism, and the distinction is
+    the point. An earlier draft of the ratified hold kept the claim counted
+    against `wip_cap`, which contradicts the green-terminal reclamation rule and
+    was discharged; the settled contract says a held item's run is reclaimed
+    "exactly as every green terminal outcome is". So the item stays `active` with
+    its hold, its run terminates green at the pr stage, and the accounting must
+    classify it green-terminal — uncounted — with no held-item special case
+    anywhere in the reclamation path. A hold that silently consumed a slot would
+    starve the queue for as long as the maintainer's merge window lasted.
+    """
+    item = _item(item_id="bd-held", status="active")
+    journal = JournalFile(path=tmp_path / "journal.jsonl")
+    journal.append(record={"stage": "ledger-admit", "work_item_id": item.id})
+    journal.append(
+        record={
+            "stage": "outcome",
+            "outcome": {"work_item_id": item.id, "status": "green", "stage": "pr"},
+        }
+    )
+
+    accounting = claimed_active_accounting(repo=tmp_path, items=[item], journal=journal)
+
+    assert accounting.active_count == 0
+    assert accounting.green_terminal_active_ids == (item.id,)
+    assert accounting.live_lock_active_ids == ()
+    assert _records(path=journal.path)[-1]["reason"] == "green-terminal-active-reclaimed"
+
+
 def _tenant_checkout(*, root: Path, name: str) -> Path:
     """A checkout of one shared tenant, declared the way a real one declares it."""
     checkout = root / name

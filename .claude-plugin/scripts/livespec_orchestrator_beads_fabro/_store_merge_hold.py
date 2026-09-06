@@ -16,18 +16,21 @@ about what counts as held.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
+from livespec_orchestrator_beads_fabro._beads_client import make_beads_client
 from livespec_orchestrator_beads_fabro._store_cap_mutations import update_work_item_cap
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+    from livespec_orchestrator_beads_fabro._beads_client import BeadsRecord
     from livespec_orchestrator_beads_fabro.types import StoreConfig
 
 __all__: list[str] = [
     "MERGE_HOLD_LABEL_PREFIX",
     "merge_hold_from_labels",
+    "read_merge_held_work_item_ids",
     "update_work_item_merge_hold",
 ]
 
@@ -63,3 +66,36 @@ def merge_hold_from_labels(*, labels: Iterable[str]) -> bool:
     variant must not read as a release.
     """
     return any(label.startswith(MERGE_HOLD_LABEL_PREFIX) for label in labels)
+
+
+def read_merge_held_work_item_ids(*, path: StoreConfig) -> frozenset[str]:
+    """Every tenant id the `merge-hold:` label holds, read straight from the labels.
+
+    A narrow RAW read, mirroring `_store_intake_triage`: the hold is a label, and
+    `store._record_to_work_item` decodes labels into the named fields the shared
+    `WorkItem` model declares, so a marker the model does not carry is dropped on
+    the floor before any consumer sees it. The surfaces the ratified hold binds —
+    the attention row and the stranded-state discriminator — need the answer for
+    every held item, so they read it here rather than each spelling the prefix.
+
+    Fail-SOFT in the same shape the needs-attention readers use: a record with no
+    usable id, or whose labels are not a list of strings, contributes nothing
+    rather than failing the whole enumeration. That is safe in exactly one
+    direction here, because `merge_hold_from_labels` is itself fail-closed over
+    the labels it does see.
+    """
+    client = make_beads_client(config=path)
+    return frozenset(
+        issue_id
+        for record in client.list_issues()
+        if isinstance(issue_id := record.get("id"), str)
+        and merge_hold_from_labels(labels=_labels_of(record=record))
+    )
+
+
+def _labels_of(*, record: BeadsRecord) -> tuple[str, ...]:
+    raw = record.get("labels")
+    if not isinstance(raw, list):
+        return ()
+    labels = cast("list[object]", raw)
+    return tuple(label for label in labels if isinstance(label, str))

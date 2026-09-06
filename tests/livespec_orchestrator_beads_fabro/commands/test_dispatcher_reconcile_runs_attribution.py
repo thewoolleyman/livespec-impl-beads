@@ -189,6 +189,54 @@ def test_every_non_terminal_status_kind_is_in_scope() -> None:
     }
 
 
+def test_a_merge_held_items_terminal_run_is_left_alone_rather_than_reaped() -> None:
+    """A terminal run on an `active` item under a MATCHING journaled run id is no orphan.
+
+    This is the reconciliation half of the ratified merge hold, and it is a
+    regression lock on two independent reasons the reconciler leaves such a run
+    alone: the run is terminal, and — were it not — its item is `active` under
+    the newest journaled run id for that item, so it carries no moot reason.
+
+    The controls are the two ways this could go wrong in the held population's
+    exact shape: a NON-terminal run over the same item and the same journal is
+    attributed with `base_reason=None` (proving the item's `active`-with-a-hold
+    state is not itself read as moot), while a run the same item has superseded
+    is still reported. A test that only asserted the held run's absence could
+    not tell "left alone" from "never looked at any run at all".
+    """
+    journal = "\n".join(
+        [
+            json.dumps({"work_item_id": "bd-ib-held", "run_id": "01SUPERSEDED"}),
+            json.dumps({"stage": "fabro-run", "work_item_id": "bd-ib-held", "run_id": "01HELD"}),
+        ]
+    )
+
+    rows = attributed_runs(
+        inventory=_inventory(
+            runs=[
+                _run(run_id="01HELD", work_item_id="bd-ib-held", status_kind="succeeded"),
+                _run(run_id="01SUPERSEDED", work_item_id="bd-ib-held", status_kind="running"),
+            ],
+            item_statuses={"bd-ib-held": "active"},
+            journal=journal,
+        )
+    )
+
+    assert [(row.run.run_id, row.base_reason) for row in rows] == [
+        ("01SUPERSEDED", ORPHAN_REASON_SUPERSEDED_RUN)
+    ]
+
+    live = attributed_runs(
+        inventory=_inventory(
+            runs=[_run(run_id="01HELD", work_item_id="bd-ib-held", status_kind="running")],
+            item_statuses={"bd-ib-held": "active"},
+            journal=journal,
+        )
+    )
+
+    assert [(row.run.run_id, row.base_reason) for row in live] == [("01HELD", None)]
+
+
 def test_the_attribution_layer_is_no_longer_reachable_through_the_classifier() -> None:
     """The layers moved apart, so the classifier must not still export them.
 

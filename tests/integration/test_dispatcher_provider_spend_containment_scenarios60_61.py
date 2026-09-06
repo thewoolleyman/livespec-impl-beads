@@ -370,7 +370,7 @@ def _no_spec_next(*, project_root: Path) -> SpecNextOutput | None:
 
 
 def _attention(*, repo: Path, monkeypatch: pytest.MonkeyPatch) -> list[AttentionItem]:
-    monkeypatch.setattr(needs_attention, "_spec_next", _no_spec_next)
+    monkeypatch.setattr(needs_attention, "spec_next", _no_spec_next)
     return build_attention(project_root=repo, repo_name="repo", include_hygiene=False)
 
 

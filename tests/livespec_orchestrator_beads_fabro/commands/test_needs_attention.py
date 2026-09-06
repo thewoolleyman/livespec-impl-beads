@@ -1,20 +1,17 @@
 """Tests for the needs-attention thin binding."""
 
 import json
-import shlex
 from pathlib import Path
 from typing import Any
 
 import pytest
 from livespec_orchestrator_beads_fabro._beads_client import IssueDraft, make_beads_client
+from livespec_orchestrator_beads_fabro._store_merge_hold import update_work_item_merge_hold
 from livespec_orchestrator_beads_fabro.commands import needs_attention
 from livespec_orchestrator_beads_fabro.commands._dispatcher_dispatch_lock import (
     write_dispatch_lock,
 )
 from livespec_orchestrator_beads_fabro.commands.needs_attention import (
-    SpecNextSeam,
-    _spec_next,
-    _SpecNextResult,
     build_attention,
     main,
     render_json,
@@ -144,38 +141,13 @@ def _stub_spec_output() -> SpecNextOutput:
 
 
 def _stub_spec_next(monkeypatch: pytest.MonkeyPatch, *, output: SpecNextOutput | None) -> None:
-    """Replace `_spec_next` so `build_attention` never touches a live CORE checkout."""
+    """Replace `spec_next` so `build_attention` never touches a live CORE checkout."""
 
     def _fake(*, project_root: Path) -> SpecNextOutput | None:
         _ = project_root
         return output
 
-    monkeypatch.setattr(needs_attention, "_spec_next", _fake)
-
-
-def _seam(
-    *,
-    command: list[str] | None,
-    result: _SpecNextResult | None = None,
-    raises: Exception | None = None,
-    calls: dict[str, object] | None = None,
-) -> SpecNextSeam:
-    """Build an injectable spec-`next` seam with a fake resolver + runner."""
-
-    def _resolve(*, project_root: Path) -> list[str] | None:
-        _ = project_root
-        return command
-
-    def _run(*, argv: list[str]) -> _SpecNextResult:
-        if calls is not None:
-            calls["argv"] = argv
-            calls["run"] = True
-        if raises is not None:
-            raise raises
-        assert result is not None
-        return result
-
-    return SpecNextSeam(resolve_command=_resolve, run=_run)
+    monkeypatch.setattr(needs_attention, "spec_next", _fake)
 
 
 def _item(
@@ -612,6 +584,80 @@ def test_build_attention_surfaces_stranded_merged_dispatch(tmp_path, monkeypatch
     assert "janitor-post-merge" in stranded.summary
     assert "reconcile-merged" in stranded.handoff.command
     assert "--item bd-active" in stranded.handoff.command
+
+
+def test_build_attention_surfaces_a_held_item_once_and_never_as_stranded(
+    tmp_path, monkeypatch
+) -> None:
+    """The composed snapshot is the subject here, not any one gather primitive.
+
+    A hold parks an item in the exact shape the stranded lane reads as a leaked
+    claim, so the two facts are decided by one snapshot or they are not decided
+    at all: asserting an intermediate gather result could show the hold row
+    being BUILT while the stranded row it must displace still reached the wire.
+    Reading the ids back from `build_attention` is also what proves the ONE-row
+    clause, because a second producer for the same hold would appear here.
+
+    The unheld sibling carrying identical journal evidence is the control. It
+    still surfaces as stranded, which is what makes the held item's absence from
+    that lane the discriminator's doing rather than the fixture's.
+    """
+    _write_config(tmp_path)
+    _stub_spec_next(monkeypatch, output=None)
+    for item_id in ("bd-held", "bd-loose"):
+        _seed(_item(id_=item_id, status="active"))
+        _write_journal_record(
+            tmp_path,
+            record={
+                "stage": "outcome",
+                "outcome": {
+                    "work_item_id": item_id,
+                    "status": "failed",
+                    "stage": "janitor-post-merge",
+                    "pr_number": 2211,
+                    "merge_sha": "ba9fdafef895",
+                },
+            },
+        )
+    update_work_item_merge_hold(path=_config(), item_id="bd-held", value=True)
+
+    attention = build_attention(
+        project_root=tmp_path,
+        repo_name="repo",
+        include_hygiene=False,
+    )
+
+    ids = [item.id for item in attention]
+    assert ids.count("hygiene:merge-hold:bd-held") == 1
+    assert "host-only:stranded-dispatch:bd-held" not in ids
+    assert "host-only:stranded-dispatch:bd-loose" in ids
+    assert "hygiene:merge-hold:bd-loose" not in ids
+    [held] = [item for item in attention if item.id == "hygiene:merge-hold:bd-held"]
+    assert held.kind == "hygiene"
+    assert "pull request #2211" in held.summary
+    assert held.handoff.action_id == "set-merge-hold:bd-held:off"
+    assert "--action set-merge-hold:bd-held:off" in held.handoff.command
+
+
+def test_build_attention_retracts_the_merge_hold_row_when_the_hold_is_released(
+    tmp_path, monkeypatch
+) -> None:
+    """The row STANDS until release, and then it is gone — no clock, no dwell.
+
+    Composed twice over the same tenant, so the retraction is observed as a
+    state change rather than inferred from a second fixture that was never held.
+    """
+    _write_config(tmp_path)
+    _stub_spec_next(monkeypatch, output=None)
+    _seed(_item(id_="bd-held", status="active"))
+    update_work_item_merge_hold(path=_config(), item_id="bd-held", value=True)
+    while_held = build_attention(project_root=tmp_path, repo_name="repo", include_hygiene=False)
+
+    update_work_item_merge_hold(path=_config(), item_id="bd-held", value=False)
+    after_release = build_attention(project_root=tmp_path, repo_name="repo", include_hygiene=False)
+
+    assert "hygiene:merge-hold:bd-held" in [item.id for item in while_held]
+    assert "hygiene:merge-hold:bd-held" not in [item.id for item in after_release]
 
 
 def test_build_attention_composes_capacity_residue_from_accounting(tmp_path, monkeypatch) -> None:
@@ -1073,93 +1119,6 @@ def test_main_markdown_output(
     captured = capsys.readouterr()
     assert rc == 0
     assert captured.out.startswith("# Needs Attention\n")
-
-
-# --------------------------------------------------------------------------
-# `_spec_next` — invoke CORE spec-`next` cross-plane via an injected seam,
-# adapt the top candidate, and fail soft (never emit a pointer).
-# --------------------------------------------------------------------------
-
-
-def test_spec_next_inlines_top_actionable_candidate(tmp_path) -> None:
-    stdout = json.dumps(
-        {
-            "candidates": [
-                {
-                    "action": "revise",
-                    "reason": "proposed change pending; queue depth 1",
-                    "urgency": "high",
-                    "target": "proposed_changes/owned-heading-coverage-todos.md",
-                },
-                {"action": "prune-history", "reason": "many versions", "urgency": "low"},
-            ]
-        }
-    )
-    calls: dict[str, object] = {}
-    seam = _seam(
-        command=["python3", "/core/scripts/bin/next.py"],
-        result=_SpecNextResult(stdout=stdout, returncode=0),
-        calls=calls,
-    )
-
-    output = _spec_next(project_root=tmp_path, seam=seam)
-
-    assert output is not None
-    assert output.op == "revise"
-    assert output.spec_target == "proposed_changes/owned-heading-coverage-todos.md"
-    assert output.summary == "proposed change pending; queue depth 1"
-    assert output.urgency == "high"
-    assert output.command == (
-        f"codex exec livespec:revise --project-root {shlex.quote(str(tmp_path))} < /dev/null"
-    )
-    assert calls["argv"] == [
-        "python3",
-        "/core/scripts/bin/next.py",
-        "--project-root",
-        str(tmp_path),
-    ]
-
-
-def test_spec_next_returns_none_when_candidates_empty(tmp_path) -> None:
-    seam = _seam(
-        command=["python3", "/core/next.py"],
-        result=_SpecNextResult(stdout=json.dumps({"candidates": []}), returncode=0),
-    )
-    assert _spec_next(project_root=tmp_path, seam=seam) is None
-
-
-def test_spec_next_returns_none_when_seam_run_raises(tmp_path) -> None:
-    import subprocess
-
-    seam = _seam(
-        command=["python3", "/core/next.py"],
-        raises=subprocess.SubprocessError("boom"),
-    )
-    assert _spec_next(project_root=tmp_path, seam=seam) is None
-
-
-def test_spec_next_returns_none_when_cli_exits_nonzero(tmp_path) -> None:
-    seam = _seam(
-        command=["python3", "/core/next.py"],
-        result=_SpecNextResult(stdout="", returncode=2),
-    )
-    assert _spec_next(project_root=tmp_path, seam=seam) is None
-
-
-def test_spec_next_returns_none_when_stdout_unparseable(tmp_path) -> None:
-    seam = _seam(
-        command=["python3", "/core/next.py"],
-        result=_SpecNextResult(stdout="not json at all", returncode=0),
-    )
-    assert _spec_next(project_root=tmp_path, seam=seam) is None
-
-
-def test_spec_next_does_not_run_cli_when_unresolvable(tmp_path) -> None:
-    calls: dict[str, object] = {}
-    seam = _seam(command=None, result=_SpecNextResult(stdout="{}", returncode=0), calls=calls)
-
-    assert _spec_next(project_root=tmp_path, seam=seam) is None
-    assert "run" not in calls
 
 
 def test_build_attention_composes_the_release_adoption_lane(

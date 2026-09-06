@@ -200,7 +200,7 @@ def _snapshot(
     provisioned: Path,
     marketplace_record: Path,
 ) -> list[AttentionItem]:
-    monkeypatch.setattr(needs_attention, "_spec_next", _no_spec_next)
+    monkeypatch.setattr(needs_attention, "spec_next", _no_spec_next)
     monkeypatch.setattr(
         needs_attention,
         "default_currency_staleness_seams",

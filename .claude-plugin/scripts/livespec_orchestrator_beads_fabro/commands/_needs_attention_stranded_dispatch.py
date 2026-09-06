@@ -62,16 +62,26 @@ def stranded_dispatch_items(
     items: list[WorkItem],
     live_lock_lookup: _LiveLockLookup,
     watchable_run_lookup: _WatchableRunLookup | None = None,
+    held_work_item_ids: frozenset[str] = frozenset(),
 ) -> list[AttentionItem]:
-    watchable_lookup = (
-        watchable_run_lookup if watchable_run_lookup is not None else _no_watchable_run
-    )
     # `rework:pending` is a DISCRIMINATOR here, not an incidental filter: a
     # marked item is `active` with no live lock by design, which is the exact
     # shape this surface reads as stranded. The marker partitions the two
     # populations cleanly, so a marked item is never reported as stranded.
+    #
+    # The `merge-hold:` label joins it as the second discriminator, for the same
+    # reason and by the same ratified clause: a held item is `active` with no
+    # live lock BY CONSTRUCTION — its run terminated green at the pr stage and
+    # its claim was reclaimed — so without this it would read as the exact
+    # population this surface exists to find. Its own row is
+    # `hygiene:merge-hold:<id>`, which is the only one it produces for the hold.
+    watchable_lookup = (
+        watchable_run_lookup if watchable_run_lookup is not None else _no_watchable_run
+    )
     active_items = {
-        item.id: item for item in items if item.status == "active" and not item.rework_pending
+        item.id: item
+        for item in items
+        if item.status == "active" and not item.rework_pending and item.id not in held_work_item_ids
     }
     stranded = _stranded_dispatches(project_root=project_root, active_item_ids=active_items.keys())
     attention: list[AttentionItem] = []

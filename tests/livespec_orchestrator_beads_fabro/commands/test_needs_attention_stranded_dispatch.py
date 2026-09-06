@@ -97,6 +97,31 @@ def test_a_rework_pending_item_is_never_reported_as_stranded(tmp_path: Path) -> 
     assert [item.id for item in attention] == ["host-only:stranded-dispatch:bd-active"]
 
 
+def test_a_merge_held_item_is_never_reported_as_stranded(tmp_path: Path) -> None:
+    """The `merge-hold:` label is the second discriminator, beside `rework:pending`.
+
+    A held item is `active` with no live lock BY CONSTRUCTION: its run terminated
+    green at the pr stage and its claim was reclaimed, which is exactly the shape
+    this surface reads as a leaked claim. The unheld sibling carrying the
+    identical journal evidence is the control — it still surfaces, so the held
+    item's absence is the discriminator's doing and not the fixture's.
+    """
+    _write_journal_lines(
+        tmp_path,
+        records=[_outcome(), _outcome(work_item_id="bd-held")],
+    )
+
+    attention = stranded_dispatch_items(
+        project_root=tmp_path,
+        repo="repo",
+        items=[_item(id_="bd-active"), _item(id_="bd-held")],
+        live_lock_lookup=_no_live_lock,
+        held_work_item_ids=frozenset({"bd-held"}),
+    )
+
+    assert [item.id for item in attention] == ["host-only:stranded-dispatch:bd-active"]
+
+
 def test_stranded_dispatch_items_render_release_handoff_for_pre_branch_death(
     tmp_path: Path,
 ) -> None:

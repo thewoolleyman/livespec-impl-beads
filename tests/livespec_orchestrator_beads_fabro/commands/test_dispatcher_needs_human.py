@@ -151,7 +151,7 @@ def test_dispatcher_pass_leaves_blocked_needs_human_item_blocked(
         _ = project_root
         return None
 
-    monkeypatch.setattr(needs_attention, "_spec_next", _no_spec_next)
+    monkeypatch.setattr(needs_attention, "spec_next", _no_spec_next)
     if hasattr(loop_selection, "resolve_or_bounce_needs_human"):
         return
 
@@ -188,7 +188,7 @@ def test_needs_human_attention_is_json_queryable(
         _ = project_root
         return None
 
-    monkeypatch.setattr(needs_attention, "_spec_next", _no_spec_next)
+    monkeypatch.setattr(needs_attention, "spec_next", _no_spec_next)
 
     payload = json.loads(
         needs_attention.render_json(
@@ -246,7 +246,7 @@ def test_post_run_dispositions_persists_blocked_outcome_as_terminal_needs_human(
         _ = project_root
         return None
 
-    monkeypatch.setattr(needs_attention, "_spec_next", _no_spec_next)
+    monkeypatch.setattr(needs_attention, "spec_next", _no_spec_next)
 
     post_run_dispositions(
         args=argparse.Namespace(close_on_merge=True),
@@ -292,7 +292,7 @@ def _needs_attention_ids(*, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
         _ = project_root
         return None
 
-    monkeypatch.setattr(needs_attention, "_spec_next", _no_spec_next)
+    monkeypatch.setattr(needs_attention, "spec_next", _no_spec_next)
     return [
         entry.id
         for entry in needs_attention.build_attention(

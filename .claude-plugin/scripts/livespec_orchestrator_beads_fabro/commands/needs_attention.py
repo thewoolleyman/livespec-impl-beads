@@ -4,15 +4,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from pathlib import Path
-from typing import Protocol
 
 from livespec_runtime.attention_item import AttentionItem
 from livespec_runtime.hygiene_scan import scan_hygiene
-from livespec_runtime.needs_attention import SpecNextOutput
 
+from livespec_orchestrator_beads_fabro._store_merge_hold import read_merge_held_work_item_ids
 from livespec_orchestrator_beads_fabro.commands._config import resolve_store_config
 from livespec_orchestrator_beads_fabro.commands._cross_repo import load_manifest
 from livespec_orchestrator_beads_fabro.commands._needs_attention_capacity import (
@@ -22,10 +20,6 @@ from livespec_orchestrator_beads_fabro.commands._needs_attention_conformance imp
     ConformanceContext,
     composed_conformant,
     conformant_items,
-)
-from livespec_orchestrator_beads_fabro.commands._needs_attention_core_roots import (
-    default_core_root_bases,
-    resolve_spec_next_command,
 )
 from livespec_orchestrator_beads_fabro.commands._needs_attention_currency_staleness import (
     currency_staleness_items,
@@ -39,6 +33,9 @@ from livespec_orchestrator_beads_fabro.commands._needs_attention_envelope import
 )
 from livespec_orchestrator_beads_fabro.commands._needs_attention_handoffs import (
     plans,
+)
+from livespec_orchestrator_beads_fabro.commands._needs_attention_merge_hold import (
+    merge_hold_items,
 )
 from livespec_orchestrator_beads_fabro.commands._needs_attention_orphan_runs import (
     orphan_run_items,
@@ -55,8 +52,8 @@ from livespec_orchestrator_beads_fabro.commands._needs_attention_release_adoptio
     default_release_adoption_bases,
     release_adoption_items,
 )
-from livespec_orchestrator_beads_fabro.commands._needs_attention_spec_next_adapt import (
-    adapt_top_candidate,
+from livespec_orchestrator_beads_fabro.commands._needs_attention_spec_next_run import (
+    spec_next,
 )
 from livespec_orchestrator_beads_fabro.commands._needs_attention_untriaged_backlog import (
     untriaged_backlog_items,
@@ -74,7 +71,6 @@ from livespec_orchestrator_beads_fabro.commands._needs_attention_work_items impo
 from livespec_orchestrator_beads_fabro.commands._sibling_status_lookup import (
     make_sibling_status_lookup,
 )
-from livespec_orchestrator_beads_fabro.effects import AttemptFailure, attempt
 from livespec_orchestrator_beads_fabro.io import write_stdout
 from livespec_orchestrator_beads_fabro.store import (
     materialize_work_items,
@@ -131,6 +127,12 @@ def build_attention(
     # human-valve lanes agree with the dispatcher on closed-sibling items
     # (qiqz6b Part B).
     sibling_status_lookup = make_sibling_status_lookup(project_root=project_root)
+    # One narrow raw read of the `merge-hold:` label for the whole pass, threaded
+    # into BOTH surfaces the ratified hold binds: the row that reports a hold and
+    # the stranded lane that must not. Two independent reads would be two
+    # authorities on one question, and disagreeing would report a held item as
+    # stranded AND as held in the same snapshot.
+    held_work_item_ids = read_merge_held_work_item_ids(path=config)
     hygiene_scan = (
         scan_hygiene(repo_path=project_root, repo_name=repo_name) if include_hygiene else []
     )
@@ -141,7 +143,7 @@ def build_attention(
     context = ConformanceContext(project_root=project_root, repo=repo_name)
     return composed_conformant(
         context=context,
-        spec_next=_spec_next(project_root=project_root),
+        spec_next=spec_next(project_root=project_root),
         impl_next=impl_next(
             project_root=project_root,
             items=materialized,
@@ -164,7 +166,21 @@ def build_attention(
                 project_root=project_root, repo=repo_name, items=materialized
             )
             + host_only_items(project_root=project_root, repo=repo_name, items=materialized)
-            + stranded_dispatch_items(project_root=project_root, repo=repo_name, items=materialized)
+            + stranded_dispatch_items(
+                project_root=project_root,
+                repo=repo_name,
+                items=materialized,
+                held_work_item_ids=held_work_item_ids,
+            )
+            # A hold parks an item in exactly the shape every other lane here is
+            # taught to ignore, so this row is the one thing standing between a
+            # deliberate merge window and an invisible one.
+            + merge_hold_items(
+                project_root=project_root,
+                repo=repo_name,
+                items=materialized,
+                held_work_item_ids=held_work_item_ids,
+            )
             + capacity_items(project_root=project_root, repo=repo_name, items=materialized)
             # A run the ledger disowns holds a factory scheduler slot, and no
             # surface keyed on THIS repo's records can see it: the projection is
@@ -245,106 +261,3 @@ def render_markdown(*, attention: list[AttentionItem]) -> str:
     only ever cost itself, and an unknown `kind` renders generically.
     """
     return render_envelope_markdown(envelope=render_json(attention=attention))
-
-
-_SPEC_NEXT_TIMEOUT_SECONDS = 60
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class _SpecNextResult:
-    """Captured stdout + exit code from the spec-`next` CLI runner seam."""
-
-    stdout: str
-    returncode: int
-
-
-class _ResolveSpecNextCommand(Protocol):
-    """Seam: resolve the runnable spec-`next` argv, or None when unresolvable."""
-
-    def __call__(self, *, project_root: Path) -> list[str] | None: ...
-
-
-class _RunSpecNextCli(Protocol):
-    """Seam: run a resolved argv and capture its stdout + exit code."""
-
-    def __call__(self, *, argv: list[str]) -> _SpecNextResult: ...
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class SpecNextSeam:
-    """The injectable side-effecting seams of spec-`next` (defaulted to production).
-
-    Mirrors `livespec_runtime.github_auth.mint.MintSeams`: a frozen bundle of
-    the impure callables, defaulted to the real ones and overridden in unit
-    tests so the adapt / fail-soft logic is covered without a live CORE
-    checkout. The production defaults are integration-covered by the live
-    `needs-attention` exercise, not by the hermetic unit suite.
-    """
-
-    resolve_command: _ResolveSpecNextCommand
-    run: _RunSpecNextCli
-
-
-def _default_resolve_command(*, project_root: Path) -> list[str] | None:  # pragma: no cover
-    """The production `resolve_command` seam: resolve over the real HOME bases."""
-    return resolve_spec_next_command(project_root=project_root, bases=default_core_root_bases())
-
-
-def _run_spec_next_cli(*, argv: list[str]) -> _SpecNextResult:  # pragma: no cover
-    """Production `run` seam: shell out to CORE's spec-`next` CLI.
-
-    Mirrors `_beads_client._invoke` — the whole body is `# pragma: no cover`
-    (integration-covered): it cannot run hermetically without a live CORE
-    checkout. Fail-soft — any OS / subprocess error becomes a non-zero result.
-    """
-    completed = attempt(
-        action=lambda: subprocess.run(  # noqa: S603
-            argv,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=_SPEC_NEXT_TIMEOUT_SECONDS,
-        ),
-        exceptions=(OSError, subprocess.SubprocessError),
-    )
-    if isinstance(completed, AttemptFailure):
-        return _SpecNextResult(stdout="", returncode=1)
-    return _SpecNextResult(stdout=completed.stdout, returncode=completed.returncode)
-
-
-DEFAULT_SPEC_NEXT_SEAM = SpecNextSeam(
-    resolve_command=_default_resolve_command,
-    run=_run_spec_next_cli,
-)
-
-
-def _spec_next(
-    *,
-    project_root: Path,
-    seam: SpecNextSeam = DEFAULT_SPEC_NEXT_SEAM,
-) -> SpecNextOutput | None:
-    """Invoke CORE's spec-`next` CLI cross-plane and adapt its top candidate.
-
-    Fail-soft by design: when CORE is unresolvable, the runner raises / exits
-    non-zero, its stdout is unparseable, or the ranking is empty / only `none`,
-    return None so `compose_needs_attention` drops the spec item entirely
-    rather than emitting a useless "go run it yourself" pointer. `seam` is
-    injectable (mirroring `MintSeams`) so unit tests exercise the adapt /
-    fail-soft logic without a live CORE checkout.
-    """
-    result = attempt(
-        action=lambda: _run_resolved_spec_next(seam=seam, project_root=project_root),
-        exceptions=(OSError, subprocess.SubprocessError),
-    )
-    if isinstance(result, AttemptFailure) or result is None:
-        return None
-    if result.returncode != 0:
-        return None
-    return adapt_top_candidate(stdout=result.stdout, project_root=project_root)
-
-
-def _run_resolved_spec_next(*, seam: SpecNextSeam, project_root: Path) -> _SpecNextResult | None:
-    command = seam.resolve_command(project_root=project_root)
-    if command is None:
-        return None
-    return seam.run(argv=[*command, "--project-root", str(project_root)])
