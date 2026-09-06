@@ -454,6 +454,103 @@ def test_archive_rejects_self_review_and_incomplete_coverage_evidence(tmp_path: 
     assert not (tmp_path / "plan" / "archive").exists()
 
 
+def test_archive_refuses_while_a_file_outside_plan_reads_the_thread_by_path(
+    tmp_path: Path,
+) -> None:
+    reset_fake_singleton()
+    plan = importlib.import_module("livespec_orchestrator_beads_fabro.commands.plan")
+    created = plan.create_thread(
+        project_root=tmp_path,
+        config=_config(),
+        slug="archive-thread",
+        title="Archive thread",
+        research_filename="initial.md",
+        research_text="research\n",
+        now="2026-08-11T00:00:00Z",
+    )
+    _fake().create_issue(draft=_draft(issue_id="bd-ib-child", parent_id=created["epic_id"]))
+    _fake().close_issue(issue_id="bd-ib-child", reason="completed")
+    plan.record_completeness_review_evidence(
+        config=_config(),
+        epic_id=created["epic_id"],
+        evidence_id="review-evidence-1",
+        reviewer_identity="fresh-independent-reviewer",
+        separate_reviewer=True,
+        attests_complete_requirement_coverage=True,
+        body="All research requirements and deferrals have ledger carriers.",
+        now="2026-08-11T02:00:00Z",
+    )
+    probe = tmp_path / "plan" / "archive-thread" / "rehearsal" / "probe.py"
+    probe.parent.mkdir(parents=True)
+    _ = probe.write_text("raise SystemExit\n", encoding="utf-8")
+    reader = tmp_path / "tests" / "test_rehearsal.py"
+    reader.parent.mkdir(parents=True)
+    _ = reader.write_text(
+        'PROBE = ROOT / "plan" / "archive-thread" / "rehearsal" / "probe.py"\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(plan.PlanArchiveRefusedError) as exc:
+        plan.archive_thread(
+            project_root=tmp_path,
+            config=_config(),
+            slug="archive-thread",
+            epic_id=created["epic_id"],
+            completeness_review_comment_id="review-evidence-1",
+        )
+
+    assert "files outside plan/ reference plan/archive-thread/" in str(exc.value)
+    assert "tests/test_rehearsal.py" in str(exc.value)
+    assert (tmp_path / "plan" / "archive-thread").is_dir()
+    assert not (tmp_path / "plan" / "archive").exists()
+    assert _fake().show_issue(issue_id=created["epic_id"])["status"] != "closed"
+
+
+def test_archive_with_no_outside_references_closes_and_stamps_the_epic_once(
+    tmp_path: Path,
+) -> None:
+    reset_fake_singleton()
+    plan = importlib.import_module("livespec_orchestrator_beads_fabro.commands.plan")
+    created = plan.create_thread(
+        project_root=tmp_path,
+        config=_config(),
+        slug="archive-thread",
+        title="Archive thread",
+        research_filename="initial.md",
+        research_text="research\n",
+        now="2026-08-11T00:00:00Z",
+    )
+    _fake().create_issue(draft=_draft(issue_id="bd-ib-child", parent_id=created["epic_id"]))
+    _fake().close_issue(issue_id="bd-ib-child", reason="completed")
+    plan.record_completeness_review_evidence(
+        config=_config(),
+        epic_id=created["epic_id"],
+        evidence_id="review-evidence-1",
+        reviewer_identity="fresh-independent-reviewer",
+        separate_reviewer=True,
+        attests_complete_requirement_coverage=True,
+        body="All research requirements and deferrals have ledger carriers.",
+        now="2026-08-11T02:00:00Z",
+    )
+    unrelated = tmp_path / "tests" / "test_unrelated.py"
+    unrelated.parent.mkdir(parents=True)
+    _ = unrelated.write_text('LABEL = "origin:archive-thread"\n', encoding="utf-8")
+
+    result = plan.archive_thread(
+        project_root=tmp_path,
+        config=_config(),
+        slug="archive-thread",
+        epic_id=created["epic_id"],
+        completeness_review_comment_id="review-evidence-1",
+    )
+
+    assert result["archive_path"] == "plan/archive/archive-thread"
+    assert not (tmp_path / "plan" / "archive-thread").exists()
+    assert _fake().show_issue(issue_id=created["epic_id"])["status"] == "closed"
+    entries = plan.read_timeline(config=_config(), epic_id=created["epic_id"])
+    assert [entry.author for entry in entries].count("plan-archive") == 1
+
+
 def test_archive_moves_thread_and_closes_epic_after_two_gates(tmp_path: Path) -> None:
     reset_fake_singleton()
     plan = importlib.import_module("livespec_orchestrator_beads_fabro.commands.plan")
