@@ -790,6 +790,41 @@ be repaired after the fact.
 `bd-ib-ai9a` is the live P1 carrying the mechanism and Fabro-side fix, and
 `bd-ib-pgne` is the orchestrator-side pre-flight refusal.
 
+**A long-lived session dispatches through the plugin build it STARTED with, not
+the build its repository resolves — and the failure reads as a factory outage.**
+A Claude Code session binds `CLAUDE_PLUGIN_ROOT` once, at start. `claude plugin
+update` and the SessionStart hook move the registered install underneath it,
+and nothing re-points the running session except a restart or a human-typed
+`/reload-plugins` (`bd-ib-97v4`: the update remedy cannot move a running
+session). Measured 2026-09-06: the `overseerd` session, started 2026-09-03,
+dispatched `overseer-qt3wvu.1` through cache build `d709f27ac3c1` (v0.124.1,
+2026-08-31) — the one installed build that templates the sandbox prepare steps
+(`39526e5c`) but predates the host-side substitution fix (`79066c79`,
+`bd-ib-8atx`, released v0.124.3 on 2026-09-04) — while livespec-overseer's
+registered install was already v0.129.1. The run died at setup command index 1
+on a literal template opener, exit 127, and the session recorded "the whole
+livespec-overseer lane is down" on the ledger; hp had completed four
+livespec-overseer runs that same day. The discriminator is the SUDO JOURNAL,
+which records the full `drive.py` / `dispatcher.py` path and therefore NAMES
+the build (journal timestamps are local, +02:00 against a run's UTC):
+
+```bash
+journalctl --since "<t1>" --until "<t2>" -o short-iso _COMM=sudo | grep -E 'drive.py|dispatcher.py'
+git merge-base --is-ancestor <fix-sha> <cache-hash> && echo fixed || echo NOT-fixed
+```
+
+The dispatcher now journals a `dispatcher-registered-install-lag` warning when
+the executing build is older than the target repository's registered install
+(`_dispatcher_registered_install_currency.py`). It is surfaced, never enforced,
+per the ratified currency contract, so READ the dispatcher stderr the `drive`
+result carries before concluding anything about the factory. The remedy is per
+session: restart it, or invoke the registered build's `scripts/bin/` entry
+point by explicit path. To REFUSE a known-broken build range outright, commit a
+`dispatcher.minimum_release` floor in the target repository's `.livespec.jsonc`.
+Second-order trap, same incident: the failure write-up quoted the literal
+opener into the item's own comment, which is exactly the poisoning case above —
+file such a failure with the U+27E6 / U+27E7 substitution, never verbatim.
+
 ## Host Fabro server (self-hosted dark factory)
 
 The Dispatcher's host-direct path (`dispatcher.py loop` run on the host, NOT in

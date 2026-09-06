@@ -110,7 +110,32 @@ def _provisioned_build(
     """
     build = _manifest(root=tmp_path / "cache", name=name, version=version)
     monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(build))
+    _register_install(tmp_path=tmp_path, monkeypatch=monkeypatch, build=build)
     return build
+
+
+def _register_install(*, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, build: Path) -> None:
+    """Register `build` as what this test's repo resolves, in a hermetic install registry.
+
+    `prepare()` consults the host install registry for the registered-install
+    currency finding (bd-ib-h3mm); pointing it at a tmp registry keeps these
+    scenarios off the real HOME and lets a test choose which build the repo
+    resolves relative to the one the session executes.
+    """
+    record = tmp_path / "installed_plugins.json"
+    _ = record.write_text(
+        json.dumps(
+            {
+                "plugins": {
+                    f"{_PLUGIN_NAME}@{_PLUGIN_NAME}": [
+                        {"projectPath": str(tmp_path / "repo"), "installPath": str(build)}
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(_dispatcher_loop_selection, "default_install_record", lambda: record)
 
 
 def _repo(*, tmp_path: Path, minimum_release: str | None = None) -> Path:
@@ -277,3 +302,35 @@ def test_scenario95_unobservable_currency_is_recorded_undetermined_and_does_not_
     # An unestablishable identity short-circuits BEFORE any network probe, so
     # the deadlock case cannot be re-entered through a slow or absent remote.
     assert gate.latest_release_ref_argv() not in runner.calls
+
+
+def test_scenario95_a_session_executing_an_older_build_than_its_registered_install_is_surfaced(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The 2026-09-06 stale-session case (bd-ib-h3mm): surfaced with its own stage, never refused.
+
+    The session executes the build it bound at start while the repository's
+    registered install has since moved on; both the ambient release lag and the
+    registered-install lag are journaled non-blocking, and admission proceeds.
+    """
+    _ = _provisioned_build(
+        tmp_path=tmp_path, monkeypatch=monkeypatch, name=_BUILD_ID, version="0.95.0"
+    )
+    registered = _manifest(root=tmp_path / "registered", name="6edebb0b0c50", version="0.97.2")
+    _register_install(tmp_path=tmp_path, monkeypatch=monkeypatch, build=registered)
+    _install_runner(monkeypatch=monkeypatch, runner=_release_head_runner())
+    repo = _repo(tmp_path=tmp_path)
+
+    prepared, journal = _prepare(repo=repo)
+
+    assert prepared is not None
+    records = _records(journal=journal)
+    assert [record["stage"] for record in records] == [
+        "dispatcher-staleness-warning",
+        "dispatcher-registered-install-lag",
+    ]
+    assert all(record["blocking"] is False for record in records)
+    detail = str(records[1]["detail"])
+    assert "executes dispatcher plugin build 0.95.0" in detail
+    assert "resolves build 0.97.2" in detail
+    assert "Restart the session" in detail

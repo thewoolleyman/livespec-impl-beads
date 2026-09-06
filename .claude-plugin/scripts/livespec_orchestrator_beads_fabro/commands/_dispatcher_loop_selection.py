@@ -41,6 +41,9 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_preserve_reference i
 from livespec_orchestrator_beads_fabro.commands._dispatcher_provider_exhaustion import (
     record_provider_exhaustion_if_observed,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_registered_install_currency import (
+    default_install_record,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_staleness_gate import (
     apply_dispatcher_staleness_gate,
 )
@@ -89,6 +92,10 @@ def prepare(
         plugin_root=plugin_root(),
         journal=journal,
         cwd=repo,
+        # The host install registry: a session executing a build older than
+        # what `repo` resolves is surfaced here (never refused), with a
+        # restart remedy -- a plugin update cannot move a running session.
+        install_record=default_install_record(),
     )
     if staleness_exit is not None:
         return None

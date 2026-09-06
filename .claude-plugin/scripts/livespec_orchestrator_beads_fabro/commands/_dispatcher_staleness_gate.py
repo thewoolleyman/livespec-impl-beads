@@ -13,6 +13,13 @@ v089 contract.
 The ONE blocking currency form is the deliberate operator floor in
 `_dispatcher_minimum_release_floor.py`.
 
+A SECOND ambient finding, equally non-blocking, compares the executing build
+against the build the dispatch target's install registry records
+(`_dispatcher_registered_install_currency.py`). A build behind the RELEASE may
+be an operator's deliberate choice; a build behind the REGISTERED INSTALL can
+only be a session that bound its plugin root before the last update, so that
+finding names a restart rather than a plugin update as its remedy.
+
 Currency that cannot be OBSERVED is recorded as UNDETERMINED under its own
 journal stage and proceeds. That stage is what keeps "we could not tell" from
 being read back as "the build is current" — the contract requires the two to be
@@ -36,6 +43,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_minimum_release_floo
     MinimumReleaseVerdict,
     minimum_release_verdict,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_registered_install_currency import (
+    REGISTERED_INSTALL_LAG_STAGE,
+    registered_install_verdict,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_unreleased_master import (
     unreleased_dispatcher_commits_argv,
     unreleased_master_detail,
@@ -45,6 +56,7 @@ from livespec_orchestrator_beads_fabro.io import write_stderr
 __all__: list[str] = [
     "CURRENCY_UNDETERMINED_STAGE",
     "MINIMUM_RELEASE_REFUSED_STAGE",
+    "REGISTERED_INSTALL_LAG_STAGE",
     "STALENESS_WARNING_STAGE",
     "DispatcherStalenessDecision",
     "DispatcherStalenessMessage",
@@ -121,6 +133,7 @@ def dispatcher_staleness_decision(
     plugin_root: Path,
     runner: CommandRunner,
     cwd: Path | None = None,
+    install_record: Path | None = None,
 ) -> DispatcherStalenessDecision:
     """Refuse ONLY below a committed floor; surface every other currency finding.
 
@@ -131,19 +144,60 @@ def dispatcher_staleness_decision(
     cannot be established must never block dispatch).
 
     `cwd` is where the committed `dispatcher.minimum_release` floor is read
-    from — the dispatch target repo, not the plugin root.
+    from — the dispatch target repo, not the plugin root — and it is the
+    repository whose registered install `install_record` is consulted for.
+    With no `install_record` the registered-install comparison is skipped: a
+    caller that does not name the registry is not asking that question.
     """
     if _git_checkout_head(plugin_root=plugin_root, runner=runner) is not None:
         return DispatcherStalenessDecision(refusal=None, warnings=())
-    floor = minimum_release_verdict(
-        plugin_root=plugin_root,
-        cwd=cwd if cwd is not None else Path.cwd(),
+    target = cwd if cwd is not None else Path.cwd()
+    decision = _release_currency_decision(plugin_root=plugin_root, runner=runner, cwd=target)
+    if install_record is None or decision.refusal is not None:
+        return decision
+    return DispatcherStalenessDecision(
+        refusal=None,
+        warnings=decision.warnings
+        + _registered_install_warnings(
+            plugin_root=plugin_root, repo=target, install_record=install_record
+        ),
     )
+
+
+def _release_currency_decision(
+    *,
+    plugin_root: Path,
+    runner: CommandRunner,
+    cwd: Path,
+) -> DispatcherStalenessDecision:
+    """The floor verdict when one is committed, else the ambient release comparison."""
+    floor = minimum_release_verdict(plugin_root=plugin_root, cwd=cwd)
     if floor is not None:
         decided = _floor_decision(floor=floor)
         if decided is not None:
             return decided
     return _ambient_currency_decision(plugin_root=plugin_root, runner=runner)
+
+
+def _registered_install_warnings(
+    *,
+    plugin_root: Path,
+    repo: Path,
+    install_record: Path,
+) -> tuple[DispatcherStalenessMessage, ...]:
+    """Surface a session executing a build older than the repo's registered install."""
+    verdict = registered_install_verdict(
+        plugin_root=plugin_root, repo=repo, install_record=install_record
+    )
+    if verdict.undetermined_detail is not None:
+        return _undetermined(reason=verdict.undetermined_detail).warnings
+    if verdict.lag_detail is not None:
+        return (
+            DispatcherStalenessMessage(
+                detail=verdict.lag_detail, stage=REGISTERED_INSTALL_LAG_STAGE
+            ),
+        )
+    return ()
 
 
 def apply_dispatcher_staleness_gate(
@@ -152,17 +206,20 @@ def apply_dispatcher_staleness_gate(
     journal: _StalenessJournal,
     runner: CommandRunner | None = None,
     cwd: Path | None = None,
+    install_record: Path | None = None,
 ) -> int | None:
     """Emit the currency decision; return an exit code only when dispatch must stop.
 
     The precondition exit code is reachable ONLY through a committed
     `dispatcher.minimum_release` floor. Ambient release-staleness returns `None`
-    here however far behind the executing build is.
+    here however far behind the executing build is, and so does a build behind
+    the repository's registered install.
     """
     decision = dispatcher_staleness_decision(
         plugin_root=plugin_root,
         runner=runner if runner is not None else ShellCommandRunner(),
         cwd=cwd,
+        install_record=install_record,
     )
     for warning in decision.warnings:
         _ = write_stderr(text=f"{warning.detail}\n")
