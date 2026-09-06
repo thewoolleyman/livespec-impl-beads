@@ -92,6 +92,7 @@ from _seam_equivalence_findings import (  # noqa: E402  — sibling private impo
     Finding,
     equivalence_findings,
     non_rendered_occurrences,
+    policy_declaration_findings,
     position_findings,
     referenced_integration_inputs,
     schema_findings,
@@ -225,7 +226,9 @@ def _directory_findings(*, payload: CheckedPayload, rendered: frozenset[str]) ->
             referenced=referenced_integration_inputs(occurrences=occurrences), rendered=rendered
         )
     )
-    findings.extend(scoping_findings(declared=declared_inputs(payload=payload)))
+    declared = declared_inputs(payload=payload)
+    findings.extend(scoping_findings(declared=declared))
+    findings.extend(policy_declaration_findings(declared=declared))
     return findings
 
 

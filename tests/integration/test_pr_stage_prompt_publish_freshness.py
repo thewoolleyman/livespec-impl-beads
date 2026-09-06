@@ -97,6 +97,45 @@ def test_pr_stage_arms_auto_merge_with_the_declared_merge_mode() -> None:
     assert "--squash" not in prompt
 
 
+def test_pr_stage_honors_the_per_item_merge_hold() -> None:
+    """The FIRST seam of the ratified hold, asserted on the prompt the node reads.
+
+    Four obligations, and each fails in its own direction if dropped: the hold
+    is a rendered input rather than a literal or an inference; publishing is
+    unchanged while it stands; nothing is armed; and the absence is VERIFIED
+    rather than assumed, so an auto-merge request that exists anyway is a
+    finding instead of a silent pass.
+    """
+    prompt = _prompt_text()
+    normalized_prompt = " ".join(prompt.split())
+
+    assert "it is `{{ inputs.merge_hold }}`" in prompt
+    assert "the branch is pushed and the pull request is opened while a hold stands" in (
+        normalized_prompt
+    )
+    assert "Arm NOTHING — do not run `gh pr merge` at all, in any form." in normalized_prompt
+    assert "When the hold is `true`: `autoMergeRequest` MUST be null." in normalized_prompt
+    assert "set-merge-hold:<work-item-id>:off" in prompt
+
+
+def test_pr_stage_reports_the_hold_beside_the_pr_number_line() -> None:
+    """`MERGE_HOLD=held` rides the same final reply as `PR_NUMBER=<n>`.
+
+    The two markers are asserted TOGETHER and in order, because the ratified
+    clause is about where the hold is reported: a reader of the reply must be
+    able to tell a deliberately unarmed pull request from an arming that failed,
+    and a `MERGE_HOLD=held` line anywhere else does not give them that.
+    """
+    prompt = _prompt_text()
+    normalized_prompt = " ".join(prompt.split())
+
+    assert prompt.count("MERGE_HOLD=held") == 1
+    assert prompt.index("PR_NUMBER=<n>") < prompt.index("MERGE_HOLD=held")
+    assert "report `MERGE_HOLD=held` on its own line beside that PR-number line" in (
+        normalized_prompt
+    )
+
+
 def test_pr_stage_does_not_authorize_workflow_file_edits() -> None:
     """The workflow path appears only as the remote rejection signature."""
     prompt = _prompt_text()

@@ -2,22 +2,29 @@
 """_seam_equivalence_findings — what a disagreement between the surfaces IS, and its name.
 
 The comparison half of `seam_equivalence`. It owns the three input FAMILIES the
-`[run.inputs]` table carries, and the four ways the integration subset of those
-inputs can fail to say one thing: a position the engine will not render, either
-direction of the token/rendered-input equality, a scoping rot, and a schema-leg
-mismatch. It is deliberately free of filesystem and reporting concerns -- every
-function here takes sets and returns findings -- so the rules can be read and
-tested without a payload on disk.
+`[run.inputs]` table carries, and the four ways those inputs can fail to say one
+thing: a position the engine will not render, either direction of the
+token/rendered-input equality, a scoping rot, and a schema-leg mismatch. It is
+deliberately free of filesystem and reporting concerns -- every function here
+takes sets and returns findings -- so the rules can be read and tested without a
+payload on disk.
 
-SCOPED TO THE INTEGRATION SUBSET. The `[run.inputs]` table also carries the six
-ACP adapter inputs and the two review/cap POLICY inputs
-(`review_fix_visit_cap`, `merge_on_review_cap_outcome`). Those are NOT
-projections of the integration contract -- the adapters ride the plan's ACP
-overlay and the policy pair is per-item policy -- so the equality deliberately
-excludes them. The exclusion is checked rather than assumed: the three name sets
-must be pairwise disjoint, and every input the payload declares must fall in one
-of them, so an input added tomorrow cannot be silently dropped out of the
-comparison by belonging to nothing.
+THREE DISJOINT FAMILIES, AND ONLY THE EQUALITY IS SCOPED TO ONE OF THEM. The
+`[run.inputs]` table carries the integration inputs, the six ACP adapter inputs,
+and the PER-ITEM POLICY inputs -- `review_fix_visit_cap`,
+`merge_on_review_cap_outcome` and `merge_hold`. The ratified
+typed-workflow-inputs clause names all three and draws the line between them
+exactly once: the token/rendered-input EQUALITY ranges over the integration
+inputs alone, because only those are projections of the
+`ResolvedIntegrationContract`, while the RESOLVED-POSITION rule binds every
+declared input whatever family it is in. A policy token in a `timeout` would
+leave the node with no timeout and report nothing, exactly as an integration one
+would; the engine does not know which family a name belongs to.
+
+The scoping is checked rather than assumed: the three name sets must be pairwise
+disjoint, and every input the payload declares must fall in one of them, so an
+input added tomorrow cannot be silently dropped out of every comparison by
+belonging to nothing.
 """
 
 from __future__ import annotations
@@ -45,8 +52,10 @@ __all__: list[str] = [
     "POLICY_INPUT_NAMES",
     "SCHEMA_PROJECTABLE_INPUTS",
     "Finding",
+    "classified_input_names",
     "equivalence_findings",
     "non_rendered_occurrences",
+    "policy_declaration_findings",
     "position_findings",
     "referenced_integration_inputs",
     "schema_findings",
@@ -63,12 +72,25 @@ ADAPTER_INPUT_NAMES: frozenset[str] = frozenset(
     name for candidates in NODE_INPUT_CANDIDATES.values() for name in candidates
 )
 
-# The two review/cap POLICY inputs. Named here because they are per-item policy
-# the Dispatcher renders from the item's own settings, not from the integration
-# contract -- there is no contract object to read them off.
+# The PER-ITEM POLICY inputs. Named here rather than read off an owning module
+# because they are the one family with no object behind them: the Dispatcher
+# renders each from the item's own effective policy -- two cap-shaped settings
+# and the merge hold, which is not a setting at all and has no repository-level
+# default -- so there is nothing to import them from.
 POLICY_INPUT_NAMES: frozenset[str] = frozenset(
-    {"review_fix_visit_cap", "merge_on_review_cap_outcome"}
+    {"review_fix_visit_cap", "merge_on_review_cap_outcome", "merge_hold"}
 )
+
+
+def classified_input_names() -> frozenset[str]:
+    """Every name the three families cover, unioned AT CALL TIME.
+
+    Read live rather than frozen into a module constant so the three families
+    stay the single source of the classification: a test that substitutes one
+    family, and any future change that computes one of them, cannot leave a
+    stale union behind for a second caller to read.
+    """
+    return SCHEMA_PROJECTABLE_INPUTS | ADAPTER_INPUT_NAMES | POLICY_INPUT_NAMES
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -90,21 +112,33 @@ def referenced_integration_inputs(*, occurrences: Iterable[Occurrence]) -> froze
 
 
 def non_rendered_occurrences(*, occurrences: Iterable[Occurrence]) -> list[Occurrence]:
-    """Every integration token sitting where the pinned engine would not expand it.
+    """Every CLASSIFIED token sitting where the pinned engine would not expand it.
+
+    All three families, not just the integration one: the resolved-position rule
+    is about what the ENGINE does with a position, and the engine has never
+    known which family a name belongs to. A policy or adapter token in a typed
+    attribute leaves the node with no value and reports nothing, which is the
+    same silent failure the rule exists to catch.
+
+    An UNCLASSIFIED name is out of scope here, deliberately, and it is not a
+    hole: an input belonging to no family is reported by `scoping_findings` as
+    the scoping rot it is, which is a more useful finding than a position
+    complaint about a name nobody has placed.
 
     Separate from the finding it produces so the matcher control can assert the
     two agree: a predicate that silently stopped selecting would otherwise take
     the finding with it, and the control would confirm the silence.
     """
+    classified = classified_input_names()
     return [
         occurrence
         for occurrence in occurrences
-        if occurrence.name in SCHEMA_PROJECTABLE_INPUTS and not occurrence.rendered
+        if occurrence.name in classified and not occurrence.rendered
     ]
 
 
 def position_findings(*, occurrences: Iterable[Occurrence]) -> list[Finding]:
-    """Every integration token the pinned engine would not expand where it sits."""
+    """Every classified token the pinned engine would not expand where it sits."""
     return [
         Finding(
             kind="non-rendered-position",
@@ -156,7 +190,7 @@ def scoping_findings(*, declared: Mapping[str, str]) -> list[Finding]:
     families = (
         ("schema-projectable", SCHEMA_PROJECTABLE_INPUTS),
         ("acp-adapter", ADAPTER_INPUT_NAMES),
-        ("review-cap-policy", POLICY_INPUT_NAMES),
+        ("per-item-policy", POLICY_INPUT_NAMES),
     )
     findings = [
         Finding(
@@ -167,19 +201,48 @@ def scoping_findings(*, declared: Mapping[str, str]) -> list[Finding]:
         for (left, left_names), (right, right_names) in combinations(families, 2)
         for name in sorted(left_names & right_names)
     ]
-    classified = SCHEMA_PROJECTABLE_INPUTS | ADAPTER_INPUT_NAMES | POLICY_INPUT_NAMES
+    classified = classified_input_names()
     findings.extend(
         Finding(
             kind="unclassified-declared-input",
             subject=name,
             detail=(
                 f"`{name}` is declared by the payload but is neither an integration field, "
-                "an ACP adapter, nor a review/cap policy input"
+                "an ACP adapter, nor a per-item policy input"
             ),
         )
         for name in sorted(set(declared) - classified)
     )
     return findings
+
+
+def policy_declaration_findings(*, declared: Mapping[str, str]) -> list[Finding]:
+    """That THIS payload declares every per-item policy input, the bundle's set entire.
+
+    The integration inputs are INTERSECTED with what a payload declares, so a
+    payload carrying fewer of them is simply sent fewer. The per-item policy
+    inputs are not: the Dispatcher renders all three on every dispatch, because
+    they project the ITEM's effective policy rather than the repository's
+    contract, and fabro REJECTS an `--input` naming an input the run config does
+    not declare. So a payload missing one does not merely disagree with the
+    bundle -- every dispatch through it dies before a node runs.
+
+    This is what holds a registered VARIANT to the bundle's token set for the
+    family the equality cannot speak about, and it is why the ratified merge
+    hold requires the bundle and every variant to declare it.
+    """
+    return [
+        Finding(
+            kind="undeclared-policy-input",
+            subject=name,
+            detail=(
+                f"`{name}` is a per-item policy input the Dispatcher renders on EVERY "
+                "dispatch, but this payload's `[run.inputs]` table does not declare it, "
+                "so fabro would reject the run"
+            ),
+        )
+        for name in sorted(POLICY_INPUT_NAMES - set(declared))
+    ]
 
 
 def schema_findings() -> list[Finding]:

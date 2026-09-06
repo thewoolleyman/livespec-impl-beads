@@ -45,12 +45,20 @@ def append_dispatch_id_record(  # noqa: PLR0913 — kw-only record writer; each 
     workflow_toml: Path,
     workflow_name: str,
     integration: ResolvedIntegrationContract,
+    merge_hold: bool,
 ) -> None:
     # `workflow_name` rides BESIDE `workflow_toml` rather than replacing it:
     # the path says which file won the target-local-then-bundle resolution,
     # the name says which registered variant the operator (or the item's own
     # pin) selected, and neither is recoverable from the other once a target
     # registers more than one directory.
+    #
+    # `merge_hold` is the item's effective per-item merge hold, recorded as the
+    # value the run was RENDERED with rather than re-read from the ledger later.
+    # The label can be set or released at any moment, so a reader asking "did
+    # this dispatch arm auto-merge" cannot answer it from today's labels; the
+    # record and the run agree only because both project the one value the plan
+    # resolved.
     record: dict[str, object] = {
         "stage": "dispatch-id",
         "work_item_id": work_item_id,
@@ -58,6 +66,7 @@ def append_dispatch_id_record(  # noqa: PLR0913 — kw-only record writer; each 
         "started_at_epoch": started_at_epoch,
         "workflow_toml": str(workflow_toml),
         "workflow_name": workflow_name,
+        "merge_hold": merge_hold,
         **integration_contract_journal_record(resolved=integration),
     }
     if identity.dispatch_factory is not None:

@@ -333,7 +333,19 @@ def pr_arm_argv(*, plan: DispatchPlan, number: int) -> list[str]:
     merge` refuses outright. That is deliberate: the alternative is arming a
     merge strategy this repository has already said is not its own, and a
     refusal an operator can read beats a merge they did not choose.
+
+    A HELD ITEM ARMS NOTHING AT ALL, and the empty argv is how that is said —
+    the per-item merge hold of `SPECIFICATION/contracts.md`.
+    It is a different absence from the unresolved-mode one above: that one is a
+    `gh pr merge` invocation the forge refuses, this one is no forge write
+    whatsoever. The two seams that honor the hold read the ONE value the plan
+    resolved -- the sandbox's pr stage reads it as the `merge_hold` workflow
+    input, this argv reads it off the plan -- and neither is authoritative,
+    because a fallback arming here would silently undo a pr stage that
+    correctly armed nothing.
     """
+    if plan.merge_hold:
+        return []
     method = merge_method_flag(resolved=plan.integration)
     return [
         "gh",

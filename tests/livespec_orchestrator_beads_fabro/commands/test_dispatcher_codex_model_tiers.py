@@ -114,6 +114,7 @@ def test_a_plan_without_a_resolution_passes_no_adapter_input(tmp_path: Path) -> 
     assert inputs == (
         "review_fix_visit_cap=4",
         "merge_on_review_cap_outcome=__merge_on_review_cap_disabled__",
+        "merge_hold=false",
     )
 
 

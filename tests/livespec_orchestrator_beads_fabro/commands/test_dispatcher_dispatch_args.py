@@ -165,6 +165,7 @@ def test_the_dispatch_record_carries_workflow_name_beside_workflow_toml(
         workflow_toml=committed,
         workflow_name="codex-first",
         integration=resolve_integration_contract(declaration={}),
+        merge_hold=False,
     )
 
     record = json.loads((tmp_path / "journal.jsonl").read_text(encoding="utf-8").strip())

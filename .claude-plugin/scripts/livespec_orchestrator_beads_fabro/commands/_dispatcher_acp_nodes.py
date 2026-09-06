@@ -50,8 +50,9 @@ __all__: list[str] = [
 ACP_NODES_STAGE = "acp-nodes"
 
 # Every adapter input name any node can ride, so the `[run.inputs]` scan
-# picks up adapter declarations and ignores the non-adapter inputs
-# (`review_fix_visit_cap`, `merge_on_review_cap_outcome`) sharing the table.
+# picks up adapter declarations and ignores the per-item policy inputs
+# (`review_fix_visit_cap`, `merge_on_review_cap_outcome`, `merge_hold`)
+# sharing the table.
 _ADAPTER_INPUT_NAMES: frozenset[str] = frozenset(
     name for candidates in NODE_INPUT_CANDIDATES.values() for name in candidates
 )

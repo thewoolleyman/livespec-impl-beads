@@ -322,17 +322,47 @@ def test_a_node_prompt_body_renders_in_whole(scan: ModuleType, rules: ModuleType
     assert rules.position_findings(occurrences=occurrences) == []
 
 
-def test_an_excluded_input_in_a_non_rendered_position_is_out_of_scope(
+def test_a_policy_input_is_held_to_the_same_resolved_position_rule(
     scan: ModuleType,
     rules: ModuleType,
 ) -> None:
+    """The position rule binds every family; only the EQUALITY is integration-only.
+
+    A policy token in a typed `timeout` leaves the node with no timeout and
+    reports nothing, exactly as an integration one would -- the engine does not
+    know which family a name belongs to. Both policy inputs that are not
+    strings are exercised here, because those are the two the declaration scan
+    could previously not even see.
+    """
+    for name in ("review_fix_visit_cap", "merge_hold"):
+        occurrences = scan.graph_occurrences(
+            text=f'n [ timeout="{{{{ inputs.{name} }}}}" ]', venue="graph"
+        )
+
+        assert [occurrence.name for occurrence in occurrences] == [name]
+        assert [
+            finding.subject for finding in rules.position_findings(occurrences=occurrences)
+        ] == [name]
+
+    # The equality still excludes them: a policy input is no projection of the
+    # integration contract, so neither direction of it has anything to say.
+    held = scan.graph_occurrences(text='n [ acp.command="{{ inputs.merge_hold }}" ]', venue="graph")
+    assert rules.referenced_integration_inputs(occurrences=held) == frozenset()
+
+
+def test_an_unclassified_name_is_reported_by_scoping_rather_than_by_position(
+    scan: ModuleType,
+    rules: ModuleType,
+) -> None:
+    """A name in no family earns the scoping finding, which is the useful one."""
     occurrences = scan.graph_occurrences(
-        text='n [ timeout="{{ inputs.review_fix_visit_cap }}" ]', venue="graph"
+        text='n [ timeout="{{ inputs.some_new_input }}" ]', venue="graph"
     )
 
-    # The scan sees it; the equality does not, because it is a policy input.
-    assert [occurrence.name for occurrence in occurrences] == ["review_fix_visit_cap"]
     assert rules.position_findings(occurrences=occurrences) == []
+    assert [
+        finding.kind for finding in rules.scoping_findings(declared={"some_new_input": ""})
+    ] == ["unclassified-declared-input"]
 
 
 def test_a_token_in_a_non_rendered_graph_position_fails_the_payload(
@@ -369,10 +399,78 @@ def test_the_three_input_families_are_disjoint_and_cover_what_the_payload_declar
     assert frozenset() == rules.SCHEMA_PROJECTABLE_INPUTS & rules.ADAPTER_INPUT_NAMES
     assert frozenset() == rules.SCHEMA_PROJECTABLE_INPUTS & rules.POLICY_INPUT_NAMES
     assert (
-        frozenset({"review_fix_visit_cap", "merge_on_review_cap_outcome"})
+        frozenset({"review_fix_visit_cap", "merge_on_review_cap_outcome", "merge_hold"})
         == rules.POLICY_INPUT_NAMES
     )
+    assert rules.classified_input_names() == (
+        rules.SCHEMA_PROJECTABLE_INPUTS | rules.ADAPTER_INPUT_NAMES | rules.POLICY_INPUT_NAMES
+    )
     assert rules.scoping_findings(declared={}) == []
+
+
+def test_the_bundle_declares_the_merge_hold_and_dropping_it_from_the_family_fails(
+    check: ModuleType,
+    rules: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The classification could have returned a hit on `merge_hold`, and did not.
+
+    A clean report over a name the scan cannot see is worth nothing, and both
+    halves of that are load-bearing here: the bundle's `[run.inputs]` table must
+    DECLARE `merge_hold` with its `false` default, and the declaration scan must
+    actually SEE a bare boolean. The control is the negative one -- narrowing
+    the policy family back to the two inputs that predate the hold turns the
+    same payload into an `unclassified-declared-input` finding naming it.
+    """
+    payload = _seed_repo(repo_root=tmp_path, check=check)
+    declared = check.declared_inputs(payload=check.bundle_payload(repo_root=tmp_path))
+
+    assert declared["merge_hold"] == "false"
+    assert "merge_hold = false" in (payload / "workflow.toml").read_text(encoding="utf-8")
+    assert check.payload_findings(repo_root=tmp_path) == []
+
+    monkeypatch.setattr(
+        rules,
+        "POLICY_INPUT_NAMES",
+        frozenset({"review_fix_visit_cap", "merge_on_review_cap_outcome"}),
+    )
+    findings = check.payload_findings(repo_root=tmp_path)
+
+    assert [(finding.kind, finding.subject) for finding in findings] == [
+        ("unclassified-declared-input", "merge_hold")
+    ]
+
+
+def test_a_registered_variant_that_drops_the_merge_hold_declaration_fails(
+    check: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A variant is held to the bundle's token set, the hold included.
+
+    The bundle beside it still passes, which is what makes the finding about the
+    variant rather than about the repository.
+    """
+    _ = _seed_repo(repo_root=tmp_path, check=check)
+    variant = _copy_bundle(repo_root=tmp_path, declared="wf/held")
+    _register_variants(repo_root=tmp_path, variants={"held": "wf/held"})
+    run_config = variant / "workflow.toml"
+    _ = run_config.write_text(
+        run_config.read_text(encoding="utf-8").replace("\nmerge_hold = false\n", "\n", 1),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    findings = check.payload_findings(repo_root=tmp_path)
+
+    assert [(finding.kind, finding.subject) for finding in findings] == [
+        ("undeclared-policy-input", "merge_hold")
+    ]
+    # The finding names the VARIANT, and the bundle beside it stayed clean —
+    # which is the whole reason a per-directory gate exists.
+    assert findings[0].detail.startswith("wf/held: ")
+    assert check.main() == 1
 
 
 def test_an_input_belonging_to_no_family_is_named(rules: ModuleType) -> None:
@@ -654,9 +752,13 @@ def test_a_registered_variant_that_scans_to_nothing_fails_rather_than_reporting_
     ]
     assert not [failure for failure in failures if f"{_BUNDLE_WHERE}:" in failure]
     # And it is loud in the findings too, every one of them naming the absent
-    # directory: the equality sees a payload referencing nothing at all.
+    # directory: the equality sees a payload referencing nothing at all, and the
+    # policy leg sees a `[run.inputs]` table declaring nothing at all.
     findings = check.payload_findings(repo_root=tmp_path)
-    assert {finding.kind for finding in findings} == {"rendered-input-without-token"}
+    assert {finding.kind for finding in findings} == {
+        "rendered-input-without-token",
+        "undeclared-policy-input",
+    }
     assert all(finding.detail.startswith("variants/absent: ") for finding in findings)
 
 

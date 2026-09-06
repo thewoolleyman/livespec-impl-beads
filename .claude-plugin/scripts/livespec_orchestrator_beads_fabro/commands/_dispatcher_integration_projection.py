@@ -116,7 +116,16 @@ MERGE_METHOD_FLAGS: Mapping[str, str] = {
 # section-scoped regex is sufficient and dependency-free -- the same reasoning
 # `_dispatcher_overlay._toml_section_string` records.
 _RUN_INPUTS_RE = re.compile(r"(?ms)^\[run\.inputs\][ \t]*\r?$(?P<body>.*?)(?=^\[|\Z)")
-_INPUT_ASSIGNMENT_RE = re.compile(r'(?m)^(?P<key>\w+)[ \t]*=[ \t]*"(?P<value>[^"]*)"[ \t]*\r?$')
+# A declaration's default is EITHER a quoted string or a bare TOML scalar. The
+# bare arm matters because two of the three per-item policy inputs are not
+# strings -- the review-fix visit cap is an integer and the merge hold is a
+# boolean -- and a string-only scan cannot see either. That is the "instrument
+# incapable of returning a hit" failure: the seam-equivalence check's obligation
+# to classify EVERY declared input would read clean over inputs it could never
+# have found, and a variant that dropped one of them would pass vacuously.
+_INPUT_ASSIGNMENT_RE = re.compile(
+    r'(?m)^(?P<key>\w+)[ \t]*=[ \t]*(?:"(?P<quoted>[^"]*)"|(?P<bare>[^\s"#][^#\r\n]*?))[ \t]*\r?$'
+)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -209,8 +218,8 @@ def merge_method_flag(*, resolved: ResolvedIntegrationContract) -> str | None:
 def contract_workflow_inputs(*, committed_text: str) -> frozenset[str]:
     """The CONTRACT input names a committed run config declares.
 
-    Filtered to `CONTRACT_INPUT_NAMES` so the adapter inputs and the two
-    policy inputs sharing the `[run.inputs]` table are not mistaken for
+    Filtered to `CONTRACT_INPUT_NAMES` so the adapter inputs and the three
+    per-item policy inputs sharing the `[run.inputs]` table are not mistaken for
     integration points; an absent table declares nothing.
     """
     names = frozenset(CONTRACT_INPUT_NAMES.values())
@@ -224,14 +233,24 @@ def workflow_declared_inputs(*, committed_text: str) -> Mapping[str, str]:
     which adapter inputs exist, and which integration inputs exist. It lives in
     ONE place because two copies of a `[run.inputs]` regex is exactly how the
     two questions would come to disagree about what a payload declares.
+
+    A bare scalar default -- an integer, a boolean -- is reported as the TEXT the
+    payload wrote, because every consumer of this mapping asks about names or
+    compares defaults as written; none of them types the value.
     """
     section = _RUN_INPUTS_RE.search(committed_text)
     if section is None:
         return {}
     return {
-        match.group("key"): match.group("value")
+        match.group("key"): _declared_default(match=match)
         for match in _INPUT_ASSIGNMENT_RE.finditer(section.group("body"))
     }
+
+
+def _declared_default(*, match: re.Match[str]) -> str:
+    """One declaration's default, whichever of the two value arms matched."""
+    quoted = match.group("quoted")
+    return match.group("bare") if quoted is None else quoted
 
 
 def integration_contract_journal_record(

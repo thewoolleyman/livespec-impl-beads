@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, cast
 
 from returns.unsafe import unsafe_perform_io
 
+from livespec_orchestrator_beads_fabro._store_merge_hold import merge_hold_from_labels
 from livespec_orchestrator_beads_fabro.commands._acp_node_layers import AcpNodeResolution
 from livespec_orchestrator_beads_fabro.commands._config import FactoryTarget
 from livespec_orchestrator_beads_fabro.commands._dispatcher_default_branch import (
@@ -133,6 +134,13 @@ def dispatch_plan_for_item(  # noqa: PLR0913 — kw-only plan resolver; each fie
                 DEFAULT_MERGE_ON_REVIEW_CAP
             )
         ),
+        # The merge hold reads straight off the same raw labels, with no
+        # `.livespec.jsonc` leg and no `IOResult` around it, because it has NO
+        # repository-level default to fall through to and no value space of its
+        # own: the `merge-hold:` label's PRESENCE is the effective hold. An
+        # `effective_merge_hold` beside the cap overrides would invent a
+        # precedence the ratified contract deliberately does not have.
+        merge_hold=merge_hold_from_labels(labels=raw_labels),
         # The `fabro run` subprocess ceiling FOLLOWS the resolved graph rather
         # than a constant, so lengthening a node cannot outrun the poller and
         # shortening one is not masked.

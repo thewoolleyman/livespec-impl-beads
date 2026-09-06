@@ -122,6 +122,15 @@ class DispatchPlan:
     janitor_core_ref: str
     review_fix_visit_cap: int
     merge_on_review_cap_outcome: str
+    # This item's effective merge hold — the per-item hold `contracts.md`
+    # ratifies — resolved host-side HERE, at
+    # plan-build time, and journaled with the dispatch record. It rides the plan
+    # for the reason the ACP adapters and the integration contract do: TWO seams
+    # read it -- the `merge_hold` workflow input the sandbox's pr stage reads,
+    # and this host's own auto-merge argv -- and a value re-derived at either
+    # point is how the record and the run come to disagree. Neither seam is
+    # authoritative, so a hold reaching only one of them would not hold.
+    merge_hold: bool = False
     # Every ACP node's adapter, already resolved through the workflow /
     # repository / per-dispatch layers (`_acp_node_layers`). It rides the
     # plan rather than being re-resolved at launch because BOTH launchers
@@ -177,6 +186,9 @@ def build_plan(  # noqa: PLR0913 — kw-only plan resolver; each field is an ind
     committed_workflow_text: str = "",
     review_fix_cap: int = DEFAULT_REVIEW_FIX_CAP,
     merge_on_review_cap: bool = DEFAULT_MERGE_ON_REVIEW_CAP,
+    # The hold has NO repository-level default, so there is no setting to fall
+    # through to: False is the absence of a hold, not a configured value.
+    merge_hold: bool = False,
     fabro_timeout_seconds: float = DEFAULT_FABRO_TIMEOUT_SECONDS,
     acp_nodes: AcpNodeResolution | None = None,
 ) -> DispatchPlan:
@@ -210,6 +222,7 @@ def build_plan(  # noqa: PLR0913 — kw-only plan resolver; each field is an ind
         merge_on_review_cap_outcome=(
             "succeeded" if merge_on_review_cap else _MERGE_ON_REVIEW_CAP_DISABLED_OUTCOME
         ),
+        merge_hold=merge_hold,
         fabro_timeout_seconds=fabro_timeout_seconds,
         acp_nodes=acp_nodes,
         integration=integration,
