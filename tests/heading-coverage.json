@@ -1164,17 +1164,17 @@
     "heading": "## Scenario 111 — Typed `next_action` drives an unattended resume and cannot be truncated by wrapping",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
+    "test": "tests.integration.test_plan_next_action_resume_scenario111.test_scenario111_an_unattended_resume_takes_the_impl_next_action_without_asking",
     "work_item": "bd-ib-3hxs57",
-    "reason": "Ratified with the plan-slug-anchor-and-typed-next-action revision (epic bd-ib-w3nwz5, child bd-ib-w3nwz5.1, console decision D6 item 5). Typed next_action epic metadata is the sole unattended-resume authority: impl/spec-op refs act without asking, human/none raise the picker, a handoff write updates it in the same call, and the wrapped-prose marker parse is retired so a truncated fragment can never execute. Awaits the integration-tier resume test delivered by bd-ib-3hxs57 (the shipped implementation is bd-ib-yq2tx6 / bd-ib-bmxumc; the integration-tier binding is its own item); real test ID to follow."
+    "reason": "Ratified with the plan-slug-anchor-and-typed-next-action revision (epic bd-ib-w3nwz5, child bd-ib-w3nwz5.1, console decision D6 item 5), implemented by bd-ib-yq2tx6 and bound to this integration-tier test by bd-ib-3hxs57. Typed next_action epic metadata is the sole unattended-resume authority: impl/spec-op refs act without asking, human/none raise the picker, a handoff write updates it in the same call, and the wrapped-prose marker parse is retired so a truncated fragment can never execute. The bound case creates the plan through create_thread, hands it off through append_handoff, reads the unattended marker off the real environment through is_unattended_session, and asserts the directive takes impl:<ref> without asking; its sibling cases in the same module cover the human kind raising the picker with its kind as the reason, the wrapped prose marker that is still present and still readable yet decides nothing, and the attended control that asks while carrying the same dispatchable pointer."
   },
   {
     "heading": "## Scenario 112 — The one-shot anchor migration is complete and idempotent",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
+    "test": "tests.integration.test_migrate_plan_records_scenario112.test_scenario112_a_second_run_writes_nothing_and_leaves_every_record_identical",
     "work_item": "bd-ib-3hxs57",
-    "reason": "Ratified with the plan-slug-anchor-and-typed-next-action revision (epic bd-ib-w3nwz5, child bd-ib-w3nwz5.1, console decision D6 items 4 and 6). The one-shot migration writes anchors from existing slugs, derives missing slugs and refuses collisions, seeds next_action from the newest handoff, and changes nothing on a second run. Awaits the integration-tier migration test delivered by bd-ib-3hxs57 (the shipped implementation is bd-ib-yq2tx6 / bd-ib-bmxumc; the integration-tier binding is its own item); real test ID to follow."
+    "reason": "Ratified with the plan-slug-anchor-and-typed-next-action revision (epic bd-ib-w3nwz5, child bd-ib-w3nwz5.1, console decision D6 items 4 and 6), implemented by bd-ib-bmxumc and bound to this integration-tier test by bd-ib-3hxs57. The one-shot migration writes anchors from existing slugs, derives missing slugs and refuses collisions, seeds next_action from the newest handoff, and changes nothing on a second run. The bound case runs the shipped CLI entry point twice over a fixture tenant and a repository holding live and archived plan directories, and asserts idempotence on three instruments — a zero write count, byte-identical anchor files, and an identical full record dump — while the refusal recurs, because a refusal is a result rather than a write; its sibling case asserts the first run's complete report, the anchors it wrote, the colliding slug left unwritten, and the pointer seeded from the legacy handoff."
   },
   {
     "heading": "## Scenario 113 — A plan epic closed without completeness-review evidence is reported",
