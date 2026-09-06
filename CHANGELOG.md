@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.131.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.130.1...v0.131.0) (2026-09-06)
+
+
+### Features
+
+* **drive:** resolve-blocked carries the human answer as a ledger comment so the re-dispatch brief flows it (bd-ib-uuohty) ([f3f7f63](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/f3f7f6346e74e00ebf0cb8d5392abfb94cf022db))
+
 ## [0.130.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.130.0...v0.130.1) (2026-09-06)
 
 
