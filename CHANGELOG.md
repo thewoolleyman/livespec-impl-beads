@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.130.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.129.1...v0.130.0) (2026-09-06)
+
+
+### Features
+
+* **needs-attention:** carry the needs-human run's own account on the valve ([79192c6](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/79192c6a9a20d8051e8131fc1709a0b910728003))
+
 ## [0.129.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.129.0...v0.129.1) (2026-09-05)
 
 
