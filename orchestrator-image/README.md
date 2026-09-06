@@ -133,7 +133,7 @@ steps around. It is distinct from the containerized server the entrypoint
 provisions (below); the image's `COPY fabro` stages this same host binary from
 `$HOST_FABRO_BIN`, so the host install IS the image's staging source.
 
-**Current binary (2026-07-30):** `fabro 0.254.0 (8de6611)` — built from the
+**Current binary (2026-09-06):** `fabro 0.254.0 (9081419)` — built from the
 `factory-integration` branch (see below). Verify with `~/.fabro/bin/fabro
 --version`; the parenthesized short SHA is the integration commit, and it MUST be
 reachable from `factory-integration` — **reachability, not equality**. The branch
@@ -168,6 +168,11 @@ needs (never a subset, so the branch is always the whole truth about what runs):
 | fork-local **O2** — W3C `traceparent` join (`bd-ib-98c.5`) | the server serializes its `run`-span context to a per-run `TRACEPARENT` env at the worker-launch seam; the worker parents its `run` span on it | without it the server and worker each emit a SEPARATE root `run` span in a distinct trace, so one dispatch is unviewable as one trace |
 | fork-local **P2** — decouple OTLP export from `FABRO_LOG` (`bd-ib-98c.12`) | `FABRO_LOG` was a GLOBAL registry filter gating the otel layer too; the fix filters per-layer (`FABRO_LOG` on the fmt layers, a fixed `INFO` floor on the otel layer) | otherwise raising the log level silently zeroes ALL telemetry at both ends (the server injects its level into the worker), with no error — an operator quieting logs could kill the Honeycomb dataset |
 | fork-local **O4** — `run_turn` ACP turn span (`bd-ib-98c.7`) | a `tracing::info_span!("run_turn", …)` at the ACP seam (`fabro-workflow/src/handler/llm/acp.rs::run_turn`) carrying `node_id` / `command` / `config_name` (ALWAYS EMPTY here — see below) / `visit` plus a deferred `stop_reason`; it nests under the worker `run` span (fabro-workflow has no spans of its own, so the `Stage started/completed` telemetry — which are EVENTS, not spans — is not the parent) | without it the finest per-agent granularity is the `handler_type=agent` Stage telemetry, which never records WHICH command an agent turn ran or HOW it ended; O4 is what makes per-turn command/stop-reason queryable in Honeycomb |
+| fork-local **Wave A / .2** — sandbox `init` (`bd-ib-bb41.2`) | `HostConfig.init = true` in `fabro-sandbox/src/docker.rs::host_config`, so Docker's bundled `docker-init` (tini) is PID 1 in the sandbox container; no image change, `sleep infinity` stays the command | the container command was PID 1 and reaped nothing, so every orphaned gate/agent subprocess stayed defunct (559 measured in one implement run) until the container died |
+| fork-local **Wave A / .5** — no empty checkpoints (`bd-ib-bb41.5`) | the run-branch and parallel-branch checkpoint commits are guarded by `git diff --cached --quiet`; an empty tree is skipped and reported as an Info `run.notice` with code `checkpoint_empty` (branch failures as Warn `parallel_branch_checkpoint_failed`), `--allow-empty` removed from both, and no `git.commit` is emitted for a skipped checkpoint | `--allow-empty` let a run that produced nothing emit a chain of checkpoint commits, so every "the run made progress" signal built on them (commit count, checkpoint events) was vacuous — the fabro half of the closed orchestrator item `bd-ib-xmom` |
+| fork-local **Wave A / jm4efv** — typed checkpoint budget (`bd-ib-jm4efv`) | a git command that hits its configured checkpoint commit budget is carried as `fabro_core::Error::CheckpointBudgetExceeded` and reaches the run as the deterministic `Error::Checkpoint`, never through the string classifier | the classifier read "timed out" in the rendered message and filed a Fabro operation-budget failure as `transient_infra`, so an exhausted budget was retried as if the network had blinked |
+| fork-local **Wave A / .3** — `AgentAcpTimedOut` progress evidence (`bd-ib-bb41.3`) | the timed-out event carries the agent's message-text tail (or an explicit "output not captured" marker), `tool_call_count`, `update_count` and `last_activity_ms`; the failure message summarises the same counters; fields are `#[serde(default)]` so stored runs replay | the event reported `stdout: ""` unconditionally, so a working agent that ran out of time was indistinguishable from one that never started (the residue of `bd-ib-b5dg`); `update_count == 0` is now the zero-activity discriminator |
+| fork-local **Wave A / .1 fork half** — script-node run identity (`bd-ib-bb41.1`) | script nodes receive `FABRO_RUN_ID`, `FABRO_WORKFLOW` and `FABRO_NODE_ID` in their env (the hook executor's trio) from `fabro-workflow/src/handler/command.rs`; workflow-declared values win | the workflow's needs-human preservation ref is run-scoped only if the script node can see the run id; without it every stranded run collided on one `refs/heads/needs-human/unknown-run` ref (the orchestrator half, PR #2198, now fails loudly with no id) |
 
 Failure-cause attributes are queryable in Honeycomb, but not as `run_turn`
 span attributes. Filter the separate failure-event span in the same trace as
@@ -264,8 +269,9 @@ the ratified constraint forbids:
 
 To **roll back**, copy the `.bak` binary over `~/.fabro/bin/fabro`, restart, and rebuild
 the image the same way. The current rollback artifact is
-`~/.fabro/bin/fabro.b9b63a8-pre-checkpoint-timeout.bak` (the pre-#552 build:
-0.254 + #568 + daemon-timeout + #576 + O1 + O2 + P2 + O4).
+`~/.fabro/bin/fabro.8de6611-pre-wave-a.bak` (the pre-Wave-A build:
+0.254 + #568 + daemon-timeout + #552 + #576 + O1 + O2 + P2 + O4); the older
+`fabro.b9b63a8-pre-checkpoint-timeout.bak` is the pre-#552 build.
 
 ### Candidate build + Enemy Unit Test comparison
 
