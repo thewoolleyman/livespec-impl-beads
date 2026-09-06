@@ -36,14 +36,28 @@ mechanical rather than remembered, and the list could not outlive its reason by
 being quietly ignored. The control is gone with the list it guarded; what
 replaces it is that there is nothing left to be stale.
 
-FOUR POSITIVE CONTROLS, because this check reports an ABSENCE for a living. A
-broken pattern or a mis-scoped glob would make it permanently green while printing
+EVERY REGISTERED VARIANT IS SCANNED, NOT ONLY THE BUNDLE. `contracts.md`
+section "Self-contained plugin dispatch", clause "A registered variant is the
+reserved workflow's peer, not its exception", names this gate and requires it to
+read the bundle AND every directory this repository registers under its own
+`dispatcher.workflows`. `_checked_workflow_payloads` owns that enumeration for
+both payload gates; every finding and control failure is prefixed with the
+directory it came from, so a literal reintroduced in a variant is as actionable
+as one in the bundle.
+
+POSITIVE CONTROLS, because this check reports an ABSENCE for a living. A broken
+pattern or a mis-scoped glob would make it permanently green while printing
 exactly what a clean repo prints, so `main` refuses to report a clean scan unless
-all four hold: the DISCOVERY controls assert the package and payload walks reached
-the modules and files that carry the literals; the DESIGNATION control asserts the
-one module the scan skips is the one the schema actually designates, so the skip
-cannot drift onto a module the contract never named; and the MATCHER control
-asserts the checked-in fixture still produces findings through the same
+all of them hold: the package DISCOVERY control asserts the package walk reached
+the modules that carry the literals; a payload DISCOVERY control PER CHECKED
+DIRECTORY asserts each walk reached a file, so a registered directory whose scan
+yields nothing FAILS rather than reporting clean -- a repository-wide control
+would be satisfied by the bundle alone and would then certify a variant it never
+read; a COMPLETENESS control per directory reports an unreadable or half-written
+registered directory by name rather than skipping it; the DESIGNATION control
+asserts the one module the scan skips is the one the schema actually designates,
+so the skip cannot drift onto a module the contract never named; and the MATCHER
+control asserts the checked-in fixture still produces findings through the same
 parse/match path.
 
 Output discipline: `print` and direct `sys.stderr.write` are banned here, so
@@ -73,6 +87,11 @@ for _path in (_SCRIPT_DIR, _SCRIPTS, _SCRIPTS / "_vendor"):
 # both under `python <path>` and under the importlib-by-path load the paired
 # test uses.
 import livespec_dev_tooling  # noqa: E402
+from _checked_workflow_payloads import (  # noqa: E402  — sibling private import
+    CheckedPayload,
+    checked_payloads,
+    incompleteness,
+)
 from _fleet_toolchain_literals_matcher import (  # noqa: E402  — sibling private import
     Finding,
     source_findings,
@@ -112,7 +131,6 @@ DISCOVERY_ANCHORS: tuple[str, ...] = (
 )
 
 _PACKAGE_RELPATH = ".claude-plugin/scripts/livespec_orchestrator_beads_fabro"
-_PAYLOAD_RELPATH = ".claude-plugin/.fabro/workflows"
 _FIXTURE_RELPATH = "dev-tooling/checks/fixtures/fleet_toolchain_literal_control.py.txt"
 _PAYLOAD_SUFFIXES = frozenset({".fabro", ".md", ".toml"})
 _FINDING_MESSAGE = "fleet-toolchain literal outside the fleet-defaults module"
@@ -122,10 +140,23 @@ def _module_paths(*, package: Path) -> list[Path]:
     return sorted(package.rglob("*.py"))
 
 
+def _payload_files(*, payload: CheckedPayload) -> list[Path]:
+    """Every payload and prompt file in ONE checked workflow directory.
+
+    A directory that is not there walks to nothing rather than raising; the
+    completeness and discovery controls are what turn that nothing into a
+    finding naming the directory.
+    """
+    return sorted(path for path in payload.directory.rglob("*") if path.suffix in _PAYLOAD_SUFFIXES)
+
+
 def payload_paths(*, repo_root: Path) -> list[Path]:
-    """Every payload and prompt file the payload scan walks."""
-    root = repo_root / _PAYLOAD_RELPATH
-    return sorted(path for path in root.rglob("*") if path.suffix in _PAYLOAD_SUFFIXES)
+    """Every payload and prompt file the scan walks, across every checked directory."""
+    return [
+        path
+        for payload in checked_payloads(repo_root=repo_root)
+        for path in _payload_files(payload=payload)
+    ]
 
 
 def package_findings(*, repo_root: Path) -> list[Finding]:
@@ -141,15 +172,16 @@ def package_findings(*, repo_root: Path) -> list[Finding]:
 
 
 def payload_findings(*, repo_root: Path) -> list[Finding]:
-    """Every literal in the workflow payload; nothing excuses one there."""
+    """Every literal in every checked workflow directory; nothing excuses one there."""
     findings: list[Finding] = []
-    for path in payload_paths(repo_root=repo_root):
-        findings.extend(
-            text_findings(
-                text=path.read_text(encoding="utf-8"),
-                relpath=path.relative_to(repo_root).as_posix(),
+    for payload in checked_payloads(repo_root=repo_root):
+        for path in _payload_files(payload=payload):
+            findings.extend(
+                text_findings(
+                    text=path.read_text(encoding="utf-8"),
+                    relpath=f"{payload.where}/{path.relative_to(payload.directory).as_posix()}",
+                )
             )
-        )
     return findings
 
 
@@ -178,8 +210,10 @@ def control_failures(*, repo_root: Path) -> list[str]:
         for anchor in DISCOVERY_ANCHORS
         if anchor not in discovered
     )
-    if not payload_paths(repo_root=repo_root):
-        failures.append(f"discovery control: the walk of {_PAYLOAD_RELPATH} reached no file")
+    for payload in checked_payloads(repo_root=repo_root):
+        failures.extend(incompleteness(payload=payload))
+        if not _payload_files(payload=payload):
+            failures.append(f"discovery control: the walk of {payload.where} reached no file")
     # The one skipped module is only legitimate while the schema still designates
     # it; without this control the skip could silently drift onto a module the
     # contract never named.

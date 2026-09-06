@@ -63,14 +63,27 @@ Current checks:
   carries four positive controls — package and payload discovery, a designation
   control asserting the ONE skipped module is the one the schema imports, and a
   matcher control over `fixtures/fleet_toolchain_literal_control.py.txt` — and
-  refuses to report a clean scan when any fails. The two concerns live in two
-  modules because they change for different reasons: this one owns the scope and
-  the controls, while the sibling private helper
-  `_fleet_toolchain_literals_matcher.py` owns what counts as a literal at all.
+  refuses to report a clean scan when any fails. The payload scan reads the
+  BUNDLE plus every directory this repo registers under its own
+  `dispatcher.workflows`, per contracts.md §"Self-contained plugin dispatch"
+  clause "A registered variant is the reserved workflow's peer, not its
+  exception"; the payload discovery control and a completeness control are
+  applied PER DIRECTORY, so a registered directory that is absent, half-written
+  or scans to nothing FAILS naming that directory rather than reporting clean,
+  and every finding is prefixed with the directory it came from. The two
+  concerns live in two modules because they change for different reasons: this
+  one owns the scope and the controls, while the sibling private helper
+  `_fleet_toolchain_literals_matcher.py` owns what counts as a literal at all;
+  the sibling private `_checked_workflow_payloads.py` owns WHICH directories
+  either payload gate reads and is shared with `seam_equivalence.py`, so the two
+  gates cannot come to disagree about the checked set.
 - `seam_equivalence.py` — the CI half of SPECIFICATION/contracts.md
   §"Repository integration contract", clause "Typed workflow inputs and the
   seam-equivalence check". Scans the committed `implement-work-item` payload —
-  the graph, the run config and every node prompt — for `{{ inputs.<name> }}`
+  the graph, the run config and every node prompt — plus every directory this
+  repo registers under its own `dispatcher.workflows` (contracts.md
+  §"Self-contained plugin dispatch" clause "A registered variant is the reserved
+  workflow's peer, not its exception"), for `{{ inputs.<name> }}`
   tokens and asserts three things about the INTEGRATION subset of them: the
   referenced set equals the set the Dispatcher renders from the
   `ResolvedIntegrationContract` in both directions; the rendered names and the
@@ -84,18 +97,29 @@ Current checks:
   inputs, and that exclusion is checked rather than assumed: the three families
   must be pairwise disjoint and must cover every input the payload declares. It
   reports an ABSENCE over a payload that references no integration token yet, so
-  it carries two positive controls — a discovery control asserting the scan of
-  the real payload still returns the adapter tokens that ARE there, and a matcher
+  it carries three positive controls — a discovery control asserting the scan
+  still returns the adapter tokens that ARE there, a completeness control
+  asserting the directory holds a whole workflow, and a matcher
   control over `fixtures/seam_equivalence_control.fabro.txt`, whose tokens sit in
   a `timeout`, a `stall_timeout` and a comment — and refuses to report a clean
-  payload when either fails. Three modules, because the three concerns change
+  payload when any fails. The first two are evaluated PER CHECKED DIRECTORY, so
+  a registered variant that is absent, half-written or scans to nothing fails
+  naming that directory instead of being certified by the bundle's own controls,
+  and every finding is prefixed with the directory it came from. The equality's
+  rendered comparand is the ONE Dispatcher-rendered set derived from the BUNDLE,
+  never re-derived per variant: a variant that declared fewer inputs would
+  otherwise shrink its own comparand and pass vacuously, which is exactly the
+  "a variant referencing fewer tokens is a finding, not a pass" rule.
+  Four modules, because the concerns change
   for different reasons: this one owns the payload reading, the composition and
   the controls; the sibling private `_seam_equivalence_scan.py` owns where a
   token may sit and which positions the pinned engine expands, and carries the
   evidence behind that allowlist; the sibling private
   `_seam_equivalence_findings.py` owns the three input families and what each
   disagreement is called, and takes only sets so the rules are readable and
-  testable with no payload on disk.
+  testable with no payload on disk; the sibling private
+  `_checked_workflow_payloads.py` owns which directories a payload gate reads
+  and is shared with `no_fleet_toolchain_literals.py`.
 - `work_item_state_invariants.py` — the beads-private work-item-state
   doctor check (SPECIFICATION/contracts.md §"Work-item beads-issue
   mapping" invariants block; L1a slice S6). Walks every materialized

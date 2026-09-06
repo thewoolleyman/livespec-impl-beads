@@ -11,25 +11,41 @@ question statically instead of by a production dispatch, which is the whole
 point: a token the engine silently drops costs one dispatch to discover and
 gives no error when it happens.
 
+EVERY REGISTERED VARIANT IS CHECKED, NOT ONLY THE BUNDLE. The clause "A
+registered variant is the reserved workflow's peer, not its exception" requires
+this check to read the bundle AND every directory this repository registers
+under its own `dispatcher.workflows`. `_checked_workflow_payloads` owns that
+enumeration for both payload gates; each directory is then read, compared and
+CONTROLLED on its own, and every finding names the directory it came from. The
+comparand is the ONE Dispatcher-rendered set for all of them — see
+`rendered_input_names` for why a per-variant comparand would pass the exact
+defect the rule exists to catch.
+
 IT OWNS THE READING AND THE CONTROLS, NOT THE RULES. Two sibling private
 modules carry the two concerns that change for their own reasons:
 `_seam_equivalence_scan` knows where a token may sit and which positions the
 pinned engine expands, and `_seam_equivalence_findings` knows the three input
 families and what a disagreement between the surfaces is called. What is left
-here is what a CHECK does: resolve the payload, read it, render what the
+here is what a CHECK does: resolve the payloads, read them, render what the
 Dispatcher would send, compose the findings, and refuse to report a clean
 payload it could not have seen.
 
-TWO POSITIVE CONTROLS, because this check reports an ABSENCE. The committed
+THREE POSITIVE CONTROLS, because this check reports an ABSENCE. The committed
 payload references no integration token today — the payload edit that introduces
 them is a separate, attended change — so a broken scanner would print exactly
 what a conformant payload prints, forever. `main` therefore refuses to report a
-clean payload unless both hold:
+clean payload unless all three hold:
 
-- the DISCOVERY control asserts the scan of the REAL payload reached its files
-  and returned the tokens that are actually there (the six per-node adapter
-  tokens, each in an `acp.command`), so a mis-scoped path or a pattern that
-  cannot match fails loudly instead of passing silently;
+- the DISCOVERY control asserts the scan of EACH checked payload reached its
+  files and returned the tokens that are actually there (the six per-node
+  adapter tokens, each in an `acp.command`), so a mis-scoped path, a pattern
+  that cannot match, or a registered directory that scans to nothing fails
+  loudly instead of passing silently. It is evaluated PER DIRECTORY: a
+  repository-wide control would be satisfied by the bundle alone and would then
+  certify a variant it never read;
+- the COMPLETENESS control asserts each checked directory holds a whole
+  workflow, so an unreadable or half-written registered directory is a finding
+  naming that directory rather than a silent skip;
 - the MATCHER control asserts the checked-in fixture graph, which carries an
   integration token in a `timeout` attribute and another in a comment, still
   produces non-rendered-position findings through the SAME scan path.
@@ -66,6 +82,12 @@ if str(_DT_VENDOR) not in sys.path:
     sys.path.insert(0, str(_DT_VENDOR))
 
 import structlog  # noqa: E402
+from _checked_workflow_payloads import (  # noqa: E402  — sibling private import
+    CheckedPayload,
+    bundle_payload,
+    checked_payloads,
+    incompleteness,
+)
 from _seam_equivalence_findings import (  # noqa: E402  — sibling private import
     Finding,
     equivalence_findings,
@@ -104,15 +126,14 @@ __all__: list[str] = [
     "rendered_input_names",
 ]
 
-_PAYLOAD_RELPATH = (".claude-plugin", ".fabro", "workflows", "implement-work-item")
 _FIXTURE_RELPATH = ("dev-tooling", "checks", "fixtures", "seam_equivalence_control.fabro.txt")
 _CONFIG_RELPATH = (".livespec.jsonc",)
 _ADAPTER_POSITION = "acp.command"
 
 
 def payload_dir(*, repo_root: Path) -> Path:
-    """The dispatched `implement-work-item` payload this check reads."""
-    return repo_root.joinpath(*_PAYLOAD_RELPATH)
+    """The bundled `implement-work-item` payload every registered variant is held to."""
+    return bundle_payload(repo_root=repo_root).directory
 
 
 def fixture_path(*, repo_root: Path) -> Path:
@@ -120,16 +141,19 @@ def fixture_path(*, repo_root: Path) -> Path:
     return repo_root.joinpath(*_FIXTURE_RELPATH)
 
 
-def payload_occurrences(*, repo_root: Path) -> list[Occurrence]:
-    """Every token across the graph, the run config, and every node prompt."""
-    root = payload_dir(repo_root=repo_root)
+def payload_occurrences(*, payload: CheckedPayload) -> list[Occurrence]:
+    """Every token across one payload's graph, run config, and node prompts.
+
+    A file the directory does not hold reads as empty rather than raising: an
+    incomplete directory is what the completeness control reports, by name, and
+    an exception here would take the whole scan down with it instead.
+    """
+    root = payload.directory
     occurrences = graph_occurrences(
-        text=(root / "workflow.fabro").read_text(encoding="utf-8"), venue="workflow.fabro"
+        text=_file_text(path=root / "workflow.fabro"), venue="workflow.fabro"
     )
     occurrences.extend(
-        run_config_occurrences(
-            text=(root / "workflow.toml").read_text(encoding="utf-8"), venue="workflow.toml"
-        )
+        run_config_occurrences(text=_file_text(path=root / "workflow.toml"), venue="workflow.toml")
     )
     for prompt in sorted((root / "prompts").glob("*.md")):
         occurrences.extend(
@@ -140,46 +164,90 @@ def payload_occurrences(*, repo_root: Path) -> list[Occurrence]:
     return occurrences
 
 
-def declared_inputs(*, repo_root: Path) -> dict[str, str]:
-    """Every input the payload's `[run.inputs]` table declares, with its default."""
-    run_config = payload_dir(repo_root=repo_root) / "workflow.toml"
-    return dict(workflow_declared_inputs(committed_text=run_config.read_text(encoding="utf-8")))
+def _file_text(*, path: Path) -> str:
+    """One payload file's text, or empty when the directory does not hold it."""
+    return path.read_text(encoding="utf-8") if path.is_file() else ""
+
+
+def declared_inputs(*, payload: CheckedPayload) -> dict[str, str]:
+    """Every input this payload's `[run.inputs]` table declares, with its default."""
+    run_config = payload.directory / "workflow.toml"
+    return dict(workflow_declared_inputs(committed_text=_file_text(path=run_config)))
 
 
 def rendered_input_names(*, repo_root: Path) -> frozenset[str]:
-    """The integration inputs the Dispatcher would render for this payload.
+    """The ONE set of integration inputs the Dispatcher renders, off the BUNDLE.
 
     Rendered THROUGH the projection, off a contract resolved from this
     repository's own declaration, rather than re-derived from the schema: the
     question is what the Dispatcher sends, and it sends the intersection of the
     contract's projectable fields with what the payload declares.
+
+    ONE set for every checked directory, deliberately, and this is the load-bearing
+    half. Re-deriving the comparand from each VARIANT's own `[run.inputs]` table
+    would let a variant that declares fewer inputs shrink its own comparand and
+    pass the equality vacuously -- which is precisely the "a variant referencing
+    fewer tokens is a finding, not a pass" rule of the peer clause. Against the
+    single bundle-derived set, that variant reports `rendered-input-without-token`
+    for every input it dropped.
     """
     resolved = resolve_repo_integration_contract(
         config_text=repo_root.joinpath(*_CONFIG_RELPATH).read_text(encoding="utf-8"),
         default_branch=None,
     )
-    pairs = contract_run_inputs(resolved=resolved, declared=declared_inputs(repo_root=repo_root))
+    pairs = contract_run_inputs(
+        resolved=resolved, declared=declared_inputs(payload=bundle_payload(repo_root=repo_root))
+    )
     return frozenset(pair.split("=", 1)[0] for pair in pairs)
 
 
 def payload_findings(*, repo_root: Path) -> list[Finding]:
-    """Every way this repository's payload breaks the seam equivalence."""
-    occurrences = payload_occurrences(repo_root=repo_root)
-    findings = position_findings(occurrences=occurrences)
-    findings.extend(
-        equivalence_findings(
-            referenced=referenced_integration_inputs(occurrences=occurrences),
-            rendered=rendered_input_names(repo_root=repo_root),
+    """Every way this repository's checked payloads break the seam equivalence."""
+    rendered = rendered_input_names(repo_root=repo_root)
+    findings: list[Finding] = []
+    for payload in checked_payloads(repo_root=repo_root):
+        findings.extend(
+            _located(
+                findings=_directory_findings(payload=payload, rendered=rendered),
+                where=payload.where,
+            )
         )
-    )
-    findings.extend(scoping_findings(declared=declared_inputs(repo_root=repo_root)))
     findings.extend(schema_findings())
     return findings
 
 
+def _directory_findings(*, payload: CheckedPayload, rendered: frozenset[str]) -> list[Finding]:
+    """Every way ONE checked directory breaks the seam equivalence."""
+    occurrences = payload_occurrences(payload=payload)
+    findings = position_findings(occurrences=occurrences)
+    findings.extend(
+        equivalence_findings(
+            referenced=referenced_integration_inputs(occurrences=occurrences), rendered=rendered
+        )
+    )
+    findings.extend(scoping_findings(declared=declared_inputs(payload=payload)))
+    return findings
+
+
+def _located(*, findings: list[Finding], where: str) -> list[Finding]:
+    """The same findings, each naming the directory that produced it.
+
+    The rules module takes only sets and knows no filesystem, which is what
+    keeps it readable and testable with no payload on disk; attributing a
+    finding to a directory is this module's job, exactly like reading one.
+    """
+    return [
+        Finding(kind=finding.kind, subject=finding.subject, detail=f"{where}: {finding.detail}")
+        for finding in findings
+    ]
+
+
 def control_failures(*, repo_root: Path) -> list[str]:
     """Why a clean report on `repo_root` would not be trustworthy, if it would not."""
-    failures = _discovery_failures(occurrences=payload_occurrences(repo_root=repo_root))
+    failures: list[str] = []
+    for payload in checked_payloads(repo_root=repo_root):
+        failures.extend(incompleteness(payload=payload))
+        failures.extend(_discovery_failures(payload=payload))
     fixture = fixture_path(repo_root=repo_root)
     if not fixture.is_file():
         failures.append(f"matcher control: the fixture is missing at {fixture}")
@@ -189,13 +257,15 @@ def control_failures(*, repo_root: Path) -> list[str]:
     return failures
 
 
-def _discovery_failures(*, occurrences: list[Occurrence]) -> list[str]:
-    """That the scan of the REAL payload still returns the tokens that are in it."""
+def _discovery_failures(*, payload: CheckedPayload) -> list[str]:
+    """That the scan of THIS directory still returns the tokens that are in it."""
+    occurrences = payload_occurrences(payload=payload)
     seen = {
         occurrence.name for occurrence in occurrences if occurrence.position == _ADAPTER_POSITION
     }
+    missing = f"the graph scan found no `{_ADAPTER_POSITION}` token"
     return [
-        f"discovery control: the graph scan found no `{_ADAPTER_POSITION}` token for node {node}"
+        f"discovery control: {payload.where}: {missing} for node {node}"
         for node, candidates in sorted(NODE_INPUT_CANDIDATES.items())
         if not any(name in seen for name in candidates)
     ]
