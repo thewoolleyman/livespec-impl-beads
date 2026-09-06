@@ -23,6 +23,7 @@ __all__: list[str] = [
     "BeadsMappingError",
     "BeadsTenantMissingError",
     "ConnectionPrefixMissingError",
+    "GroomApprovalRequiredError",
     "GroomDraftError",
     "GroomExitRefusedError",
     "GroomTargetNotBacklogError",
@@ -165,6 +166,23 @@ class GroomTargetNotBacklogError(Exception):
     def __init__(self, *, item_id: str) -> None:
         super().__init__(f"groom target is not in backlog: {item_id}")
         self.item_id = item_id
+
+
+class GroomApprovalRequiredError(Exception):
+    """An approved-slice filing arrived with no attributable approval record.
+
+    EXPECTED: the filing seam performs a maintainer-tier mutation — it files
+    replacement slices and closes the original — so the ratified groom-cut
+    contract requires an approval record naming the approver identity and how
+    the approval was obtained. A call carrying none is refused BEFORE anything
+    is filed, rather than proceeding on the calling agent's say-so and leaving
+    a ledger in which an unapproved cut is indistinguishable from an approved
+    one.
+    """
+
+    def __init__(self, *, detail: str) -> None:
+        super().__init__(f"refusing to file approved groom slices: {detail}")
+        self.detail = detail
 
 
 class GroomDraftError(Exception):

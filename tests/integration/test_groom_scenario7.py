@@ -42,13 +42,16 @@ from livespec_orchestrator_beads_fabro._beads_client import (
     make_beads_client,
     reset_fake_singleton,
 )
+from livespec_orchestrator_beads_fabro._store_groom_approval import groom_approval_for
 from livespec_orchestrator_beads_fabro.commands.groom import (
     CandidateSlice,
     CrossRepoSlice,
+    GroomApproval,
     file_approved_slices,
     load_groom_context,
 )
 from livespec_orchestrator_beads_fabro.errors import (
+    GroomApprovalRequiredError,
     GroomDraftError,
     GroomExitRefusedError,
     GroomTargetNotBacklogError,
@@ -82,6 +85,12 @@ def _config() -> StoreConfig:
 _LOCAL_REPO = "livespec-orchestrator-beads-fabro"
 _LOCAL_REPO_ROOT = Path("tests/nonexistent-groom-policy-cwd")
 _CROSS_REPO = "livespec-runtime"
+# The approval every filing case is made under: who approved the cut, and the
+# route the approval arrived on. Filing refuses without it.
+_APPROVAL = GroomApproval(
+    approver="thewoolleyman",
+    route="resolve-blocked:li-epic:ready ledger comment 41",
+)
 
 
 def _seed_backlog_item(*, issue_id: str, title: str = "", description: str = "") -> None:
@@ -169,6 +178,7 @@ def test_groom_journey_files_ready_slices_links_deps_and_regrooms_out() -> None:
         path=_config(),
         regroom_item_id="li-epic",
         local_repo=_LOCAL_REPO,
+        approval=_APPROVAL,
         slices=[
             _factory_slice(title="layer-0 base slice"),
             _factory_slice(
@@ -220,6 +230,7 @@ def test_filed_factory_slices_link_their_dependency_edges() -> None:
         path=_config(),
         regroom_item_id="li-epic",
         local_repo=_LOCAL_REPO,
+        approval=_APPROVAL,
         slices=[
             _factory_slice(title="base"),
             # The dependent slice names the base slice's DRAFT TITLE as a
@@ -244,6 +255,7 @@ def test_dependency_on_unknown_draft_title_is_rejected() -> None:
             path=_config(),
             regroom_item_id="li-epic",
             local_repo=_LOCAL_REPO,
+            approval=_APPROVAL,
             slices=[_factory_slice(title="orphan", depends_on=("ghost-layer",))],
         )
 
@@ -273,6 +285,7 @@ def test_all_spec_change_decomposition_refuses_exit() -> None:
             path=_config(),
             regroom_item_id="li-epic",
             local_repo=_LOCAL_REPO,
+            approval=_APPROVAL,
             slices=[
                 CandidateSlice(
                     title="only a spec change",
@@ -286,6 +299,97 @@ def test_all_spec_change_decomposition_refuses_exit() -> None:
         )
 
     # The original is NOT dropped — it stays backlog.
+    assert _item_status(issue_id="li-epic") == "backlog"
+
+
+# --------------------------------------------------------------------------
+# Approval provenance (bd-ib-ouoq): who approved the cut, stamped where a
+# later reader can query it.
+#
+# Every assertion below reads the approval back FROM THE STORE, never off the
+# `GroomResult` the call returned. That is the discriminating leg: an
+# implementation that accepts an approval argument and discards it satisfies a
+# return-value assertion exactly as well as one that persists it, and the
+# whole point of the record is that it survives the call.
+# --------------------------------------------------------------------------
+
+
+def test_a_filed_slice_carries_the_approval_record_in_the_store() -> None:
+    """The filed slice is attributable after the fact, from the ledger alone."""
+    _seed_backlog_item(issue_id="li-epic")
+
+    result = file_approved_slices(
+        path=_config(),
+        regroom_item_id="li-epic",
+        local_repo=_LOCAL_REPO,
+        approval=_APPROVAL,
+        slices=[_factory_slice(title="approved slice")],
+    )
+
+    (slice_id,) = result.filed_slice_ids
+    stored = groom_approval_for(path=_config(), work_item_id=slice_id)
+    assert stored is not None
+    assert stored.approver == "thewoolleyman"
+    assert stored.route == "resolve-blocked:li-epic:ready ledger comment 41"
+
+
+def test_the_regroomed_out_original_carries_the_same_approval_record() -> None:
+    """The closed original is where provenance is otherwise unrecoverable."""
+    _seed_backlog_item(issue_id="li-epic")
+
+    _ = file_approved_slices(
+        path=_config(),
+        regroom_item_id="li-epic",
+        local_repo=_LOCAL_REPO,
+        approval=_APPROVAL,
+        slices=[_factory_slice(title="approved slice")],
+    )
+
+    assert _item_status(issue_id="li-epic") == "done"
+    stored = groom_approval_for(path=_config(), work_item_id="li-epic")
+    assert stored is not None
+    assert stored.approver == "thewoolleyman"
+    assert stored.route == "resolve-blocked:li-epic:ready ledger comment 41"
+
+
+def test_a_filing_carrying_no_approval_evidence_is_refused_and_files_nothing() -> None:
+    """The 2026-08-22 near-miss shape, as a regression.
+
+    A filing call reaches the seam with nothing attributable behind it. It is
+    refused, no slice is filed, and the original stays exactly where it was —
+    so a refusal cannot leave the half-completed state (slices filed, original
+    still open) that a partially-run filing would.
+    """
+    _seed_backlog_item(issue_id="li-epic")
+
+    with pytest.raises(GroomApprovalRequiredError):
+        _ = file_approved_slices(
+            path=_config(),
+            regroom_item_id="li-epic",
+            local_repo=_LOCAL_REPO,
+            approval=None,
+            slices=[_factory_slice(title="unapproved slice")],
+        )
+
+    assert set(_all_items()) == {"li-epic"}
+    assert _item_status(issue_id="li-epic") == "backlog"
+    assert groom_approval_for(path=_config(), work_item_id="li-epic") is None
+
+
+def test_a_filing_whose_approver_identity_is_empty_is_refused() -> None:
+    """An unattributed record is refused as firmly as an absent one."""
+    _seed_backlog_item(issue_id="li-epic")
+
+    with pytest.raises(GroomApprovalRequiredError, match="names no approver identity"):
+        _ = file_approved_slices(
+            path=_config(),
+            regroom_item_id="li-epic",
+            local_repo=_LOCAL_REPO,
+            approval=GroomApproval(approver="", route="resolve-blocked:li-epic:ready"),
+            slices=[_factory_slice(title="unattributed slice")],
+        )
+
+    assert set(_all_items()) == {"li-epic"}
     assert _item_status(issue_id="li-epic") == "backlog"
 
 
@@ -336,6 +440,7 @@ def test_cross_repo_slice_not_filed_in_local_tenant() -> None:
         path=_config(),
         regroom_item_id="li-epic",
         local_repo=_LOCAL_REPO,
+        approval=_APPROVAL,
         slices=[
             _factory_slice(title="local slice"),
             _cross_repo_slice(title="cross-repo slice"),
@@ -364,6 +469,7 @@ def test_cross_repo_slice_carries_minted_id() -> None:
         path=_config(),
         regroom_item_id="li-epic",
         local_repo=_LOCAL_REPO,
+        approval=_APPROVAL,
         slices=[
             _factory_slice(title="local"),
             _cross_repo_slice(title="remote"),
@@ -381,6 +487,7 @@ def test_local_slice_dep_on_cross_repo_blocker_uses_sibling_work_item_kind() -> 
         path=_config(),
         regroom_item_id="li-epic",
         local_repo=_LOCAL_REPO,
+        approval=_APPROVAL,
         slices=[
             # Cross-repo blocker comes first (earlier layer).
             _cross_repo_slice(title="cross-repo blocker"),
@@ -412,6 +519,7 @@ def test_cross_repo_slice_still_regrooms_out_original() -> None:
         path=_config(),
         regroom_item_id="li-epic",
         local_repo=_LOCAL_REPO,
+        approval=_APPROVAL,
         slices=[
             _factory_slice(title="local"),
             _cross_repo_slice(title="remote"),
@@ -431,6 +539,7 @@ def test_empty_repo_target_on_factory_slice_raises_draft_error() -> None:
             path=_config(),
             regroom_item_id="li-epic",
             local_repo=_LOCAL_REPO,
+            approval=_APPROVAL,
             slices=[
                 CandidateSlice(
                     title="bad slice",
