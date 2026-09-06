@@ -1199,5 +1199,13 @@
     "test": "tests.integration.test_discuss_work_item_scenario115.test_scenario115_the_skill_assembles_its_subject_through_the_context_primitive",
     "work_item": "bd-ib-kr334k",
     "reason": "Ratified with the context-and-discuss-work-item-surface revision (epic bd-ib-w3nwz5, b2) and delivered by the b2.S3 factory slice bd-ib-kr334k. The discuss-work-item heavyweight interactive skill assembles context through the context primitive, stands by (driving only on explicit instruction), records rulings as scope events, resumes from the envelope alone, and is registered under a name that does not collide with the plan built-in. The bound integration-tier case runs the shipped context CLI over a fixture tenant and asserts the emitted envelope is the subject assembly, beside the prose routing that forbids a hand-rolled per-item read; its sibling cases in the same module cover the envelope-alone resume (an identical envelope from the plan_slug and from the epic id, carrying the typed next_action), a maintainer ruling recorded through record_scope_event and read back through read_timeline, the explicit-instruction drive gate pinned in both directions, and the three-runtime registration under discuss-work-item with the sibling plan surface proven untouched."
+  },
+  {
+    "heading": "## Scenario 116 — An operator retires an exhaustion record before its expiry",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "tests.integration.test_dispatcher_provider_exhaustion_clearance_scenario116.test_scenario116_operator_clearance_retires_and_admits",
+    "reason": "Ratified by the factory-spend-containment revise pass (v098); binds SPECIFICATION/contracts.md §\"An operator may retire an exhaustion record early.\" at the consumer tier by driving the real dispatcher.main clear-provider-exhaustion CLI against an on-disk journal. The named case asserts a dispatch is admitted immediately after clearance while the append-only journal records who cleared it and why and the observation line survives; its three siblings in the same integration module cover the two human-only refusals (an unattributed invocation and a blank reason, both leaving the record in force) and a clearance against a provider holding no unexpired record. The newest-first retirement scan is pinned at the unit tier by test_dispatcher_provider_exhaustion_clearance_scan.",
+    "work_item": "bd-ib-mvw0"
   }
 ]
