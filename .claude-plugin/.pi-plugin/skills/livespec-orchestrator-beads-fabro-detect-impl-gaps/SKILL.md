@@ -1,6 +1,6 @@
 ---
 name: livespec-orchestrator-beads-fabro-detect-impl-gaps
-description: Detect specification-to-implementation gaps mechanically via the Spec Reader and emit the current gap-id set. Use when the user asks which spec rules have no implementation, or as the detection step a capture operation composes. Pure read-and-emit — never mutates the store and never prompts.
+description: Enumerate the ratified spec's MUST/SHOULD clauses mechanically via the Spec Reader and emit the current gap-id set. This is a spec-clause enumerator, not a spec→impl comparator — it never reads implementation state, so a returned gap-id means the clause is not yet tracked by a work-item, never that it is missing from the implementation. Use when the user asks which ratified spec clauses are not yet tracked by a work-item, or as the detection step a capture operation composes. Pure read-and-emit — never mutates the store and never prompts.
 allowed-tools: bash
 ---
 
