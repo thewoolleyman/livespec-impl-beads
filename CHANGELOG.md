@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.133.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.133.1...v0.133.2) (2026-09-06)
+
+
+### Bug Fixes
+
+* **otel:** bind the OTLP receiver on the tailnet for a remote-factory dispatch ([c7710ae](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/c7710ae3fa62d182b01f247e00d04e19d2003a57))
+
 ## [0.133.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.133.0...v0.133.1) (2026-09-06)
 
 
