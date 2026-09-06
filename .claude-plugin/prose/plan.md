@@ -78,10 +78,14 @@ The operation's testable package substrate is
   record authoring ran past a threshold. See Step 3's "Record rate".
 - `record_completeness_review_evidence(...)` appends one durable
   independent completeness-review evidence comment to the plan epic.
-- `archive_thread(...)` performs the child-disposition gate, launches a
-  supplied fresh independent reviewer when valid review evidence is
-  absent, re-reads the ledger for durable evidence, and moves the
-  thread directory to `plan/archive/<slug>/` only after both gates pass.
+- `archive_thread(...)` performs the child-disposition gate, sweeps the
+  working tree outside `plan/` for files that read `plan/<slug>/` by
+  path, launches a supplied fresh independent reviewer when valid review
+  evidence is absent, re-reads the ledger for durable evidence, and moves
+  the thread directory to `plan/archive/<slug>/` only after every gate
+  passes.
+- `outside_plan_path_references(...)` is that sweep on its own, for a
+  session that wants the hit list before it attempts the archive.
 
 Use those package calls when this operation needs deterministic local
 behavior. Continue to use `list-work-items`, `next`, and
@@ -299,7 +303,27 @@ Archiving has two required legs:
    an unrecorded result, or a review that does not attest complete
    requirement-carrier coverage is not evidence.
 
-After both gates pass, close the epic and move the whole directory:
+Before the move, sweep the working tree for code that reads the plan
+directory by path. Both ledger gates are blind to it: they enumerate
+children and read evidence, and neither looks at the tree the rename
+mutates. A plan that shipped wrappers, fixtures, or a rehearsal package
+is exactly the shape that breaks — archiving `beads-v1-1-2-upgrade` moved
+a rehearsal package two live test modules held as hardcoded path
+constants, and the archive pull request came back with 33
+`FileNotFoundError`s after the epic was already closed and stamped.
+
+`archive_thread(...)` runs the sweep itself and REFUSES the move while
+any file outside `plan/` references `plan/<topic>/`, naming every one; a
+session can also run `outside_plan_path_references(...)` first to see the
+hit list. The sweep skips the `plan/` tree, `.git`, `.venv`,
+`node_modules`, and vendored trees, and it catches both the posix literal
+`plan/<topic>/…` and the segment-join form `ROOT / "plan" / "<topic>" /
+…`. Repoint each hit — insert `archive` into its path — or retire it, and
+land those edits in the SAME pull request as the move. A hit left for a
+follow-up is a red pull request on an archive whose ledger has already
+been mutated.
+
+After every gate passes, close the epic and move the whole directory:
 
 ```text
 git mv plan/<topic>/ plan/archive/<topic>/

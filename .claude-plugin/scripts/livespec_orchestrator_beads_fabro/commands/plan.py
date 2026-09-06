@@ -8,6 +8,10 @@ from typing import TYPE_CHECKING
 
 from livespec_orchestrator_beads_fabro._beads_client import make_beads_client
 from livespec_orchestrator_beads_fabro.commands._plan_anchor import plan_anchor_epic
+from livespec_orchestrator_beads_fabro.commands._plan_archive_gates import (
+    PlanArchiveRefusedError,
+    outside_plan_path_references,
+)
 from livespec_orchestrator_beads_fabro.commands._plan_archive_review import (
     ArchiveCompletenessReviewRequest,
     CompletenessReviewLauncher,
@@ -88,18 +92,6 @@ _PLAN_DIR = "plan"
 _ARCHIVE_DIR = "archive"
 _RESEARCH_DIR = "research"
 _PLAN_ARCHIVE_ACTOR = "plan-archive"
-
-
-class PlanArchiveRefusedError(Exception):
-    """Expected refusal raised when a plan cannot be archived."""
-
-    @classmethod
-    def missing_completeness_review(cls) -> PlanArchiveRefusedError:
-        return cls("independent completeness-review evidence is required")
-
-    @classmethod
-    def undisposed_children(cls, *, child_ids: list[str]) -> PlanArchiveRefusedError:
-        return cls(f"undisposed child work-items: {', '.join(child_ids)}")
 
 
 def create_thread(  # noqa: PLR0913 — package primitive mirrors the plan-create inputs.
@@ -223,11 +215,20 @@ def archive_thread(
     completeness_review_comment_id: str | None,
     review_launcher: CompletenessReviewLauncher | None = None,
 ) -> dict[str, str]:
-    """Archive a thread after child-disposition and completeness-review gates pass."""
+    """Archive a thread once the child, working-tree reference, and review gates pass.
+
+    The working-tree gate sits between the two ledger gates deliberately.
+    It is mechanical and cheap, like the child-disposition leg, so a plan
+    the move would break refuses BEFORE a fresh independent reviewer is
+    commissioned — and, decisively, before the epic is closed and stamped.
+    """
     client = make_beads_client(config=config)
     undisposed = list(undisposed_plan_child_ids(client=client, epic_id=epic_id))
     if undisposed:
         raise PlanArchiveRefusedError.undisposed_children(child_ids=undisposed)
+    referencing = outside_plan_path_references(project_root=project_root, slug=slug)
+    if referencing:
+        raise PlanArchiveRefusedError.outside_path_references(slug=slug, paths=referencing)
     source = project_root / _PLAN_DIR / slug
     evidence_id = _resolve_completeness_review_evidence(
         client=client,
