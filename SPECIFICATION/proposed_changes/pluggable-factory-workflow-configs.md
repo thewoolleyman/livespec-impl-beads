@@ -17,7 +17,7 @@ Section "Self-contained plugin dispatch" of contracts.md still says an adopter's
 
 ### Motivation
 
-Plan pluggable-factory-workflow-configs (epic bd-ib-yqpdrt) was parked on 2026-08-30 until typed-repo-integration-contract C5 landed, with the rider that a variant registry must satisfy R4 seam equivalence for every registered variant. C5 and its whole plan are closed. The 2026-09-06 reactivation survey (plan/pluggable-factory-workflow-configs/research/002-reactivation-survey-2026-09-06.md) found: (1) impl-to-spec drift, since the target-local precedence shipped without the amendment this section reserved; (2) three fleet repos carry a target-local implement-work-item fork today, one differing from the bundle by a single sandbox-image line that the existing dispatcher.fabro_sandbox_image override already covers, two carrying the retired abandon/escalate nodes, and none seam-checked; (3) the v092 typed inputs removed every toolchain reason to fork, so what remains for a NAMED variant is a deliberately different graph, and that needs a first-class, seam-checked home rather than an unchecked copy; (4) the ACP node adapter contract already ratifies that a per-dispatch selector is a recorded argument and never an environment variable, which is the precedent this registry follows instead of the older LIVESPEC_FABRO_FACTORY one. A scoped objective doctor pass over the first draft of this proposal (2026-09-06) found seven tensions with existing clauses; each is discharged below where it arises, and the two spec cross-references to the bold lead-in "Target-local workflow" are kept resolving by retaining that lead-in. Implementation children bd-ib-27puvv (registry and resolution), bd-ib-u7arwz (ledger pin and recorded argument) and bd-ib-asrazi (seam parity) are filed at backlog under the plan epic and are not to be admitted before this revision is on master.
+Plan pluggable-factory-workflow-configs (epic bd-ib-yqpdrt) was parked on 2026-08-30 until typed-repo-integration-contract C5 landed, with the rider that a variant registry must satisfy R4 seam equivalence for every registered variant. C5 and its whole plan are closed. The 2026-09-06 reactivation survey (plan/pluggable-factory-workflow-configs/research/002-reactivation-survey-2026-09-06.md) found: (1) impl-to-spec drift, since the target-local precedence shipped without the amendment this section reserved; (2) three fleet repos carry a target-local implement-work-item fork today, one differing from the bundle by a single sandbox-image line that the existing dispatcher.fabro_sandbox_image override already covers, two carrying the retired abandon/escalate nodes, and none seam-checked; (3) the v092 typed inputs removed every toolchain reason to fork, so what remains for a NAMED variant is a deliberately different graph, and that needs a first-class, seam-checked home rather than an unchecked copy; (4) the ACP node adapter contract already ratifies that a per-dispatch selector is a recorded argument and never an environment variable, which is the precedent this registry follows instead of the implementation's older factory-selection environment override, a mechanism the spec never recorded. A scoped objective doctor pass over the first draft of this proposal (2026-09-06) found seven tensions with existing clauses; each is discharged below where it arises, and the two spec cross-references to the bold lead-in "Target-local workflow" are kept resolving by retaining that lead-in. Implementation children bd-ib-27puvv (registry and resolution), bd-ib-u7arwz (ledger pin and recorded argument) and bd-ib-asrazi (seam parity) are filed at backlog under the plan epic and are not to be admitted before this revision is on master.
 
 ### Proposed Changes
 
@@ -55,7 +55,7 @@ In `SPECIFICATION/contracts.md`, section "Self-contained plugin dispatch":
 +Prepare steps remain TARGET-TOOLCHAIN facts, not fleet constants, and
 +are expressed through the typed integration inputs of §"Repository
 +integration contract" rather than by carrying a workflow copy. The
-+resolved committed path MUST be journaled on the dispatch-id record as
++resolved committed path MUST be journaled on the dispatch record as
 +`workflow_toml`.
 +
 +**Named workflow variants.** A dispatch target MAY declare
@@ -90,7 +90,7 @@ In `SPECIFICATION/contracts.md`, section "Self-contained plugin dispatch":
 +with nothing in the committed record or the journal to show for it.
 +Every dispatch MUST write the resolved name to the work-item's
 +`dispatch_workflow` metadata, a top-level metadata key, and MUST journal
-+it as `workflow_name` on the dispatch-id record beside `workflow_toml`.
++it as `workflow_name` on the dispatch record beside `workflow_toml`.
 +The Dispatcher MUST refuse the dispatch before any Fabro run exists, in
 +the same shape as the layer-names-an-absent-node refusal of §"ACP node
 +adapter configuration" — a journaled pre-run refusal whose stage names
@@ -120,9 +120,9 @@ In `SPECIFICATION/contracts.md`, section "Self-contained plugin dispatch":
 +seam-equivalence check holds per variant against the ONE set the
 +Dispatcher renders and every declared integration point reaches every
 +variant; a variant MUST NOT opt out of an integration input. The CI
-+seam-equivalence check, and the scan that enforces the factory-sandbox
-+toolchain disposition of §"Dispatch preflight and post-merge step
-+discipline" (no fleet-toolchain premise left unstated in a payload),
++seam-equivalence check, and the `check-no-fleet-toolchain-literals`
++gate of the fleet-toolchain literal ban (`constraints.md`
++§"Governed-repository integration constraints"),
 +MUST read the bundle AND every directory this repository registers under
 +its own `dispatcher.workflows`, and MUST fail rather than report clean
 +for a registered directory whose scan yields nothing to check, so a
@@ -159,7 +159,7 @@ Feature: A dispatch target selects a complete named workflow variant
     When a dispatch is made with --workflow-name fast
     Then the committed workflow resolved is the fast variant's directory
     And the work-item's dispatch_workflow metadata records fast
-    And the dispatch-id record carries workflow_name fast beside workflow_toml
+    And the dispatch record carries workflow_name fast beside workflow_toml
 
   Scenario: A retry reuses the recorded variant
     Given a work-item whose dispatch_workflow metadata records fast
