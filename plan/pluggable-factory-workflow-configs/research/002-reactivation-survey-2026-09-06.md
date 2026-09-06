@@ -255,10 +255,11 @@ filed proposal carries the amended form:
    `--workflow` override as the route to a target-local workflow).
 7. **Undefined terms removed or defined.** `dispatch_factory` is no
    longer cited as a defined key; `workflow_toml` and `workflow_name`
-   are defined where introduced; the checks are named by the clauses
-   they enforce (the CI seam-equivalence check; the factory-sandbox
-   toolchain disposition scan), not by `just` recipe names the spec does
-   not carry.
+   are defined where introduced; the seam check is named as the spec
+   names it (the CI seam-equivalence check), the literal scan by the
+   gate name `constraints.md` ratifies (`check-no-fleet-toolchain-literals`
+   under "Governed-repository integration constraints"), and the journal
+   surface by the spec's own term, "dispatch record".
 
 Consequence for the children: B1's refusals are unchanged; the node-name
 parity is enforced by the EXISTING adapter-layer and timeout refusals
