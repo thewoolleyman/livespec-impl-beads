@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.130.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.130.0...v0.130.1) (2026-09-06)
+
+
+### Bug Fixes
+
+* **dispatcher:** key the heartbeat liveness probe on the dispatch id ([9636a96](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/9636a969f8e218c48394fdb67c015bb16c03f9d3))
+* **plan:** tag a metadata-less epic instead of raising KeyError ([6c9e7dd](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/6c9e7ddebd332f6d5cbf82e5b9d4f8dbf1cb4f91))
+
 ## [0.130.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.129.1...v0.130.0) (2026-09-06)
 
 
