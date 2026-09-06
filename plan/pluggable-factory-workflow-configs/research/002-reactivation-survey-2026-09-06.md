@@ -218,6 +218,53 @@ the discovery control per directory, so a registered variant cannot
 carry a fleet literal or an unrendered integration token that the bundle
 cannot.
 
+## Amendments from the objective doctor pass (same day)
+
+A scoped objective pass over the first draft of the proposal (an
+independent reviewer reading the proposal against §"Self-contained plugin
+dispatch", §"Repository integration contract", §"ACP node adapter
+configuration", §"ACP node timeouts" and the closed-set disposition)
+surfaced seven tensions. Each changed the design as follows, and the
+filed proposal carries the amended form:
+
+1. **Not a schema field, by construction.** The "One schema" and "One
+   resolver" rules govern integration points the orchestrator REQUIRES of
+   a governed repository. The registry is an OPTIONAL target-declared
+   capability in the class of `dispatcher.acp_nodes`, so those rules do
+   not govern it, and the closed-set members-and-adopters disposition is
+   that a repository declaring no registry incurs nothing.
+2. **Refusal shape named.** The three refusals take the adapter-layer
+   shape (journaled pre-run refusal naming every applicable cause), NOT
+   the schema-validation exit-3 `Defective` enumeration, because the keys
+   are not schema fields.
+3. **A variant declares the same six ACP nodes.** Three sections are
+   scoped to `implement-work-item` by name and their per-repository
+   layers (`acp_nodes`, `codex_models` expansion, `node_timeouts`) refuse
+   on a node the graph does not declare. Rather than exempt variants, the
+   proposal makes every such clause apply to a variant as a peer and
+   requires the six node names; a variant differs in edges, retry and
+   review discipline, prompts, run config and sandbox image.
+4. **Same `inputs.*` token set per variant.** Seam equivalence is a
+   three-way set identity against ONE Dispatcher-rendered set, so a
+   variant that references fewer inputs cannot pass it. The proposal
+   makes that a rule: no variant opts out of an integration input. This
+   is what the 2026-08-30 R4 rider meant.
+5. **The bold lead-in "Target-local workflow." is retained** because two
+   other clauses cite it by that name; renaming it would dangle them.
+6. **The older adopter-dispatch scenario is aligned** (it still named the
+   `--workflow` override as the route to a target-local workflow).
+7. **Undefined terms removed or defined.** `dispatch_factory` is no
+   longer cited as a defined key; `workflow_toml` and `workflow_name`
+   are defined where introduced; the checks are named by the clauses
+   they enforce (the CI seam-equivalence check; the factory-sandbox
+   toolchain disposition scan), not by `just` recipe names the spec does
+   not carry.
+
+Consequence for the children: B1's refusals are unchanged; the node-name
+parity is enforced by the EXISTING adapter-layer and timeout refusals
+and needs no new refusal. C gains the per-variant set-identity
+requirement explicitly (a variant referencing fewer tokens is a finding).
+
 ## Scope cut proposed for the scope event
 
 Requirement carriers (one child each unless noted):
