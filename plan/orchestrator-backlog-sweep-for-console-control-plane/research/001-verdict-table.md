@@ -18,13 +18,13 @@ One cached `bd list --status all --limit 0 --json` taken at session start: 942 i
 
 | Verdict | Items |
 |---|---:|
-| KEEP | 175 |
+| KEEP | 176 |
 | RE-SCOPE-TO-WORKFLOW-VARIANT | 5 |
 | SUPERSEDED-BY-TRANSPORT | 8 |
 | CONSOLIDATE-INTO | 12 |
-| CLOSE | 68 |
+| CLOSE | 67 |
 
-Executed dispositions: 10 accept-valve closes, 74 closes, 11 reparents, 1 status reset, 3 plan archives (each gated on an independent completeness review), 16 epic verdict comments.
+Executed dispositions: 10 accept-valve closes, 74 closes, 11 reparents, 1 status reset, 2 plan archives (each gated on an independent completeness review; nis3sr was refused by its review and stays open), 17 epic verdict comments.
 
 ## Epics
 
@@ -40,7 +40,7 @@ Executed dispositions: 10 accept-valve closes, 74 closes, 11 reparents, 1 status
 | `bd-ib-dohu2g` | EPIC: needs-attention advertises an approve valve that drive refuses by construction (plan | backlog | KEEP | comment | needs-attention advertises valves drive refuses by construction; a second instance on the accept valve was measured 2026-09-04. The console renders those advertisements, so the fix must be mechanical before the console consumes needs-attention. |
 | `bd-ib-ehso7x` | Live-exercise acceptance admission across every central dispatch path | backlog | KEEP | comment | Proposal live-exercise-acceptance-admission is filed and awaits revise; the admission predicate is dispatch-path work the console-driven loop also goes through. |
 | `bd-ib-j81s` | orchestrator-backlog-sweep-for-console-control-plane: sort every open orchestrator epic an | ready | KEEP | none | This sweep. |
-| `bd-ib-nis3sr` | Track 2: honest gap detector and check-anchored closure | backlog | CLOSE | archive | Track 2 complete 2026-08-24 (Gate 1 PR #1821, Gate 3 PRs #1819/#1822, all five children closed). The one residual (SKILL.md still advertises the disclaimed comparison) is carried by standalone bd-ib-gjor6v. Archived after independent completeness review. |
+| `bd-ib-nis3sr` | Track 2: honest gap detector and check-anchored closure | backlog | KEEP | comment | Archive-pending, NOT archived: the independent completeness review (completeness-2026-09-06-nis3sr-sweep) attests NOT COMPLETE. Gate 1 (PR #1821) and Gate 3 (PRs #1819/#1822) landed by content and all five children are closed, but closed child bd-ib-xvsw7v's first criterion (skill prose matches the ratified contract) is unmet: all six thin bindings still advertise a spec-to-impl comparison. bd-ib-gjor6v was widened to carry the whole residual and linked to the epic; next_action = impl:bd-ib-gjor6v, then re-review and archive. |
 | `bd-ib-plhtmx` | credential-freshness-redesign: reconsider Codex credential-freshness architecture post cod | backlog | KEEP | comment | Re-scoped in place as the b5 accounts home: D5 generalises account rotation beyond Anthropic and makes it event-driven off rate-limit signals; the credential-freshness design of record (preflight refresh, right-sized gate, liveness) is that work's Codex half. bd-ib-yx7pdm and bd-ib-zz6gii reparent under it. |
 | `bd-ib-qfv9` | factory-run-correlation-observability: a fabro run span carries no work-item, dispatch, ru | ready | KEEP | comment | Run-to-item correlation is what lets the console answer which factory ran what; the one child is blocked on the Honeycomb prohibition and hp's stale receiver, both outside this tenant. |
 | `bd-ib-tgmbcn` | Scope livespec-orchestrator-git-jsonl dispatcher telemetry parity (run_turn + error surfac | backlog | KEEP | comment | Parked by maintainer decision 2026-08-22 as a named follow-up about a different orchestrator (git-jsonl); outside the console redesign's scope. Unchanged. |
