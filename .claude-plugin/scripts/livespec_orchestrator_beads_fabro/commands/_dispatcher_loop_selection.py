@@ -24,6 +24,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_dead_implementer imp
     record_dead_implementer_truncation_if_observed,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
+from livespec_orchestrator_beads_fabro.commands._dispatcher_groom_park import record_groom_draft
 from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import invoker_from_args
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile, utc_now_iso
 from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_close import load_items
@@ -246,6 +247,11 @@ def post_run_dispositions(  # noqa: PLR0913 — kw-only post-run stage; each fie
                 "outcome_status": outcome.status,
             }
         )
+    # BESIDE the pointer, by the ratified groom-cut clause's own word: a
+    # groom-pinned run that terminated needs-human carries the drafted
+    # decomposition, and the comment written here is where that draft rests
+    # and what the later apply dispatch reads. A no-op for every other run.
+    record_groom_draft(args=args, repo=repo, item=item, outcome=outcome, journal=journal)
     escalate_needs_human_block(repo=repo, item=item, outcome=outcome, journal=journal)
     bounce_non_convergence_to_backlog(repo=repo, item=item, outcome=outcome, journal=journal)
     emit_calibration(
