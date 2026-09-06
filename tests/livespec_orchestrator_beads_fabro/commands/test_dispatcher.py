@@ -98,6 +98,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_io import (
     GithubTokenEnvRunner,
     JournalFile,
     ShellCommandRunner,
+    WatchedFabroLauncher,
     _decode,  # pyright: ignore[reportPrivateUsage]
     utc_now_iso,
 )
@@ -4215,6 +4216,53 @@ def test_dispatch_id_journal_records_resolved_factory_without_rewriting_existing
     assert dispatch_records[1]["dispatch_factory"] == "resolved-hp"
     assert len(review_gate_emissions) == 1
     assert review_gate_emissions[0].dispatch_factory == "resolved-hp"
+
+
+def test_dispatch_threads_its_dispatch_id_into_the_watchdog_launcher(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The launcher's heartbeat probe gets THIS dispatch's id, not None.
+
+    The heartbeat sink keys every beat by `livespec.dispatch.id` (the only
+    specific id `cc_otel_overlay_env` projects into the sandbox), so a
+    launcher constructed without the dispatch id can never match a beat —
+    the probe silently reads "no signal" and the watchdog permanently
+    degrades to its coarse wall-clock fallback. Asserting the id EQUALS
+    the one the dispatch journaled is what makes this a real check: a
+    launcher carrying None would look identical to every other test.
+    """
+    repo, workflow = _repo_with_workflow(tmp_path=tmp_path)
+    item = _item()
+    append_work_item(path=_config(), item=item)
+    journal = JournalFile(path=repo / "tmp" / "fabro-dispatch-journal.jsonl")
+    fake = _FakeRunDispatch(outcomes={item.id: _green_outcome(item_id=item.id)})
+    monkeypatch.setattr(_dispatcher_loop, "run_dispatch", fake)
+    monkeypatch.setattr(_dispatcher_loop, "post_run_dispositions", lambda **_: None)
+    monkeypatch.setattr(_dispatcher_loop, "emit_review_gate_from_fabro_events", lambda **_: None)
+
+    outcome = _dispatcher_loop.dispatch_one(
+        args=argparse.Namespace(
+            fabro_bin="fabro",
+            workflow=workflow,
+            repo=repo,
+            journal=None,
+            poll_attempts=1,
+            poll_interval_seconds=0.1,
+        ),
+        repo=repo,
+        item=item,
+        journal=journal,
+        janitor=None,
+    )
+
+    assert outcome.status == "green"
+    records = [json.loads(line) for line in journal.path.read_text(encoding="utf-8").splitlines()]
+    journaled = next(record for record in records if record["stage"] == "dispatch-id")
+    launcher = fake.seen[0]["fabro_launcher"]
+    assert isinstance(launcher, WatchedFabroLauncher)
+    assert launcher.dispatch_id == journaled["dispatch_id"]
+    assert launcher.dispatch_id is not None
 
 
 def test_dispatch_factory_telemetry_is_allowlisted_and_backfilled() -> None:

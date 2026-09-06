@@ -93,9 +93,11 @@ class CostReport:
 def cost_lookup_keys(*, work_item_id: str, dispatch_id: str | None) -> tuple[str, ...]:
     """The candidate cost-sink keys for one dispatch, MOST-specific first.
 
-    Mirrors `_dispatcher_heartbeat_probe.heartbeat_lookup_keys`: the cost
-    sink keys an accrual on the FIRST present of `work.item.id` /
-    `livespec.dispatch.id`, so the gate looks the derived cost up by the
+    Mirrors `_dispatcher_heartbeat_probe.heartbeat_lookup_keys`, which
+    derives the SAME pair in the SAME order: `work.item.id` then
+    `livespec.dispatch.id` — the only two ids `cc_otel_overlay_env`
+    projects into the sandbox. The cost sink keys an accrual on the FIRST
+    present of them, so the gate looks the derived cost up by the
     work-item id (always known at gate time) then the dispatch id. Empty /
     duplicate candidates are dropped (an empty id can never key an
     accrual). Unlike the heartbeat keys these are NOT scrubbed — the cost

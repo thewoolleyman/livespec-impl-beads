@@ -44,6 +44,10 @@ class DispatchRunContext:
     # dispatch never leaves a stale rendered graph behind for the next one.
     payload_dir: Path | None = None
     token_supplier: Callable[[], str]
+    # The dispatch id this run was minted under, carried through so the
+    # watchdog's heartbeat probe can look beats up by the SAME id
+    # `cc_otel_overlay_env` projected into the sandbox.
+    dispatch_id: str | None = None
 
 
 def run_dispatch_with_watchdog(
@@ -79,9 +83,12 @@ def run_dispatch_with_watchdog(
             # writes) as the deferred-PRIMARY liveness signal over the
             # coarse wall-clock backstop; an absent/stale/malformed
             # heartbeat degrades to the wall-clock layer, never to NO
-            # detection.
+            # detection. The dispatch id rides along because the sink keys
+            # every beat by it (`cc_otel_overlay_env` projects no run id),
+            # so a probe without it can never match a beat.
             fabro_launcher=fabro_launcher_type(
                 heartbeat_path=heartbeat_path(args=context.args, repo=context.repo),
+                dispatch_id=context.dispatch_id,
             ),
         )
     return started_at, outcome

@@ -17,8 +17,11 @@ pollutes the repo.
 
 Covered:
 * `heartbeat_lookup_keys` derives the scrubbed candidate keys (work-item
-  id always; the resolved fabro run id when present) — matching how
-  `HeartbeatSink.beat` stores them (most-specific first).
+  id always; the dispatch id when known) — matching how `HeartbeatSink`
+  actually keys a beat, and agreeing key-for-key with the cost side's
+  `cost_lookup_keys`. It does NOT key on the fabro run id: that id is
+  never projected into the sandbox, so a run-id lookup could not match a
+  stored beat (plan `bd-ib-b5dg` research/008).
 * fresh heartbeat -> the probe reports the last-emit epoch (alive signal,
   feeds `decide_stall`).
 * a frozen heartbeat across the full window -> `decide_stall` confirms a
@@ -31,11 +34,13 @@ Covered:
 
 from __future__ import annotations
 
+import inspect
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
+from livespec_orchestrator_beads_fabro.commands._dispatcher_cost_sink import cost_lookup_keys
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import CommandResult
 from livespec_orchestrator_beads_fabro.commands._dispatcher_heartbeat_probe import (
     HeartbeatLivenessProbe,
@@ -79,19 +84,38 @@ def _sink_with(*, path: Path, beats: dict[str, float]) -> HeartbeatSink:
 # ---------------------------------------------------------------------------
 
 
-def test_lookup_keys_use_work_item_id_when_no_run_id() -> None:
-    # Before `fabro ps` resolves a run id, the work-item id is the only
+def test_lookup_keys_take_a_dispatch_id_and_never_a_run_id() -> None:
+    # The keying defect (research/008): the sink keys every beat by
+    # `livespec.dispatch.id` (the only specific id projected into the
+    # sandbox), so a probe parameterized by the fabro run id could never
+    # match one. The parameter IS the dispatch id, and the run id is gone.
+    parameters = inspect.signature(heartbeat_lookup_keys).parameters
+    assert "dispatch_id" in parameters
+    assert "run_id" not in parameters
+
+
+def test_lookup_keys_use_work_item_id_when_no_dispatch_id() -> None:
+    # With no dispatch id supplied, the work-item id is the only
     # always-available key (it is known at plan time).
-    keys = heartbeat_lookup_keys(work_item_id="livespec-impl-beads-29f.6", run_id=None)
+    keys = heartbeat_lookup_keys(work_item_id="livespec-impl-beads-29f.6", dispatch_id=None)
     assert keys == ("livespec-impl-beads-29f.6",)
 
 
-def test_lookup_keys_prefer_run_id_then_work_item_id() -> None:
-    # Once the fabro run id is known it is the most-specific key
-    # (`fabro.run_id` is first in the sink's key preference), but the
-    # work-item id stays as a fallback the receiver may have keyed on.
-    keys = heartbeat_lookup_keys(work_item_id="oyg-1", run_id="01RUN")
-    assert keys == ("01RUN", "oyg-1")
+def test_lookup_keys_are_work_item_id_then_dispatch_id() -> None:
+    # Both projected ids are candidates, in the sink's own preference
+    # order; the probe takes the freshest beat across them.
+    keys = heartbeat_lookup_keys(work_item_id="oyg-1", dispatch_id="d-1")
+    assert keys == ("oyg-1", "d-1")
+
+
+def test_lookup_keys_agree_with_the_cost_side() -> None:
+    # The two sinks read the SAME projected resource attributes, so their
+    # lookup keys must not diverge — the divergence this item fixes was
+    # invisible precisely because each side looked correct on its own.
+    work_item_id, dispatch_id = "li-x", "d-y"
+    assert heartbeat_lookup_keys(
+        work_item_id=work_item_id, dispatch_id=dispatch_id
+    ) == cost_lookup_keys(work_item_id=work_item_id, dispatch_id=dispatch_id)
 
 
 def test_lookup_keys_are_scrubbed_to_match_the_sink() -> None:
@@ -100,22 +124,22 @@ def test_lookup_keys_are_scrubbed_to_match_the_sink() -> None:
     # way or it would never match.
     keys = heartbeat_lookup_keys(
         work_item_id="https://x-access-token:SECRET@github.com/a/b",
-        run_id=None,
+        dispatch_id=None,
     )
     assert keys == ("[redacted-credential-shaped-value]",)
 
 
-def test_lookup_keys_drop_an_empty_run_id() -> None:
-    # An empty run id is not a usable candidate (it can never key a beat);
-    # only the work-item id survives.
-    keys = heartbeat_lookup_keys(work_item_id="oyg-1", run_id="")
+def test_lookup_keys_drop_an_empty_dispatch_id() -> None:
+    # An empty dispatch id is not a usable candidate (it can never key a
+    # beat); only the work-item id survives.
+    keys = heartbeat_lookup_keys(work_item_id="oyg-1", dispatch_id="")
     assert keys == ("oyg-1",)
 
 
-def test_lookup_keys_dedupe_when_run_id_equals_work_item_id() -> None:
-    # If the resolved run id and the work-item id scrub to the same value,
-    # the candidate is listed once (no redundant lookup).
-    keys = heartbeat_lookup_keys(work_item_id="same-id", run_id="same-id")
+def test_lookup_keys_dedupe_when_dispatch_id_equals_work_item_id() -> None:
+    # If the dispatch id and the work-item id scrub to the same value, the
+    # candidate is listed once (no redundant lookup).
+    keys = heartbeat_lookup_keys(work_item_id="same-id", dispatch_id="same-id")
     assert keys == ("same-id",)
 
 
@@ -134,14 +158,29 @@ def test_probe_reports_fresh_heartbeat_epoch(tmp_path: Path) -> None:
     assert sample == LivenessSample(last_event_epoch=1_750_000_500.0, observed_at=42.0)
 
 
+def test_probe_finds_a_beat_stored_under_the_dispatch_id(tmp_path: Path) -> None:
+    # The defect this item fixes, end to end at the probe seam: the sink
+    # keys a beat by `livespec.dispatch.id` (never the work-item id, and
+    # never the fabro run id), and the probe must find it through the keys
+    # `heartbeat_lookup_keys` derives. Before the fix these keys held only
+    # the work-item and run ids, so this read as "no signal" forever.
+    path = tmp_path / "j-otel-heartbeat.json"
+    sink = _sink_with(path=path, beats={"d-1": 1_750_000_500.0})
+    probe = HeartbeatLivenessProbe(
+        sink=sink,
+        keys=heartbeat_lookup_keys(work_item_id="oyg-1", dispatch_id="d-1"),
+    )
+    assert probe.sample(observed_at=3.0).last_event_epoch == 1_750_000_500.0
+
+
 def test_probe_takes_the_freshest_across_candidate_keys(tmp_path: Path) -> None:
-    # The receiver may have keyed the SAME run under both its fabro run id
+    # The receiver may have keyed the SAME run under both its dispatch id
     # and its work-item id; the probe takes the MOST RECENT beat across
     # the candidates (liveness is the latest activity, like the wall-clock
     # layer's max-timestamp rule).
     path = tmp_path / "j-otel-heartbeat.json"
-    sink = _sink_with(path=path, beats={"01RUN": 1_750_000_100.0, "oyg-1": 1_750_000_900.0})
-    probe = HeartbeatLivenessProbe(sink=sink, keys=("01RUN", "oyg-1"))
+    sink = _sink_with(path=path, beats={"d-1": 1_750_000_100.0, "oyg-1": 1_750_000_900.0})
+    probe = HeartbeatLivenessProbe(sink=sink, keys=("oyg-1", "d-1"))
     assert probe.sample(observed_at=1.0).last_event_epoch == 1_750_000_900.0
 
 
@@ -273,6 +312,7 @@ _PS_RUNNING = (
     ' "status": {"kind": "running"}}]'
 )
 _HEARTBEAT_WORK_ITEM_ID = "livespec-impl-beads-oyg"
+_HEARTBEAT_DISPATCH_ID = "ba06d4268df24488a01beb352a6d0e7f"
 
 
 def _watchdog_plan(*, repo: Path) -> DispatchPlan:
@@ -351,9 +391,15 @@ def test_launcher_cancels_on_a_frozen_heartbeat_even_when_events_advance(
     # backstop alone would read as healthy), a FROZEN heartbeat for this
     # run confirms the finer 7us.6 stall and the watchdog `fabro rm -f`-es
     # the run. Proves the heartbeat wins over the wall-clock layer.
+    #
+    # The beat is keyed by the DISPATCH id, exactly as the live sink keys
+    # it, and the launcher is given that id — so this also proves the
+    # launcher threads it through to `heartbeat_lookup_keys`. Keyed this
+    # way before the fix, the probe found nothing and the advancing events
+    # would have carried the run past the stall window uncancelled.
     monkeypatch.setenv("LIVESPEC_DISPATCH_STALL_SECONDS", "1000")
     heartbeat_path = tmp_path / "j-otel-heartbeat.json"
-    _ = _sink_with(path=heartbeat_path, beats={_HEARTBEAT_WORK_ITEM_ID: 1_750_000_000.0})
+    _ = _sink_with(path=heartbeat_path, beats={_HEARTBEAT_DISPATCH_ID: 1_750_000_000.0})
     advancing = [
         '[{"timestamp": "2026-06-13T08:00:00Z"}]',
         '[{"timestamp": "2026-06-13T08:10:00Z"}]',
@@ -365,6 +411,7 @@ def test_launcher_cancels_on_a_frozen_heartbeat_even_when_events_advance(
         sleep=lambda _s: None,
         clock=_advancing_clock(),
         heartbeat_path=heartbeat_path,
+        dispatch_id=_HEARTBEAT_DISPATCH_ID,
     )
     result = launcher.launch(plan=_watchdog_plan(repo=tmp_path), runner=runner, journal=journal)
     assert result.stalled_run_id == "01RUN"

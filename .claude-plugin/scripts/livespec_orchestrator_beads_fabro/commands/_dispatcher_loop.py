@@ -242,6 +242,7 @@ def _dispatch_one_locked(  # noqa: PLR0911 — one return per PRE-RUN REFUSAL ST
             overlay_file=overlay_file,
             payload_dir=payload.payload_dir,
             token_supplier=token_supplier,
+            dispatch_id=identity.dispatch_id,
         ),
         run_dispatch_func=run_dispatch,
         fabro_launcher_type=WatchedFabroLauncher,

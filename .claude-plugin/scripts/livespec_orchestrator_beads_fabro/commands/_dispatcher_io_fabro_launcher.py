@@ -99,6 +99,13 @@ class WatchedFabroLauncher:
     sleep: Callable[[float], None] = time.sleep
     clock: Callable[[], float] = time.monotonic
     heartbeat_path: Path | None = None
+    # The dispatch id this launch was minted under — the id
+    # `cc_otel_overlay_env` projects into the sandbox and therefore the id
+    # the heartbeat sink keys every beat by. It rides the launcher beside
+    # `heartbeat_path` because both are per-dispatch wiring for the SAME
+    # probe; None means the caller supplied none, and the probe falls back
+    # to the work-item id alone.
+    dispatch_id: str | None = None
 
     def launch(
         self,
@@ -234,7 +241,9 @@ class WatchedFabroLauncher:
             return wall_clock.sample(observed_at=observed_at)
         heartbeat = HeartbeatLivenessProbe(
             sink=HeartbeatSink(path=self.heartbeat_path),
-            keys=heartbeat_lookup_keys(work_item_id=plan.work_item_id, run_id=run_id),
+            keys=heartbeat_lookup_keys(
+                work_item_id=plan.work_item_id, dispatch_id=self.dispatch_id
+            ),
         )
         layered = LayeredLivenessProbe(primary=heartbeat, fallback=wall_clock)
         return layered.sample(observed_at=observed_at)
