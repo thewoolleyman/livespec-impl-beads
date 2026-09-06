@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.131.1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.131.0...v0.131.1) (2026-09-06)
+
+
+### Bug Fixes
+
+* **dispatcher:** journal a registered-install lag warning when a stale session executes an older plugin build (bd-ib-h3mm) ([54da25d](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/54da25d9aeba885cec26f1680136d53a27c8e798))
+
 ## [0.131.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.130.1...v0.131.0) (2026-09-06)
 
 
