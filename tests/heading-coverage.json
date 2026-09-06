@@ -1207,5 +1207,13 @@
     "test": "tests.integration.test_dispatcher_provider_exhaustion_clearance_scenario116.test_scenario116_operator_clearance_retires_and_admits",
     "reason": "Ratified by the factory-spend-containment revise pass (v098); binds SPECIFICATION/contracts.md §\"An operator may retire an exhaustion record early.\" at the consumer tier by driving the real dispatcher.main clear-provider-exhaustion CLI against an on-disk journal. The named case asserts a dispatch is admitted immediately after clearance while the append-only journal records who cleared it and why and the observation line survives; its three siblings in the same integration module cover the two human-only refusals (an unattributed invocation and a blank reason, both leaving the record in force) and a clearance against a provider holding no unexpired record. The newest-first retirement scan is pinned at the unit tier by test_dispatcher_provider_exhaustion_clearance_scan.",
     "work_item": "bd-ib-mvw0"
+  },
+  {
+    "heading": "## Scenario 117 — Named workflow variants resolve by recorded precedence and refuse before any run",
+    "spec_root": "SPECIFICATION",
+    "spec_file": "scenarios.md",
+    "test": "TODO",
+    "reason": "Ratified by the pluggable-factory-workflow-configs revise pass (plan epic bd-ib-yqpdrt). The exercising integration-tier test is owed by the plan's coverage item once the three implementation children bd-ib-27puvv (registry and resolution), bd-ib-u7arwz (recorded --workflow-name and dispatch_workflow pin) and bd-ib-asrazi (seam parity over registered variants) land; until then the behavior has no implementation to bind to. Renumbered from the proposal's 116 to 117 at revise time because v098 took 116.",
+    "work_item": "bd-ib-yqpdrt"
   }
 ]
