@@ -1,4 +1,4 @@
-"""Comment sidecar reads for the beads-backed store."""
+"""Comment sidecar reads and appends for the beads-backed store."""
 
 from __future__ import annotations
 
@@ -10,7 +10,11 @@ from livespec_orchestrator_beads_fabro._beads_client import make_beads_client
 if TYPE_CHECKING:
     from livespec_orchestrator_beads_fabro.types import StoreConfig
 
-__all__: list[str] = ["WorkItemComment", "read_work_item_comments"]
+__all__: list[str] = [
+    "WorkItemComment",
+    "append_work_item_comment",
+    "read_work_item_comments",
+]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -59,6 +63,19 @@ def read_work_item_comments(
             )
         )
     return tuple(comments)
+
+
+def append_work_item_comment(*, path: StoreConfig, work_item_id: str, body: str) -> None:
+    """Append one comment to a work-item — the write half of the sidecar.
+
+    Beads comments are APPEND-ONLY: `bd comments` offers neither an edit nor a
+    delete verb, so a body that turns out to be unusable can only be superseded
+    by a further comment, never repaired. Grading a body is therefore the
+    CALLER's obligation and has to happen before this call rather than inside
+    it, because what counts as unusable depends on where the body is bound —
+    the goal brief, a handoff export, a recurrence bump.
+    """
+    make_beads_client(config=path).add_comment(issue_id=work_item_id, body=body)
 
 
 def _comment_field_str(*, value: object) -> str | None:

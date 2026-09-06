@@ -57,6 +57,7 @@ _EXIT_FAILURE = 1
 _EXIT_PRECONDITION_ERROR = 3
 _EXIT_BLOCKED = 4
 _IMPL_PREFIX = "impl:"
+_RESOLVE_BLOCKED_PREFIX = "resolve-blocked:"
 
 # The drive actions that only READ. Per the journal invoker attribution contract
 # in contracts.md, a read-only invocation resolves and stamps identity
@@ -77,8 +78,17 @@ _UNSUPPORTED_ACTION_SUMMARY = (
     "'config', 'config-manifest', or 'set-config:<key>:<value>'."
 )
 
+# `--answer` is scoped to ONE action rather than accepted-and-ignored
+# elsewhere. An answer discarded in silence is the worst available outcome: the
+# operator sees a green result, believes the decision reached the item, and the
+# re-dispatched brief arrives without it — the very gap this route closes.
+_ANSWER_SCOPE_SUMMARY = (
+    "--answer is accepted only by 'resolve-blocked:<id>:ready|backlog'; it is the "
+    "answer written to the work-item's ledger so the next dispatch's brief carries it."
+)
 
-def run_action(
+
+def run_action(  # noqa: PLR0913 — kw-only router; `answer` is one more independent transport input, not a coupled one.
     *,
     repo: Path,
     action_id: str,
@@ -86,6 +96,7 @@ def run_action(
     dispatcher_bin: Path | None = None,
     acp_nodes: tuple[str, ...] = (),
     identity: InvokerIdentity | None = None,
+    answer: str | None = None,
 ) -> dict[str, Any]:
     """Run one selected action-id.
 
@@ -98,11 +109,26 @@ def run_action(
     `identity` is the invocation's resolved invoker. `None` means "resolve it
     from the environment here" so a direct caller is still attributed; the CLI
     supervisor passes the identity it resolved, flag included.
+
+    `answer` is the operator's answer to the question a terminated run
+    published. It is refused here for any action that cannot deliver it, so a
+    mis-aimed answer is reported rather than dropped.
     """
     resolved_identity = default_invoker_identity() if identity is None else identity
+    if answer is not None and not action_id.startswith(_RESOLVE_BLOCKED_PREFIX):
+        return {
+            "action_id": action_id,
+            "kind": "unknown",
+            "status": "failed",
+            "summary": _ANSWER_SCOPE_SUMMARY,
+        }
     if is_human_valve_action(action_id=action_id):
         return run_human_valve_action(
-            repo=repo, action_id=action_id, runner=runner, identity=resolved_identity
+            repo=repo,
+            action_id=action_id,
+            runner=runner,
+            identity=resolved_identity,
+            answer=answer,
         )
     if is_config_action(action_id=action_id):
         return run_config_action(repo=repo, action_id=action_id)
@@ -143,6 +169,7 @@ def main(*, argv: list[str] | None = None, runner: CommandRunner | None = None) 
         runner=runner,
         acp_nodes=tuple(args.acp_node or ()),
         identity=invoker_from_args(args=args),
+        answer=args.answer,
     )
     _emit_payload(payload=result, as_json=args.as_json)
     return _exit_code_for_status(status=str(result["status"]))
@@ -199,6 +226,21 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "override one ACP node's adapter for this dispatch only, as a complete "
             "adapter command line; repeatable"
+        ),
+    )
+    # The v093-native answer route. A factory run that needs a human decision
+    # TERMINATES, so the answer cannot go back to the run that asked: it is
+    # written to the item's ledger, which is what the NEXT dispatch's goal brief
+    # already reads.
+    _ = parser.add_argument(
+        "--answer",
+        dest="answer",
+        default=None,
+        metavar="TEXT",
+        help=(
+            "the answer to the question a terminated run published, for "
+            "resolve-blocked only; written to the work-item's ledger before the "
+            "transition so the re-dispatched brief carries it"
         ),
     )
     add_invoker_argument(parser=parser)

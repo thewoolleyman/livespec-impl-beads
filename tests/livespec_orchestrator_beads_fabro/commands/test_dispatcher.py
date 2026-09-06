@@ -262,6 +262,7 @@ def test_dispatcher_plan_decomposition_contract() -> None:
         "GoalBriefMiniJinjaFinding",
         "minijinja_findings_detail",
         "minijinja_openers_in_goal_sources",
+        "minijinja_openers_in_text",
         "render_goal",
     }
     assert set(_dispatcher_host_only.__all__) == {

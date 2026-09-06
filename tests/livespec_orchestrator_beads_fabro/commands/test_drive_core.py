@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from livespec_orchestrator_beads_fabro.commands import _drive_reject_valve as reject_valve
 from livespec_orchestrator_beads_fabro.commands import _drive_valves as drive_valves
 from livespec_orchestrator_beads_fabro.commands import drive
 from livespec_orchestrator_beads_fabro.commands.drive import (
@@ -134,11 +135,13 @@ def _install_valve_store(
     monkeypatch.setattr(
         drive_valves.store, "update_work_item_status", fake_update_work_item_status, raising=False
     )
+    # The rework marker is bound inside `_drive_reject_valve`, which is where
+    # the reject valve lives; patching the router's namespace would silently
+    # no-op under `raising=False` and let the real write reach the tenant.
     monkeypatch.setattr(
-        drive_valves,
+        reject_valve,
         "update_work_item_rework_pending",
         fake_update_work_item_rework_pending,
-        raising=False,
     )
     return updates
 

@@ -15,6 +15,11 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings impo
     MERGE_ON_REVIEW_CAP_LABEL,
     REVIEW_FIX_CAP_LABEL,
 )
+from livespec_orchestrator_beads_fabro.commands._drive_answer import (
+    AnswerDelivery,
+    answer_note,
+    deliver_answer,
+)
 from livespec_orchestrator_beads_fabro.commands._drive_config_schema import (
     CONFIG_KEYS,
     ConfigKey,
@@ -70,8 +75,24 @@ _CLEAR_SENTINEL = "clear"
 
 
 def resolve_blocked_item(
-    *, config: StoreConfig, item: WorkItem, aid: str, target_status: str
+    *,
+    config: StoreConfig,
+    item: WorkItem,
+    aid: str,
+    target_status: str,
+    delivery: AnswerDelivery | None = None,
 ) -> dict[str, Any]:
+    """Resolve a blocked needs-human item, carrying the operator's answer if one came.
+
+    `delivery` is the answer to the question the TERMINATED run published
+    (`_drive_answer`). ORDER IS LOAD-BEARING: it lands in the ledger BEFORE the
+    transition, because a `ready` item is selectable by `next` the instant the
+    status write returns — a transition that ran first could be picked up and
+    re-dispatched against a brief that still lacked the answer, which is the
+    exact miss this route exists to close. Writing first also makes a refused
+    answer free: nothing has moved, so the operator rewords and re-runs the
+    identical action.
+    """
     if item.status != "blocked" or item.blocked_reason != "needs-human":
         return valve_refusal(
             aid=aid,
@@ -79,6 +100,10 @@ def resolve_blocked_item(
             err="invalid-source-state",
             msg="resolve-blocked requires a blocked needs-human item.",
         )
+    if delivery is not None:
+        refusal = deliver_answer(config=config, item=item, aid=aid, delivery=delivery)
+        if refusal is not None:
+            return refusal
     write_blocked_state_and_reconcile(
         path=config,
         item_id=item.id,
@@ -91,7 +116,7 @@ def resolve_blocked_item(
         stage="human-valve-resolve-blocked",
         status=target_status,
         assignee=None,
-        msg=f"Resolved {item.id}: blocked -> {target_status}.",
+        msg=f"Resolved {item.id}: blocked -> {target_status}{answer_note(delivery=delivery)}.",
     )
 
 
