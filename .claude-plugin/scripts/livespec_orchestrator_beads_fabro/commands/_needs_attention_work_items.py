@@ -167,6 +167,7 @@ def stranded_dispatch_items(
     project_root: Path,
     repo: str,
     items: list[WorkItem],
+    held_work_item_ids: frozenset[str] = frozenset(),
 ) -> list[AttentionItem]:
     return _stranded_dispatch_items(
         project_root=project_root,
@@ -174,6 +175,7 @@ def stranded_dispatch_items(
         items=items,
         live_lock_lookup=_live_dispatch_lock,
         watchable_run_lookup=_watchable_fabro_run,
+        held_work_item_ids=held_work_item_ids,
     )
 
 

@@ -174,7 +174,7 @@ def _no_spec_next(*, project_root: Path) -> SpecNextOutput | None:
 
 def _snapshot_ids(*, root: Path, monkeypatch: pytest.MonkeyPatch) -> set[str]:
     """Compose the real needs-attention snapshot and return its stable ids."""
-    monkeypatch.setattr(needs_attention, "_spec_next", _no_spec_next)
+    monkeypatch.setattr(needs_attention, "spec_next", _no_spec_next)
     return {
         item.id
         for item in build_attention(project_root=root, repo_name="repo", include_hygiene=False)

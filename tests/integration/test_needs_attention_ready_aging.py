@@ -125,7 +125,7 @@ def _snapshot(
     monkeypatch: pytest.MonkeyPatch,
     watchable: frozenset[str] = frozenset(),
 ) -> list[AttentionItem]:
-    monkeypatch.setattr(needs_attention, "_spec_next", _no_spec_next)
+    monkeypatch.setattr(needs_attention, "spec_next", _no_spec_next)
     monkeypatch.setattr(needs_attention, "_utc_now_iso", lambda: _NOW)
 
     def _watchable_item_ids(*, repo: Path) -> frozenset[str]:

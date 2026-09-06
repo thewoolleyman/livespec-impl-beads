@@ -126,7 +126,7 @@ def _no_spec_next(*, project_root: Path) -> SpecNextOutput | None:
 
 def _compose(*, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> list[AttentionItem]:
     """Compose the snapshot with the cross-plane spec lane stubbed out."""
-    monkeypatch.setattr(needs_attention, "_spec_next", _no_spec_next)
+    monkeypatch.setattr(needs_attention, "spec_next", _no_spec_next)
     return build_attention(project_root=tmp_path, repo_name="repo", include_hygiene=False)
 
 
