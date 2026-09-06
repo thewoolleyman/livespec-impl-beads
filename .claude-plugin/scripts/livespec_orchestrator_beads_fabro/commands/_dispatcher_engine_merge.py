@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_janitor import post_merge
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_journal import journal_stage
+from livespec_orchestrator_beads_fabro.commands._dispatcher_merge_pr_association import (
+    pr_view_for_merge_sha,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     DispatchPlan,
     PrView,
@@ -23,7 +27,7 @@ if TYPE_CHECKING:
         SleepFn,
     )
 
-__all__: list[str] = ["await_merge", "confirm_pr"]
+__all__: list[str] = ["await_merge", "confirm_pr", "outcome_after_await"]
 
 _GH_TIMEOUT_SECONDS = 300.0
 
@@ -88,6 +92,53 @@ def await_merge(
         if attempt + 1 < poll.attempts:
             sleep(poll.interval_seconds)
     return None
+
+
+def outcome_after_await(  # noqa: PLR0913 — kw-only disposition; each field is an independent caller input.
+    *,
+    outcome_type: type[DispatchOutcome],
+    plan: DispatchPlan,
+    runner: CommandRunner,
+    journal: JournalWriter,
+    merged: PrView | DispatchOutcome | None,
+    pr_number: int,
+    run_id: str | None,
+) -> DispatchOutcome:
+    """One terminal outcome from `await_merge`'s three-way answer.
+
+    The poll reports a MERGED view, a terminal failure it already decided (a
+    required check that failed for good), or an exhausted budget, and each is a
+    different outcome. It lives beside the poll rather than inside `run_dispatch`
+    so that function stays one readable list of stages rather than a stage list
+    with a disposition tree hanging off its end.
+    """
+    # Discriminated on `PrView` rather than on `outcome_type`, which is a
+    # runtime PARAMETER and so narrows nothing for the reader or the checker.
+    if isinstance(merged, PrView):
+        return post_merge(
+            outcome_type=outcome_type,
+            plan=plan,
+            runner=runner,
+            journal=journal,
+            merged=pr_view_for_merge_sha(
+                repo=plan.repo,
+                work_item_id=plan.work_item_id,
+                merged=merged,
+                runner=runner,
+                journal=journal,
+            ),
+        )
+    if merged is None:
+        return outcome_type(
+            work_item_id=plan.work_item_id,
+            status="failed",
+            stage="merge-poll",
+            pr_number=pr_number,
+            merge_sha=None,
+            detail="PR did not reach MERGED within the poll budget",
+            fabro_run_id=run_id,
+        )
+    return merged
 
 
 def _view_pr(
