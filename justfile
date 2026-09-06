@@ -878,8 +878,17 @@ check-no-direct-destructive-cli:
 check-no-direct-tool-invocation:
     uv run python -m livespec_dev_tooling.checks.no_direct_tool_invocation
 
+# Delegates to the worktree pack's single canonical body (livespec-dev-tooling-fy02),
+# installed untracked at dev-tooling/ by `just install-worktree-pack` and
+# byte-verified fleet-wide. Unlike the previous hard block (which forced the
+# 2026-09-05 authorized workflow landing through the GitHub API, PR #2160), the
+# pack body honours a HUMAN authorization recorded on the ledger: a tracked
+# `.livespec-workflow-edit-exemption` declaration authored in the change, whose
+# named work item carries the human-set `approval:workflow-edit` label. The
+# Python module `_dispatcher_workflow_guard.py` (and its `workflow_guard.py` bin
+# wrapper) stays for the Dispatcher engine's programmatic use.
 check-no-workflow-edits:
-    uv run python .claude-plugin/scripts/bin/workflow_guard.py
+    bash dev-tooling/check-no-workflow-edits.sh
 
 # ADOPTION gate for a livespec-dev-tooling release (livespec-dev-tooling-wvuefu
 # / bd-ib-u46hcv). Replays the dispatch workflow's conformance setup steps —
