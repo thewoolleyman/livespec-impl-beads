@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.137.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.136.0...v0.137.0) (2026-09-06)
+
+
+### Features
+
+* **merge-hold:** render and honor merge_hold across the workflow, both seams, and three input families ([080eded](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/080eded670bd47a1e33141c0d84b8e5c10fe91c0))
+
+
+### Bug Fixes
+
+* **dispatcher:** a merge-held run terminates green at the pr stage ([a066168](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/a066168ef6c32e8600e1e8f0aa35433ddc6c2317))
+* **dispatcher:** pair loop-selection import cleanup with module surface test ([638667d](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/638667dd4499535704a6212f2356be2093ff2c90))
+
 ## [0.136.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.135.0...v0.136.0) (2026-09-06)
 
 
