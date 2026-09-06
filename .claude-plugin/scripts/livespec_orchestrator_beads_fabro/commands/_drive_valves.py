@@ -1,14 +1,15 @@
-"""Human-valve actions for the drive operator surface."""
+"""Action parsing, routing, and the ledger-only human valves for `drive`.
 
-from collections.abc import Callable
+The `reject` valve lives in `_drive_reject_valve` and the policy / cap / queue
+/ blocked-state valves in `_drive_policy_valves`; what stays here is the
+action-id grammar, the router that dispatches on it, and the two valves that do
+nothing but write the ledger.
+"""
+
 from pathlib import Path
-from subprocess import run
-from typing import Any, Protocol, cast
+from typing import Any, cast
 
 from livespec_orchestrator_beads_fabro import store
-from livespec_orchestrator_beads_fabro._store_rework_mutations import (
-    update_work_item_rework_pending,
-)
 from livespec_orchestrator_beads_fabro.commands._config import resolve_store_config
 from livespec_orchestrator_beads_fabro.commands._dispatcher_effective_criteria import (
     ungradeable_criteria_refusal,
@@ -17,10 +18,10 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import (
     InvokerIdentity,
     default_invoker_identity,
 )
-from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
 from livespec_orchestrator_beads_fabro.commands._dispatcher_lifecycle_writes import (
     write_work_item_status_and_reconcile,
 )
+from livespec_orchestrator_beads_fabro.commands._drive_answer import answer_delivery
 from livespec_orchestrator_beads_fabro.commands._drive_policy_valves import (
     CAP_ACTION_VERBS,
     move_item,
@@ -28,6 +29,11 @@ from livespec_orchestrator_beads_fabro.commands._drive_policy_valves import (
     set_cap,
     set_policy,
     set_workflow_scope_override,
+)
+from livespec_orchestrator_beads_fabro.commands._drive_reject_valve import (
+    HumanValveRunner,
+    journal_rework_return,
+    reject_item,
 )
 from livespec_orchestrator_beads_fabro.commands._drive_valve_predicates import can_approve_item
 from livespec_orchestrator_beads_fabro.commands._drive_valve_result import (
@@ -39,17 +45,6 @@ from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
 
 __all__: list[str] = ["is_human_valve_action", "run_human_valve_action"]
 
-
-class HumanValveCommandRun(Protocol):
-    @property
-    def returncode(self) -> int: ...
-
-    @property
-    def stderr(self) -> str: ...
-
-
-HumanValveRunner = Callable[..., object]
-_REWORK_REJECT_KIND = "rework"
 ACTION_WITH_ITEM_PARTS = 2
 ACTION_WITH_VALUE_PARTS = 3
 APPROVAL_ACTIONS = frozenset({"approve", "accept"})
@@ -68,12 +63,18 @@ def run_human_valve_action(
     action_id: str,
     runner: HumanValveRunner | None = None,
     identity: InvokerIdentity | None = None,
+    answer: str | None = None,
 ) -> dict[str, Any]:
     """Run one human-valve action, attributing whatever it journals.
 
     `identity` is the invocation's resolved invoker; `None` means "resolve it
     from the environment here", so a direct caller is still attributed rather
     than unattributed.
+
+    `answer` is the operator's answer to the question a terminated run
+    published, consumed only by `resolve-blocked` (`_drive_answer`); the
+    transport neither reads nor validates it, because the layer that knows what
+    an unusable answer is, is the one that knows where it will be written.
     """
     resolved_identity = default_invoker_identity() if identity is None else identity
     parsed = _parse_human_valve_action(action_id=action_id)
@@ -94,7 +95,13 @@ def run_human_valve_action(
         )
     value = cast("str", action_value)
     if action == "resolve-blocked":
-        result = resolve_blocked_item(config=config, item=item, aid=action_id, target_status=value)
+        result = resolve_blocked_item(
+            config=config,
+            item=item,
+            aid=action_id,
+            target_status=value,
+            delivery=answer_delivery(answer=answer, identity=resolved_identity, repo=repo),
+        )
     elif action == "approve":
         result = _approve_item(repo=repo, config=config, item=item, action_id=action_id)
     elif action == "accept":
@@ -108,10 +115,10 @@ def run_human_valve_action(
     elif action == "move":
         result = move_item(config=config, item=item, aid=action_id, target_status=value)
     else:
-        result = _reject_item(
+        result = reject_item(
             repo=repo, config=config, item=item, aid=action_id, reject_kind=value, runner=runner
         )
-        _journal_rework_return(
+        journal_rework_return(
             repo=repo, identity=resolved_identity, reject_kind=value, result=result
         )
     return result
@@ -217,81 +224,4 @@ def _accept_item(*, config: StoreConfig, item: WorkItem, action_id: str) -> dict
         status="done",
         assignee=None,
         msg=f"Accepted {item.id}: acceptance -> done.",
-    )
-
-
-def _reject_item(
-    *,
-    repo: Path,
-    config: StoreConfig,
-    item: WorkItem,
-    aid: str,
-    reject_kind: str,
-    runner: HumanValveRunner | None,
-) -> dict[str, Any]:
-    if item.status != "acceptance":
-        return invalid_source_state(aid=aid, item=item, expected="acceptance")
-    target_status = "active" if reject_kind == "rework" else "backlog"
-    if reject_kind == "regroom":
-        refusal = _revert_merged_change(repo=repo, item=item, aid=aid, runner=runner)
-        if refusal is not None:
-            return refusal
-    store.update_work_item_status(path=config, item_id=item.id, status=target_status)
-    if reject_kind == _REWORK_REJECT_KIND:
-        # The human rework entry stamps the SAME marker the AI-fail entry does:
-        # the two rework entries must not diverge in selectability, so the valve
-        # an operator is offered is not a dead end.
-        update_work_item_rework_pending(path=config, item_id=item.id, value=True)
-    return valve_success(
-        aid=aid,
-        wid=item.id,
-        stage=f"human-valve-reject-{reject_kind}",
-        status=target_status,
-        assignee=None,
-        msg=f"Rejected {item.id}: acceptance -> {target_status}.",
-    )
-
-
-def _journal_rework_return(
-    *, repo: Path, identity: InvokerIdentity, reject_kind: str, result: dict[str, Any]
-) -> None:
-    """Journal a SUCCESSFUL REWORK return through the single append layer.
-
-    Lifted out of `_reject_item` so the invocation's identity reaches the write
-    without pushing that function past the argument ceiling, and it owns BOTH
-    guards rather than splitting them with its caller. A `regroom` return is not
-    journaled here, and a refusal payload carries no `journal` key — so that
-    key's absence is the success discriminator.
-    """
-    record = result.get("journal")
-    if reject_kind != _REWORK_REJECT_KIND or record is None:
-        return
-    JournalFile(path=repo / "tmp" / "fabro-dispatch-journal.jsonl", identity=identity).append(
-        record=cast("dict[str, object]", record)
-    )
-
-
-def _revert_merged_change(
-    *, repo: Path, item: WorkItem, aid: str, runner: HumanValveRunner | None
-) -> dict[str, Any] | None:
-    merge_sha = item.audit.merge_sha if item.audit is not None else None
-    if not merge_sha:
-        return valve_refusal(
-            aid=aid,
-            wid=item.id,
-            err="missing-merge-evidence",
-            msg="reject:regroom refused: no merged change recorded to revert.",
-        )
-    argv = ("git", "revert", "--no-edit", merge_sha)
-    if runner is None:
-        result = run(argv, check=False, cwd=repo, text=True, capture_output=True)  # noqa: S603
-    else:
-        result = cast("HumanValveCommandRun", runner(argv=argv, cwd=repo))
-    if result.returncode == 0:
-        return None
-    return valve_refusal(
-        aid=aid,
-        wid=item.id,
-        err="revert-failed",
-        msg=f"reject:regroom refused: git revert {merge_sha} failed: {result.stderr}",
     )

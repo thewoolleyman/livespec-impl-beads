@@ -30,6 +30,7 @@ __all__: list[str] = [
     "GoalBriefMiniJinjaFinding",
     "minijinja_findings_detail",
     "minijinja_openers_in_goal_sources",
+    "minijinja_openers_in_text",
     "render_goal",
 ]
 
@@ -60,14 +61,37 @@ def minijinja_openers_in_goal_sources(
     ]
     findings: list[GoalBriefMiniJinjaFinding] = []
     for source, text in fields:
-        findings.extend(_findings_for_source(source=source, text=text))
+        findings.extend(minijinja_openers_in_text(source=source, text=text))
     for index, comment in enumerate(comments, start=1):
         findings.extend(
-            _findings_for_source(
+            minijinja_openers_in_text(
                 source=_comment_source(index=index, comment=comment), text=comment.text
             )
         )
     return tuple(findings)
+
+
+def minijinja_openers_in_text(
+    *,
+    source: str,
+    text: str | None,
+) -> tuple[GoalBriefMiniJinjaFinding, ...]:
+    """Find MiniJinja openers in ONE untrusted text bound for the goal brief.
+
+    The whole-brief preflight above grades every source at once, which is the
+    right shape at dispatch time — by then every source is already on the
+    record. A writer that is about to APPEND a new one needs the same detector
+    a single text at a time and BEFORE its write, because a ledger comment is
+    append-only and cannot be repaired afterwards. Sharing one function is what
+    keeps the two from drifting: an opener the dispatch preflight would refuse
+    can never be admitted by a writer that feeds it.
+    """
+    if text is None or text == "":
+        return ()
+    return tuple(
+        GoalBriefMiniJinjaFinding(source=source, opener=match.group(0))
+        for match in _MINIJINJA_OPEN_DELIMITER_RE.finditer(text)
+    )
 
 
 def minijinja_findings_detail(
@@ -180,16 +204,3 @@ def _comment_source(*, index: int, comment: WorkItemComment) -> str:
     label = comment.comment_id or f"#{index}"
     created = "" if comment.created_at is None else f" created {comment.created_at}"
     return f"ledger comment {label}{created}"
-
-
-def _findings_for_source(
-    *,
-    source: str,
-    text: str | None,
-) -> list[GoalBriefMiniJinjaFinding]:
-    if text is None or text == "":
-        return []
-    return [
-        GoalBriefMiniJinjaFinding(source=source, opener=match.group(0))
-        for match in _MINIJINJA_OPEN_DELIMITER_RE.finditer(text)
-    ]

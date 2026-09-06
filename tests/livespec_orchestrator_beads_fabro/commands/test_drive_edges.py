@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 from livespec_orchestrator_beads_fabro.commands import _drive_impl_dispatch as impl_dispatch
+from livespec_orchestrator_beads_fabro.commands import _drive_reject_valve as reject_valve
 from livespec_orchestrator_beads_fabro.commands import _drive_valves as drive_valves
 from livespec_orchestrator_beads_fabro.commands import drive
 from livespec_orchestrator_beads_fabro.commands.drive import CommandRun
@@ -250,7 +251,7 @@ def test_run_human_valve_action_reject_regroom_uses_default_runner(
         assert kwargs["capture_output"] is True
         return _Completed(returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr(drive_valves, "run", fake_run)
+    monkeypatch.setattr(reject_valve, "run", fake_run)
 
     result = drive.run_human_valve_action(repo=repo, action_id="reject:bd-ib-123:regroom")
 

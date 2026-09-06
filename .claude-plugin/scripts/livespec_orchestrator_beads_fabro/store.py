@@ -16,6 +16,7 @@ from livespec_orchestrator_beads_fabro._beads_client import EDGE_BLOCKS, make_be
 from livespec_orchestrator_beads_fabro._store_beads_store import BeadsWorkItemStore
 from livespec_orchestrator_beads_fabro._store_comments import (
     WorkItemComment,
+    append_work_item_comment,
     read_work_item_comments,
 )
 from livespec_orchestrator_beads_fabro._store_content_migration import (
@@ -72,6 +73,7 @@ __all__: list[str] = [
     "IntakeTriageRecord",
     "WorkItemComment",
     "append_work_item",
+    "append_work_item_comment",
     "backfill_dispatch_factory_metadata",
     "backfill_native_content_fields",
     "dispatch_factories_for",

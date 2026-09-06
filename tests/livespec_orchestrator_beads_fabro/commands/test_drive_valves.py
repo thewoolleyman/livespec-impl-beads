@@ -7,7 +7,7 @@ from pathlib import Path
 
 from livespec_orchestrator_beads_fabro._beads_client import FakeBeadsClient, make_beads_client
 from livespec_orchestrator_beads_fabro.commands._drive_valves import run_human_valve_action
-from livespec_orchestrator_beads_fabro.store import append_work_item
+from livespec_orchestrator_beads_fabro.store import append_work_item, read_work_item_comments
 from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
 
 
@@ -157,6 +157,84 @@ def test_resolve_blocked_refuses_non_blocked_source_state(tmp_path: Path) -> Non
         "summary": "resolve-blocked requires a blocked needs-human item.",
         "work_item_ref": "bd-ib-ready",
     }
+
+
+def test_resolve_blocked_writes_the_answer_before_the_transition(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _write_fake_config(repo)
+    append_work_item(
+        path=_config(),
+        item=_item(id="bd-ib-nh", status="blocked", blocked_reason="needs-human"),
+    )
+
+    result = run_human_valve_action(
+        repo=repo,
+        action_id="resolve-blocked:bd-ib-nh:ready",
+        answer="Take option B; the guard stays fail-closed.",
+    )
+
+    assert result["status"] == "green"
+    assert result["target_status"] == "ready"
+    assert "the answer is on the ledger" in result["summary"]
+    assert _fake().show_issue(issue_id="bd-ib-nh")["status"] == "ready"
+    [comment] = read_work_item_comments(path=_config(), work_item_id="bd-ib-nh")
+    assert "Take option B; the guard stays fail-closed." in comment.text
+
+
+def test_resolve_blocked_without_an_answer_writes_no_comment(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _write_fake_config(repo)
+    append_work_item(
+        path=_config(),
+        item=_item(id="bd-ib-nh2", status="blocked", blocked_reason="needs-human"),
+    )
+
+    result = run_human_valve_action(repo=repo, action_id="resolve-blocked:bd-ib-nh2:backlog")
+
+    assert result["status"] == "green"
+    assert result["summary"] == "Resolved bd-ib-nh2: blocked -> backlog."
+    assert read_work_item_comments(path=_config(), work_item_id="bd-ib-nh2") == ()
+
+
+def test_a_poisoned_answer_leaves_the_item_blocked(tmp_path: Path) -> None:
+    """The refusal is free: nothing moved, so the operator rewords and re-runs."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _write_fake_config(repo)
+    append_work_item(
+        path=_config(),
+        item=_item(id="bd-ib-nh3", status="blocked", blocked_reason="needs-human"),
+    )
+
+    result = run_human_valve_action(
+        repo=repo,
+        action_id="resolve-blocked:bd-ib-nh3:ready",
+        answer="run " + "{" + "{ recipe }}",
+    )
+
+    assert result["status"] == "failed"
+    assert result["domain_error"] == "answer-would-poison-goal"
+    assert _fake().show_issue(issue_id="bd-ib-nh3")["status"] == "blocked"
+    assert read_work_item_comments(path=_config(), work_item_id="bd-ib-nh3") == ()
+
+
+def test_an_answer_to_a_non_blocked_item_is_refused_before_it_is_written(
+    tmp_path: Path,
+) -> None:
+    """The source-state guard runs first, so a mis-aimed answer writes nothing."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _write_fake_config(repo)
+    append_work_item(path=_config(), item=_item())
+
+    result = run_human_valve_action(
+        repo=repo, action_id="resolve-blocked:bd-ib-ready:ready", answer="Take option B."
+    )
+
+    assert result["domain_error"] == "invalid-source-state"
+    assert read_work_item_comments(path=_config(), work_item_id="bd-ib-ready") == ()
 
 
 def test_set_review_fix_cap_writes_label_and_leaves_status(tmp_path: Path) -> None:

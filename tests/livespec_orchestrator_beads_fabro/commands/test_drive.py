@@ -84,6 +84,54 @@ def test_drive_rejects_retired_spec_action_handoffs(tmp_path: Path) -> None:
     assert runner.calls == []
 
 
+def test_drive_refuses_an_answer_aimed_at_an_action_that_cannot_deliver_it(
+    tmp_path: Path,
+) -> None:
+    """Accepted-and-discarded is the one outcome the answer route must not have."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    runner = _Runner(results=[])
+
+    result = drive.run_action(
+        repo=repo, action_id="approve:bd-ib-123", runner=runner, answer="Take option B."
+    )
+
+    assert result["status"] == "failed"
+    assert "accepted only by 'resolve-blocked:<id>:ready|backlog'" in result["summary"]
+    assert runner.calls == []
+
+
+def test_drive_main_carries_the_answer_flag_into_the_action(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    seen: list[str | None] = []
+
+    def fake_run_action(*, answer: str | None = None, **_: object) -> dict[str, object]:
+        seen.append(answer)
+        return {"action_id": "resolve-blocked:bd-ib-1:ready", "status": "green", "summary": "ok"}
+
+    monkeypatch.setattr(drive, "run_action", fake_run_action)
+
+    exit_code = drive.main(
+        argv=[
+            "--repo",
+            str(repo),
+            "--action",
+            "resolve-blocked:bd-ib-1:ready",
+            "--answer",
+            "Take option B.",
+            "--invoker",
+            "operator:cw",
+        ]
+    )
+
+    assert exit_code == 0
+    assert seen == ["Take option B."]
+    assert "resolve-blocked" in capsys.readouterr().out
+
+
 def test_drive_has_no_plan_entry_point(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
