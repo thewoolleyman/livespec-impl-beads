@@ -242,6 +242,8 @@ def test_dispatch_loop_cluster_importable_from_new_module_and_private_names_remo
     assert selection_public_names <= set(dispatch_loop_selection.__all__)
     assert set(dispatch_loop.__all__).isdisjoint(selection_public_names)
     assert hasattr(dispatch_loop, "dispatch_one")
+    assert hasattr(dispatch_loop_selection, "MERGE_HELD_STAGE")
+    assert hasattr(dispatch_loop_selection, "record_groom_draft")
     assert dispatcher.dispatch_one is dispatch_loop.dispatch_one
     assert dispatcher.candidates is dispatch_loop_selection.candidates
     assert dispatcher.is_dispatch_candidate is dispatch_loop_selection.is_dispatch_candidate
