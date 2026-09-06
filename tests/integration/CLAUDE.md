@@ -175,6 +175,27 @@ a unit-tier test); its dotted node-id prefix `tests.integration` is in the
   identical. The refusal recurring on the second run is deliberate — a refusal
   is a result, not a write.
 
+- `test_plan_record_conformance_scenarios109_110_113.py` — binds
+  `SPECIFICATION/scenarios.md` Scenarios 109, 110 and 113. The check lives in
+  the fleet's shared checks package beside `plan_epic_parity` (the ratified home
+  the contract names), so this repository's leg is the CONSUMER leg: `just
+  check` wires `check-plan-record-conformance` beside `check-plan-epic-parity`
+  under the same armed-only lever, and these cases drive the module that recipe
+  runs over a fixture tenant — the arming gate, the tenant prefix read off the
+  repository's own `.livespec.jsonc`, the ledger read through the shipped
+  export path, every verdict, and the delegated lifecycle leg, all production
+  code. Only the comment reader is injected, through the seam the module ships
+  for it, because comments have no on-disk export shape and the alternative is
+  the `bd` subprocess this tier does not spawn. Every case carries a control the
+  check must leave alone — a correctly slugged and anchored epic, and a closed
+  plan epic whose timeline holds real completeness-review evidence — because a
+  check that reported everything would satisfy the offender assertion just as
+  well. The arming gate is asserted in BOTH directions in one case, on the same
+  fixture, since an unarmed run reporting nothing is otherwise
+  indistinguishable from a fixture that produces nothing; and the delegated
+  `plan_lifecycle_parity` leg is asserted to name its own lever and its verdict,
+  since a half-armed family would otherwise read as a clean one.
+
 Coverage rules: 100% line + branch on every covered module, as everywhere in
 this repo. Build state through the public store/client seam (or a small
 read-only stub for shapes the fake's public surface never produces); never read

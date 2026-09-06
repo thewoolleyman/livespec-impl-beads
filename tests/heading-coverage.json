@@ -1148,17 +1148,17 @@
     "heading": "## Scenario 109 — Every epic carries a canonical, tenant-unique `plan_slug`",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
+    "test": "tests.integration.test_plan_record_conformance_scenarios109_110_113.test_scenario109_an_epic_carrying_no_plan_slug_is_reported_as_an_error_verdict",
     "work_item": "bd-ib-kpqsk6",
-    "reason": "Ratified with the plan-slug-anchor-and-typed-next-action revision (plan console-control-plane-primitives, epic bd-ib-w3nwz5, child bd-ib-w3nwz5.1, console decision D6). plan_slug is required and tenant-unique on every epic, must equal its own canonicalization, is forbidden on non-epics (with a tenant-qualified plan_ref the one exception), and is written by both the plan front-end and the capture route. Awaits the integration-tier armed-check test delivered by bd-ib-kpqsk6 (the plan-record conformance checks, built in livespec-dev-tooling under livespec-dev-tooling-yxxzvj and bound here); real test ID to follow."
+    "reason": "Ratified with the plan-slug-anchor-and-typed-next-action revision (plan console-control-plane-primitives, epic bd-ib-w3nwz5, child bd-ib-w3nwz5.1, console decision D6). plan_slug is required and tenant-unique on every epic, must equal its own canonicalization, is forbidden on non-epics (with a tenant-qualified plan_ref the one exception), and is written by both the plan front-end and the capture route. The checks themselves were built in livespec-dev-tooling under execution mirror livespec-dev-tooling-yxxzvj and reach this repository through the dev-tooling pin; bd-ib-kpqsk6's consume leg wires check-plan-record-conformance into the just check aggregate beside check-plan-epic-parity under the same armed-only lever and binds this heading here. The bound case arms the shipped check over a fixture tenant carrying a correctly slugged control epic beside one whose record omits the metadata key entirely, and asserts the whole emitted verdict set — an error-verdict plan_slug_present naming the untagged epic and its remediation sentence, with no slug-family verdict against the control."
   },
   {
     "heading": "## Scenario 110 — The `associated_work_item_id` anchor matches its epic in both directions",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
+    "test": "tests.integration.test_plan_record_conformance_scenarios109_110_113.test_scenario110_the_anchor_pair_is_graded_from_the_directory_and_from_the_epic",
     "work_item": "bd-ib-kpqsk6",
-    "reason": "Ratified with the plan-slug-anchor-and-typed-next-action revision (epic bd-ib-w3nwz5, child bd-ib-w3nwz5.1, console decision D6). The plan/<slug>/associated_work_item_id anchor holds the epic id or the literal unassigned, matches its epic in both directions, accepts unassigned only while no epic carries the slug, and is reported when missing or malformed. Awaits the integration-tier armed-check test delivered by bd-ib-kpqsk6 (the plan-record conformance checks, built in livespec-dev-tooling under livespec-dev-tooling-yxxzvj and bound here); real test ID to follow."
+    "reason": "Ratified with the plan-slug-anchor-and-typed-next-action revision (epic bd-ib-w3nwz5, child bd-ib-w3nwz5.1, console decision D6). The plan/<slug>/associated_work_item_id anchor holds the epic id or the literal unassigned, matches its epic in both directions, accepts unassigned only while no epic carries the slug, and is reported when missing or malformed. The checks were built in livespec-dev-tooling under execution mirror livespec-dev-tooling-yxxzvj and reach this repository through the dev-tooling pin; bd-ib-kpqsk6's consume leg binds this heading here. The bound case drives the armed check over a fixture repository holding a live plan directory with no anchor file, a directory whose anchor answers to the epic next door, and two correctly anchored records (one live, one archived), and asserts all three anchor-family verdicts — the absent anchor, the directory-side mismatch, and the SAME mismatch reported from the epic side, because a one-directional check passes a tenant where every anchor is legible and one epic points elsewhere — while the correctly anchored records stay unreported."
   },
   {
     "heading": "## Scenario 111 — Typed `next_action` drives an unattended resume and cannot be truncated by wrapping",
@@ -1180,9 +1180,9 @@
     "heading": "## Scenario 113 — A plan epic closed without completeness-review evidence is reported",
     "spec_root": "SPECIFICATION",
     "spec_file": "scenarios.md",
-    "test": "TODO",
+    "test": "tests.integration.test_plan_record_conformance_scenarios109_110_113.test_scenario113_a_closed_plan_epic_without_completeness_evidence_is_reported",
     "work_item": "bd-ib-kpqsk6",
-    "reason": "Ratified with the plan-slug-anchor-and-typed-next-action revision (epic bd-ib-w3nwz5, child bd-ib-w3nwz5.1, console decision D6 item 4). The plan_close_evidence conformance check reports, after the fact, an epic whose plan_slug names a live or archived directory that was closed with no completeness-review evidence comment, while leaving evidenced-closed and still-open epics unreported. This is the detective conformance counterpart to Scenario 55's proactive archive-operation behavior. Awaits the integration-tier armed-check test delivered by bd-ib-kpqsk6 (the plan-record conformance checks, built in livespec-dev-tooling under livespec-dev-tooling-yxxzvj and bound here); real test ID to follow."
+    "reason": "Ratified with the plan-slug-anchor-and-typed-next-action revision (epic bd-ib-w3nwz5, child bd-ib-w3nwz5.1, console decision D6 item 4). The plan_close_evidence conformance check reports, after the fact, an epic whose plan_slug names a live or archived directory that was closed with no completeness-review evidence comment, while leaving evidenced-closed and still-open epics unreported. This is the detective conformance counterpart to Scenario 55's proactive archive-operation behavior. The checks were built in livespec-dev-tooling under execution mirror livespec-dev-tooling-yxxzvj and reach this repository through the dev-tooling pin; bd-ib-kpqsk6's consume leg binds this heading here. The bound case drives the armed check over a fixture tenant holding two closed plan epics whose slugs both name archived directories, and asserts the error verdict names only the one whose timeline carries no evidence; the control epic's timeline carries the three attestations, and BOTH closed epics carry a comment, so presence-of-a-comment cannot be what separated them."
   },
   {
     "heading": "## Scenario 114 — The `context` read primitive assembles a deterministic item-context envelope",
