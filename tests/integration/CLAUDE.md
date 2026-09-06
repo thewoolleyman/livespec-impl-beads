@@ -140,6 +140,41 @@ a unit-tier test); its dotted node-id prefix `tests.integration` is in the
   fails while the prose says exactly the thing, which is a probe that can only
   fail silently.
 
+- `test_plan_next_action_resume_scenario111.py` — binds
+  `SPECIFICATION/scenarios.md` "Scenario 111 — Typed `next_action` drives an
+  unattended resume and cannot be truncated by wrapping". The plan is created
+  through `create_thread`, its pointer written through `append_handoff` (which
+  updates the typed metadata in the same call that appends the entry) and
+  `set_next_action`, and the unattended marker read off the real process
+  environment through `is_unattended_session`; nothing is stood in. Two
+  controls carry the module. The wrapped case asserts the prose marker IS
+  still present and IS still readable — `recorded_next_actions` returns the
+  truncated fragment — BEFORE asserting the directive took the typed route
+  anyway, because otherwise "the resume took the typed action" passes just as
+  well against a handoff carrying no marker line at all. And the attended case
+  is the same epic with the same dispatchable pointer asking when the marker
+  is absent, so a passing unattended case cannot be a directive that never
+  asks.
+
+- `test_migrate_plan_records_scenario112.py` — binds
+  `SPECIFICATION/scenarios.md` "Scenario 112 — The one-shot anchor migration is
+  complete and idempotent". The shipped `migrate-plan-records` entry point is
+  invoked twice exactly as an operator invokes it, argv and all, over a tenant
+  built through the client's public write verbs and a `tmp_path` repository
+  holding live and archived plan directories. The fixture carries every shape
+  the contract distinguishes — an already-slugged epic, one whose `plan:<slug>`
+  hint supplies a slug, one whose title collides with a slug another epic holds
+  (refused, never renamed), a closed epic under `plan/archive/`, a live
+  directory no epic claims (anchored `unassigned`), a legacy handoff naming a
+  work-item and an epic with no handoff — because a migration handling only the
+  easy shape still reports a plausible non-empty run. Idempotence is asserted
+  on three instruments rather than one: the zero write count says the second
+  run DECIDED nothing, the anchor bytes say the filesystem was not rewritten,
+  and the full record dump says no ledger row moved, including the
+  `last_session` a re-seed would restamp while every other field stayed
+  identical. The refusal recurring on the second run is deliberate — a refusal
+  is a result, not a write.
+
 Coverage rules: 100% line + branch on every covered module, as everywhere in
 this repo. Build state through the public store/client seam (or a small
 read-only stub for shapes the fake's public surface never produces); never read
