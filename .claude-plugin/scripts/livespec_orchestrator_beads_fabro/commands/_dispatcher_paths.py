@@ -7,6 +7,9 @@ import os
 from pathlib import Path
 
 from livespec_orchestrator_beads_fabro.commands._config import resolve_store_config
+from livespec_orchestrator_beads_fabro.commands._workflow_variants import (
+    RESERVED_WORKFLOW_NAME,
+)
 from livespec_orchestrator_beads_fabro.types import StoreConfig
 
 __all__: list[str] = [
@@ -24,10 +27,22 @@ __all__: list[str] = [
     "workflow_toml",
 ]
 
-# Where a Fabro workflow config sits under whichever root carries it — the
-# plugin root for the bundled default, or a dispatch target's own checkout
-# for the repo-local override.
-_WORKFLOW_SUBPATH = (".fabro", "workflows", "implement-work-item", "workflow.toml")
+# The manifest file every workflow directory carries, whether it is the
+# reserved workflow or a registered variant. A variant's directory comes from
+# the registry, so only the FILENAME is constant for it.
+_WORKFLOW_MANIFEST = "workflow.toml"
+
+# Where the RESERVED workflow sits under whichever root carries it — the plugin
+# root for the bundled default, or a dispatch target's own checkout for the
+# repo-local override. The variant-name segment is the reserved name itself
+# rather than a repeated literal, so a registry that renamed it could not leave
+# this path pointing at a directory nothing else refers to.
+_RESERVED_WORKFLOW_SUBPATH = (
+    ".fabro",
+    "workflows",
+    RESERVED_WORKFLOW_NAME,
+    _WORKFLOW_MANIFEST,
+)
 _RUN_TURN_DATASET = "fabro"
 
 
@@ -35,32 +50,47 @@ def store_config(*, repo: Path) -> StoreConfig:
     return resolve_store_config(cwd=repo, work_items_arg=None)
 
 
-def workflow_toml(*, args: argparse.Namespace) -> Path:
+def workflow_toml(*, args: argparse.Namespace, variant_directory: str | None = None) -> Path:
     """The committed Fabro workflow config this dispatch runs, by precedence.
 
-    1. An explicit `--workflow <path>` always wins.
-    2. Otherwise the DISPATCH TARGET's own committed
-       `<repo>/.fabro/workflows/implement-work-item/workflow.toml`, when it
+    1. An explicit `--workflow <path>` always wins — the raw-path escape
+       hatch, which outranks every registry choice.
+    2. Otherwise `variant_directory`, the registry-declared directory of the
+       named variant this dispatch selected, resolved under the dispatch
+       target's repo root. A variant is a WHOLE directory: there is no
+       target-local-then-bundle fallback for one, because a variant that is
+       not where the registry says it is has no second candidate location to
+       try. `_dispatcher_workflow_variant` has already refused a directory
+       missing its manifest or graph, so this step does not re-probe.
+    3. Otherwise the RESERVED `implement-work-item` workflow: the DISPATCH
+       TARGET's own committed
+       `<repo>/.fabro/workflows/implement-work-item/workflow.toml` when it
        exists. The workflow config carries the sandbox image pin, so a
        consumer repo whose toolchain differs from the orchestrator's own
        (a Rust repo needing the `python-rust-agent-` layer, against the
        orchestrator's Python-only pin) governs its own execution substrate
        rather than silently inheriting one that cannot build it.
-    3. Otherwise the plugin's bundled workflow — the default for every
+    4. Otherwise the plugin's bundled workflow — the default for every
        dispatch target that commits none.
 
     `args` is not guaranteed to carry a `repo` attribute: only the
-    dispatch-common subparsers define `--repo`, so the repo-local probe
-    reads it defensively and degrades to the bundled default.
+    dispatch-common subparsers define `--repo`, so BOTH repo-anchored steps
+    read it defensively and degrade to the bundled default. A variant
+    directory with no repo to anchor it is that same degradation rather than
+    a refusal: the surfaces reaching here without `--repo` (the reconcile and
+    check subcommands) never select a variant in the first place.
     """
     if args.workflow is not None:
         return Path(args.workflow)
     repo: object = getattr(args, "repo", None)
     if repo is not None:
-        repo_local = Path(str(repo)).joinpath(*_WORKFLOW_SUBPATH)
+        repo_root = Path(str(repo))
+        if variant_directory is not None:
+            return repo_root / variant_directory / _WORKFLOW_MANIFEST
+        repo_local = repo_root.joinpath(*_RESERVED_WORKFLOW_SUBPATH)
         if repo_local.is_file():
             return repo_local
-    return plugin_root().joinpath(*_WORKFLOW_SUBPATH)
+    return plugin_root().joinpath(*_RESERVED_WORKFLOW_SUBPATH)
 
 
 def journal_path(*, args: argparse.Namespace, repo: Path) -> Path:

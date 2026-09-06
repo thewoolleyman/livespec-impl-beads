@@ -434,7 +434,7 @@ def test_no_password_field_on_descriptor() -> None:
     assert not any("password" in name.lower() for name in field_names)
 
 
-_CONFIG_SHUTIL_WHICH = "livespec_orchestrator_beads_fabro.commands._config.shutil.which"
+_CONFIG_SHUTIL_WHICH = "livespec_orchestrator_beads_fabro.commands._fabro_bin.shutil.which"
 
 
 def test_default_fabro_bin_prefers_existing_home_binary(
