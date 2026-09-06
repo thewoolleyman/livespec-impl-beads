@@ -1,7 +1,7 @@
 ---
 topic: consensus-gated-automated-groom-cut
 author: claude-fable-5-1 (pluggable-factory-workflow-configs)
-created_at: 2026-09-06T16:14:07Z
+created_at: 2026-09-06T16:22:08Z
 ---
 
 ## Proposal: Permit a consensus-gated automated groom cut, realized as a two-phase groom workflow variant answered through the ledger
@@ -145,7 +145,7 @@ A registered groom workflow variant, entered only by the groom front-end's journ
 
 In `SPECIFICATION/contracts.md`, section "Store-write consent discipline", subsection "### Machine-path exemption — the Dispatcher":
 
-5. In the sentence enumerating the lifecycle verbs, replace "the non-convergence `backlog` bounce, and — when the effective `admission_policy` is `auto`" with "the non-convergence `backlog` bounce, the `regroom-out` disposition (closing a groomed original as regroomed-out once its approved slices are filed by an apply dispatch under §\"Grooming and slice-size calibration\" → \"Consensus-gated automated groom cut\"), and — when the effective `admission_policy` is `auto`".
+5. In the sentence enumerating the lifecycle verbs, replace "the non-convergence `backlog` bounce, and — when the effective `admission_policy` is `auto`" with "the non-convergence `backlog` bounce, the `regroom-out` disposition (closing a groomed original as regroomed-out once its approved slices are filed by an apply dispatch under §"Grooming and slice-size calibration" → "Consensus-gated automated groom cut"), and — when the effective `admission_policy` is `auto`".
 
 In `SPECIFICATION/contracts.md`, section "Store-write consent discipline", subsection "### Operation-class waiver":
 
@@ -153,11 +153,11 @@ In `SPECIFICATION/contracts.md`, section "Store-write consent discipline", subse
 
 In `SPECIFICATION/contracts.md`, section "Self-contained plugin dispatch", paragraph "Named workflow variants":
 
-5b. In the refusal sentence that reads "The Dispatcher MUST refuse the dispatch before any Fabro run exists, in the same shape as the layer-names-an-absent-node refusal of §\"ACP node adapter configuration\" — a journaled pre-run refusal whose stage names every cause that applies — when: the selected name matches no registry entry and is not the reserved name; the selected registry directory lacks `workflow.toml` or `workflow.fabro`; or a registry entry is named `implement-work-item`." (hard-wrapped in the committed file; match on the sentence), replace "; or a registry entry is named `implement-work-item`." with "; or a registry entry is named `implement-work-item`; or the work-item carries an approved groom draft awaiting its apply dispatch and the selected name is not a registered groom variant (§\"Grooming and slice-size calibration\" → \"Consensus-gated automated groom cut\").".
+5b. In the refusal sentence that reads "The Dispatcher MUST refuse the dispatch before any Fabro run exists, in the same shape as the layer-names-an-absent-node refusal of §"ACP node adapter configuration" — a journaled pre-run refusal whose stage names every cause that applies — when: the selected name matches no registry entry and is not the reserved name; the selected registry directory lacks `workflow.toml` or `workflow.fabro`; or a registry entry is named `implement-work-item`." (hard-wrapped in the committed file; match on the sentence), replace "; or a registry entry is named `implement-work-item`." with "; or a registry entry is named `implement-work-item`; or the work-item carries an approved groom draft awaiting its apply dispatch and the selected name is not a registered groom variant (§"Grooming and slice-size calibration" → "Consensus-gated automated groom cut").".
 
 In `SPECIFICATION/contracts.md`, subsection "#### Door rules — every transition has exactly one journaled owner":
 
-6. In the bullet beginning "`active` is entered ONLY by a journaled dispatch — factory dispatch or `driver-dispatch` — OR by a rework return from `acceptance`" (hard-wrapped across two lines in the committed file; match on the sentence, not on one line), replace "factory dispatch or `driver-dispatch`" with "factory dispatch, `driver-dispatch`, or the groom front-end's groom dispatch of a `backlog` item (§\"Grooming and slice-size calibration\" → \"Consensus-gated automated groom cut\")". The `backlog` row of "#### Per-lane valid operator verb sets" is unchanged: its "groom (every backlog item, uniformly)" verb is the verb the groom dispatch belongs to.
+6. In the bullet beginning "`active` is entered ONLY by a journaled dispatch — factory dispatch or `driver-dispatch` — OR by a rework return from `acceptance`" (hard-wrapped across two lines in the committed file; match on the sentence, not on one line), replace "factory dispatch or `driver-dispatch`" with "factory dispatch, `driver-dispatch`, or the groom front-end's groom dispatch of a `backlog` item (§"Grooming and slice-size calibration" → "Consensus-gated automated groom cut")". The `backlog` row of "#### Per-lane valid operator verb sets" is unchanged: its "groom (every backlog item, uniformly)" verb is the verb the groom dispatch belongs to.
 
 In `SPECIFICATION/contracts.md`, section "Dispatcher policy settings":
 
@@ -169,7 +169,7 @@ In `SPECIFICATION/contracts.md`, section "Dispatcher policy settings":
 
 In `SPECIFICATION/spec.md`:
 
-10. In the sentence "The wire surface (the setting keys and their safe defaults, the per-item override labels, the two rework caps, the pass/fail AI acceptance pass, the per-disposition audit journal, and the API-configurable completeness principle) is specified in `contracts.md` §\"Dispatcher policy settings\"" (hard-wrapped in the committed file), replace "the two rework caps" with "the three rework caps".
+10. In the sentence "The wire surface (the setting keys and their safe defaults, the per-item override labels, the two rework caps, the pass/fail AI acceptance pass, the per-disposition audit journal, and the API-configurable completeness principle) is specified in `contracts.md` §"Dispatcher policy settings"" (hard-wrapped in the committed file), replace "the two rework caps" with "the three rework caps".
 
 In `SPECIFICATION/scenarios.md`, append the following scenario after Scenario 117:
 
