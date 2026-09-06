@@ -42,6 +42,11 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_effective_criteria i
     EffectiveCriteria,
     effective_criteria,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_groom_door import (
+    GroomDispatch,
+    GroomDoorRefusal,
+    groom_dispatch,
+)
 from livespec_orchestrator_beads_fabro.errors import GroomDraftError
 from livespec_orchestrator_beads_fabro.intake_dor import (
     DefinitionOfReadyChecklist,
@@ -54,14 +59,22 @@ if TYPE_CHECKING:
     from livespec_orchestrator_beads_fabro._beads_client import BeadsRecord
     from livespec_orchestrator_beads_fabro.types import StoreConfig
 
+# `GroomDispatch` / `GroomDoorRefusal` / `groom_dispatch` are RE-EXPORTS of the
+# groom door, whose mechanism lives beside the Dispatcher's own claim and pin
+# seams rather than here. The door is a front-end operation — the contract says
+# the front-end's operator performs it — so this module is where the front-end
+# reaches for it, exactly as `GroomApproval` is re-exported above.
 __all__: list[str] = [
     "CandidateSlice",
     "CrossRepoSlice",
     "GroomApproval",
     "GroomContext",
+    "GroomDispatch",
+    "GroomDoorRefusal",
     "GroomResult",
     "SliceCriteriaParse",
     "file_approved_slices",
+    "groom_dispatch",
     "load_groom_context",
 ]
 
