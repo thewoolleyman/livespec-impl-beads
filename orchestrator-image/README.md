@@ -222,8 +222,11 @@ literally and every dispatch dies `exit 127`. Deferred modernization: ledger
 binary as a rollback artifact — the pin is a file swap, so the revert is one too:
 
 ```bash
-# in the fork worktree, on factory-integration; invalidate any assetless cached
-# embedding crate, then refresh and embed the SPA:
+# in the fork worktree, on factory-integration. A FRESH worktree has no
+# node_modules, and the SPA embed then fails with `Could not resolve: "react"
+# ... Maybe you need to "bun install"?` — so install first (measured 2026-09-06):
+bun install --frozen-lockfile
+# invalidate any assetless cached embedding crate, then refresh and embed the SPA:
 cargo clean --release -p fabro-spa
 cargo dev build --release -p fabro-cli
 # retain the CURRENT binary before overwriting it:
@@ -233,6 +236,25 @@ cp target/release/fabro ~/.fabro/bin/fabro.new
 mv -f ~/.fabro/bin/fabro.new ~/.fabro/bin/fabro
 ~/.fabro/bin/fabro --version          # confirm the new integration commit
 ```
+
+**hp takes the vps-built binary.** hp carries only a stable toolchain, and the
+vps build runs there (both x86_64; hp's glibc 2.43 is newer than vps's 2.42, and
+the 0.254 floor is 2.39). Stage it beside the running one, then swap as the
+service user and restart hp's unit — which kills every foreign run on hp, so wait
+for a drain window:
+
+```bash
+scp ~/.fabro/bin/fabro root@hp-xubuntu.perch-rudd.ts.net:/home/cwoolley/.fabro/bin/fabro.new
+ssh root@hp-xubuntu.perch-rudd.ts.net 'chown cwoolley:cwoolley /home/cwoolley/.fabro/bin/fabro.new \
+  && cp -p /home/cwoolley/.fabro/bin/fabro /home/cwoolley/.fabro/bin/fabro.<outgoing-sha>.bak \
+  && mv -f /home/cwoolley/.fabro/bin/fabro.new /home/cwoolley/.fabro/bin/fabro \
+  && systemctl restart fabro-server && /home/cwoolley/.fabro/bin/fabro --version'
+```
+
+When gating a restart on `fabro ps --server <host>` being idle, match run ROWS
+(for example `grep -E '^ ?01[A-Z0-9]{10,}.*running'`): the idle message
+`No running processes found` also contains the word `running`, and a bare
+`grep running` aborts on an idle factory.
 
 **Why `mv`, not a plain `cp` over the target.** While the server is running it is
 *executing* `~/.fabro/bin/fabro`, so overwriting that path in place fails with
