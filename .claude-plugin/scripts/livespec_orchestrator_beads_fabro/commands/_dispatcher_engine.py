@@ -56,7 +56,6 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Protocol, cast
 
-from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_janitor import post_merge
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_journal import (
     failed_outcome,
     journal_stage,
@@ -65,13 +64,11 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_journal impor
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_merge import (
     await_merge,
     confirm_pr,
+    outcome_after_await,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_terminal import (
     fabro_run_terminal_outcome,
     inspect_run,
-)
-from livespec_orchestrator_beads_fabro.commands._dispatcher_merge_pr_association import (
-    pr_view_for_merge_sha,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     DispatchPlan,
@@ -79,6 +76,7 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
 from livespec_orchestrator_beads_fabro.commands._fabro_port import fabro_port_for_plan
 
 __all__: list[str] = [
+    "MERGE_HELD_STAGE",
     "CommandResult",
     "CommandRunner",
     "DispatchOutcome",
@@ -92,6 +90,13 @@ __all__: list[str] = [
     "run_dispatch",
     "run_fabro_factory_auth_login",
 ]
+
+# The stage a merge-held run terminates GREEN at. It is a named constant rather
+# than a literal at its two sites because the second site — the post-merge
+# dispositions — reads it as the ONE green outcome that has not merged, and a
+# spelling that drifted between the two would silently re-arm the acceptance
+# valve on unmerged work.
+MERGE_HELD_STAGE = "pr"
 
 # The worst-case phase-graph wall clock the foreground `fabro run`
 # subprocess must outlive is no longer a constant here: it is DERIVED per
@@ -354,40 +359,45 @@ def run_dispatch(
             detail="no PR found for branch",
             fabro_run_id=run_id,
         )
-    merged = await_merge(
+    if plan.merge_hold:
+        # THE HOLD'S TERMINAL. Nothing may merge this pull request, so polling
+        # for its merge could only spend the whole budget and then report a
+        # FAILURE for work that succeeded. The run ends here instead, green,
+        # exactly as `contracts.md` -> "The per-item merge hold" requires: green
+        # is also what reclaims the claim under the ordinary green-terminal
+        # rule, so a held item holds no capacity slot while it waits for a
+        # person. `merge_sha` is None because nothing merged — this is the one
+        # green outcome that carries no merge, and the post-merge dispositions
+        # read that from the stage rather than re-deriving the hold.
+        return DispatchOutcome(
+            work_item_id=plan.work_item_id,
+            status="green",
+            stage=MERGE_HELD_STAGE,
+            pr_number=view.number,
+            merge_sha=None,
+            detail=(
+                f"merge hold stands: PR #{view.number} is open with no auto-merge armed, "
+                "and the run terminated rather than waiting for a merge no automated path "
+                f"may perform. Release with `set-merge-hold:{plan.work_item_id}:off`."
+            ),
+            fabro_run_id=run_id,
+        )
+    outcome = outcome_after_await(
         outcome_type=DispatchOutcome,
         plan=plan,
         runner=runner,
         journal=journal,
-        sleep=sleep,
-        poll=poll,
-    )
-    if isinstance(merged, DispatchOutcome):
-        outcome = merged
-    elif merged is None:
-        outcome = DispatchOutcome(
-            work_item_id=plan.work_item_id,
-            status="failed",
-            stage="merge-poll",
-            pr_number=view.number,
-            merge_sha=None,
-            detail="PR did not reach MERGED within the poll budget",
-            fabro_run_id=run_id,
-        )
-    else:
-        outcome = post_merge(
+        merged=await_merge(
             outcome_type=DispatchOutcome,
             plan=plan,
             runner=runner,
             journal=journal,
-            merged=pr_view_for_merge_sha(
-                repo=plan.repo,
-                work_item_id=plan.work_item_id,
-                merged=merged,
-                runner=runner,
-                journal=journal,
-            ),
-        )
+            sleep=sleep,
+            poll=poll,
+        ),
+        pr_number=view.number,
+        run_id=run_id,
+    )
     if run_id is not None and outcome.fabro_run_id is None:
         outcome = replace(outcome, fabro_run_id=run_id)
     return outcome

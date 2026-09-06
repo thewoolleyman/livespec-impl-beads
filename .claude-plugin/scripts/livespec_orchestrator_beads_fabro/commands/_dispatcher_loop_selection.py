@@ -23,8 +23,11 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_completion import (
 from livespec_orchestrator_beads_fabro.commands._dispatcher_dead_implementer import (
     record_dead_implementer_truncation_if_observed,
 )
-from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import DispatchOutcome
 from livespec_orchestrator_beads_fabro.commands._dispatcher_groom_park import record_groom_draft
+from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
+    MERGE_HELD_STAGE,
+    DispatchOutcome,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import invoker_from_args
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile, utc_now_iso
 from livespec_orchestrator_beads_fabro.commands._dispatcher_ledger_close import load_items
@@ -213,7 +216,12 @@ def post_run_dispositions(  # noqa: PLR0913 — kw-only post-run stage; each fie
     `_dispatch_one` stays a single readable sequence; every step is keyed off
     the terminal `outcome` and is independently fail-soft where it touches IO.
     """
-    if outcome.status == "green" and args.close_on_merge:
+    # The acceptance valve is the POST-MERGE valve, and every green outcome had
+    # merged until the merge hold introduced one that has not. Completing a held
+    # item into `acceptance` would accept unmerged work, and the item leaving
+    # `active` would retract the attention row that keeps the hold visible; the
+    # hold is released by a person, and the merge and this valve follow then.
+    if outcome.status == "green" and outcome.stage != MERGE_HELD_STAGE and args.close_on_merge:
         complete_and_accept(
             repo=repo,
             item=item,

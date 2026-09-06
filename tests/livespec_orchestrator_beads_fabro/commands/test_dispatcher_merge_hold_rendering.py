@@ -12,6 +12,12 @@ The chain is asserted at its ends, not through a mock: `dispatch_plan_for_item`
 is driven with real raw labels, and the argv assertion is made against the whole
 list, because the claim is an ABSENCE (`gh pr merge` is never spawned) and a
 search for a flag cannot establish one.
+
+The last two cases close the chain at the OTHER end -- what the run and the
+work-item do once the hold has been honored. A held run terminates green at the
+pr stage and never waits, and that green terminal must not be mistaken for a
+merge by the post-merge acceptance valve, because a held item stays `active`
+until a person releases the hold.
 """
 
 from __future__ import annotations
@@ -21,7 +27,11 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import pytest
 from livespec_orchestrator_beads_fabro._store_merge_hold import MERGE_HOLD_LABEL_PREFIX
+from livespec_orchestrator_beads_fabro.commands import (
+    _dispatcher_loop_selection as loop_selection,
+)
 from livespec_orchestrator_beads_fabro.commands._config import FactoryTarget
 from livespec_orchestrator_beads_fabro.commands._dispatcher_dispatch_id_journal import (
     DispatchJournalIdentity,
@@ -29,18 +39,39 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_dispatch_id_journal 
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine import (
     CommandResult,
+    DispatchOutcome,
+    FabroRunResult,
+    PollPolicy,
     dispatch_fabro_run_inputs,
+    run_dispatch,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_engine_merge import confirm_pr
 from livespec_orchestrator_beads_fabro.commands._dispatcher_fabro_argv import pr_arm_argv
 from livespec_orchestrator_beads_fabro.commands._dispatcher_io import JournalFile
 from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_plan import dispatch_plan_for_item
+from livespec_orchestrator_beads_fabro.commands._dispatcher_loop_selection import (
+    post_run_dispositions,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import DispatchPlan, build_plan
 from livespec_orchestrator_beads_fabro.commands._node_timeouts import NodeTimeouts
-from livespec_orchestrator_beads_fabro.types import WorkItem
+from livespec_orchestrator_beads_fabro.store import append_work_item
+from livespec_orchestrator_beads_fabro.types import StoreConfig, WorkItem
 
 _HELD_LABEL = f"{MERGE_HOLD_LABEL_PREFIX}on"
 _DECLARED_CONFIG = '{"livespec-orchestrator-beads-fabro": {"compat": {"pinned": "master"}}}'
+_TENANT_CONFIG = """{
+  "livespec-orchestrator-beads-fabro": {
+    "connection": {
+      "tenant": "livespec-impl-beads",
+      "prefix": "bd",
+      "server_user": "livespec-impl-beads",
+      "database": "livespec-impl-beads",
+      "bd_path": "bd",
+      "fake": true
+    }
+  }
+}
+"""
 
 
 def _item() -> WorkItem:
@@ -90,8 +121,9 @@ class _Runner:
         cwd: Path,
         timeout_seconds: float,
         env: dict[str, str] | None = None,
+        stdin: int | None = None,
     ) -> CommandResult:
-        _ = (cwd, timeout_seconds, env)
+        _ = (cwd, timeout_seconds, env, stdin)
         self.calls.append(argv)
         return self.queue.pop(0)
 
@@ -102,6 +134,15 @@ class _Journal:
 
     def append(self, *, record: dict[str, object]) -> None:
         self.records.append(record)
+
+
+@dataclass(kw_only=True)
+class _Launcher:
+    """A `fabro run` that succeeded and reported no run id."""
+
+    def launch(self, *, plan: DispatchPlan, runner: object, journal: object) -> FabroRunResult:
+        _ = (plan, runner, journal)
+        return FabroRunResult(command=CommandResult(exit_code=0, stdout="", stderr=""))
 
 
 def _pr_json(*, armed: bool) -> str:
@@ -247,3 +288,121 @@ def test_the_fallback_arming_never_fires_for_a_held_pull_request(tmp_path: Path)
         ]
     ]
     assert [record["stage"] for record in journal.records] == ["pr-view"]
+
+
+def test_a_held_run_terminates_green_at_the_pr_stage_and_never_waits(tmp_path: Path) -> None:
+    """The hold's TERMINAL, with the control that keys it on the hold.
+
+    Nothing may merge a held pull request, so a run that polled for its merge
+    could only exhaust the poll budget and then report a FAILURE for work that
+    succeeded. The held run therefore ends green at the pr stage. "Never waits"
+    is not readable off the outcome, so it is asserted as two absences -- no
+    sleep, and no forge call after the one view `confirm_pr` already took.
+
+    The unheld control drives the SAME open, unarmed pull request through the
+    same runner and does poll it, which is what shows the short-circuit is keyed
+    on the hold rather than on the shape of an open pull request.
+    """
+    # Stocked with the same five results the unheld control needs, so the held
+    # run is short of nothing: a one-result queue would make the poll die on an
+    # exhausted fixture, which is a fixture's verdict rather than the engine's.
+    held_runner = _Runner(
+        queue=[CommandResult(exit_code=0, stdout=_pr_json(armed=False), stderr="")] * 5
+    )
+    held_sleeps: list[float] = []
+
+    held = run_dispatch(
+        plan=_plan(repo=tmp_path, merge_hold=True),
+        runner=held_runner,
+        journal=_Journal(),
+        sleep=held_sleeps.append,
+        poll=PollPolicy(attempts=2, interval_seconds=0.0),
+        fabro_launcher=_Launcher(),
+    )
+
+    assert (held.status, held.stage) == ("green", "pr")
+    assert held.pr_number == 7
+    # Green WITHOUT a merge sha: nothing merged, and the outcome says so rather
+    # than implying a merge the hold forbids.
+    assert held.merge_sha is None
+    assert held_sleeps == []
+    assert len(held_runner.calls) == 1
+
+    free_runner = _Runner(
+        queue=[CommandResult(exit_code=0, stdout=_pr_json(armed=False), stderr="")] * 5
+    )
+    free_sleeps: list[float] = []
+
+    free = run_dispatch(
+        plan=_plan(repo=tmp_path),
+        runner=free_runner,
+        journal=_Journal(),
+        sleep=free_sleeps.append,
+        poll=PollPolicy(attempts=2, interval_seconds=0.0),
+        fabro_launcher=_Launcher(),
+    )
+
+    assert (free.status, free.stage) == ("failed", "merge-poll")
+    assert free_sleeps == [0.0]
+
+
+def test_the_held_green_terminal_does_not_trip_the_post_merge_acceptance_valve(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A held item stays `active` until a person releases the hold.
+
+    The valve is the reason the terminal above cannot simply be "green": every
+    other green outcome HAS merged, so `post_run_dispositions` would complete the
+    item into `acceptance` on work that is still sitting unmerged behind the
+    hold -- and the item leaving `active` would also retract the very attention
+    row that keeps the hold visible.
+
+    Asserted through a recorded call rather than by running the valve, because
+    the claim is about the DECISION and the valve's own machinery would drown
+    it. The green `done` terminal beside it is the control: a guard that
+    declined for every green outcome would pass the held assertion alone.
+    """
+    _ = (tmp_path / ".livespec.jsonc").write_text(_TENANT_CONFIG, encoding="utf-8")
+    item = _item()
+    append_work_item(
+        path=StoreConfig(
+            tenant="livespec-impl-beads",
+            prefix="bd",
+            server_user="livespec-impl-beads",
+            database="livespec-impl-beads",
+            bd_path="bd",
+            fake=True,
+        ),
+        item=item,
+    )
+    completed: list[str] = []
+
+    def _record(*, repo: Path, item: WorkItem, outcome: DispatchOutcome, journal: object) -> None:
+        _ = (repo, item, journal)
+        completed.append(outcome.stage)
+
+    monkeypatch.setattr(loop_selection, "complete_and_accept", _record)
+
+    def _dispose(*, stage: str, merge_sha: str | None) -> None:
+        post_run_dispositions(
+            args=argparse.Namespace(close_on_merge=True),
+            repo=tmp_path,
+            item=item,
+            outcome=DispatchOutcome(
+                work_item_id=item.id,
+                status="green",
+                stage=stage,
+                pr_number=7,
+                merge_sha=merge_sha,
+                detail="d",
+            ),
+            journal=_Journal(),
+            wall_clock_seconds=1.0,
+            dispatch_context_size=10,
+            token_supplier=lambda: "token",
+        )
+
+    _dispose(stage="pr", merge_sha=None)
+    _dispose(stage="done", merge_sha="abc123")
+
+    assert completed == ["done"]
