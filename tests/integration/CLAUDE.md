@@ -196,6 +196,25 @@ a unit-tier test); its dotted node-id prefix `tests.integration` is in the
   `plan_lifecycle_parity` leg is asserted to name its own lever and its verdict,
   since a half-armed family would otherwise read as a clean one.
 
+- `test_named_workflow_variants.py` — binds the `SPECIFICATION/scenarios.md`
+  named-workflow-variants scenario and the contract it realizes,
+  `SPECIFICATION/contracts.md` §"Named workflow variants" plus the resolution
+  order of §"Target-local workflow". Every case drives the real
+  `dispatcher.main(argv=["dispatch", ...])` CLI over a real on-disk journal and
+  the real store/client seam; only `run_dispatch` is stood in, so the registry
+  parse, the ledger pin and the three refusals are production code. Each
+  precedence case reads BOTH halves of the answer off the dispatch record — the
+  selected `workflow_name` and the resolved `workflow_toml` — because neither is
+  recoverable from the other, so asserting one alone would pass for a dispatch
+  that reached the right directory under the wrong name. The
+  default-versus-reserved case carries a control that drops the one
+  `dispatcher.default_workflow` key, since "the dispatch resolved `slow`" is
+  evidence the default outranks the reserved name only if the reserved name is
+  what the same target resolves without it. The refusal cases key on the journal
+  STAGE rather than the exit code, which all three faults share, and assert
+  no-run on two independent instruments: the launch seam was never entered, and
+  no `dispatch-id` record was written.
+
 Coverage rules: 100% line + branch on every covered module, as everywhere in
 this repo. Build state through the public store/client seam (or a small
 read-only stub for shapes the fake's public surface never produces); never read
