@@ -29,6 +29,9 @@ from livespec_orchestrator_beads_fabro.commands._needs_attention_handoffs import
     dispatcher_loop_command,
     drive_command,
 )
+from livespec_orchestrator_beads_fabro.commands._needs_attention_needs_human_question import (
+    needs_human_question_summary,
+)
 from livespec_orchestrator_beads_fabro.commands._needs_attention_stranded_dispatch import (
     stranded_dispatch_items as _stranded_dispatch_items,
 )
@@ -128,7 +131,17 @@ def human_valves(
                 _valve(
                     verb="resolve-blocked",
                     work_item=item_id,
-                    summary=f"Resolve human-needed block for work-item {item_id}: {title}",
+                    # The terminated run's own account of why the loop gave up
+                    # and where the work survived. Enrichment only: an
+                    # unreadable run leaves the title-only summary standing,
+                    # because the decision is already waiting in the ledger.
+                    summary=needs_human_question_summary(
+                        project_root=project_root,
+                        item_id=item_id,
+                        default_summary=(
+                            f"Resolve human-needed block for work-item {item_id}: {title}"
+                        ),
+                    ),
                     project_root=project_root,
                     action_id=f"resolve-blocked:{item_id}:ready",
                 )
