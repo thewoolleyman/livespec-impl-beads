@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.136.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.135.0...v0.136.0) (2026-09-06)
+
+
+### Features
+
+* **groom:** open the groom door from backlog to active under a claim and a pin ([c017389](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/c017389aa147f4d91ac7ab524ecc10a3cfd6d4ce))
+* **groom:** read a workflow variant's kind from its own run config ([aa104a9](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/aa104a96dda79c13bc0156e5ca1c6be2e0002954))
+* **groom:** record a groom run's draft on the ledger when it needs a human ([8cd9d51](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/8cd9d51354e2520ca1c68d06502c7df665af9472))
+* **groom:** refuse an apply dispatch that does not resolve to a groom variant ([f318aa4](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/f318aa4f35ca5940fc4e47fdb7f88da26fdfebe6))
+
 ## [0.135.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.134.0...v0.135.0) (2026-09-06)
 
 
