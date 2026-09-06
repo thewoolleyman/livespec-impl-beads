@@ -37,6 +37,13 @@ from typing import TYPE_CHECKING
 
 from returns.unsafe import unsafe_perform_io
 
+from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_overrides import (
+    effective_acceptance_policy,
+    effective_acceptance_rework_cap,
+    effective_admission_policy,
+    effective_merge_on_review_cap,
+    effective_review_fix_cap,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings import (
     DEFAULT_ACCEPTANCE_POLICY,
     DEFAULT_ACCEPTANCE_REWORK_CAP,
@@ -47,11 +54,6 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings impo
     DEFAULT_READY_AGING_THRESHOLD_HOURS,
     DEFAULT_REVIEW_FIX_CAP,
     DEFAULT_WIP_CAP,
-    effective_acceptance_policy,
-    effective_acceptance_rework_cap,
-    effective_admission_policy,
-    effective_merge_on_review_cap,
-    effective_review_fix_cap,
     resolve_acceptance_mode,
     resolve_acceptance_rework_cap,
     resolve_auto_approve_ready,

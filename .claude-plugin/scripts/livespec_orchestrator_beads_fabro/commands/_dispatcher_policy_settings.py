@@ -1,8 +1,10 @@
-"""Dispatcher policy setting reads and per-item effective-policy resolution.
+"""Dispatcher policy setting reads — the repository-wide global defaults.
 
 This module owns the `.livespec.jsonc` reads for the independent
-`dispatcher.*` settings and the per-item-over-global policy resolution used by
-the Dispatcher valves.
+`dispatcher.*` settings. The per-item-over-global resolution the Dispatcher
+valves call sits beside it in `_dispatcher_policy_overrides.py`: a global
+default and a per-item label override are two questions with two inputs, and
+only the second needs a `WorkItem`.
 
 ⛔ AN UNREADABLE CONFIG IS NOT AN UNCONFIGURED ONE. Every read here used to
 answer with the setting's safe default in four different situations: the file
@@ -33,7 +35,6 @@ parses: ..." on exactly the condition the read half swallowed.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
@@ -41,38 +42,31 @@ from returns.io import IOFailure, IOResult, IOSuccess
 from returns.result import Failure, Result, Success
 
 from livespec_orchestrator_beads_fabro.commands import _jsonc
-from livespec_orchestrator_beads_fabro.commands._plan_anchor import is_spec_commitment
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from livespec_orchestrator_beads_fabro.types import WorkItem
-
 __all__: list[str] = [
-    "ACCEPTANCE_REWORK_CAP_LABEL",
     "DEFAULT_ACCEPTANCE_POLICY",
     "DEFAULT_ACCEPTANCE_REWORK_CAP",
     "DEFAULT_ADMISSION_POLICY",
+    "DEFAULT_AUTOMATED_REGROOM_CAP",
     "DEFAULT_AUTO_APPROVE_READY",
     "DEFAULT_DRIFT_CAPTURE_MERGE_THRESHOLD",
+    "DEFAULT_GROOM_CUT_APPROVAL",
     "DEFAULT_MERGE_ON_REVIEW_CAP",
     "DEFAULT_READY_AGING_THRESHOLD_HOURS",
     "DEFAULT_REQUIRE_INVOKER",
     "DEFAULT_REVIEW_FIX_CAP",
     "DEFAULT_WIP_CAP",
-    "MERGE_ON_REVIEW_CAP_LABEL",
-    "REVIEW_FIX_CAP_LABEL",
     "PolicySettingUnreadable",
-    "effective_acceptance_policy",
-    "effective_acceptance_rework_cap",
-    "effective_admission_policy",
-    "effective_merge_on_review_cap",
-    "effective_review_fix_cap",
     "read_dispatcher_config_value",
     "resolve_acceptance_mode",
     "resolve_acceptance_rework_cap",
     "resolve_auto_approve_ready",
+    "resolve_automated_regroom_cap",
     "resolve_drift_capture_merge_threshold",
+    "resolve_groom_cut_approval",
     "resolve_merge_on_review_cap",
     "resolve_ready_aging_threshold_hours",
     "resolve_require_invoker",
@@ -90,8 +84,9 @@ DEFAULT_ACCEPTANCE_REWORK_CAP = 2
 DEFAULT_READY_AGING_THRESHOLD_HOURS = 24
 DEFAULT_REQUIRE_INVOKER = False
 DEFAULT_DRIFT_CAPTURE_MERGE_THRESHOLD = 1
+DEFAULT_GROOM_CUT_APPROVAL = "human"
+DEFAULT_AUTOMATED_REGROOM_CAP = 2
 
-_AUTO_ADMISSION = "auto"
 _LIVESPEC_CONFIG = ".livespec.jsonc"
 _PLUGIN_BLOCK = "livespec-orchestrator-beads-fabro"
 _DISPATCHER_KEY = "dispatcher"
@@ -104,10 +99,10 @@ _ACCEPTANCE_REWORK_CAP_KEY = "acceptance_rework_cap"
 _READY_AGING_THRESHOLD_HOURS_KEY = "ready_aging_threshold_hours"
 _REQUIRE_INVOKER_KEY = "require_invoker"
 _DRIFT_CAPTURE_MERGE_THRESHOLD_KEY = "drift_capture_merge_threshold"
-MERGE_ON_REVIEW_CAP_LABEL = "merge-on-review-cap:"
-REVIEW_FIX_CAP_LABEL = "review-fix-cap:"
-ACCEPTANCE_REWORK_CAP_LABEL = "acceptance-rework-cap:"
+_GROOM_CUT_APPROVAL_KEY = "groom_cut_approval"
+_AUTOMATED_REGROOM_CAP_KEY = "automated_regroom_cap"
 _ACCEPTANCE_POLICIES = frozenset(("ai-only", "ai-then-human", "human-only"))
+_GROOM_CUT_APPROVALS = frozenset(("human", "consensus"))
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -145,8 +140,45 @@ def resolve_merge_on_review_cap(*, cwd: Path) -> IOResult[bool, PolicySettingUnr
 
 def resolve_acceptance_mode(*, cwd: Path) -> IOResult[str, PolicySettingUnreadable]:
     """Read `dispatcher.acceptance_mode`, defaulting to `ai-then-human`."""
-    return read_dispatcher_config_value(cwd=cwd, key=_ACCEPTANCE_MODE_KEY).bind_result(
-        lambda value: _acceptance_mode_value(value=value)
+    return _resolve_enum_setting(
+        cwd=cwd,
+        key=_ACCEPTANCE_MODE_KEY,
+        default=DEFAULT_ACCEPTANCE_POLICY,
+        allowed=_ACCEPTANCE_POLICIES,
+    )
+
+
+def resolve_groom_cut_approval(*, cwd: Path) -> IOResult[str, PolicySettingUnreadable]:
+    """Read `dispatcher.groom_cut_approval`, defaulting to `human`.
+
+    INERT at this slice by design: nothing dispatches, admits or grooms on
+    this value yet. Its consumers are the groom door and the registered groom
+    workflow variant of the consensus-gated automated groom cut in
+    contracts.md, each filed as its own item, so the key is readable
+    configuration and nothing else until they land. Note that
+    `consensus` behaves as `human` until livespec core ratifies the consensus
+    tier — that equivalence belongs to the door, not to this read, which
+    reports what the operator wrote.
+    """
+    return _resolve_enum_setting(
+        cwd=cwd,
+        key=_GROOM_CUT_APPROVAL_KEY,
+        default=DEFAULT_GROOM_CUT_APPROVAL,
+        allowed=_GROOM_CUT_APPROVALS,
+    )
+
+
+def resolve_automated_regroom_cap(*, cwd: Path) -> IOResult[int, PolicySettingUnreadable]:
+    """Read `dispatcher.automated_regroom_cap`, defaulting to 2.
+
+    The third rework cap, and INERT for the same reason as its sibling above:
+    it bounds re-drafting rounds the consensus tier has no way to start yet.
+    """
+    return _resolve_int_setting(
+        cwd=cwd,
+        key=_AUTOMATED_REGROOM_CAP_KEY,
+        default=DEFAULT_AUTOMATED_REGROOM_CAP,
+        minimum=1,
     )
 
 
@@ -198,64 +230,6 @@ def resolve_require_invoker(*, cwd: Path) -> IOResult[bool, PolicySettingUnreada
     (the journal invoker attribution contract in contracts.md).
     """
     return _resolve_bool_setting(cwd=cwd, key=_REQUIRE_INVOKER_KEY, default=DEFAULT_REQUIRE_INVOKER)
-
-
-def effective_admission_policy(
-    *, item: WorkItem, cwd: Path
-) -> IOResult[str, PolicySettingUnreadable]:
-    """The item's effective admission policy with per-item-over-global precedence."""
-    if _is_spec_change_tier(item=item):
-        return IOSuccess(DEFAULT_ADMISSION_POLICY)
-    if item.admission_policy is not None:
-        return IOSuccess(item.admission_policy)
-    return resolve_auto_approve_ready(cwd=cwd).map(
-        lambda auto: _AUTO_ADMISSION if auto else DEFAULT_ADMISSION_POLICY
-    )
-
-
-def effective_acceptance_policy(
-    *, item: WorkItem, cwd: Path
-) -> IOResult[str, PolicySettingUnreadable]:
-    """The item's effective acceptance policy with per-item-over-global precedence."""
-    if item.acceptance_policy is not None:
-        return IOSuccess(item.acceptance_policy)
-    return resolve_acceptance_mode(cwd=cwd)
-
-
-def effective_merge_on_review_cap(
-    *, item: WorkItem, cwd: Path, raw_labels: Sequence[str] = ()
-) -> IOResult[bool, PolicySettingUnreadable]:
-    """Resolve `merge_on_review_cap`, with a raw per-item label overriding global."""
-    _ = item
-    label_value = _raw_label_value(raw_labels=raw_labels, prefix=MERGE_ON_REVIEW_CAP_LABEL)
-    parsed = _bool_label_value(value=label_value)
-    if parsed is not None:
-        return IOSuccess(parsed)
-    return resolve_merge_on_review_cap(cwd=cwd)
-
-
-def effective_review_fix_cap(
-    *, item: WorkItem, cwd: Path, raw_labels: Sequence[str] = ()
-) -> IOResult[int, PolicySettingUnreadable]:
-    """Resolve `review_fix_cap`, with a raw per-item label overriding global."""
-    _ = item
-    label_value = _raw_label_value(raw_labels=raw_labels, prefix=REVIEW_FIX_CAP_LABEL)
-    parsed = _positive_int_label_value(value=label_value)
-    if parsed is not None:
-        return IOSuccess(parsed)
-    return resolve_review_fix_cap(cwd=cwd)
-
-
-def effective_acceptance_rework_cap(
-    *, item: WorkItem, cwd: Path, raw_labels: Sequence[str] = ()
-) -> IOResult[int, PolicySettingUnreadable]:
-    """Resolve `acceptance_rework_cap`, with a raw per-item label overriding global."""
-    _ = item
-    label_value = _raw_label_value(raw_labels=raw_labels, prefix=ACCEPTANCE_REWORK_CAP_LABEL)
-    parsed = _positive_int_label_value(value=label_value)
-    if parsed is not None:
-        return IOSuccess(parsed)
-    return resolve_acceptance_rework_cap(cwd=cwd)
 
 
 def read_dispatcher_config_value(
@@ -324,6 +298,14 @@ def _resolve_int_setting(
     )
 
 
+def _resolve_enum_setting(
+    *, cwd: Path, key: str, default: str, allowed: frozenset[str]
+) -> IOResult[str, PolicySettingUnreadable]:
+    return read_dispatcher_config_value(cwd=cwd, key=key).bind_result(
+        lambda value: _enum_value(key=key, value=value, default=default, allowed=allowed)
+    )
+
+
 def _bool_value(*, key: str, value: object, default: bool) -> Result[bool, PolicySettingUnreadable]:
     if value is None:
         return Success(default)
@@ -342,48 +324,18 @@ def _int_value(
     return Failure(_rejected(setting=key, value=value, want=f"an integer >= {minimum}"))
 
 
-def _acceptance_mode_value(*, value: object) -> Result[str, PolicySettingUnreadable]:
+def _enum_value(
+    *, key: str, value: object, default: str, allowed: frozenset[str]
+) -> Result[str, PolicySettingUnreadable]:
     if value is None:
-        return Success(DEFAULT_ACCEPTANCE_POLICY)
-    if isinstance(value, str) and value in _ACCEPTANCE_POLICIES:
+        return Success(default)
+    if isinstance(value, str) and value in allowed:
         return Success(value)
-    want = "one of " + ", ".join(sorted(_ACCEPTANCE_POLICIES))
-    return Failure(_rejected(setting=_ACCEPTANCE_MODE_KEY, value=value, want=want))
+    want = "one of " + ", ".join(sorted(allowed))
+    return Failure(_rejected(setting=key, value=value, want=want))
 
 
 def _rejected(*, setting: str, value: object, want: str) -> PolicySettingUnreadable:
     return PolicySettingUnreadable(
         setting=setting, detail=f"dispatcher.{setting} must be {want}; got {value!r}"
     )
-
-
-def _raw_label_value(*, raw_labels: Sequence[str], prefix: str) -> str | None:
-    for label in raw_labels:
-        if label.startswith(prefix):
-            return label[len(prefix) :]
-    return None
-
-
-def _bool_label_value(*, value: str | None) -> bool | None:
-    if value == "true":
-        return True
-    if value == "false":
-        return False
-    return None
-
-
-def _positive_int_label_value(*, value: str | None) -> int | None:
-    if value is None or not value.isdecimal():
-        return None
-    parsed = int(value)
-    if parsed > 0:
-        return parsed
-    return None
-
-
-def _is_spec_change_tier(*, item: WorkItem) -> bool:
-    # A plan ANCHOR MARKER shares `spec_commitment_hint` with a genuine
-    # commitment to ratified spec text, so presence is not the question: a
-    # plan-anchored item pinned to the manual admission floor here is a
-    # misrouting, not a gate.
-    return is_spec_commitment(spec_id=item.spec_commitment_hint)

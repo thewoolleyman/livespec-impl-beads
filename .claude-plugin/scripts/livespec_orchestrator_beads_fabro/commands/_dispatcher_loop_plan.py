@@ -30,11 +30,13 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_plan import (
     janitor_checkout_path,
 )
 from livespec_orchestrator_beads_fabro.commands._dispatcher_plan_build import DispatchPlan
+from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_overrides import (
+    effective_merge_on_review_cap,
+    effective_review_fix_cap,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings import (
     DEFAULT_MERGE_ON_REVIEW_CAP,
     DEFAULT_REVIEW_FIX_CAP,
-    effective_merge_on_review_cap,
-    effective_review_fix_cap,
 )
 from livespec_orchestrator_beads_fabro.commands._node_timeouts import (
     NodeTimeouts,

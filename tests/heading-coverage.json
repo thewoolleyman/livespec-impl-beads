@@ -520,7 +520,8 @@
     "spec_root": "SPECIFICATION",
     "spec_file": "contracts.md",
     "test": "TODO",
-    "reason": "Dispatcher-policy-settings revise: the wire surface of the three policy settings (auto_approve_ready, acceptance_mode, merge_on_review_cap), the two rework caps (review_fix_cap, acceptance_rework_cap), the no-per-item-override wip_cap, the always-escalate-needs-human floor, the per-disposition audit journal, and the API-configurable completeness principle. Integration-tier test id populated as the clause->scenario->test binding lands; the behaviors are exercised by Scenarios 33-37."
+    "reason": "Dispatcher-policy-settings revise, retitled by the v100 consensus-gated-automated-groom-cut revise: the wire surface of the FOUR policy settings of '### The four policy settings' (auto_approve_ready, acceptance_mode, merge_on_review_cap, and groom_cut_approval, whose per-item label may only LOWER an item to human), the THREE rework caps of '### The three rework caps' (review_fix_cap, acceptance_rework_cap, automated_regroom_cap), the per-item merge hold, the no-per-item-override wip_cap, the always-escalate-needs-human floor, the per-disposition audit journal, and the API-configurable completeness principle. The two v100 settings are parsed and manifested by bd-ib-v6nexg and stay inert there; the integration-tier test id is populated as the clause->scenario->test binding lands, and the behaviors are exercised by Scenarios 33-37.",
+    "work_item": "bd-ib-v6nexg"
   },
   {
     "heading": "## Dispatcher policy settings constraints",

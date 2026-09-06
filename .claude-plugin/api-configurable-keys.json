@@ -37,6 +37,22 @@
       "per_item_override": true
     },
     {
+      "key": "groom_cut_approval",
+      "type": "enum",
+      "default": "human",
+      "values": [
+        "human",
+        "consensus"
+      ],
+      "per_item_override": true
+    },
+    {
+      "key": "automated_regroom_cap",
+      "type": "positive_integer",
+      "default": 2,
+      "per_item_override": true
+    },
+    {
       "key": "ready_aging_threshold_hours",
       "type": "positive_integer",
       "default": 24,

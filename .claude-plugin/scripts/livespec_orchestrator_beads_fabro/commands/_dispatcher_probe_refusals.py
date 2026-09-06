@@ -36,9 +36,11 @@ from livespec_orchestrator_beads_fabro.commands._dispatcher_invoker import (
     INVOKER_FLAG,
     InvokerIdentity,
 )
+from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_overrides import (
+    effective_acceptance_policy,
+)
 from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings import (
     DEFAULT_ACCEPTANCE_POLICY,
-    effective_acceptance_policy,
 )
 
 if TYPE_CHECKING:

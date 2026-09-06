@@ -6,16 +6,18 @@ from dataclasses import replace
 from pathlib import Path
 from typing import TypeVar
 
-from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings import (
-    DEFAULT_ACCEPTANCE_REWORK_CAP,
-    DEFAULT_ADMISSION_POLICY,
-    DEFAULT_MERGE_ON_REVIEW_CAP,
-    DEFAULT_REVIEW_FIX_CAP,
+from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_overrides import (
     _is_spec_change_tier,
     effective_acceptance_rework_cap,
     effective_admission_policy,
     effective_merge_on_review_cap,
     effective_review_fix_cap,
+)
+from livespec_orchestrator_beads_fabro.commands._dispatcher_policy_settings import (
+    DEFAULT_ACCEPTANCE_REWORK_CAP,
+    DEFAULT_ADMISSION_POLICY,
+    DEFAULT_MERGE_ON_REVIEW_CAP,
+    DEFAULT_REVIEW_FIX_CAP,
     resolve_auto_approve_ready,
 )
 from livespec_orchestrator_beads_fabro.types import WorkItem

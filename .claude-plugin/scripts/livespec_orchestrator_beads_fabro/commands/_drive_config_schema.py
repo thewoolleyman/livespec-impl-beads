@@ -17,6 +17,7 @@ __all__: list[str] = [
 ]
 
 _ACCEPTANCE_MODES = ("ai-only", "ai-then-human", "human-only")
+_GROOM_CUT_APPROVALS = ("human", "consensus")
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -56,6 +57,26 @@ CONFIG_KEYS: tuple[ConfigKey, ...] = (
     ),
     ConfigKey(
         key="acceptance_rework_cap",
+        value_type="positive_integer",
+        default=2,
+        per_item_override=True,
+    ),
+    # The two settings v100 ratified with the consensus-gated automated groom
+    # cut. Both are API-configurable like every other policy setting, and both
+    # are INERT until the groom door and the groom workflow variant that read
+    # them land. `groom_cut_approval` carries a per-item override that may only
+    # LOWER an item to `human` — the manifest records that an override EXISTS,
+    # not which direction it may move, and `effective_groom_cut_approval` is
+    # where the asymmetry is enforced.
+    ConfigKey(
+        key="groom_cut_approval",
+        value_type="enum",
+        default="human",
+        values=_GROOM_CUT_APPROVALS,
+        per_item_override=True,
+    ),
+    ConfigKey(
+        key="automated_regroom_cap",
         value_type="positive_integer",
         default=2,
         per_item_override=True,

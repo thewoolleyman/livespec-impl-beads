@@ -99,6 +99,8 @@ def test_drive_reads_all_effective_dispatcher_settings_with_sources(tmp_path: Pa
         "acceptance_mode",
         "review_fix_cap",
         "acceptance_rework_cap",
+        "groom_cut_approval",
+        "automated_regroom_cap",
         "ready_aging_threshold_hours",
         "wip_cap",
         "drift_capture_merge_threshold",
@@ -274,6 +276,19 @@ def test_drive_publishes_api_configurable_key_manifest(tmp_path: Path) -> None:
         },
         "acceptance_rework_cap": {
             "key": "acceptance_rework_cap",
+            "type": "positive_integer",
+            "default": 2,
+            "per_item_override": True,
+        },
+        "groom_cut_approval": {
+            "key": "groom_cut_approval",
+            "type": "enum",
+            "default": "human",
+            "values": ["human", "consensus"],
+            "per_item_override": True,
+        },
+        "automated_regroom_cap": {
+            "key": "automated_regroom_cap",
             "type": "positive_integer",
             "default": 2,
             "per_item_override": True,
