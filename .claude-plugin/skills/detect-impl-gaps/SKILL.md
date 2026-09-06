@@ -1,6 +1,6 @@
 ---
 name: detect-impl-gaps
-description: Detect spec→impl gaps mechanically via the Spec Reader and emit the current gap-id set as JSON. Required thin-transport surface per livespec/SPECIFICATION/contracts.md. Pure read-and-emit pass-through — never mutates the work-items store, never prompts the user. Invoke as `/livespec-orchestrator-beads-fabro:detect-impl-gaps [--spec-target <path>] [--project-root <path>] [--json] [--since-version <vN>]`.
+description: Enumerate the ratified spec's MUST/SHOULD clauses mechanically via the Spec Reader and emit the current gap-id set as JSON. This is a spec-clause enumerator, not a spec→impl comparator — it never reads implementation state, so a returned gap-id means the clause is not yet tracked by a work-item, never that it is missing from the implementation. Required thin-transport surface per livespec/SPECIFICATION/contracts.md. Pure read-and-emit pass-through — never mutates the work-items store, never prompts the user. Invoke as `/livespec-orchestrator-beads-fabro:detect-impl-gaps [--spec-target <path>] [--project-root <path>] [--json] [--since-version <vN>]`.
 allowed-tools: Bash
 ---
 
@@ -52,9 +52,13 @@ Validation of `--since-version`:
 - The heavyweight `capture-impl-gaps` sibling invokes
   `detect-impl-gaps --json` as its detection step before walking
   the user through per-gap consent.
-- The heavyweight `implement` skill invokes `detect-impl-gaps
-  --json` at gap-tied closure verification to confirm the
-  `gap_id` is no longer present in the returned set.
+- The heavyweight `implement` skill does NOT invoke this skill at
+  gap-tied closure. Per `prose/implement.md` Step 5a, closure is
+  anchored to the CHECK PATH recorded on the work-item's own metadata
+  (`gap_check_path`) — an executable check that must pass and whose
+  `--negative-control` arm must fail — and never to `gap_id`, which
+  hashes a hard-wrapped source line and re-keys on reflow, so it cannot
+  anchor a closure that must survive the clause being reworded.
 
 ## Properties
 
