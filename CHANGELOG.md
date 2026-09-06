@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.134.0](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.133.2...v0.134.0) (2026-09-06)
+
+
+### Features
+
+* **drive:** add the set-merge-hold valve, its forge arm/disarm, and a merge_hold projection field ([f8bcfd1](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/f8bcfd117d40487fa671604b91d39bf8779711df))
+* parse the two v100 groom-cut policy settings as inert configuration ([0fb0a0f](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/0fb0a0f2f925e16861babddfeb85cb178e9be197))
+
+
+### Bug Fixes
+
+* **groom:** gate approved-slice filing on a recorded approval (bd-ib-ouoq) ([1064ffe](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/commit/1064ffe5a7a836b6cadc66d1f480f762dfcf610f))
+
 ## [0.133.2](https://github.com/thewoolleyman/livespec-orchestrator-beads-fabro/compare/v0.133.1...v0.133.2) (2026-09-06)
 
 
